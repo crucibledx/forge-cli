@@ -8,7 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.2] — 2026-05-05
 
 ### Changed
-- **`forge init` no longer overwrites existing config** — if `.crucible/forge.config.yaml` is found, the wizard aborts with a message pointing to `forge config` (coming in v0.2)
+
+- **`forge init` no longer overwrites existing config** — if `.crucible/forge.config.yaml` is found, the wizard aborts
+  with a message pointing to `forge config` (coming in v0.2)
 - Removed the "Overwrite existing config?" confirm prompt entirely
 - Updated unit and e2e tests: removed overwrite tests, added abort-on-existing tests
 
@@ -17,9 +19,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.1] — 2026-05-05
 
 ### Added
-- **Local source type** — `forge init` now supports `type: local` sources (reads from a local directory, no network required)
-- **Source-type select in init wizard** — instead of jumping straight to git URL, users now pick a source type first (`Git (SSH / HTTPS)` or `Local directory`)
-- `getSourceLoaderOptions()` helper on the source barrel — populates the select from the loader registry; adding a new source type requires no handler changes
+
+- **Local source type** — `forge init` now supports `type: local` sources (reads from a local directory, no network
+  required)
+- **Source-type select in init wizard** — instead of jumping straight to git URL, users now pick a source type first (
+  `Git (SSH / HTTPS)` or `Local directory`)
+- `getSourceLoaderOptions()` helper on the source barrel — populates the select from the loader registry; adding a new
+  source type requires no handler changes
 - `label` field on `SourceLoaderEntry` for display in the select prompt
 - Unit tests for `localLoader` and `getSourceLoaderOptions`
 
@@ -28,6 +34,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] — 2026-05-05
 
 ### Added
+
 - `forge init` wizard — scans for existing AI configs, prompts per-assistant, writes `.crucible/forge.config.yaml`
 - `forge sync` — pulls from a single git source, places files into correct assistant paths
 - `forge sync --dry-run` — previews what would change without writing
