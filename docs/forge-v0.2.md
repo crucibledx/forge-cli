@@ -13,13 +13,13 @@
 
 ### New user-facing commands
 
-| Command             | What it solves                                          |
-|---------------------|---------------------------------------------------------|
-| `forge config set`  | Targeted config change saved to local layer first       |
-| `forge config show` | View effective config (merged: global + project + local)|
-| `forge config diff` | Show what differs between config layers                 |
-| `forge config promote` | Promote local change up to project or global layer  |
-| `forge update`      | Re-run the init wizard pre-populated with existing values |
+| Command                | What it solves                                            |
+|------------------------|-----------------------------------------------------------|
+| `forge config set`     | Targeted config change saved to local layer first         |
+| `forge config show`    | View effective config (merged: global + project + local)  |
+| `forge config diff`    | Show what differs between config layers                   |
+| `forge config promote` | Promote local change up to project or global layer        |
+| `forge update`         | Re-run the init wizard pre-populated with existing values |
 
 ### Init wizard improvements
 
