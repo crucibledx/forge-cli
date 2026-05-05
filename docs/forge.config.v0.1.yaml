@@ -1,0 +1,64 @@
+# .crucible/forge.config.yaml
+# Schema version — enables clean migrations
+version: "1"
+
+# ── Project metadata (optional) ────────────────────────────────
+project:
+  name: my-api-service          # defaults to directory name
+  description: "Backend API"
+
+# ── AI Assistants ───────────────────────────────────────────────
+# Owned by: bootstrap/init feature
+# Detected automatically on `forge init`, or specified manually
+assistants:
+  - id: claude-code
+    enabled: true
+    config:
+      skills_dir: .claude/skills
+      settings:
+        permissions:
+          allow:
+            - "Bash(npm run *)"
+            - "Bash(git *)"
+            - "Bash(docker *)"
+          deny:
+            - "Read(.env)"
+            - "Read(.env.*)"
+
+  - id: cursor
+    enabled: true
+    config:
+      rules_dir: .cursor/rules
+
+  - id: windsurf
+    enabled: true
+    config:
+      skills_dir: .windsurf/skills
+      workflows_dir: .windsurf/workflows
+      rules_dir: .windsurf/rules
+
+  - id: copilot
+    enabled: false             # detected, consciously skipped
+    config:
+      instructions_file: .github/copilot-instructions.md
+
+  - id: cline
+    enabled: false
+    config:
+      rules_dir: .clinerules
+
+# ── Source (v0.1: single source only) ──────────────────────────
+# Owned by: sync feature
+# Where to pull shared skills/workflows from
+source:
+  name: team-shared
+  type: git
+  url: git@github.com:acme/ai-configs.git
+  branch: main
+  # Subdirectory inside the source repo (optional, default: root)
+  path: skills/
+
+# ── Future sections (reserved, empty in v0.1) ─────────────────
+# sources: []         # v0.2: multiple sources with merge
+# sync: {}            # v0.2: conflict strategy, scheduler
+# plugins: []         # v0.3: plugin registry

@@ -1,0 +1,114 @@
+# .crucible/forge.config.yaml
+# Schema version — enables clean migrations
+version: "1"
+
+# ── Project metadata (optional) ────────────────────────────────
+project:
+  name: my-api-service          # defaults to directory name
+  description: "Backend API"
+
+# ── AI Assistants ───────────────────────────────────────────────
+# Owned by: bootstrap/init feature
+# Detected automatically on `forge init`, or specified manually
+assistants:
+  - id: claude-code
+    enabled: true
+    config:
+      skills_dir: .claude/skills
+      settings:
+        permissions:
+          allow:
+            - "Bash(npm run *)"
+            - "Bash(git *)"
+            - "Bash(docker *)"
+          deny:
+            - "Read(.env)"
+            - "Read(.env.*)"
+
+  - id: cursor
+    enabled: true
+    config:
+      rules_dir: .cursor/rules
+
+  - id: windsurf
+    enabled: true
+    config:
+      skills_dir: .windsurf/skills
+      workflows_dir: .windsurf/workflows
+      rules_dir: .windsurf/rules
+
+  - id: copilot
+    enabled: false             # detected, consciously skipped
+    config:
+      instructions_file: .github/copilot-instructions.md
+
+  - id: cline
+    enabled: false
+    config:
+      rules_dir: .clinerules
+
+# ── Sources ─────────────────────────────────────────────────────
+# Owned by: sync feature
+# Where to pull shared skills/workflows from
+sources:
+  - name: company-wide
+    type: CDN
+    url: https://cdn.company.com/shared-ai-resources/
+
+  - name: team-backend
+    type: git
+    url: git@ssh.dev.azure.com:v3/acme/eng/backend-team-ai.git
+    branch: main
+    # Path inside the source repo containing skills
+    # If omitted, entire repo root is used
+    path: shared/
+
+  - name: local-overrides
+    type: local
+    path: ~/my-personal-ai-configs/
+    # Local sources are always highest priority in merge
+
+
+# ── Sync targets ────────────────────────────────────────────────
+# Maps source content to assistant destinations as an override to the default
+# If omitted, auto-resolved from default implementation in the code
+# Or here values can be placed from the defaults in code, like a possibility to override later
+targets:
+  - assistant: claude-code
+    source_glob: "skills/**"
+    destination: .claude/skills/
+
+  - assistant: windsurf
+    source_glob: "skills/**"
+    destination: .windsurf/skills/
+
+  - assistant: windsurf
+    source_glob: "workflows/**"
+    destination: .windsurf/workflows/
+
+  - assistant: cursor
+    source_glob: "rules/**"
+    destination: .cursor/rules/
+
+# ── Sync behavior ───────────────────────────────────────────────
+sync:
+  # Strategy when same file exists in multiple sources
+  # "last-wins" | "first-wins" | "error"
+  conflict_strategy: last-wins
+
+  # Source priority for conflict resolution (highest first)
+  source_priority:
+    - local-overrides
+    - team-backend
+    - company-wide
+
+  # Auto-sync schedule (cron expression)
+  # null = manual only
+  schedule: "0 9 * * 1"        # Every Monday at 9am
+
+  # Keep local files not present in source
+  keep_local: true
+
+# ── Plugin registry (future) ────────────────────────────────────
+# Will be used when forge core CLI arrives
+plugins: []
