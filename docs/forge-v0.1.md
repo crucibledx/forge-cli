@@ -326,15 +326,31 @@ $ forge init
   Add Windsurf?     ›  No
   Add Copilot?      ›  No
 
-  Claude Code permissions — allow npm/git/docker? ›  Yes
-
   Add a shared skills source? ›  Yes
+
+  Source type:
+  ›  Git (SSH / HTTPS)
+     Local directory
+
   Source git URL (SSH or HTTPS):
   ›  git@github.com:acme/ai-configs.git
 
   ✓ Config written to .crucible/forge.config.yaml
-  
+
   Run `forge sync` to fetch shared skills now.
+```
+
+If `.crucible/forge.config.yaml` already exists, `forge init` aborts early:
+
+```
+$ forge init
+
+  ┌─────────────────────────────────────────────┐
+  │  Forge — AI Environment Setup               │
+  └─────────────────────────────────────────────┘
+
+  ⚠ Existing .crucible/forge.config.yaml found.
+  Edit it manually or use `forge config` (coming in v0.2).
 ```
 
 ### `forge sync`
@@ -380,14 +396,14 @@ $ forge sync --dry-run
 flowchart TD
     A([forge init]) --> B[Run detectors:\nscan filesystem for AI configs]
     B --> C{Existing\n.crucible/forge.config.yaml?}
-    C -- Yes --> D[Load existing config\nshow current state]
+    C -- Yes --> D[Warn: config exists\nEdit manually or use forge config v0.2]
+    D --> P2([Done — aborted])
     C -- No --> E[Start fresh]
-    D --> F[Ask: confirm detected\nassistants are correct?]
     E --> G[Show detected assistants\nask which to keep/add]
-    F --> G
-    G --> H[Collect assistant preferences\nand config options]
+    G --> H[Collect assistant preferences]
     H --> I{Add shared\nsource?}
-    I -- Yes --> J[Prompt for git URL\nand optional branch/path]
+    I -- Yes --> IS[Select source type\ngit / local]
+    IS --> J[Configure source\nask type-specific questions]
     I -- No --> K
     J --> K[Generate config mutations\nfull .crucible/forge.config.yaml]
     K --> L[Write config\nto disk]
@@ -399,6 +415,7 @@ O --> P
 
 style A fill: #1a1a2e, color: #e2e8f0
 style P fill: #1a3328, color: #e2e8f0
+style P2 fill: #2d1010, color: #e2e8f0
 ```
 
 ---
@@ -466,16 +483,22 @@ HTTPS + PAT: read from `FORGE_GIT_TOKEN` env var or OS keychain. Never stored in
 ```typescript
 interface LocalSource {
     type: "local"
-    path: string         // absolute or ~ path
+    path: string         // absolute or ~ path to a local directory
 }
 ```
+
+Useful for personal override directories or monorepo-internal shared configs.
+No network required — files are read directly from the local filesystem.
+
+`forge init` presents a source-type select populated from the `sourceLoaders` registry.
+Adding a new source type = new loader file + registration, no handler changes required.
 
 ---
 
 ## Target Auto-Resolution
 
 If the user doesn't specify explicit target mappings, files are placed automatically based on enabled assistants.
-Paths are based on the [AI config research](../ai-config-research.md).
+Paths are based on the [AI config research](../../../research/ai-config-research.md).
 
 ### Source repo structure (recommended)
 
@@ -597,17 +620,21 @@ Built with `bun build --compile` — produces a native binary for macOS, Linux, 
 
 ## Open Questions for v0.1
 
-- [x] **Windsurf paths:** Confirmed via [research](../ai-config-research.md):
+- [x] **Windsurf paths:** Confirmed via [research](../../../research/ai-config-research.md):
   skills in `.windsurf/skills/<name>/SKILL.md`, rules in `.windsurf/rules/*.md`,
   workflows in `.windsurf/workflows/*.md`
 - [x] **Copilot single-file:** v0.1 syncs rules as individual `.instructions.md` files into `.github/instructions/`.
   The always-on `.github/copilot-instructions.md` concatenation is deferred to v0.2.
-- [ ] **Config in `.gitignore`?** `.crucible/forge.config.yaml` should be committed (team shares it).
-  `.crucible/forge.config.local.yaml` for personal overrides (gitignored). See v0.2 for config promotion
-  workflow (`local → project → global` via CLI commands).
+- [x] **Config in `.gitignore`?** `.crucible/forge.config.yaml` should be committed (team shares it).
+  `.crucible/forge.config.local.yaml` for personal overrides (gitignored). Config promotion
+  (`local → project → global`) is in v0.2.
+- [x] **Overwrite in init?** `forge init` aborts if a config already exists — no overwrite.
+  Users edit YAML manually or wait for `forge config set` (v0.2). Keeps `init` safe to re-run.
+- [x] **Source type extensibility:** `init` shows a source-type select populated from the
+  `sourceLoaders` registry. New source types = new loader file, no handler changes needed.
 
 ---
 
-*Document version: 0.1 — pre-implementation*
+*Document version: 0.1 — implementation complete*
 
 *Scope: forge v0.1 only — see forge-v0.2.md for next milestone*
