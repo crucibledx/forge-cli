@@ -1,0 +1,28 @@
+node_modules/
+dist/
+*.tgz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Bun
+bun.lockb
+bun.lock
+*.bun-build
+
+# Local config (personal overrides, not committed)
+.crucible/*.local.yaml
+
+# Temp / cache
+*.tmp
+.cache/
+
+# Logs
+logs/
+*.log

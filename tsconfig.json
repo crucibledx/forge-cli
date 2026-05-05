@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2025",
+    "module": "ESNext",
+    "types": ["node", "bun"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "declaration": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@domain/*": ["./src/domain/*"],
+      "@application/*": ["./src/application/*"],
+      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@test-helpers/*": ["./src/test-helpers/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "e2e/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
