@@ -87,10 +87,18 @@ mock.module('@infrastructure/cli/prompts', () => ({
         }
     }),
     confirm: async (opts: {message: string}) => promptResponses[opts.message] ?? false,
+    select: async (opts: {message: string}) => promptResponses[opts.message] ?? 'git',
     text: async (opts: {
         message: string
         defaultValue?: string
     }) => promptResponses[opts.message] ?? opts.defaultValue ?? '',
+}))
+
+mock.module('@infrastructure/source', () => ({
+    getSourceLoaderOptions: () => [
+        {value: 'git', label: 'Git (SSH / HTTPS)'},
+        {value: 'local', label: 'Local directory'},
+    ],
 }))
 
 mock.module('../sync', () => ({
@@ -137,9 +145,10 @@ describe('runInit handler', () => {
             [M.assistants.addUndetected(cursor.name)]: false,
             [M.assistants.addUndetected(windsurf.name)]: false,
             [M.source.addSource]: true,
-            [M.source.url.message]: 'git@github.com:org/repo.git',
-            [M.source.branch]: 'main',
-            [M.source.subdirectory.message]: '',
+            [M.source.selectType]: 'git',
+            [M.source.git.url.message]: 'git@github.com:org/repo.git',
+            [M.source.git.branch]: 'main',
+            [M.source.git.subdirectory.message]: '',
             [M.sync.runNow]: false,
         }
         const {runInit} = await import('./handler')
@@ -147,6 +156,22 @@ describe('runInit handler', () => {
         const cfg = writtenConfig as {source?: {url: string, type: string}}
         expect(cfg.source?.url).toBe('git@github.com:org/repo.git')
         expect(cfg.source?.type).toBe('git')
+    })
+
+    it('includes local source in config when user selects local type', async () => {
+        promptResponses = {
+            [M.assistants.addUndetected(cursor.name)]: false,
+            [M.assistants.addUndetected(windsurf.name)]: false,
+            [M.source.addSource]: true,
+            [M.source.selectType]: 'local',
+            [M.source.local.path.message]: '~/my-ai-configs',
+            [M.sync.runNow]: false,
+        }
+        const {runInit} = await import('./handler')
+        await runInit({verbose: false})
+        const cfg = writtenConfig as {source?: {path: string, type: string}}
+        expect(cfg.source?.type).toBe('local')
+        expect(cfg.source?.path).toBe('~/my-ai-configs')
     })
 
     it('keeps detected assistant when user confirms', async () => {

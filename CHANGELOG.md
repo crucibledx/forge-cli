@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.1] — 2026-05-05
+
+### Added
+- **Local source type** — `forge init` now supports `type: local` sources (reads from a local directory, no network required)
+- **Source-type select in init wizard** — instead of jumping straight to git URL, users now pick a source type first (`Git (SSH / HTTPS)` or `Local directory`)
+- `getSourceLoaderOptions()` helper on the source barrel — populates the select from the loader registry; adding a new source type requires no handler changes
+- `label` field on `SourceLoaderEntry` for display in the select prompt
+- Unit tests for `localLoader` and `getSourceLoaderOptions`
+
+---
+
 ## [0.1.0] — 2026-05-05
 
 ### Added

@@ -17,7 +17,7 @@ bun.lock
 *.bun-build
 
 # Local config (personal overrides, not committed)
-.crucible/*.local.yaml
+.crucible/*
 
 # Temp / cache
 *.tmp

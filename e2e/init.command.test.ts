@@ -22,6 +22,7 @@ import type {GitSource} from '@domain/config/types'
 
 import type {CliStep} from './helpers'
 import {
+    ARROW_DOWN,
     type CLISession,
     CONFIG_FILE,
     configFilePath,
@@ -65,12 +66,14 @@ function addSource(cli: CLISession): CliStep {
     return declineAllAssistants(cli)
         // then accept adding a source
         .waitForText(M.source.addSource).pressKey(Y)
+        // select source type — press Enter to pick the first option (git)
+        .waitForText(M.source.selectType).pressEnter()
         // write source URL
-        .waitForText(M.source.url.message).write(SOURCE_URL).pressEnter()
+        .waitForText(M.source.git.url.message).write(SOURCE_URL).pressEnter()
         // skip branch - use default
-        .waitForText(M.source.branch).pressEnter()
+        .waitForText(M.source.git.branch).pressEnter()
         // skip subdirectory - use root
-        .waitForText(M.source.subdirectory.message).pressEnter()
+        .waitForText(M.source.git.subdirectory.message).pressEnter()
         // decline run sync command
         .waitForText(M.sync.runNow).pressKey(N)
 }
@@ -167,7 +170,7 @@ describe('forge init — e2e', () => {
         }, TIMEOUT_MS)
     })
 
-    describe('source configuration', () => {
+    describe('source configuration — git', () => {
         it('writes git source with correct url, branch, name and type', async () => {
             await runInitSession(getDir(), addSource)
             expect(existsSync(configFilePath(getDir()))).toBe(true)
@@ -177,6 +180,24 @@ describe('forge init — e2e', () => {
             expect(source.url).toBe(SOURCE_URL)
             expect(source.branch).toBe('main')
             expect(source.name).toBe('team-shared')
+        }, TIMEOUT_MS)
+    })
+
+    describe('source configuration — local', () => {
+        it('writes local source with correct path, name and type', async () => {
+            const localPath = getDir()
+            await runInitSession(getDir(), (cli) =>
+                declineAllAssistants(cli)
+                    .waitForText(M.source.addSource).pressKey(Y)
+                    // arrow down to select 'Local directory' (second option)
+                    .waitForText(M.source.selectType).pressKey(ARROW_DOWN).pressEnter()
+                    .waitForText(M.source.local.path.message).write(localPath).pressEnter()
+                    .waitForText(M.sync.runNow).pressKey(N),
+            )
+            const config = await readConfig(getDir())
+            expect(config.source?.type).toBe('local')
+            expect((config.source as {path: string}).path).toBe(localPath)
+            expect(config.source?.name).toBe('team-shared')
         }, TIMEOUT_MS)
     })
 
@@ -248,9 +269,10 @@ describe('forge init — e2e', () => {
             await runInitSession(getDir(), (cli) =>
                 declineAllAssistants(cli)
                     .waitForText(M.source.addSource).pressKey(Y)
-                    .waitForText(M.source.url.message).write(SOURCE_URL).pressEnter()
-                    .waitForText(M.source.branch).write('develop').pressEnter()
-                    .waitForText(M.source.subdirectory.message).pressEnter()
+                    .waitForText(M.source.selectType).pressEnter()
+                    .waitForText(M.source.git.url.message).write(SOURCE_URL).pressEnter()
+                    .waitForText(M.source.git.branch).write('develop').pressEnter()
+                    .waitForText(M.source.git.subdirectory.message).pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).source as GitSource
@@ -261,9 +283,10 @@ describe('forge init — e2e', () => {
             await runInitSession(getDir(), (cli) =>
                 declineAllAssistants(cli)
                     .waitForText(M.source.addSource).pressKey(Y)
-                    .waitForText(M.source.url.message).write(SOURCE_URL).pressEnter()
-                    .waitForText(M.source.branch).pressEnter()
-                    .waitForText(M.source.subdirectory.message).write('packages/ai').pressEnter()
+                    .waitForText(M.source.selectType).pressEnter()
+                    .waitForText(M.source.git.url.message).write(SOURCE_URL).pressEnter()
+                    .waitForText(M.source.git.branch).pressEnter()
+                    .waitForText(M.source.git.subdirectory.message).write('packages/ai').pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).source as GitSource
@@ -274,12 +297,13 @@ describe('forge init — e2e', () => {
             await runInitSession(getDir(), (cli) =>
                 declineAllAssistants(cli)
                     .waitForText(M.source.addSource).pressKey(Y)
+                    .waitForText(M.source.selectType).pressEnter()
                     // submit empty URL — should trigger validation error
-                    .waitForText(M.source.url.message).pressEnter()
+                    .waitForText(M.source.git.url.message).pressEnter()
                     // wait for the error message to appear, then enter valid URL
-                    .waitForText(M.source.url.required).write(SOURCE_URL).pressEnter()
-                    .waitForText(M.source.branch).pressEnter()
-                    .waitForText(M.source.subdirectory.message).pressEnter()
+                    .waitForText(M.source.git.url.required).write(SOURCE_URL).pressEnter()
+                    .waitForText(M.source.git.branch).pressEnter()
+                    .waitForText(M.source.git.subdirectory.message).pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).source as GitSource
@@ -293,9 +317,10 @@ describe('forge init — e2e', () => {
             const done = cli.waitForExit()
             await declineAllAssistants(cli)
                 .waitForText(M.source.addSource).pressKey(Y)
-                .waitForText(M.source.url.message).write(SOURCE_URL).pressEnter()
-                .waitForText(M.source.branch).pressEnter()
-                .waitForText(M.source.subdirectory.message).pressEnter()
+                .waitForText(M.source.selectType).pressEnter()
+                .waitForText(M.source.git.url.message).write(SOURCE_URL).pressEnter()
+                .waitForText(M.source.git.branch).pressEnter()
+                .waitForText(M.source.git.subdirectory.message).pressEnter()
                 // accept sync — will fail because SOURCE_URL is not a real remote
                 .waitForText(M.sync.runNow).pressKey(Y)
             await done

@@ -7,6 +7,7 @@ export interface SourceLoadResult {
 
 export interface SourceLoaderEntry {
     alias: string
+    label: string
     load: (source: Source) => Promise<SourceLoadResult>
 }
 

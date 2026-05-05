@@ -28,15 +28,25 @@ export const INIT_MESSAGES = {
 
     source: {
         addSource: 'Add a shared skills source?',
-        url: {
-            message: 'Source git URL (SSH or HTTPS):',
-            placeholder: 'git@github.com:your-org/ai-configs.git',
-            required: 'URL is required',
+        selectType: 'Source type:',
+        git: {
+            url: {
+                message: 'Source git URL (SSH or HTTPS):',
+                placeholder: 'git@github.com:your-org/ai-configs.git',
+                required: 'URL is required',
+            },
+            branch: 'Branch:',
+            subdirectory: {
+                message: 'Subdirectory within repo (optional):',
+                placeholder: 'leave empty for repo root',
+            },
         },
-        branch: 'Branch:',
-        subdirectory: {
-            message: 'Subdirectory within repo (optional):',
-            placeholder: 'leave empty for repo root'
+        local: {
+            path: {
+                message: 'Local directory path:',
+                placeholder: '~/my-ai-configs or /absolute/path',
+                required: 'Path is required',
+            },
         },
         defaultName: 'team-shared',
     },

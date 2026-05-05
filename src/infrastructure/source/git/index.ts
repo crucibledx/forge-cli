@@ -11,6 +11,7 @@ const CACHE_DIR = join(tmpdir(), 'forge-cache')
 
 export const gitLoader: SourceLoaderEntry = {
     alias: 'git',
+    label: 'Git (SSH / HTTPS)',
     load: async (source) => {
         const git = source as GitSource
         const cacheKey = Buffer.from(git.url).toString('base64url')
