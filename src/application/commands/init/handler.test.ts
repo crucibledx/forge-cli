@@ -199,18 +199,16 @@ describe('runInit handler', () => {
         expect(assistants.find((a) => a.id === cursor.id)).toBeUndefined()
     })
 
-    it('exits early without writing when user declines overwrite', async () => {
+    it('aborts without writing when config already exists', async () => {
         mockConfigExists = true
-        promptResponses = {[M.overwriteExisting]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         expect(writtenConfig).toBeNull()
     })
 
-    it('continues to write when user confirms overwrite', async () => {
-        mockConfigExists = true
+    it('proceeds to write when no existing config', async () => {
+        mockConfigExists = false
         promptResponses = {
-            [M.overwriteExisting]: true,
             [M.assistants.addUndetected(cursor.name)]: false,
             [M.assistants.addUndetected(windsurf.name)]: false,
             [M.source.addSource]: false,

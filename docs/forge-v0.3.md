@@ -44,6 +44,7 @@ sync:
 ```
 
 Two distinct conflict axes:
+
 - **Multi-source conflict** — same file in `company-wide` and `team-backend` →
   resolved by `source_conflict_strategy` + `sources` order.
 - **Local modification conflict** — file was synced before, user edited it locally,
@@ -68,6 +69,7 @@ Forge stores a state snapshot after each sync:
 ```
 
 On the next sync, for each file:
+
 1. Compare current disk hash vs stored hash → **locally modified?**
 2. Compare new remote hash vs stored hash → **remotely updated?**
 3. If both changed → **conflict** → apply `local_conflict_strategy`
@@ -102,6 +104,7 @@ $ forge status
 ```
 
 Legend:
+
 - `↓` remote updated, local unchanged → will overwrite
 - `✗` both sides changed → conflict, resolved by `local_conflict_strategy`
 - `+` new file in source → will be added
@@ -144,24 +147,19 @@ flowchart TD
     A([forge sync]) --> B[Load global + project config]
     B --> C[Load sync-state.json\nSHA-256 snapshot from last sync]
     C --> D[Fetch all sources in priority order]
-
     D --> E[Collect all remote files\ncompute hashes]
     E --> F{Same path in\nmultiple sources?}
-
     F -- Yes --> G[Apply source_conflict_strategy\nlast-wins / first-wins / error]
     F -- No --> H[Resolved file set]
     G --> H
-
     H --> I[Compare each file:\nremote hash vs stored hash vs disk hash]
     I --> J{Local modification\nconflict?}
-
     J -- No --> K[Safe update or skip]
     J -- Yes --> L[Apply local_conflict_strategy\nremote-wins / local-wins / error]
     L --> M{backup: true?}
     M -- Yes --> N[Save .bak copy]
     M -- No --> K
     N --> K
-
     K --> O[Generate mutations list]
     O --> P{--dry-run?}
     P -- Yes --> Q[Print preview]
@@ -169,11 +167,10 @@ flowchart TD
     R --> S[Write sync-state.json]
     S --> T[Print summary]
     T --> U([Done])
-
-style A fill:#1a1a2e, color: #e2e8f0
-style U fill:#1a3328, color: #e2e8f0
-style Q fill:#2d2010, color: #e2e8f0
-style L fill:#2d1f10, color: #e2e8f0
+    style A fill: #1a1a2e, color: #e2e8f0
+    style U fill: #1a3328, color: #e2e8f0
+    style Q fill: #2d2010, color: #e2e8f0
+    style L fill: #2d1f10, color: #e2e8f0
 ```
 
 ---

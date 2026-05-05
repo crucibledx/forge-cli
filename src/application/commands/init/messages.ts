@@ -16,10 +16,8 @@ export const INIT_MESSAGES = {
     },
 
     detected: 'Detected:',
-    existingConfig: 'Existing .crucible/forge.config.yaml found',
+    configExists: 'Existing .crucible/forge.config.yaml found. Edit it manually or use `forge config` (coming in v0.2).',
     configWrittenTo: (path: string) => `Config written to ${path}`,
-
-    overwriteExisting: 'Overwrite existing config?',
 
     assistants: {
         keepDetected: (name: string) => `Keep ${name}?`,

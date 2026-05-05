@@ -31,20 +31,11 @@ export const runInit: InitCommandAction = async (options) => {
     renderer.renderDetectionResults(detectionResults)
     renderer.renderNewline()
 
-    // 2. Check if config already exists
+    // 2. Abort if config already exists — no overwrite in init
     if (projectConfigExists(projectRoot)) {
-        // FIXME: set version from existing config
-        //  maybe even just load existing config and override specific information
-        //  can be in later version, when config can be changed via CLI (e.g. add new source/assistant)
-        renderer.renderWarning(M.existingConfig)
-        const overwrite = await prompts.confirm({
-            message: M.overwriteExisting,
-            initialValue: false,
-        })
-        if (!overwrite) {
-            prompts.outro(M.outroCancelled)
-            return
-        }
+        renderer.renderWarning(M.configExists)
+        prompts.outro(M.outroCancelled)
+        return
     }
 
     // 3. Ask which assistants to enable

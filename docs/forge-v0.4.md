@@ -11,11 +11,11 @@
 
 ## New Commands
 
-| Command                    | What it solves                                         |
-|----------------------------|--------------------------------------------------------|
-| `forge scheduler install`  | Register a cron job with the OS scheduler              |
-| `forge scheduler uninstall`| Remove the OS-registered cron job                      |
-| `forge scheduler status`   | Show whether the scheduler is installed + next run time|
+| Command                     | What it solves                                          |
+|-----------------------------|---------------------------------------------------------|
+| `forge scheduler install`   | Register a cron job with the OS scheduler               |
+| `forge scheduler uninstall` | Remove the OS-registered cron job                       |
+| `forge scheduler status`    | Show whether the scheduler is installed + next run time |
 
 ---
 
@@ -78,6 +78,7 @@ Scheduled syncs run without a TTY. Errors are logged to:
 ```
 
 Log format:
+
 ```
 [2026-05-05T09:00:12Z] INFO  forge sync started (scheduled)
 [2026-05-05T09:00:14Z] ERROR Source "team-backend" failed: git fetch timed out

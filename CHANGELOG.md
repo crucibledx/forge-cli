@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.2] — 2026-05-05
+
+### Changed
+- **`forge init` no longer overwrites existing config** — if `.crucible/forge.config.yaml` is found, the wizard aborts with a message pointing to `forge config` (coming in v0.2)
+- Removed the "Overwrite existing config?" confirm prompt entirely
+- Updated unit and e2e tests: removed overwrite tests, added abort-on-existing tests
+
+---
+
 ## [0.1.1] — 2026-05-05
 
 ### Added

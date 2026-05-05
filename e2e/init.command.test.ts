@@ -201,66 +201,30 @@ describe('forge init — e2e', () => {
         }, TIMEOUT_MS)
     })
 
-    describe('existing config — overwrite prompt', () => {
+    describe('existing config — aborts early', () => {
         const existingContent = '# .crucible/forge.config.yaml\nversion: "1"\nassistants: []\n'
 
         beforeEach(async () => {
             await Bun.write(join(crucibleDirPath(getDir()), CONFIG_FILE), existingContent)
         })
 
-        it('preserves config when user declines overwrite', async () => {
+        it('exits without writing when config already exists', async () => {
             const cli = spawnCommand(getDir(), 'init')
             const done = cli.waitForExit()
-            await cli.waitForText(M.overwriteExisting).pressKey(N)
+            await cli.waitForText(M.configExists)
             await done
             const raw = await readConfigRaw(getDir())
             expect(raw).toEqual(existingContent)
         }, TIMEOUT_MS)
 
-        it('cancels gracefully on Ctrl+C during overwrite prompt — config preserved', async () => {
+        it('does not prompt for assistants or source when config exists', async () => {
             const cli = spawnCommand(getDir(), 'init')
             const done = cli.waitForExit()
-            await cli.waitForText(M.overwriteExisting).pressKey(CTRL_C)
-            const {exitCode} = await done
-            expect([0, 1]).toContain(exitCode)
-
-            const raw = await readConfigRaw(getDir())
-            expect(raw).toEqual(existingContent)
-        }, TIMEOUT_MS)
-
-        it('overwrites assistants in config when user accepts', async () => {
-            await runInitSession(getDir(), async (cli) => {
-                await cli.waitForText(M.overwriteExisting).pressKey(Y)
-                //  `cursor` and `copilot` are gonna be selected
-                await cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
-                    .waitForText(M.source.addSource).pressKey(N)
-            })
-            const config = await readConfig(getDir())
-            expect(config.source).toBeUndefined() // not changed
-            expect(config.assistants).toHaveLength(2)
-
-            const ids = map(config.assistants, a => a.id)
-            expect(ids).toContainValues([cursor.id, copilot.id])
-        }, TIMEOUT_MS)
-
-        it('overwrites source in config when user accepts', async () => {
-            await runInitSession(getDir(), async (cli) => {
-                await cli.waitForText(M.overwriteExisting).pressKey(Y)
-                await addSource(cli)
-            })
-            const config = await readConfig(getDir())
-            expect(config.assistants).toEqual([]) // not changed
-
-            const source = config.source as GitSource
-            expect(source.type).toBe('git')
-            expect(source.url).toBe(SOURCE_URL)
-            expect(source.branch).toBe('main')
-            expect(source.name).toBe('team-shared')
+            // Should see the abort message but NOT the assistant prompt
+            await cli.waitForText(M.configExists)
+            const {output} = await done
+            expect(output).not.toContain(M.assistants.addUndetected('Cursor'))
+            expect(output).not.toContain(M.source.addSource)
         }, TIMEOUT_MS)
     })
 
