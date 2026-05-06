@@ -72,6 +72,7 @@ describe('scanForAssistants', () => {
         const dir = getDir()
         const fakeHome = join(dir, 'home')
         await mkdir(join(fakeHome, '.codeium', 'windsurf'), {recursive: true})
+        await writeFile(join(fakeHome, '.codeium', 'windsurf', 'rules.md'), 'rule', 'utf-8')
         const results = scanForAssistants(dir, [windsurfDef], fakeHome)
         expect(results[0].detected).toBe(true)
         expect(results[0].scope).toBe('global')
@@ -93,7 +94,9 @@ describe('scanForAssistants', () => {
         const dir = getDir()
         const fakeHome = join(dir, 'home')
         await mkdir(join(dir, '.windsurf'), {recursive: true})
+        await writeFile(join(dir, '.windsurf', 'rules.md'), 'rule', 'utf-8')
         await mkdir(join(fakeHome, '.codeium', 'windsurf'), {recursive: true})
+        await writeFile(join(fakeHome, '.codeium', 'windsurf', 'rules.md'), 'rule', 'utf-8')
         const results = scanForAssistants(dir, [windsurfDef], fakeHome)
         expect(results[0].scope).toBe('project')
     })
@@ -107,17 +110,27 @@ describe('scanForAssistants', () => {
         expect(results[0].evidence).toContain('2 items')
     })
 
-    it('marks empty detected directory as "empty"', async () => {
+    it('does not detect an empty project directory', async () => {
         const dir = getDir()
         await mkdir(join(dir, '.cursor'), {recursive: true})
         const results = scanForAssistants(dir, [cursorDef])
-        expect(results[0].detected).toBe(true)
-        expect(results[0].evidence).toContain('empty')
+        expect(results[0].detected).toBe(false)
+        expect(results[0].evidence).toBeUndefined()
+    })
+
+    it('does not detect an empty global directory', async () => {
+        const dir = getDir()
+        const fakeHome = join(dir, 'home')
+        await mkdir(join(fakeHome, '.codeium', 'windsurf'), {recursive: true})
+        const results = scanForAssistants(dir, [windsurfDef], fakeHome)
+        expect(results[0].detected).toBe(false)
+        expect(results[0].evidence).toBeUndefined()
     })
 
     it('scans multiple assistants and returns a result for each', async () => {
         const dir = getDir()
         await mkdir(join(dir, '.cursor'), {recursive: true})
+        await writeFile(join(dir, '.cursor', 'a.md'), 'a', 'utf-8')
         const results = scanForAssistants(dir, [cursorDef, claudeDef])
         expect(results).toHaveLength(2)
         expect(results.find((r) => r.id === 'cursor')?.detected).toBe(true)

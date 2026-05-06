@@ -291,6 +291,7 @@ describe('forge init — e2e', () => {
         it('pre-selects detected assistant (.cursor dir) — Enter confirms it', async () => {
             // cursor is detected (pre-selected); press Enter immediately to confirm
             await mkdir(join(getDir(), '.cursor'), {recursive: true})
+            await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
             await runInitSession(getDir(), (cli) =>
                 cli
@@ -306,6 +307,7 @@ describe('forge init — e2e', () => {
         it('deselects pre-selected detected assistant — not written to config', async () => {
             // cursor detected at list position 1; navigate to it, Space deselects, Enter confirms
             await mkdir(join(getDir(), '.cursor'), {recursive: true})
+            await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
             await runInitSession(getDir(), (cli) =>
                 cli
@@ -348,6 +350,19 @@ describe('forge init — e2e', () => {
             expect(config.assistants).toHaveLength(1)
             expect(config.assistants[0].id).toBe(copilot.id)
             expect(config.assistants[0].enabled).toBe(true)
+        }, TIMEOUT_MS)
+
+        it('does not pre-select assistant when its directory exists but is empty', async () => {
+            // empty .cursor/ dir — not detected, so Enter writes no assistants
+            await mkdir(join(getDir(), '.cursor'), {recursive: true})
+
+            await runInitSession(getDir(), (cli) =>
+                cli
+                    .waitForText(M.assistants.select).pressEnter()
+                    .waitForText(M.source.addSource).pressKey(N),
+            )
+            const config = await readConfig(getDir())
+            expect(config.assistants).toHaveLength(0)
         }, TIMEOUT_MS)
     })
 })

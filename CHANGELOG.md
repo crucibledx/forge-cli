@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.6] — 2026-05-06
+
+### Changed
+
+- **Empty directories are no longer detected** — a directory must contain at least one non-hidden item to count as evidence. An empty `~/.claude/` or `.cursor/` is treated as an install artifact, not active configuration.
+- Files are unaffected — their existence alone is still a valid detection signal.
+- Updated scanner unit tests: empty-dir test now expects `detected: false`; 1 new unit test for empty global dir; non-empty dir tests now explicitly write a file.
+- 1 new e2e test: empty `.cursor/` dir does not pre-select Cursor in the multiselect.
+
+---
+
 ## [0.1.5] — 2026-05-06
 
 ### Changed

@@ -36,7 +36,8 @@ function detectAssistant(
         try {
             const entries = readdirSync(fullPath)
             const count = entries.filter((e) => !e.startsWith('.')).length
-            label = count > 0 ? `${dir}/ found (${count} items)` : `${dir}/ found (empty)`
+            if (count === 0) continue
+            label = `${dir}/ found (${count} items)`
         } catch {
             label = `${dir}/ found`
         }
