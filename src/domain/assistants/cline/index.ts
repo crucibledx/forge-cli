@@ -1,4 +1,4 @@
-import type {AssistantDefinition} from './types'
+import type {AssistantDefinition} from '../types'
 
 export const cline: AssistantDefinition = {
     id: 'cline',

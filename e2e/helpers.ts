@@ -8,6 +8,7 @@ import {parse as parseYaml} from 'yaml'
 import type {ProjectConfig} from '@domain/config/types'
 
 export {INIT_MESSAGES} from '@application/commands/init/messages'
+export {GIT_SOURCE_MESSAGES, LOCAL_SOURCE_MESSAGES} from '@infrastructure/source'
 export {
     CONFIG_FILE,
     configFilePath,

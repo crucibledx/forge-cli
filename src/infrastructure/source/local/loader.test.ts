@@ -1,13 +1,14 @@
-import {existsSync} from 'node:fs'
 import {mkdir, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
-import {afterEach, beforeEach, describe, expect, it} from 'bun:test'
+import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 
 import type {LocalSource} from '@domain/config/types'
 
-import {LocalSourceError, localLoader} from './index'
+import {DEFAULT_SOURCE_NAME} from '../constants'
+import {localLoader, LocalSourceError} from './loader'
+import {LOCAL_SOURCE_MESSAGES} from './messages'
 
 const TMP = join(tmpdir(), '__forge_local_loader_test__')
 
@@ -20,6 +21,42 @@ afterEach(async () => {
 })
 
 const makeSource = (path: string): LocalSource => ({name: 'test', type: 'local', path})
+
+describe('LOCAL_SOURCE_MESSAGES', () => {
+    it('exposes path.message', () => {
+        expect(typeof LOCAL_SOURCE_MESSAGES.path.message).toBe('string')
+    })
+
+    it('exposes path.required', () => {
+        expect(typeof LOCAL_SOURCE_MESSAGES.path.required).toBe('string')
+    })
+})
+
+describe('localLoader.configure', () => {
+    const mockText = mock(async (_opts: {message: string}) => TMP)
+
+    mock.module('@infrastructure/cli/prompts', () => ({
+        text: mockText,
+    }))
+
+    it('returns a LocalSource with type local', async () => {
+        mockText.mockImplementationOnce(async () => TMP)
+        const source = await localLoader.configure()
+        expect(source.type).toBe('local')
+    })
+
+    it('uses DEFAULT_SOURCE_NAME as source name', async () => {
+        mockText.mockImplementationOnce(async () => TMP)
+        const source = await localLoader.configure()
+        expect(source.name).toBe(DEFAULT_SOURCE_NAME)
+    })
+
+    it('trims the path', async () => {
+        mockText.mockImplementationOnce(async () => `  ${TMP}  `)
+        const source = await localLoader.configure() as {path: string}
+        expect(source.path).toBe(TMP)
+    })
+})
 
 describe('localLoader', () => {
     it('has alias "local"', () => {

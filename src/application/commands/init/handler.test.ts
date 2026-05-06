@@ -9,6 +9,7 @@ import {beforeEach, describe, expect, it, mock} from 'bun:test'
 
 import {cursor} from '@domain/assistants/cursor'
 import {windsurf} from '@domain/assistants/windsurf'
+import type {Source} from '@domain/config/types'
 
 import {INIT_MESSAGES as M} from './messages'
 
@@ -19,6 +20,7 @@ let mockConfigExists = false
 let mockDetectionResults: Array<{id: string, name: string, detected: boolean}> = []
 let writtenConfig: unknown = null
 let promptResponses: Record<string, unknown> = {}
+let mockSourceByType: Record<string, Source> = {}
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +102,12 @@ mock.module('@infrastructure/source', () => ({
         {value: 'git', label: 'Git (SSH / HTTPS)'},
         {value: 'local', label: 'Local directory'},
     ],
+    getSourceLoader: (type: string) => ({
+        alias: type,
+        label: type,
+        configure: async () => mockSourceByType[type] ?? {name: 'team-shared', type, url: '', branch: 'main'},
+        load: async () => ({localPath: '/fake/path', fresh: true}),
+    }),
 }))
 
 mock.module('../sync', () => ({
@@ -117,6 +125,7 @@ describe('runInit handler', () => {
         mockConfigExists = false
         writtenConfig = null
         promptResponses = {}
+        mockSourceByType = {}
         mockDetectionResults = [
             {id: cursor.id, name: cursor.name, detected: false},
             {id: windsurf.id, name: windsurf.name, detected: false},
@@ -152,13 +161,11 @@ describe('runInit handler', () => {
     })
 
     it('includes git source in config when user adds one', async () => {
+        mockSourceByType = {git: {name: 'team-shared', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}}
         promptResponses = {
             [M.assistants.select]: [],
             [M.source.addSource]: true,
             [M.source.selectType]: 'git',
-            [M.source.git.url.message]: 'git@github.com:org/repo.git',
-            [M.source.git.branch]: 'main',
-            [M.source.git.subdirectory.message]: '',
             [M.sync.runNow]: false,
         }
         const {runInit} = await import('./handler')
@@ -169,11 +176,11 @@ describe('runInit handler', () => {
     })
 
     it('includes local source in config when user selects local type', async () => {
+        mockSourceByType = {local: {name: 'team-shared', type: 'local', path: '~/my-ai-configs'}}
         promptResponses = {
             [M.assistants.select]: [],
             [M.source.addSource]: true,
             [M.source.selectType]: 'local',
-            [M.source.local.path.message]: '~/my-ai-configs',
             [M.sync.runNow]: false,
         }
         const {runInit} = await import('./handler')

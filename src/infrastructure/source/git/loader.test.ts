@@ -3,9 +3,11 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
-import {afterEach, beforeEach, describe, expect, it, spyOn} from 'bun:test'
+import {afterEach, beforeEach, describe, expect, it, mock, spyOn} from 'bun:test'
 
-import {cleanupAllCaches, cleanupCache, GitError, gitLoader} from './index'
+import {DEFAULT_SOURCE_NAME} from '../constants'
+import {cleanupAllCaches, cleanupCache, GitError, gitLoader} from './loader'
+import {GIT_SOURCE_MESSAGES} from './messages'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,7 +86,79 @@ describe('cleanupAllCaches', () => {
     })
 })
 
-// ─── gitLoader — cache key derivation ────────────────────────────────────────
+// ─── GIT_SOURCE_MESSAGES ──────────────────────────────────────────────────────
+
+describe('GIT_SOURCE_MESSAGES', () => {
+    it('exposes url.message', () => {
+        expect(typeof GIT_SOURCE_MESSAGES.url.message).toBe('string')
+    })
+
+    it('exposes url.required', () => {
+        expect(typeof GIT_SOURCE_MESSAGES.url.required).toBe('string')
+    })
+
+    it('exposes branch', () => {
+        expect(typeof GIT_SOURCE_MESSAGES.branch).toBe('string')
+    })
+
+    it('exposes subdirectory.message', () => {
+        expect(typeof GIT_SOURCE_MESSAGES.subdirectory.message).toBe('string')
+    })
+})
+
+// ─── gitLoader.configure ──────────────────────────────────────────────────────
+
+describe('gitLoader.configure', () => {
+    const mockText = mock(async (opts: {message: string, defaultValue?: string}) =>
+        opts.defaultValue ?? '')
+
+    mock.module('@infrastructure/cli/prompts', () => ({
+        text: mockText,
+    }))
+
+    it('returns a GitSource with type git', async () => {
+        mockText.mockImplementationOnce(async () => 'git@github.com:org/repo.git')
+        mockText.mockImplementationOnce(async () => 'main')
+        mockText.mockImplementationOnce(async () => '')
+        const source = await gitLoader.configure()
+        expect(source.type).toBe('git')
+    })
+
+    it('uses DEFAULT_SOURCE_NAME as source name', async () => {
+        mockText.mockImplementationOnce(async () => 'git@github.com:org/repo.git')
+        mockText.mockImplementationOnce(async () => 'main')
+        mockText.mockImplementationOnce(async () => '')
+        const source = await gitLoader.configure()
+        expect(source.name).toBe(DEFAULT_SOURCE_NAME)
+    })
+
+    it('trims url and branch', async () => {
+        mockText.mockImplementationOnce(async () => '  git@github.com:org/repo.git  ')
+        mockText.mockImplementationOnce(async () => '  develop  ')
+        mockText.mockImplementationOnce(async () => '')
+        const source = await gitLoader.configure() as {url: string, branch: string}
+        expect(source.url).toBe('git@github.com:org/repo.git')
+        expect(source.branch).toBe('develop')
+    })
+
+    it('sets path to undefined when subdirectory is empty', async () => {
+        mockText.mockImplementationOnce(async () => 'git@github.com:org/repo.git')
+        mockText.mockImplementationOnce(async () => 'main')
+        mockText.mockImplementationOnce(async () => '')
+        const source = await gitLoader.configure() as {path: string | undefined}
+        expect(source.path).toBeUndefined()
+    })
+
+    it('sets path when subdirectory is provided', async () => {
+        mockText.mockImplementationOnce(async () => 'git@github.com:org/repo.git')
+        mockText.mockImplementationOnce(async () => 'main')
+        mockText.mockImplementationOnce(async () => 'packages/ai')
+        const source = await gitLoader.configure() as {path: string}
+        expect(source.path).toBe('packages/ai')
+    })
+})
+
+// ─── gitLoader.load ───────────────────────────────────────────────────────────
 
 describe('gitLoader', () => {
     it('has alias "git"', () => {

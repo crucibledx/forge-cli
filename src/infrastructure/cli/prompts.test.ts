@@ -1,6 +1,5 @@
-import {describe, expect, it, mock, spyOn} from 'bun:test'
-
 import * as clack from '@clack/prompts'
+import {describe, expect, it, mock, spyOn} from 'bun:test'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

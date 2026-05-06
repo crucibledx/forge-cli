@@ -5,9 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.4] — 2026-05-06
+
+### Changed
+
+- **`SourceLoaderEntry` gains `configure()` method** — each source loader now owns its own wizard prompts. Adding a new source type requires only creating a new file in `infrastructure/source/<type>/` with `alias`, `label`, `configure`, and `load`. No changes to `init` handler or any command.
+- **`init` handler is now source-type agnostic** — replaced `sourceConfigurators` map with a single `getSourceLoader(type).configure()` call. The handler has zero knowledge of git/local prompt details.
+- Each source dir split into focused files: `messages.ts` (prompt strings), `loader.ts` (implementation), `index.ts` (barrel)
+- `GIT_SOURCE_MESSAGES` exported from `infrastructure/source/git/messages.ts`
+- `LOCAL_SOURCE_MESSAGES` exported from `infrastructure/source/local/messages.ts`
+- `DEFAULT_SOURCE_NAME` moved to `infrastructure/source/constants.ts`, re-exported from barrel
+- Removed `source.git`, `source.local`, `source.defaultName` from `init/messages.ts`
+- **Dir-per-assistant** in `domain/assistants/` — each assistant is now `<name>/index.ts` instead of `<name>.ts`, ready for future per-assistant files (transformers, schemas, etc.)
+- Test files renamed: `index.test.ts` → `loader.test.ts` in each source dir; import directly from focused files
+- Handler unit tests no longer know about source prompt message strings — mocks `configure()` directly
+
+---
+
 ## [0.1.3] — 2026-05-06
 
 ### Changed
+
 - **`forge init` assistant selection is now a single multiselect** — replaced per-assistant confirm prompts with one `multiselect` showing all assistants at once
 - Detected assistants are pre-selected with a `"detected"` hint
 - `prompts.multiselect` wrapper now supports `initialValues` (passed through to `@clack/prompts`)
@@ -20,8 +38,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **`forge init` no longer overwrites existing config** — if `.crucible/forge.config.yaml` is found, the wizard aborts
-  with a message pointing to `forge config` (coming in v0.2)
+- **`forge init` no longer overwrites existing config** — if `.crucible/forge.config.yaml` is found, the wizard aborts with a message pointing to `forge config` (coming in v0.2)
 - Removed the "Overwrite existing config?" confirm prompt entirely
 - Updated unit and e2e tests: removed overwrite tests, added abort-on-existing tests
 
@@ -31,12 +48,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Local source type** — `forge init` now supports `type: local` sources (reads from a local directory, no network
-  required)
-- **Source-type select in init wizard** — instead of jumping straight to git URL, users now pick a source type first (
-  `Git (SSH / HTTPS)` or `Local directory`)
-- `getSourceLoaderOptions()` helper on the source barrel — populates the select from the loader registry; adding a new
-  source type requires no handler changes
+- **Local source type** — `forge init` now supports `type: local` sources (reads from a local directory, no network required)
+- **Source-type select in init wizard** — instead of jumping straight to git URL, users now pick a source type first (`Git (SSH / HTTPS)` or `Local directory`)
+- `getSourceLoaderOptions()` helper on the source barrel — populates the select from the loader registry; adding a new source type requires no handler changes
 - `label` field on `SourceLoaderEntry` for display in the select prompt
 - Unit tests for `localLoader` and `getSourceLoaderOptions`
 
