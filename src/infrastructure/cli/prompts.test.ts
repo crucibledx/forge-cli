@@ -1,11 +1,5 @@
 import * as clack from '@clack/prompts'
-import {describe, expect, it, mock, spyOn} from 'bun:test'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function mockClackValue<T>(value: T): void {
-    spyOn(clack, 'isCancel').mockReturnValue(false)
-}
+import {describe, expect, it, spyOn} from 'bun:test'
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 

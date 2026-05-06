@@ -1,8 +1,4 @@
-import {
-    loadGlobalConfig,
-    loadProjectConfig,
-    projectConfigExists,
-} from '@infrastructure/config'
+import {loadGlobalConfig, loadProjectConfig, projectConfigExists,} from '@infrastructure/config'
 
 import type {IOService} from '../types'
 

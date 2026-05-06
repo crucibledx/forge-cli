@@ -1,6 +1,5 @@
 import type {AssistantDefinition, DetectionResult} from '@domain/assistants/types'
-import type {Mutation} from '@domain/sync/types'
-import type {SourceFile} from '@domain/sync/types'
+import type {Mutation, SourceFile} from '@domain/sync/types'
 
 import type {AppliedMutation} from './mutations'
 

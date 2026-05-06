@@ -1,10 +1,10 @@
 import type {AssistantId} from '../assistants/types'
 
 export type Mutation =
-  | {type: 'file_write', path: string, content: string}
-  | {type: 'file_delete', path: string}
-  | {type: 'dir_create', path: string}
-  | {type: 'symlink_create', path: string, target: string}
+    | {type: 'file_write', path: string, content: string}
+    | {type: 'file_delete', path: string}
+    | {type: 'dir_create', path: string}
+    | {type: 'symlink_create', path: string, target: string}
 
 export interface SyncFileSummary {
     targetPath: string

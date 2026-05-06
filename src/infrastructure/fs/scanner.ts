@@ -1,5 +1,4 @@
-import {existsSync} from 'node:fs'
-import {readdirSync} from 'node:fs'
+import {existsSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
 import type {AssistantDefinition, DetectionResult} from '@domain/assistants/types'

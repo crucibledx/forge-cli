@@ -36,7 +36,6 @@ import {
     readConfigRaw,
     runInitSession,
     SPACE,
-    spawnCommand,
     TIMEOUT_MS,
     useTmpDir,
     Y,
@@ -62,7 +61,7 @@ function declineAll(cli: CLISession): CliStep {
 
 const SOURCE_URL = 'git@github.com:org/ai-configs.git'
 
-function addSource(cli: CLISession): CliStep {
+function addSource(cli: CLISession, runSync = N): CliStep {
     return declineAllAssistants(cli)
         // then accept adding a source
         .waitForText(M.source.addSource).pressKey(Y)
@@ -75,7 +74,7 @@ function addSource(cli: CLISession): CliStep {
         // skip subdirectory - use root
         .waitForText(GM.subdirectory.message).pressEnter()
         // decline run sync command
-        .waitForText(M.sync.runNow).pressKey(N)
+        .waitForText(M.sync.runNow).pressKey(runSync)
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -83,10 +82,9 @@ function addSource(cli: CLISession): CliStep {
 describe('forge init — e2e', () => {
     describe('cancellation', () => {
         it('cancels gracefully on Ctrl+C — no config written', async () => {
-            const cli = spawnCommand(getDir(), 'init')
-            const done = cli.waitForExit()
-            await cli.waitForText(M.assistants.select).pressKey(CTRL_C)
-            const {exitCode} = await done
+            const {exitCode} = await runInitSession(getDir(), cli =>
+                cli.waitForText(M.assistants.select).pressKey(CTRL_C)
+            )
             expect([0, 1]).toContain(exitCode)
             expect(existsSync(configFilePath(getDir()))).toBe(false)
         }, TIMEOUT_MS)
@@ -211,20 +209,20 @@ describe('forge init — e2e', () => {
         })
 
         it('exits without writing when config already exists', async () => {
-            const cli = spawnCommand(getDir(), 'init')
-            const done = cli.waitForExit()
-            await cli.waitForText(M.configExists)
-            await done
+            await runInitSession(getDir(), cli =>
+                cli.waitForText(M.configExists)
+            )
+
             const raw = await readConfigRaw(getDir())
             expect(raw).toEqual(existingContent)
         }, TIMEOUT_MS)
 
         it('does not prompt for assistants or source when config exists', async () => {
-            const cli = spawnCommand(getDir(), 'init')
-            const done = cli.waitForExit()
+            const {output} = await runInitSession(getDir(), cli =>
+                cli.waitForText(M.configExists)
+            )
+
             // Should see the abort message but NOT the assistant prompt
-            await cli.waitForText(M.configExists)
-            const {output} = await done
             expect(output).not.toContain(M.assistants.select)
             expect(output).not.toContain(M.source.addSource)
         }, TIMEOUT_MS)
@@ -279,17 +277,9 @@ describe('forge init — e2e', () => {
         it('reaches sync-now prompt and config is written before sync attempt', async () => {
             // Accepting sync-now with a non-cloneable URL will cause sync to fail,
             // but the config MUST already be written before sync is attempted.
-            const cli = spawnCommand(getDir(), 'init')
-            const done = cli.waitForExit()
-            await declineAllAssistants(cli)
-                .waitForText(M.source.addSource).pressKey(Y)
-                .waitForText(M.source.selectType).pressEnter()
-                .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
-                .waitForText(GM.branch).pressEnter()
-                .waitForText(GM.subdirectory.message).pressEnter()
-                // accept sync — will fail because SOURCE_URL is not a real remote
-                .waitForText(M.sync.runNow).pressKey(Y)
-            await done
+            // pass Y to `addSource` to accept sync — will fail because SOURCE_URL is not a real remote
+            await runInitSession(getDir(), cli => addSource(cli, Y))
+
             // config was written before sync was attempted
             expect(existsSync(configFilePath(getDir()))).toBe(true)
             const source = (await readConfig(getDir())).source as GitSource

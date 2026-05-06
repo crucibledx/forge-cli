@@ -18,7 +18,11 @@ describe('rollbackMutations', () => {
     it('skips failed mutations (only rolls back successful ones)', async () => {
         const dir = getDir()
         const applied: AppliedMutation[] = [
-            {mutation: {type: 'file_write', path: 'file.md', content: 'x'}, success: false, error: 'something went wrong'},
+            {
+                mutation: {type: 'file_write', path: 'file.md', content: 'x'},
+                success: false,
+                error: 'something went wrong'
+            },
         ]
         await rollbackMutations(dir, applied)
         expect(existsSync(join(dir, 'file.md'))).toBe(false)
@@ -28,7 +32,11 @@ describe('rollbackMutations', () => {
         const dir = getDir()
         await Bun.write(join(dir, 'new.md'), 'fresh content')
         const applied: AppliedMutation[] = [
-            {mutation: {type: 'file_write', path: 'new.md', content: 'fresh content'}, success: true, previousContent: undefined},
+            {
+                mutation: {type: 'file_write', path: 'new.md', content: 'fresh content'},
+                success: true,
+                previousContent: undefined
+            },
         ]
         await rollbackMutations(dir, applied)
         expect(existsSync(join(dir, 'new.md'))).toBe(false)
@@ -38,7 +46,11 @@ describe('rollbackMutations', () => {
         const dir = getDir()
         await Bun.write(join(dir, 'existing.md'), 'new content')
         const applied: AppliedMutation[] = [
-            {mutation: {type: 'file_write', path: 'existing.md', content: 'new content'}, success: true, previousContent: 'original content'},
+            {
+                mutation: {type: 'file_write', path: 'existing.md', content: 'new content'},
+                success: true,
+                previousContent: 'original content'
+            },
         ]
         await rollbackMutations(dir, applied)
         expect(await readFile(join(dir, 'existing.md'), 'utf-8')).toBe('original content')
