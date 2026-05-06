@@ -8,6 +8,7 @@
 export const INIT_MESSAGES = {
     intro: 'Forge — AI Environment Setup',
     outro: 'Run `forge sync` to fetch shared skills',
+    outroNoSource: 'Done. Add a source to .crucible/forge.config.yaml to enable sync.',
     outroCancelled: 'Cancelled — existing config preserved',
 
     spinner: {
@@ -23,6 +24,7 @@ export const INIT_MESSAGES = {
         select: 'Select AI assistants to enable:',
         detectedHint: 'detected',
         detectedGlobalHint: 'detected globally',
+        noneSelected: 'No assistants selected — edit .crucible/forge.config.yaml to add some later.',
     },
 
     source: {

@@ -19,7 +19,14 @@ export const runInit: InitCommandAction = async (options) => {
     const projectRoot = io.resolveProjectRoot()
     prompts.intro(M.intro)
 
-    // 1. Scan for existing AI configs
+    // 1. Abort immediately if config already exists — no overwrite in init
+    if (projectConfigExists(projectRoot)) {
+        renderer.renderWarning(M.configExists)
+        prompts.outro(M.outroCancelled)
+        return
+    }
+
+    // 2. Scan for existing AI configs
     const s = prompts.spinner()
     s.start(M.spinner.scanning)
     const allAssistants = getAllAssistants()
@@ -31,13 +38,6 @@ export const runInit: InitCommandAction = async (options) => {
     renderer.renderDetectionResults(detectionResults)
     renderer.renderNewline()
 
-    // 2. Abort if config already exists — no overwrite in init
-    if (projectConfigExists(projectRoot)) {
-        renderer.renderWarning(M.configExists)
-        prompts.outro(M.outroCancelled)
-        return
-    }
-
     // 3. Ask which assistants to enable — single multiselect, detected pre-selected
     const detectionByAssistant = new Map(detectionResults.map((r) => [r.id, r]))
 
@@ -45,13 +45,20 @@ export const runInit: InitCommandAction = async (options) => {
         message: M.assistants.select,
         options: allAssistants.map((a) => {
             const result = detectionByAssistant.get(a.id)
-            const hint = result?.detected
-                ? (result.scope === 'global' ? M.assistants.detectedGlobalHint : M.assistants.detectedHint)
-                : undefined
+            let hint: string | undefined
+            if (result?.detected) {
+                hint = result.scope === 'global'
+                    ? (result.evidence?.split(', ')[0] ?? M.assistants.detectedGlobalHint)
+                    : M.assistants.detectedHint
+            }
             return {value: a.id, label: a.name, hint}
         }),
         initialValues: detectionResults.filter((r) => r.detected).map((r) => r.id),
     })
+
+    if (selectedIds.length === 0) {
+        renderer.renderWarning(M.assistants.noneSelected)
+    }
 
     const assistantConfigs: AssistantConfig[] = selectedIds
         .map((id) =>
@@ -106,5 +113,5 @@ export const runInit: InitCommandAction = async (options) => {
         }
     }
 
-    prompts.outro(M.outro)
+    prompts.outro(source ? M.outro : M.outroNoSource)
 }

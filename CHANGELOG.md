@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.7] — 2026-05-06
+
+### Changed
+
+- **Config-exists check moved before scan** — `forge init` now aborts immediately if `.crucible/forge.config.yaml` already exists, before the detection spinner even starts. No wasted work.
+- **Conditional outro** — if no source was configured, the outro now reads *"Done. Add a source to .crucible/forge.config.yaml to enable sync."* instead of the misleading sync hint.
+- **Warning on zero assistants** — if the user confirms the multiselect with nothing selected, a warning is shown: *"No assistants selected — edit .crucible/forge.config.yaml to add some later."* Config is still written.
+- **Global detection hint shows actual path** — the multiselect hint for globally detected assistants now shows the evidence path (e.g. `~/.claude/ found (3 items)`) instead of the generic `"detected globally"`.
+- 2 new unit tests: abort-before-scan, no-assistants warning.
+- 2 new e2e tests: no-assistants warning output, no-source outro output.
+
+---
+
 ## [0.1.6] — 2026-05-06
 
 ### Changed

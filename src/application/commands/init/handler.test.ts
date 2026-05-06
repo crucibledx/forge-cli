@@ -21,6 +21,8 @@ let mockDetectionResults: Array<{id: string, name: string, detected: boolean, sc
 let writtenConfig: unknown = null
 let promptResponses: Record<string, unknown> = {}
 let mockSourceByType: Record<string, Source> = {}
+let scanCalled = false
+let rendererWarnings: string[] = []
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +46,10 @@ mock.module('@domain/assistants/registry', () => ({
 }))
 
 mock.module('@infrastructure/fs', () => ({
-    scanForAssistants: () => mockDetectionResults,
+    scanForAssistants: () => {
+        scanCalled = true
+        return mockDetectionResults
+    },
     applyMutations: async () => [],
     collectFiles: async () => [],
     rollbackMutations: async () => {
@@ -68,7 +73,8 @@ mock.module('@infrastructure/cli/renderer', () => ({
     },
     renderDetectionResults: () => {
     },
-    renderWarning: () => {
+    renderWarning: (msg: string) => {
+        rendererWarnings.push(msg)
     },
     renderSuccess: () => {
     },
@@ -126,6 +132,8 @@ describe('runInit handler', () => {
         writtenConfig = null
         promptResponses = {}
         mockSourceByType = {}
+        scanCalled = false
+        rendererWarnings = []
         mockDetectionResults = [
             {id: cursor.id, name: cursor.name, detected: false, scope: undefined},
             {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
@@ -219,6 +227,20 @@ describe('runInit handler', () => {
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         expect(writtenConfig).toBeNull()
+    })
+
+    it('does not scan when config already exists', async () => {
+        mockConfigExists = true
+        const {runInit} = await import('./handler')
+        await runInit({verbose: false})
+        expect(scanCalled).toBe(false)
+    })
+
+    it('renders warning when no assistants selected', async () => {
+        promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+        const {runInit} = await import('./handler')
+        await runInit({verbose: false})
+        expect(rendererWarnings).toContain(M.assistants.noneSelected)
     })
 
     it('proceeds to write when no existing config', async () => {
