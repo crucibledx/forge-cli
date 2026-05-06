@@ -1,1 +1,1 @@
-export const DEFAULT_SOURCE_NAME = 'team-shared'
+export const DEFAULT_SOURCE_NAME = 'default'

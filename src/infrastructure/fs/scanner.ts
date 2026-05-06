@@ -1,52 +1,67 @@
 import {existsSync, readdirSync} from 'node:fs'
+import {homedir} from 'node:os'
 import {join} from 'node:path'
 
 import type {AssistantDefinition, DetectionResult} from '@domain/assistants/types'
 
-export async function scanForAssistants(
-    projectRoot: string,
-    assistants: readonly AssistantDefinition[],
-): Promise<DetectionResult[]> {
-    const results: DetectionResult[] = []
-
-    for (const assistant of assistants) {
-        const result = await detectAssistant(projectRoot, assistant)
-        results.push(result)
-    }
-
-    return results
+function resolvePath(projectRoot: string, homeDir: string, path: string): string {
+    return path.startsWith('~/') ? join(homeDir, path.slice(2)) : join(projectRoot, path)
 }
 
-async function detectAssistant(
+function isGlobal(path: string): boolean {
+    return path.startsWith('~/')
+}
+
+export function scanForAssistants(
     projectRoot: string,
+    assistants: readonly AssistantDefinition[],
+    homeDir = homedir(),
+): DetectionResult[] {
+    return assistants.map((assistant) => detectAssistant(projectRoot, homeDir, assistant))
+}
+
+function detectAssistant(
+    projectRoot: string,
+    homeDir: string,
     assistant: AssistantDefinition,
-): Promise<DetectionResult> {
-    const evidenceByDirectories = assistant.detection.directories
-        .map(dir => ({dir, fullPath: join(projectRoot, dir)}))
-        .filter(({fullPath}) => existsSync(fullPath))
-        .map(({dir, fullPath}) => {
-            try {
-                const entries = readdirSync(fullPath)
-                const fileCount = entries.filter((e) => !e.startsWith('.')).length
-                return fileCount > 0
-                    ? `${dir}/ found (${fileCount} items)`
-                    : `${dir}/ found (empty)`
-            } catch {
-                return `${dir}/ found`
-            }
-        })
+): DetectionResult {
+    const projectEvidence: string[] = []
+    const globalEvidence: string[] = []
 
-    const evidenceByFiles = assistant.detection.files
-        .map(file => ({file, fullPath: join(projectRoot, file)}))
-        .filter(({fullPath}) => existsSync(fullPath))
-        .map(({file}) => `${file} found`)
+    for (const dir of assistant.detection.directories) {
+        const fullPath = resolvePath(projectRoot, homeDir, dir)
+        if (!existsSync(fullPath)) continue
 
-    const evidence = [...evidenceByDirectories, ...evidenceByFiles]
+        let label: string
+        try {
+            const entries = readdirSync(fullPath)
+            const count = entries.filter((e) => !e.startsWith('.')).length
+            label = count > 0 ? `${dir}/ found (${count} items)` : `${dir}/ found (empty)`
+        } catch {
+            label = `${dir}/ found`
+        }
+
+        if (isGlobal(dir)) globalEvidence.push(label)
+        else projectEvidence.push(label)
+    }
+
+    for (const file of assistant.detection.files) {
+        const fullPath = resolvePath(projectRoot, homeDir, file)
+        if (!existsSync(fullPath)) continue
+
+        const label = `${file} found`
+        if (isGlobal(file)) globalEvidence.push(label)
+        else projectEvidence.push(label)
+    }
+
+    const allEvidence = [...projectEvidence, ...globalEvidence]
+    const scope = projectEvidence.length > 0 ? 'project' : globalEvidence.length > 0 ? 'global' : undefined
 
     return {
         id: assistant.id,
         name: assistant.name,
-        detected: evidence.length > 0,
-        evidence: evidence.length > 0 ? evidence.join(', ') : undefined,
+        detected: allEvidence.length > 0,
+        scope,
+        evidence: allEvidence.length > 0 ? allEvidence.join(', ') : undefined,
     }
 }

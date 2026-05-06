@@ -25,6 +25,7 @@ export interface DetectionResult {
     id: AssistantId
     name: string
     detected: boolean
+    scope?: 'project' | 'global'
     evidence?: string // e.g., ".claude/ directory found, 3 items"
 }
 

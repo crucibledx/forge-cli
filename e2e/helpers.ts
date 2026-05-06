@@ -100,11 +100,13 @@ export function spawnCommand(
     cwd: string,
     command: string,
     args: string[] = [],
+    env: Record<string, string> = {},
 ): CLISession {
     let output = ''
 
     const proc = Bun.spawn(['bun', 'run', CLI_ENTRY, command, ...args], {
         cwd,
+        env: {...process.env, HOME: cwd, ...env},
         terminal: {
             cols: 80,
             rows: 24,

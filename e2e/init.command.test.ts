@@ -179,7 +179,7 @@ describe('forge init — e2e', () => {
             expect(source.type).toBe('git')
             expect(source.url).toBe(SOURCE_URL)
             expect(source.branch).toBe('main')
-            expect(source.name).toBe('team-shared')
+            expect(source.name).toBe('default')
         }, TIMEOUT_MS)
     })
 
@@ -197,7 +197,7 @@ describe('forge init — e2e', () => {
             const config = await readConfig(getDir())
             expect(config.source?.type).toBe('local')
             expect((config.source as {path: string}).path).toBe(localPath)
-            expect(config.source?.name).toBe('team-shared')
+            expect(config.source?.name).toBe('default')
         }, TIMEOUT_MS)
     })
 

@@ -23,7 +23,7 @@ export const runInit: InitCommandAction = async (options) => {
     const s = prompts.spinner()
     s.start(M.spinner.scanning)
     const allAssistants = getAllAssistants()
-    const detectionResults = await scanForAssistants(projectRoot, allAssistants)
+    const detectionResults = scanForAssistants(projectRoot, allAssistants)
     s.stop(M.spinner.scanDone)
 
     renderer.renderNewline()
@@ -39,19 +39,18 @@ export const runInit: InitCommandAction = async (options) => {
     }
 
     // 3. Ask which assistants to enable — single multiselect, detected pre-selected
-    const detectedIds: Set<AssistantId> = new Set(detectionResults
-        .filter((r) => r.detected)
-        .map((r) => r.id)
-    )
+    const detectionByAssistant = new Map(detectionResults.map((r) => [r.id, r]))
 
     const selectedIds = await prompts.multiselect({
         message: M.assistants.select,
-        options: allAssistants.map((a) => ({
-            value: a.id,
-            label: a.name,
-            hint: detectedIds.has(a.id) ? M.assistants.detectedHint : undefined,
-        })),
-        initialValues: [...detectedIds],
+        options: allAssistants.map((a) => {
+            const result = detectionByAssistant.get(a.id)
+            const hint = result?.detected
+                ? (result.scope === 'global' ? M.assistants.detectedGlobalHint : M.assistants.detectedHint)
+                : undefined
+            return {value: a.id, label: a.name, hint}
+        }),
+        initialValues: detectionResults.filter((r) => r.detected).map((r) => r.id),
     })
 
     const assistantConfigs: AssistantConfig[] = selectedIds

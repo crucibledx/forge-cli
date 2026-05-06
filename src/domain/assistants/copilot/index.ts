@@ -4,7 +4,7 @@ export const copilot: AssistantDefinition = {
     id: 'copilot',
     name: 'GitHub Copilot',
     detection: {
-        directories: ['.github'],
+        directories: ['.github/instructions', '~/.copilot'],
         files: ['.github/copilot-instructions.md'],
     },
     targetMappings: [

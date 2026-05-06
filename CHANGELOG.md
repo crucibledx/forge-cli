@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.5] — 2026-05-06
+
+### Changed
+
+- **Global assistant detection** — `scanForAssistants` now checks `~/`-prefixed paths against HOME in addition to project paths. Each assistant definition includes global dirs/files sourced from research.
+- **Scope-aware hint in multiselect** — detected assistants now show `"detected"` (project) or `"detected (global)"` depending on where they were found. Project scope wins if both match.
+- Updated detection paths per research, removing overly generic signals:
+  - Claude Code: adds `~/.claude/` global dir; removes redundant sub-dirs
+  - Cursor: adds `.cursorrules` (legacy) + `~/.cursor/mcp.json` (global, user-configured MCP)
+  - Windsurf: adds `~/.codeium/windsurf/` global dir; removes redundant sub-dirs
+  - Copilot: replaces generic `.github/` dir with `.github/instructions/` + adds `~/.copilot/`; `AGENTS.md` excluded (too generic — all tools support it)
+  - Cline: adds `~/.cline/` global dir
+- `scanForAssistants` is now synchronous (was `async Promise<>`)
+- `DetectionResult` gains `scope?: 'project' | 'global'`
+- e2e tests set `HOME=cwd` for the spawned process to isolate from real user global configs
+- 5 new scanner unit tests covering global path resolution, scope field, and project-wins-over-global precedence
+
+---
+
 ## [0.1.4] — 2026-05-06
 
 ### Changed

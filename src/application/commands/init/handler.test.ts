@@ -17,7 +17,7 @@ import {INIT_MESSAGES as M} from './messages'
 
 let mockProjectRoot = '/fake/project'
 let mockConfigExists = false
-let mockDetectionResults: Array<{id: string, name: string, detected: boolean}> = []
+let mockDetectionResults: Array<{id: string, name: string, detected: boolean, scope?: 'project' | 'global'}> = []
 let writtenConfig: unknown = null
 let promptResponses: Record<string, unknown> = {}
 let mockSourceByType: Record<string, Source> = {}
@@ -44,7 +44,7 @@ mock.module('@domain/assistants/registry', () => ({
 }))
 
 mock.module('@infrastructure/fs', () => ({
-    scanForAssistants: async () => mockDetectionResults,
+    scanForAssistants: () => mockDetectionResults,
     applyMutations: async () => [],
     collectFiles: async () => [],
     rollbackMutations: async () => {
@@ -105,7 +105,7 @@ mock.module('@infrastructure/source', () => ({
     getSourceLoader: (type: string) => ({
         alias: type,
         label: type,
-        configure: async () => mockSourceByType[type] ?? {name: 'team-shared', type, url: '', branch: 'main'},
+        configure: async () => mockSourceByType[type] ?? {name: 'default', type, url: '', branch: 'main'},
         load: async () => ({localPath: '/fake/path', fresh: true}),
     }),
 }))
@@ -127,8 +127,8 @@ describe('runInit handler', () => {
         promptResponses = {}
         mockSourceByType = {}
         mockDetectionResults = [
-            {id: cursor.id, name: cursor.name, detected: false},
-            {id: windsurf.id, name: windsurf.name, detected: false},
+            {id: cursor.id, name: cursor.name, detected: false, scope: undefined},
+            {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
         ]
     })
 
@@ -161,7 +161,7 @@ describe('runInit handler', () => {
     })
 
     it('includes git source in config when user adds one', async () => {
-        mockSourceByType = {git: {name: 'team-shared', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}}
+        mockSourceByType = {git: {name: 'default', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}}
         promptResponses = {
             [M.assistants.select]: [],
             [M.source.addSource]: true,
@@ -176,7 +176,7 @@ describe('runInit handler', () => {
     })
 
     it('includes local source in config when user selects local type', async () => {
-        mockSourceByType = {local: {name: 'team-shared', type: 'local', path: '~/my-ai-configs'}}
+        mockSourceByType = {local: {name: 'default', type: 'local', path: '~/my-ai-configs'}}
         promptResponses = {
             [M.assistants.select]: [],
             [M.source.addSource]: true,
@@ -192,8 +192,8 @@ describe('runInit handler', () => {
 
     it('pre-selects detected assistants and includes them when returned', async () => {
         mockDetectionResults = [
-            {id: cursor.id, name: cursor.name, detected: true},
-            {id: windsurf.id, name: windsurf.name, detected: false},
+            {id: cursor.id, name: cursor.name, detected: true, scope: 'project'},
+            {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
         ]
         promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
@@ -204,8 +204,8 @@ describe('runInit handler', () => {
 
     it('excludes detected assistant when user deselects it', async () => {
         mockDetectionResults = [
-            {id: cursor.id, name: cursor.name, detected: true},
-            {id: windsurf.id, name: windsurf.name, detected: false},
+            {id: cursor.id, name: cursor.name, detected: true, scope: 'project'},
+            {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
         ]
         promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
         const {runInit} = await import('./handler')

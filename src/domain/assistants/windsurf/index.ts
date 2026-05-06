@@ -4,7 +4,7 @@ export const windsurf: AssistantDefinition = {
     id: 'windsurf',
     name: 'Windsurf',
     detection: {
-        directories: ['.windsurf', '.windsurf/rules', '.windsurf/workflows'],
+        directories: ['.windsurf', '~/.codeium/windsurf'],
         files: [],
     },
     targetMappings: [

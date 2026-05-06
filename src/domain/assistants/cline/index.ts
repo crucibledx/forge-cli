@@ -4,7 +4,7 @@ export const cline: AssistantDefinition = {
     id: 'cline',
     name: 'Cline',
     detection: {
-        directories: ['.cline', '.clinerules'],
+        directories: ['.cline', '.clinerules', '~/.cline'],
         files: [],
     },
     targetMappings: [

@@ -4,8 +4,8 @@ export const cursor: AssistantDefinition = {
     id: 'cursor',
     name: 'Cursor',
     detection: {
-        directories: ['.cursor', '.cursor/rules'],
-        files: [],
+        directories: ['.cursor'],
+        files: ['.cursorrules', '~/.cursor/mcp.json'],
     },
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.cursor/skills/'},

@@ -22,6 +22,7 @@ export const INIT_MESSAGES = {
     assistants: {
         select: 'Select AI assistants to enable:',
         detectedHint: 'detected',
+        detectedGlobalHint: 'detected (global)',
     },
 
     source: {

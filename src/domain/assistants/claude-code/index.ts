@@ -4,8 +4,8 @@ export const claudeCode: AssistantDefinition = {
     id: 'claude-code',
     name: 'Claude Code',
     detection: {
-        directories: ['.claude', '.claude/skills', '.claude/rules'],
-        files: ['.claude/settings.json', 'CLAUDE.md'],
+        directories: ['.claude', '~/.claude'],
+        files: ['CLAUDE.md', '.claude/settings.json'],
     },
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.claude/skills/'},
