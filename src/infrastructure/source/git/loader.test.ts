@@ -6,7 +6,7 @@ import {join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it, mock, spyOn} from 'bun:test'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
-import {cleanupAllCaches, cleanupCache, GitError, gitLoader} from './loader'
+import {cleanupAllCaches, cleanupCache, GitError, gitLoader, verifyGitSource} from './loader'
 import {GIT_SOURCE_MESSAGES} from './messages'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -106,6 +106,44 @@ describe('GIT_SOURCE_MESSAGES', () => {
     })
 })
 
+// ─── verifyGitSource ──────────────────────────────────────────────────────────
+
+describe('verifyGitSource', () => {
+    it('returns success:true when ls-remote exits 0', async () => {
+        const spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
+            exited: Promise.resolve(0),
+            stdout: 'abc123\trefs/heads/main\n',
+            stderr: '',
+            kill: () => {
+            },
+        })) as never)
+        try {
+            const result = await verifyGitSource('git@github.com:org/repo.git', 'main')
+            expect(result.success).toBe(true)
+            expect(result.error).toBeUndefined()
+        } finally {
+            spawnSpy.mockRestore()
+        }
+    })
+
+    it('returns success:false with error when ls-remote fails', async () => {
+        const spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
+            exited: Promise.resolve(128),
+            stdout: '',
+            stderr: 'Permission denied (publickey).',
+            kill: () => {
+            },
+        })) as never)
+        try {
+            const result = await verifyGitSource('git@github.com:org/repo.git', 'main')
+            expect(result.success).toBe(false)
+            expect(result.error).toContain('Permission denied')
+        } finally {
+            spawnSpy.mockRestore()
+        }
+    })
+})
+
 // ─── gitLoader.configure ──────────────────────────────────────────────────────
 
 describe('gitLoader.configure', () => {
@@ -114,7 +152,34 @@ describe('gitLoader.configure', () => {
 
     mock.module('@infrastructure/cli/prompts', () => ({
         text: mockText,
+        spinner: () => ({
+            start: () => {
+            }, stop: () => {
+            }
+        }),
+        log: {
+            warn: () => {
+            }, success: () => {
+            }, info: () => {
+            }
+        },
     }))
+
+    let spawnSpy: ReturnType<typeof spyOn>
+
+    beforeEach(() => {
+        spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
+            exited: Promise.resolve(0),
+            stdout: '',
+            stderr: '',
+            kill: () => {
+            },
+        })) as never)
+    })
+
+    afterEach(() => {
+        spawnSpy.mockRestore()
+    })
 
     it('returns a GitSource with type git', async () => {
         mockText.mockImplementationOnce(async () => 'git@github.com:org/repo.git')
@@ -189,16 +254,13 @@ describe('gitLoader', () => {
 
         await mkdir(join(dir, '.git'), {recursive: true})
 
-        const spawnSpy = spyOn(Bun, 'spawn').mockImplementation(((_: string[]) => {
-            const exitedPromise = Promise.resolve(0)
-            const stdoutText = async () => ''
-            const stderrText = async () => ''
-            return {
-                exited: exitedPromise,
-                stdout: {text: stdoutText},
-                stderr: {text: stderrText},
-            }
-        }) as never)
+        const spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
+            exited: Promise.resolve(0),
+            stdout: '',
+            stderr: '',
+            kill: () => {
+            },
+        })) as never)
 
         try {
             const result = await gitLoader.load({name: 'test', type: 'git', url, branch: 'main'})

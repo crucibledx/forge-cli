@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.9] — 2026-05-06
+
+### Added
+
+- **Local path validation at configure time** — the local source loader now validates the path inline (before the wizard exits): empty → re-prompts with "Path is required"; path doesn't exist → "Directory not found"; path is a file → "Path exists but is not a directory". Uses `~` expansion consistent with `load()`.
+- **Git source connectivity check** — after collecting URL/branch/subdirectory, a spinner runs `git ls-remote --exit-code <url> refs/heads/<branch>` with a 10s timeout and `ConnectTimeout=5` for SSH. On success: "Source verified". On failure: warning with the error detail — source is still saved, user can fix access and verify with `forge sync --dry-run`.
+- `GIT_TERMINAL_PROMPT=0` applied to all git operations to prevent interactive credential prompts.
+- Exported `validateLocalPath` and `verifyGitSource` for direct unit testing.
+- `log` (clack inline logging) added to `@infrastructure/cli/prompts` barrel.
+- 5 new unit tests: `validateLocalPath` (empty, valid, not-found, file, ~ expansion); `verifyGitSource` (success, failure).
+
+---
+
 ## [0.1.8] — 2026-05-06
 
 ### Fixed

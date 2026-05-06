@@ -33,13 +33,26 @@ export const gitLoader: SourceLoaderEntry = {
             message: GIT_SOURCE_MESSAGES.subdirectory.message,
             placeholder: GIT_SOURCE_MESSAGES.subdirectory.placeholder,
         })
-        return {
+
+        const source: GitSource = {
             name: DEFAULT_SOURCE_NAME,
             type: 'git',
             url: url.trim(),
             branch: branch?.trim() || 'main',
             path: path?.trim() || undefined,
-        } as GitSource
+        }
+
+        const s = prompts.spinner()
+        s.start(GIT_SOURCE_MESSAGES.verify.checking)
+        const verification = await verifyGitSource(source.url, source.branch)
+        if (verification.success) {
+            s.stop(GIT_SOURCE_MESSAGES.verify.success)
+        } else {
+            s.stop(GIT_SOURCE_MESSAGES.verify.failed)
+            prompts.log.warn(GIT_SOURCE_MESSAGES.verify.unreachable(verification.error ?? 'unknown error'))
+        }
+
+        return source
     },
     load: async (source) => {
         const git = source as GitSource
@@ -73,15 +86,52 @@ export async function cleanupAllCaches(): Promise<void> {
     }
 }
 
-async function runGit(cwd: string | undefined, args: string[]): Promise<string> {
+export async function verifyGitSource(
+    url: string,
+    branch: string,
+): Promise<{success: boolean, error?: string}> {
+    try {
+        await runGit(undefined, ['ls-remote', '--exit-code', url, `refs/heads/${branch}`], {
+            timeoutMs: 10_000,
+            env: {'GIT_SSH_COMMAND': 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
+        })
+        return {success: true}
+    } catch (err) {
+        return {
+            success: false,
+            error: err instanceof GitError ? err.message : String(err),
+        }
+    }
+}
+
+async function runGit(
+    cwd: string | undefined,
+    args: string[],
+    options?: {timeoutMs?: number, env?: Record<string, string>},
+): Promise<string> {
     const proc = Bun.spawn(['git', ...args], {
         cwd: cwd ?? undefined,
         stdout: 'pipe',
         stderr: 'pipe',
+        env: {...process.env, GIT_TERMINAL_PROMPT: '0', ...options?.env},
     })
 
+    let timedOut = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    if (options?.timeoutMs) {
+        timer = setTimeout(() => {
+            timedOut = true
+            proc.kill()
+        }, options.timeoutMs)
+    }
+
     const exitCode = await proc.exited
+    if (timer) clearTimeout(timer)
     const stderr = await new Response(proc.stderr).text()
+
+    if (timedOut) {
+        throw new GitError(`git ${args[0]} timed out after ${Math.round(options!.timeoutMs! / 1000)}s`)
+    }
 
     if (exitCode !== 0) {
         throw new GitError(`git ${args[0]} failed (exit ${exitCode}): ${stderr.trim()}`)

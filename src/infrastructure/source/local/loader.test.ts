@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 import type {LocalSource} from '@domain/config/types'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
-import {localLoader, LocalSourceError} from './loader'
+import {localLoader, LocalSourceError, validateLocalPath} from './loader'
 import {LOCAL_SOURCE_MESSAGES} from './messages'
 
 const TMP = join(tmpdir(), '__forge_local_loader_test__')
@@ -21,6 +21,32 @@ afterEach(async () => {
 })
 
 const makeSource = (path: string): LocalSource => ({name: 'test', type: 'local', path})
+
+describe('validateLocalPath', () => {
+    it('returns required message for empty input', () => {
+        expect(validateLocalPath('')).toBe(LOCAL_SOURCE_MESSAGES.path.required)
+        expect(validateLocalPath(undefined)).toBe(LOCAL_SOURCE_MESSAGES.path.required)
+        expect(validateLocalPath('   ')).toBe(LOCAL_SOURCE_MESSAGES.path.required)
+    })
+
+    it('returns undefined for an existing directory', () => {
+        expect(validateLocalPath(TMP)).toBeUndefined()
+    })
+
+    it('returns notFound for a non-existent path', () => {
+        expect(validateLocalPath(join(TMP, 'does-not-exist'))).toBe(LOCAL_SOURCE_MESSAGES.path.notFound)
+    })
+
+    it('returns notDirectory when path is a file', async () => {
+        const file = join(TMP, 'some.txt')
+        await Bun.write(file, 'content')
+        expect(validateLocalPath(file)).toBe(LOCAL_SOURCE_MESSAGES.path.notDirectory)
+    })
+
+    it('expands ~ to home directory', () => {
+        expect(validateLocalPath('~')).toBeUndefined()
+    })
+})
 
 describe('LOCAL_SOURCE_MESSAGES', () => {
     it('exposes path.message', () => {

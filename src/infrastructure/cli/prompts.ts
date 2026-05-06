@@ -88,3 +88,5 @@ export function outro(message: string): void {
 export function spinner(): ReturnType<typeof clack.spinner> {
     return clack.spinner()
 }
+
+export const log = clack.log
