@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.8] — 2026-05-06
+
+### Fixed
+
+- **Recursive file check for directory detection** — replaced the shallow entry-count check with a recursive `hasAnyFile()` scan. A directory is only detected if it contains at least one non-hidden *file* anywhere in its tree. Empty subdirectories (e.g. `~/.claude/skills/` auto-created by Claude Code on first launch) no longer falsely trigger detection.
+- Removed misleading item-count label from directory evidence (was `".claude/ found (1 items)"`, now `.claude/ found`).
+- 2 new unit tests: empty-subdirectory non-detection, nested-file detection.
+
+---
+
 ## [0.1.7] — 2026-05-06
 
 ### Changed

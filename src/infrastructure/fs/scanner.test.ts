@@ -101,13 +101,29 @@ describe('scanForAssistants', () => {
         expect(results[0].scope).toBe('project')
     })
 
-    it('includes item count in evidence for non-empty directory', async () => {
+    it('includes directory name in evidence when files exist', async () => {
         const dir = getDir()
         await mkdir(join(dir, '.cursor'), {recursive: true})
         await writeFile(join(dir, '.cursor', 'a.md'), 'a', 'utf-8')
-        await writeFile(join(dir, '.cursor', 'b.md'), 'b', 'utf-8')
         const results = scanForAssistants(dir, [cursorDef])
-        expect(results[0].evidence).toContain('2 items')
+        expect(results[0].evidence).toContain('.cursor/ found')
+    })
+
+    it('does not detect when directory contains only empty subdirectories', async () => {
+        const dir = getDir()
+        await mkdir(join(dir, '.claude', 'skills'), {recursive: true})
+        const results = scanForAssistants(dir, [claudeDef])
+        expect(results[0].detected).toBe(false)
+        expect(results[0].evidence).toBeUndefined()
+    })
+
+    it('detects when a file exists inside a nested subdirectory', async () => {
+        const dir = getDir()
+        await mkdir(join(dir, '.cursor', 'rules'), {recursive: true})
+        await writeFile(join(dir, '.cursor', 'rules', 'no-any.mdc'), 'rule', 'utf-8')
+        const results = scanForAssistants(dir, [cursorDef])
+        expect(results[0].detected).toBe(true)
+        expect(results[0].evidence).toContain('.cursor/ found')
     })
 
     it('does not detect an empty project directory', async () => {

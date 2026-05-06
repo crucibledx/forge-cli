@@ -1,4 +1,4 @@
-import {existsSync, readdirSync} from 'node:fs'
+import {existsSync, readdirSync, statSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
@@ -10,6 +10,24 @@ function resolvePath(projectRoot: string, homeDir: string, path: string): string
 
 function isGlobal(path: string): boolean {
     return path.startsWith('~/')
+}
+
+function hasAnyFile(dirPath: string): boolean {
+    try {
+        for (const entry of readdirSync(dirPath)) {
+            if (entry.startsWith('.')) continue
+            const fullEntry = join(dirPath, entry)
+            try {
+                if (statSync(fullEntry).isFile()) return true
+                if (hasAnyFile(fullEntry)) return true
+            } catch {
+                // skip unreadable entry
+            }
+        }
+    } catch {
+        // unreadable directory
+    }
+    return false
 }
 
 export function scanForAssistants(
@@ -32,15 +50,8 @@ function detectAssistant(
         const fullPath = resolvePath(projectRoot, homeDir, dir)
         if (!existsSync(fullPath)) continue
 
-        let label: string
-        try {
-            const entries = readdirSync(fullPath)
-            const count = entries.filter((e) => !e.startsWith('.')).length
-            if (count === 0) continue
-            label = `${dir}/ found (${count} items)`
-        } catch {
-            label = `${dir}/ found`
-        }
+        if (!hasAnyFile(fullPath)) continue
+        const label = `${dir}/ found`
 
         if (isGlobal(dir)) globalEvidence.push(label)
         else projectEvidence.push(label)
