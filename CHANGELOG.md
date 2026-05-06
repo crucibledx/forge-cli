@@ -10,7 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - **Global assistant detection** — `scanForAssistants` now checks `~/`-prefixed paths against HOME in addition to project paths. Each assistant definition includes global dirs/files sourced from research.
-- **Scope-aware hint in multiselect** — detected assistants now show `"detected"` (project) or `"detected (global)"` depending on where they were found. Project scope wins if both match.
+- **Scope-aware hint in multiselect** — detected assistants now show `"detected"` (project) or `"detected globally"` depending on where they were found. Project scope wins if both match.
 - Updated detection paths per research, removing overly generic signals:
   - Claude Code: adds `~/.claude/` global dir; removes redundant sub-dirs
   - Cursor: adds `.cursorrules` (legacy) + `~/.cursor/mcp.json` (global, user-configured MCP)
