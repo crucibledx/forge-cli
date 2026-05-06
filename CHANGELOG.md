@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.3] — 2026-05-06
+
+### Changed
+- **`forge init` assistant selection is now a single multiselect** — replaced per-assistant confirm prompts with one `multiselect` showing all assistants at once
+- Detected assistants are pre-selected with a `"detected"` hint
+- `prompts.multiselect` wrapper now supports `initialValues` (passed through to `@clack/prompts`)
+- `SPACE` key constant added to e2e helpers
+- Updated all unit and e2e tests for the new interaction model
+
+---
+
 ## [0.1.2] — 2026-05-05
 
 ### Changed

@@ -21,11 +21,13 @@ export async function select(options: {
 export async function multiselect(options: {
     message: string
     options: Array<{ value: string, label?: string, hint?: string }>
+    initialValues?: string[]
     required?: boolean
 }): Promise<string[]> {
     const result = await clack.multiselect({
         message: options.message,
         options: options.options as Array<{ value: string, label?: string, hint?: string }>,
+        initialValues: options.initialValues,
         required: options.required ?? false,
     })
 

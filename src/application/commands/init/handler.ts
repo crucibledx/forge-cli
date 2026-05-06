@@ -1,8 +1,8 @@
 import {basename, relative} from 'node:path'
 
 import {getAllAssistants} from '@domain/assistants/registry'
-import type {AssistantConfig} from '@domain/assistants/types'
-import type {LocalSource, ProjectConfig, Source} from '@domain/config/types'
+import type {AssistantConfig, AssistantId} from '@domain/assistants/types'
+import type {GitSource, LocalSource, ProjectConfig, Source} from '@domain/config/types'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {projectConfigExists, writeProjectConfig} from '@infrastructure/config'
@@ -38,26 +38,20 @@ export const runInit: InitCommandAction = async (options) => {
         return
     }
 
-    // 3. Ask which assistants to enable
-    const assistantConfigs: AssistantConfig[] = []
+    // 3. Ask which assistants to enable — single multiselect, detected pre-selected
+    const detectedIds = new Set(detectionResults.filter((r) => r.detected).map((r) => r.id))
 
-    for (const result of detectionResults) {
-        if (result.detected) {
-            const keep = await prompts.confirm({
-                message: M.assistants.keepDetected(result.name),
-                initialValue: true,
-            })
-            assistantConfigs.push({id: result.id, enabled: keep})
-        } else {
-            const add = await prompts.confirm({
-                message: M.assistants.addUndetected(result.name),
-                initialValue: false,
-            })
-            if (add) {
-                assistantConfigs.push({id: result.id, enabled: true})
-            }
-        }
-    }
+    const selectedIds = await prompts.multiselect({
+        message: M.assistants.select,
+        options: allAssistants.map((a) => ({
+            value: a.id,
+            label: a.name,
+            hint: detectedIds.has(a.id) ? M.assistants.detectedHint : undefined,
+        })),
+        initialValues: [...detectedIds],
+    })
+
+    const assistantConfigs: AssistantConfig[] = selectedIds.map((id) => ({id: id as AssistantId, enabled: true}))
 
     // 4. Ask for source
     let source: Source | undefined
@@ -98,7 +92,7 @@ export const runInit: InitCommandAction = async (options) => {
                     url: url.trim(),
                     branch: branch?.trim() || 'main',
                     path: path?.trim() || undefined,
-                }
+                } as GitSource
             },
             local: async () => {
                 const path = await prompts.text({
@@ -113,7 +107,7 @@ export const runInit: InitCommandAction = async (options) => {
                     name: M.source.defaultName,
                     type: 'local',
                     path: path.trim(),
-                } satisfies LocalSource
+                } as LocalSource
             },
         }
 

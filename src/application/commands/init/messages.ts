@@ -20,8 +20,8 @@ export const INIT_MESSAGES = {
     configWrittenTo: (path: string) => `Config written to ${path}`,
 
     assistants: {
-        keepDetected: (name: string) => `Keep ${name}?`,
-        addUndetected: (name: string) => `Add ${name}?`,
+        select: 'Select AI assistants to enable:',
+        detectedHint: 'detected',
     },
 
     source: {

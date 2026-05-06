@@ -33,6 +33,7 @@ import {
     readConfig,
     readConfigRaw,
     runInitSession,
+    SPACE,
     spawnCommand,
     TIMEOUT_MS,
     useTmpDir,
@@ -46,12 +47,9 @@ const getDir = useTmpDir('forge-e2e')
 // ─── Reusable drivers ─────────────────────────────────────────────────────────
 
 function declineAllAssistants(cli: CLISession): CliStep {
-    return cli
-        .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-        .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(N)
-        .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-        .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-        .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+    // Multiselect: no assistants detected in tmp dir, so none pre-selected.
+    // Press Enter immediately to confirm with zero selection.
+    return cli.waitForText(M.assistants.select).pressEnter()
 }
 
 function declineAll(cli: CLISession): CliStep {
@@ -85,7 +83,7 @@ describe('forge init — e2e', () => {
         it('cancels gracefully on Ctrl+C — no config written', async () => {
             const cli = spawnCommand(getDir(), 'init')
             const done = cli.waitForExit()
-            await cli.waitForText(M.assistants.addUndetected('Claude Code')).pressKey(CTRL_C)
+            await cli.waitForText(M.assistants.select).pressKey(CTRL_C)
             const {exitCode} = await done
             expect([0, 1]).toContain(exitCode)
             expect(existsSync(configFilePath(getDir()))).toBe(false)
@@ -116,33 +114,32 @@ describe('forge init — e2e', () => {
     })
 
     describe('assistant selection', () => {
-        it('enables a single selected assistant (Cursor)', async () => {
+        it('enables a single selected assistant (Cursor — 2nd in list)', async () => {
+            // List order: claudeCode(0), cursor(1), windsurf(2), copilot(3), cline(4)
+            // Navigate to cursor: Down(×1), Space to toggle, Enter to confirm
             await runInitSession(getDir(), (cli) =>
-                // only `cursor` is gonna be selected
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select)
+                    .pressKey(ARROW_DOWN)    // move to cursor
+                    .pressKey(SPACE)          // select cursor
+                    .pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
-
             const config = await readConfig(getDir())
             expect(config.assistants).toHaveLength(1)
             expect(config.assistants[0].id).toBe(cursor.id)
             expect(config.assistants[0].enabled).toBe(true)
         }, TIMEOUT_MS)
 
-        it('enables multiple selected assistants', async () => {
+        it('enables multiple selected assistants (Claude Code + Cursor)', async () => {
+            // Space on first (claudeCode), Down, Space on second (cursor), Enter
             await runInitSession(getDir(), (cli) =>
-                //  `claudeCode` and `cursor` are gonna be selected
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select)
+                    .pressKey(SPACE)          // select claudeCode
+                    .pressKey(ARROW_DOWN)    // move to cursor
+                    .pressKey(SPACE)          // select cursor
+                    .pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())
@@ -152,14 +149,17 @@ describe('forge init — e2e', () => {
             expect(ids).toContainValues([claudeCode.id, cursor.id])
         }, TIMEOUT_MS)
 
-        it('enables all assistants when all accepted', async () => {
+        it('enables all assistants when user selects all (Space×5 + Enter)', async () => {
+            // Select each in turn: Space, Down, Space, Down, ..., Enter
             await runInitSession(getDir(), (cli) =>
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(Y)
+                    .waitForText(M.assistants.select)
+                    .pressKey(SPACE)          // claudeCode
+                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // cursor
+                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // windsurf
+                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // copilot
+                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // cline
+                    .pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())
@@ -223,7 +223,7 @@ describe('forge init — e2e', () => {
             // Should see the abort message but NOT the assistant prompt
             await cli.waitForText(M.configExists)
             const {output} = await done
-            expect(output).not.toContain(M.assistants.addUndetected('Cursor'))
+            expect(output).not.toContain(M.assistants.select)
             expect(output).not.toContain(M.source.addSource)
         }, TIMEOUT_MS)
     })
@@ -296,18 +296,13 @@ describe('forge init — e2e', () => {
     })
 
     describe('detected assistants', () => {
-        it('shows keepDetected prompt when assistant config dir is present', async () => {
-            // Pre-create .cursor dir so the scanner detects cursor as present
+        it('pre-selects detected assistant (.cursor dir) — Enter confirms it', async () => {
+            // cursor is detected (pre-selected); press Enter immediately to confirm
             await mkdir(join(getDir(), '.cursor'), {recursive: true})
 
             await runInitSession(getDir(), (cli) =>
-                // claude-code is undetected → addUndetected; cursor is detected → keepDetected
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-                    .waitForText(M.assistants.keepDetected(cursor.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select).pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())
@@ -316,33 +311,29 @@ describe('forge init — e2e', () => {
             expect(config.assistants[0].enabled).toBe(true)
         }, TIMEOUT_MS)
 
-        it('excludes detected assistant when user declines keep', async () => {
+        it('deselects pre-selected detected assistant — not written to config', async () => {
+            // cursor detected at list position 1; navigate to it, Space deselects, Enter confirms
             await mkdir(join(getDir(), '.cursor'), {recursive: true})
 
             await runInitSession(getDir(), (cli) =>
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-                    .waitForText(M.assistants.keepDetected(cursor.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select)
+                    .pressKey(ARROW_DOWN)  // move to cursor (position 1)
+                    .pressKey(SPACE)        // deselect cursor
+                    .pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())
             expect(config.assistants).toHaveLength(0)
         }, TIMEOUT_MS)
 
-        it('detects assistant by file evidence (CLAUDE.md → claude-code keepDetected)', async () => {
-            // Create detection file only — no directory — to exercise file-based detection path
+        it('pre-selects detected assistant by file evidence (CLAUDE.md → claude-code)', async () => {
+            // claudeCode detected at position 0 (first item, already focused)
             await Bun.write(join(getDir(), 'CLAUDE.md'), '# Claude instructions')
 
             await runInitSession(getDir(), (cli) =>
                 cli
-                    .waitForText(M.assistants.keepDetected(claudeCode.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(copilot.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select).pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())
@@ -351,17 +342,14 @@ describe('forge init — e2e', () => {
             expect(config.assistants[0].enabled).toBe(true)
         }, TIMEOUT_MS)
 
-        it('detects assistant by file evidence (copilot-instructions.md → copilot keepDetected)', async () => {
+        it('pre-selects detected assistant by file evidence (copilot-instructions.md → copilot)', async () => {
+            // copilot detected at position 3; pressing Enter includes only the pre-selected one
             await mkdir(join(getDir(), '.github'), {recursive: true})
             await Bun.write(join(getDir(), '.github', 'copilot-instructions.md'), '# Copilot instructions')
 
             await runInitSession(getDir(), (cli) =>
                 cli
-                    .waitForText(M.assistants.addUndetected(claudeCode.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(cursor.name)).pressKey(N)
-                    .waitForText(M.assistants.addUndetected(windsurf.name)).pressKey(N)
-                    .waitForText(M.assistants.keepDetected(copilot.name)).pressKey(Y)
-                    .waitForText(M.assistants.addUndetected(cline.name)).pressKey(N)
+                    .waitForText(M.assistants.select).pressEnter()
                     .waitForText(M.source.addSource).pressKey(N),
             )
             const config = await readConfig(getDir())

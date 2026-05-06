@@ -88,6 +88,7 @@ mock.module('@infrastructure/cli/prompts', () => ({
     }),
     confirm: async (opts: {message: string}) => promptResponses[opts.message] ?? false,
     select: async (opts: {message: string}) => promptResponses[opts.message] ?? 'git',
+    multiselect: async (opts: {message: string}) => promptResponses[opts.message] ?? [],
     text: async (opts: {
         message: string
         defaultValue?: string
@@ -122,16 +123,16 @@ describe('runInit handler', () => {
         ]
     })
 
-    it('writes config with no assistants when user declines all', async () => {
-        promptResponses = {[M.assistants.addUndetected(cursor.name)]: false, [M.assistants.addUndetected(windsurf.name)]: false, [M.source.addSource]: false}
+    it('writes config with no assistants when user selects none', async () => {
+        promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         expect(writtenConfig).not.toBeNull()
         expect((writtenConfig as {assistants: unknown[]}).assistants).toEqual([])
     })
 
-    it('writes config with enabled assistant when user accepts', async () => {
-        promptResponses = {[M.assistants.addUndetected(cursor.name)]: true, [M.assistants.addUndetected(windsurf.name)]: false, [M.source.addSource]: false}
+    it('writes config with enabled assistant when user selects one', async () => {
+        promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         const assistants = (writtenConfig as {assistants: Array<{id: string, enabled: boolean}>}).assistants
@@ -140,10 +141,19 @@ describe('runInit handler', () => {
         expect(assistants[0].enabled).toBe(true)
     })
 
+    it('writes config with multiple assistants when user selects several', async () => {
+        promptResponses = {[M.assistants.select]: [cursor.id, windsurf.id], [M.source.addSource]: false}
+        const {runInit} = await import('./handler')
+        await runInit({verbose: false})
+        const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
+        expect(assistants).toHaveLength(2)
+        expect(assistants.map((a) => a.id)).toContain(cursor.id)
+        expect(assistants.map((a) => a.id)).toContain(windsurf.id)
+    })
+
     it('includes git source in config when user adds one', async () => {
         promptResponses = {
-            [M.assistants.addUndetected(cursor.name)]: false,
-            [M.assistants.addUndetected(windsurf.name)]: false,
+            [M.assistants.select]: [],
             [M.source.addSource]: true,
             [M.source.selectType]: 'git',
             [M.source.git.url.message]: 'git@github.com:org/repo.git',
@@ -160,8 +170,7 @@ describe('runInit handler', () => {
 
     it('includes local source in config when user selects local type', async () => {
         promptResponses = {
-            [M.assistants.addUndetected(cursor.name)]: false,
-            [M.assistants.addUndetected(windsurf.name)]: false,
+            [M.assistants.select]: [],
             [M.source.addSource]: true,
             [M.source.selectType]: 'local',
             [M.source.local.path.message]: '~/my-ai-configs',
@@ -174,27 +183,26 @@ describe('runInit handler', () => {
         expect(cfg.source?.path).toBe('~/my-ai-configs')
     })
 
-    it('keeps detected assistant when user confirms', async () => {
+    it('pre-selects detected assistants and includes them when returned', async () => {
         mockDetectionResults = [
             {id: cursor.id, name: cursor.name, detected: true},
             {id: windsurf.id, name: windsurf.name, detected: false},
         ]
-        promptResponses = {[M.assistants.keepDetected(cursor.name)]: true, [M.assistants.addUndetected(windsurf.name)]: false, [M.source.addSource]: false}
+        promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         const assistants = (writtenConfig as {assistants: Array<{id: string, enabled: boolean}>}).assistants
         expect(assistants.find((a) => a.id === cursor.id)?.enabled).toBe(true)
     })
 
-    it('excludes detected assistant when user declines keep', async () => {
+    it('excludes detected assistant when user deselects it', async () => {
         mockDetectionResults = [
             {id: cursor.id, name: cursor.name, detected: true},
             {id: windsurf.id, name: windsurf.name, detected: false},
         ]
-        promptResponses = {[M.assistants.keepDetected(cursor.name)]: false, [M.assistants.addUndetected(windsurf.name)]: false, [M.source.addSource]: false}
+        promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
-        // declined detected assistants are filtered from enabledAssistants — not present in output
         const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
         expect(assistants.find((a) => a.id === cursor.id)).toBeUndefined()
     })
@@ -209,8 +217,7 @@ describe('runInit handler', () => {
     it('proceeds to write when no existing config', async () => {
         mockConfigExists = false
         promptResponses = {
-            [M.assistants.addUndetected(cursor.name)]: false,
-            [M.assistants.addUndetected(windsurf.name)]: false,
+            [M.assistants.select]: [],
             [M.source.addSource]: false,
         }
         const {runInit} = await import('./handler')
@@ -220,7 +227,7 @@ describe('runInit handler', () => {
 
     it('uses project directory name as config project name', async () => {
         mockProjectRoot = '/workspace/my-app'
-        promptResponses = {[M.assistants.addUndetected(cursor.name)]: false, [M.assistants.addUndetected(windsurf.name)]: false, [M.source.addSource]: false}
+        promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
         expect((writtenConfig as {project?: {name: string}}).project?.name).toBe('my-app')
