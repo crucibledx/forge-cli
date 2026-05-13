@@ -64,21 +64,30 @@ export const runInit: InitCommandAction = async (options) => {
         .map((id) =>
             ({id: id as AssistantId, enabled: true}))
 
-    // 4. Ask for source
+    // 4. Ask for sources — loop until user declines
     const sources: Source[] = []
 
-    const addSource = await prompts.confirm({
+    let addMore = await prompts.confirm({
         message: M.source.addSource,
         initialValue: true,
     })
 
-    if (addSource) {
+    while (addMore) {
         const sourceType = await prompts.select({
             message: M.source.selectType,
             options: getSourceLoaderOptions(),
         })
 
-        sources.push(await getSourceLoader(sourceType).configure())
+        const source = await getSourceLoader(sourceType).configure()
+        if (sources.length > 0) {
+            source.name = `source-${sources.length + 1}`
+        }
+        sources.push(source)
+
+        addMore = await prompts.confirm({
+            message: M.source.addAnother,
+            initialValue: false,
+        })
     }
 
     // 5. Build and write config

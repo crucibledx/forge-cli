@@ -94,8 +94,16 @@ mock.module('@infrastructure/cli/prompts', () => ({
         }, stop: () => {
         }
     }),
-    confirm: async (opts: {message: string}) => promptResponses[opts.message] ?? false,
-    select: async (opts: {message: string}) => promptResponses[opts.message] ?? 'git',
+    confirm: async (opts: {message: string}) => {
+        const val = promptResponses[opts.message]
+        if (Array.isArray(val)) return val.shift() ?? false
+        return val ?? false
+    },
+    select: async (opts: {message: string}) => {
+        const val = promptResponses[opts.message]
+        if (Array.isArray(val)) return val.shift() ?? 'git'
+        return val ?? 'git'
+    },
     multiselect: async (opts: {message: string}) => promptResponses[opts.message] ?? [],
     text: async (opts: {
         message: string
@@ -198,6 +206,28 @@ describe('runInit handler', () => {
         expect(cfg.sources).toHaveLength(1)
         expect(cfg.sources[0].type).toBe('local')
         expect(cfg.sources[0].path).toBe('~/my-ai-configs')
+    })
+
+    it('writes multiple sources when user adds more than one', async () => {
+        mockSourceByType = {
+            git: {name: 'default', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'},
+            local: {name: 'default', type: 'local', path: '~/local-configs'},
+        }
+        promptResponses = {
+            [M.assistants.select]: [],
+            [M.source.addSource]: true,
+            [M.source.selectType]: ['git', 'local'],
+            [M.source.addAnother]: [true, false],
+            [M.sync.runNow]: false,
+        }
+        const {runInit} = await import('./handler')
+        await runInit({verbose: false})
+        const cfg = writtenConfig as {sources: Array<{name: string, type: string}>}
+        expect(cfg.sources).toHaveLength(2)
+        expect(cfg.sources[0].name).toBe('default')
+        expect(cfg.sources[0].type).toBe('git')
+        expect(cfg.sources[1].name).toBe('source-2')
+        expect(cfg.sources[1].type).toBe('local')
     })
 
     it('pre-selects detected assistants and includes them when returned', async () => {

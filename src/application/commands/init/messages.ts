@@ -29,6 +29,7 @@ export const INIT_MESSAGES = {
 
     source: {
         addSource: 'Add a shared skills source?',
+        addAnother: 'Add another source?',
         selectType: 'Source type:',
     },
 

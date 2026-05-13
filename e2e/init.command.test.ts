@@ -73,6 +73,8 @@ function addSource(cli: CLISession, runSync = N): CliStep {
         .waitForText(GM.branch).pressEnter()
         // skip subdirectory - use root
         .waitForText(GM.subdirectory.message).pressEnter()
+        // decline adding another source
+        .waitForText(M.source.addAnother).pressKey(N)
         // decline run sync command
         .waitForText(M.sync.runNow).pressKey(runSync)
 }
@@ -202,6 +204,7 @@ describe('forge init — e2e', () => {
                     // arrow down to select 'Local directory' (second option)
                     .waitForText(M.source.selectType).pressKey(ARROW_DOWN).pressEnter()
                     .waitForText(LM.path.message).write(localPath).pressEnter()
+                    .waitForText(M.source.addAnother).pressKey(N)
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const config = await readConfig(getDir())
@@ -247,6 +250,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
                     .waitForText(GM.branch).write('develop').pressEnter()
                     .waitForText(GM.subdirectory.message).pressEnter()
+                    .waitForText(M.source.addAnother).pressKey(N)
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).sources[0] as GitSource
@@ -261,6 +265,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
                     .waitForText(GM.branch).pressEnter()
                     .waitForText(GM.subdirectory.message).write('packages/ai').pressEnter()
+                    .waitForText(M.source.addAnother).pressKey(N)
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).sources[0] as GitSource
@@ -278,6 +283,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.url.required).write(SOURCE_URL).pressEnter()
                     .waitForText(GM.branch).pressEnter()
                     .waitForText(GM.subdirectory.message).pressEnter()
+                    .waitForText(M.source.addAnother).pressKey(N)
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const source = (await readConfig(getDir())).sources[0] as GitSource
