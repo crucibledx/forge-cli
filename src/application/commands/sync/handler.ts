@@ -39,74 +39,82 @@ export const runSync: SyncCommandAction = async (options) => {
         process.exit(1)
     }
 
-    const source = config.sources[0]
-    const loader = getSourceLoader(source.type)
-
-    renderer.renderNewline()
-    renderer.renderInfo(`Syncing from source: ${source.name}`)
-    renderer.renderDim(`Pulling ${source.type} source (${source.name})...`)
-
-    const s = prompts.spinner()
-    s.start('Fetching source...')
-    const {localPath} = await loader.load(source)
-    s.stop('Source ready')
-
-    renderer.renderNewline()
-
-    // Collect source files
-    const sourcePath = source.type === 'git' && source.path
-        ? join(localPath, source.path)
-        : localPath
-    const sourceFiles = await collectFiles(sourcePath)
-
-    if (sourceFiles.length === 0) {
-        renderer.renderWarning('No files found in source')
-        return
-    }
-
-    // Resolve targets
     const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
-    const resolved = resolveTargets(sourceFiles, assistantDefs)
-
-    if (resolved.length === 0) {
-        renderer.renderWarning('No files matched any target mapping')
-        return
-    }
-
-    // Build plan — check existing files to determine status
     const mutations: Mutation[] = []
     const summaries: SyncFileSummary[] = []
 
-    for (const target of resolved) {
-        const fullPath = join(projectRoot, target.targetPath)
-        let status: 'new' | 'update' | 'no_change' = 'new'
+    // Process each source
+    for (const source of config.sources) {
+        const loader = getSourceLoader(source.type)
 
-        if (existsSync(fullPath)) {
-            const existing = await readFile(fullPath, 'utf-8')
-            status = existing === target.content ? 'no_change' : 'update'
+        renderer.renderNewline()
+        renderer.renderInfo(`Syncing from source: ${source.name}`)
+        renderer.renderDim(`Pulling ${source.type} source (${source.name})...`)
+
+        const s = prompts.spinner()
+        s.start('Fetching source...')
+        const {localPath} = await loader.load(source)
+        s.stop('Source ready')
+
+        renderer.renderNewline()
+
+        // Collect source files
+        const sourcePath = source.type === 'git' && source.path
+            ? join(localPath, source.path)
+            : localPath
+        const sourceFiles = await collectFiles(sourcePath)
+
+        if (sourceFiles.length === 0) {
+            renderer.renderWarning(`No files found in source: ${source.name}`)
+            continue
         }
 
-        summaries.push({
-            targetPath: target.targetPath,
-            sourcePath: target.sourcePath,
-            assistantId: target.assistantId,
-            status,
-        })
+        // Resolve targets
+        const resolved = resolveTargets(sourceFiles, assistantDefs)
 
-        if (status !== 'no_change') {
-            mutations.push({
-                type: 'file_write',
-                path: target.targetPath,
-                content: target.content,
+        if (resolved.length === 0) {
+            renderer.renderWarning(`No files matched any target mapping from: ${source.name}`)
+            continue
+        }
+
+        // Build plan — check existing files to determine status
+        for (const target of resolved) {
+            const fullPath = join(projectRoot, target.targetPath)
+            let status: 'new' | 'update' | 'no_change' = 'new'
+
+            if (existsSync(fullPath)) {
+                const existing = await readFile(fullPath, 'utf-8')
+                status = existing === target.content ? 'no_change' : 'update'
+            }
+
+            summaries.push({
+                targetPath: target.targetPath,
+                sourcePath: target.sourcePath,
+                assistantId: target.assistantId,
+                status,
             })
+
+            if (status !== 'no_change') {
+                mutations.push({
+                    type: 'file_write',
+                    path: target.targetPath,
+                    content: target.content,
+                })
+            }
         }
+    }
+
+    if (summaries.length === 0) {
+        renderer.renderWarning('No files to sync from any source')
+        return
     }
 
     // Display results grouped by assistant
     const byAssistant = groupBy(summaries, (item) => item.assistantId)
+    const sourceNames = config.sources.map((s) => s.name).join(', ')
 
     if (options.dryRun) {
-        renderer.renderInfo(`Would sync from source: ${source.name}`)
+        renderer.renderInfo(`Would sync from: ${sourceNames}`)
         renderer.renderNewline()
     }
 
@@ -146,7 +154,7 @@ export const runSync: SyncCommandAction = async (options) => {
     }
 
     const changeCount = summaries.filter((item) => item.status !== 'no_change').length
-    renderer.renderSuccess(`Done. ${changeCount} files synced from ${source.name}.`)
+    renderer.renderSuccess(`Done. ${changeCount} files synced from ${sourceNames}.`)
     renderer.renderDim(
         `Last sync: ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`,
     )
