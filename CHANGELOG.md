@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.2.0] — 2026-05-13
+
+### Milestone — "Config Control"
+
+v0.2 design finalized. Simplified scope from the original plan:
+
+- **`forge config`** — interactive config editor with registry-driven section select loop. Each config section (assistants, sources, future: scheduler, plugins) is a self-contained editor registered in a sections array. The handler is generic — zero changes needed when adding new sections.
+- **Multi-source support** — `source:` becomes `sources:` (array). Auto-migration wraps existing single source. Init gains "Add another source?" loop.
+- **Rules frontmatter translation** — path-scoped rules translated during sync (`paths` ↔ `globs` ↔ `applyTo`).
+
+**Dropped from earlier v0.2 plans:** `forge config set/show/diff/promote`, `forge update`, config layers (local/project/global). Users edit YAML directly for one-offs; `forge config` handles interactive changes.
+
+See `docs/forge-v0.2.md` for full architecture and implementation order.
+
+---
+
 ## [0.1.9] — 2026-05-06
 
 ### Added

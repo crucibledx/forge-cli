@@ -2,45 +2,48 @@
 
 > **Milestone:** Forge v0.2 — "Config Control"
 >
-> **Prerequisite:** Forge v0.1 shipped.
+> **Prerequisite:** Forge v0.1 shipped (v0.1.9).
 >
-> **Scope:** Config management CLI (`forge config`), `forge update` wizard,
-> multi-source support in `forge init`, multiselect for assistant selection.
+> **Scope:** Multi-source support, interactive `forge config` command with
+> registry-driven section editors, rules frontmatter translation.
 
 ---
 
 ## What Changes From v0.1
 
-### New user-facing commands
+### New user-facing command
 
-| Command                | What it solves                                            |
-|------------------------|-----------------------------------------------------------|
-| `forge config set`     | Targeted config change saved to local layer first         |
-| `forge config show`    | View effective config (merged: global + project + local)  |
-| `forge config diff`    | Show what differs between config layers                   |
-| `forge config promote` | Promote local change up to project or global layer        |
-| `forge update`         | Re-run the init wizard pre-populated with existing values |
+| Command        | What it solves                                              |
+|----------------|-------------------------------------------------------------|
+| `forge config` | Interactive config editor — pick a section, change it, save |
 
 ### Init wizard improvements
 
-- **Multiselect for assistants** — single `multiselect` prompt replaces the per-assistant yes/no loop.
-  Detected assistants are pre-selected; undetected ones are unchecked.
 - **Multiple sources** — "Add another source?" loop after each source is configured.
-  Sources listed in add-order (highest priority first). Sort/reorder deferred to v0.3.
+  Sources listed in add-order. Sort/reorder deferred to v0.3.
+
+### What was dropped from earlier v0.2 plans
+
+| Dropped                              | Reason                                                          |
+|--------------------------------------|-----------------------------------------------------------------|
+| `forge config set <path> <val>`      | Users can edit YAML directly for targeted one-offs              |
+| `forge config show`                  | `cat .crucible/forge.config.yaml` is sufficient for now         |
+| `forge config diff` / `promote`      | No config layers = no promotion needed                          |
+| `forge update`                       | `forge config` replaces it (same UX, one less command to learn) |
+| Config layers (local/project/global) | Just project config for now. `--global` flag deferred           |
 
 ---
 
 ## Config: Multiple Sources
 
 The v0.1 `source:` (singular) field becomes `sources:` (plural).
+
 Migration: if `source:` exists and `sources:` does not, the CLI auto-wraps it into a
 single-element `sources:` list. No user action needed.
 
 ```yaml
-# .crucible/forge.config.yaml — v0.2 additions
+# .crucible/forge.config.yaml — v0.2
 
-# ── Sources (replaces v0.1 singular `source:`) ──────────────────
-# Listed in priority order (highest first)
 sources:
   - name: local-overrides
     type: local
@@ -61,100 +64,81 @@ sources:
 
 ---
 
-## Config Promotion Workflow
+## `forge config` — Interactive Config Editor
 
-Changes start in the local layer, then can be promoted toward the team.
+A **registry-driven select loop**. The command is a generic shell; each config section
+is a self-contained editor. Adding a new section (e.g. scheduler, plugins) requires only
+creating a new file and pushing it to the registry — zero handler changes.
 
-### Three config layers
-
-| Layer       | File                                | Shared?                                |
-|-------------|-------------------------------------|----------------------------------------|
-| **Local**   | `.crucible/forge.config.local.yaml` | No (gitignored) — personal overrides   |
-| **Project** | `.crucible/forge.config.yaml`       | Yes (committed) — team config          |
-| **Global**  | `~/.crucible/forge.config.yaml`     | No — user defaults across all projects |
-
-### CLI commands
-
-```bash
-# Targeted change saved to local config first
-forge config set sources.team-backend.branch develop
-
-# View effective merged config
-forge config show
-
-# See what local layer overrides vs project
-forge config diff
-
-# Promote a local change to project config (team-visible)
-forge config promote --to project sources.team-backend.branch
-
-# Promote a project setting to global
-forge config promote --to global defaults.assistants
-```
-
-When a config section has multiple items, the CLI identifies by `name`:
-
-```bash
-forge config set sources.team-backend.branch develop
-# ↑ identifies source by name "team-backend", changes its branch
-```
-
-**DX goal:** users never *have* to edit YAML manually. `forge init` handles initial setup,
-`forge config set/promote` handles ongoing changes. YAML exists for power users and version control review.
-
----
-
-## `forge update`
-
-Re-runs the init wizard with existing config pre-populated. The user sees their current
-choices and can change any of them. Writes directly to project config (no local/promote
-intermediary — the user is consciously choosing to update the shared config).
+### UX Flow
 
 ```
-$ forge update
+$ forge config
 
-  ┌─────────────────────────────────────────────┐
-  │  Forge — Update Configuration               │
-  └─────────────────────────────────────────────┘
+┌  Forge — Edit Configuration
+│
+◆  What would you like to change?
+│  ○ Assistants  (2 enabled: claude-code, windsurf)
+│  ○ Sources  (2 configured: team-backend, company-wide)
+└
 
-  Loading existing config from .crucible/forge.config.yaml...
+  # → user picks Assistants → section-specific prompts run
+  # → returns updated config
 
-  Which assistants to enable?
-  ◉ Claude Code (detected)
-  ◉ Cursor (detected)
-  ○ Windsurf
-  ◉ Copilot
-  ○ Cline
+◇  Assistants updated: claude-code, cursor, windsurf
+│
+◆  Change something else?
+│  ● Yes → back to select
+│  ○ No  → save and exit
+└
 
-  Sources (currently 1):
-  Edit company-wide? › No
-  Add another source? › Yes
-    Source type: › Git (SSH / HTTPS)
-    URL: git@ssh.dev.azure.com:v3/acme/eng/backend-team-ai.git
-    ...
-
-  ✓ Config updated: .crucible/forge.config.yaml
+◇  Saved .crucible/forge.config.yaml
 ```
+
+### Section Editor Interface
+
+```ts
+interface ConfigSectionEntry {
+    id: string
+    label: string
+    hint: (config: ForgeConfig) => string   // summary shown in select
+    edit: (config: ForgeConfig) => Promise<ForgeConfig>
+}
+```
+
+Each editor:
+
+- Receives the full current config
+- Runs its own prompts (detection, multiselect, text, confirm, etc.)
+- Returns the full updated config
+- The handler merges nothing — it just passes through
+
+### Section Editors
+
+**Assistants** — `sections/assistants.ts`
+
+1. Run `scanForAssistants()` (same scanner as init)
+2. Show multiselect — detected ones hinted, currently-enabled ones pre-selected
+3. Warn if 0 selected
+4. Return config with updated `assistants` array
+
+**Sources** — `sections/source.ts`
+
+1. List current sources with summary
+2. Options: edit existing / add new / remove
+3. Edit: show current values, re-run `loader.configure()` for that type
+4. Add: source type select → `loader.configure()` → verify
+5. Remove: confirm → remove from array
+6. Return config with updated `sources` array
 
 ---
 
 ## Init Wizard — Updated UX
 
-### Assistant multiselect
-
-```
-  Which AI assistants to enable?
-  ◉ Claude Code    (detected — .claude/ found)
-  ◉ Cursor         (detected — .cursor/rules/, 3 rules)
-  ○ Windsurf
-  ○ Copilot
-  ○ Cline
-```
-
 ### Multi-source loop
 
 ```
-  Add a shared skills source? › Yes
+  Add a source? › Yes
 
   Source type:
   › Git (SSH / HTTPS)
@@ -163,6 +147,8 @@ $ forge update
   Source git URL: git@github.com:acme/ai-configs.git
   Branch: main
   Subdirectory (optional):
+  ◌ Verifying source is reachable...
+  ✓ Source verified
 
   Add another source? › Yes
     Source type: › Local directory
@@ -173,21 +159,59 @@ $ forge update
 
 ---
 
-## Internal Architecture Additions
+## Internal Architecture
 
 ```
-forge-cli/
-  src/
-    application/commands/
-      update/index.ts + handler.ts   # re-run init wizard pre-populated
-      config/index.ts + handler.ts   # set / show / diff / promote subcommands
+forge-cli/src/
+  application/commands/
+    config/
+      index.ts              — CommandDefinition
+      handler.ts            — generic loop: load → select section → delegate → repeat? → save
+      messages.ts           — top-level messages (intro, outro, select prompt, etc.)
+      sections/
+        types.ts            — ConfigSectionEntry interface
+        index.ts            — registry: sections[] array
+        assistants.ts       — detection + multiselect, pre-selects current enabled
+        source.ts           — list/add/edit/remove sources, reuses loader.configure()
 ```
+
+### Shared Prompt Extraction
+
+The init handler currently has assistant selection and source configuration inline.
+Both `init` and `config` need the same prompts. Extract to shared location:
+
+```
+application/commands/
+  shared/
+    assistant.prompt.ts     — detection + multiselect (used by init + config assistants section)
+    source.prompt.ts        — type select + loader.configure() + verify (used by init + config source section)
+```
+
+Init handler becomes thin: calls shared prompts, writes config.
+
+### Dependency Flow
+
+```
+config/handler.ts
+  → sections/index.ts (registry)
+    → sections/assistants.ts
+      → @infrastructure/fs/scanner (detection)
+      → @infrastructure/cli/prompts (multiselect)
+      → @domain/assistants (registry)
+    → sections/source.ts
+      → @infrastructure/source (loader.configure, verify)
+      → @infrastructure/cli/prompts (select, confirm)
+  → @infrastructure/config (load, write)
+```
+
+All arrows flow inward: application → infrastructure, application → domain. ✅
 
 ---
 
-## Rules Frontmatter Translation (v0.2)
+## Rules Frontmatter Translation
 
-v0.1 syncs rules as plain Markdown (no frontmatter). v0.2 adds a translation layer for path-scoped rules:
+v0.1 syncs rules as plain Markdown (no frontmatter). v0.2 adds a translation layer
+for path-scoped rules:
 
 ```yaml
 # Source rule (canonical format — `paths` key, same as Claude Code/Cline)
@@ -210,7 +234,24 @@ Translation during sync:
 
 ---
 
-*Document version: 0.2 — pre-implementation*
-*Prerequisite: forge v0.1 shipped*
-*Scope: config management, forge update, multi-source init, assistant multiselect*
+## Implementation Order
+
+| #  | Step                                             | Scope                              |
+|----|--------------------------------------------------|------------------------------------|
+| 1  | Multi-sources: domain types + schema + migration | `domain/config/`                   |
+| 2  | Multi-sources: init handler "add another?" loop  | `init/handler.ts`, `messages.ts`   |
+| 3  | Multi-sources: sync handler iterates sources     | `sync/handler.ts`                  |
+| 4  | `ConfigSectionEntry` interface + registry        | `config/sections/`                 |
+| 5  | `forge config` handler — generic select loop     | `config/handler.ts`, `messages.ts` |
+| 6  | Assistants section editor                        | `config/sections/assistants.ts`    |
+| 7  | Source section editor                            | `config/sections/source.ts`        |
+| 8  | Extract shared prompts from init                 | `shared/`                          |
+| 9  | Rules frontmatter translation                    | `domain/sync/`, `infrastructure/`  |
+| 10 | Tests + e2e                                      | throughout                         |
+
+---
+
+*Document version: 0.2.1 — updated 2026-05-13*
+*Prerequisite: forge v0.1 shipped (v0.1.9)*
+*Scope: multi-source, interactive forge config, rules frontmatter translation*
 *Next: see forge-v0.3.md (sync v2, merge engine, forge status)*
