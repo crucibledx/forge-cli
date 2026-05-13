@@ -32,7 +32,7 @@ export interface ProjectConfig {
         description?: string
     }
     assistants: AssistantConfig[]
-    source?: Source
+    sources: Source[]
     lastSync?: string
 }
 
@@ -43,6 +43,6 @@ export interface GlobalConfig {
     }
     defaults?: {
         assistants?: AssistantConfig[]
-        source?: Source
+        sources?: Source[]
     }
 }

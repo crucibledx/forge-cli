@@ -16,7 +16,7 @@ const config: ProjectConfig = {
     version: '1',
     project: {name: 'test-project'},
     assistants: [{id: cursor.id, enabled: true}],
-    source: {name: 'team', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'},
+    sources: [{name: 'team', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}],
 }
 
 describe('writeProjectConfig', () => {
@@ -56,12 +56,12 @@ describe('writeProjectConfig', () => {
         expect(parsed.project.name).toBe('updated-project')
     })
 
-    it('writes config with no source', async () => {
-        const minimal: ProjectConfig = {version: '1', assistants: []}
+    it('writes config with empty sources', async () => {
+        const minimal: ProjectConfig = {version: '1', assistants: [], sources: []}
         const configPath = await writeProjectConfig(getDir(), minimal)
         const raw = await readFile(configPath, 'utf-8')
         const parsed = parseYaml(raw)
-        expect(parsed.source).toBeUndefined()
+        expect(parsed.sources).toEqual([])
         expect(parsed.assistants).toEqual([])
     })
 })

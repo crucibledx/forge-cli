@@ -2,7 +2,7 @@ import {describe, expect, it, mock, spyOn} from 'bun:test'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockProjectConfig = {version: '1', assistants: []}
+const mockProjectConfig = {version: '1', assistants: [], sources: []}
 const mockGlobalConfig = {version: '1', defaults: {assistants: []}}
 
 mock.module('@infrastructure/config', () => ({

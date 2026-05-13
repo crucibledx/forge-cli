@@ -23,7 +23,7 @@ export const runSync: SyncCommandAction = async (options) => {
     const context = await io.buildContext(projectRoot)
     const config = mergeConfigs(context.globalConfig, context.projectConfig)
 
-    if (!config.source) {
+    if (config.sources.length === 0) {
         renderer.renderError(
             'No source configured',
             'Run `forge init` to configure a source',
@@ -39,7 +39,7 @@ export const runSync: SyncCommandAction = async (options) => {
         process.exit(1)
     }
 
-    const source = config.source
+    const source = config.sources[0]
     const loader = getSourceLoader(source.type)
 
     renderer.renderNewline()

@@ -99,7 +99,7 @@ describe('forge init — e2e', () => {
             expect(config.version).toBeDefined()
             expect(Array.isArray(config.assistants)).toBe(true)
             expect(config.assistants).toHaveLength(0)
-            expect(config.source).toBeUndefined()
+            expect(config.sources).toEqual([])
             expect(config.project?.name).toBe(getDir().split('/').at(-1))
         }, TIMEOUT_MS)
 
@@ -185,7 +185,7 @@ describe('forge init — e2e', () => {
             await runInitSession(getDir(), addSource)
             expect(existsSync(configFilePath(getDir()))).toBe(true)
 
-            const source = (await readConfig(getDir())).source as GitSource
+            const source = (await readConfig(getDir())).sources[0] as GitSource
             expect(source.type).toBe('git')
             expect(source.url).toBe(SOURCE_URL)
             expect(source.branch).toBe('main')
@@ -205,9 +205,9 @@ describe('forge init — e2e', () => {
                     .waitForText(M.sync.runNow).pressKey(N),
             )
             const config = await readConfig(getDir())
-            expect(config.source?.type).toBe('local')
-            expect((config.source as {path: string}).path).toBe(localPath)
-            expect(config.source?.name).toBe('default')
+            expect(config.sources[0].type).toBe('local')
+            expect((config.sources[0] as {path: string}).path).toBe(localPath)
+            expect(config.sources[0].name).toBe('default')
         }, TIMEOUT_MS)
     })
 
@@ -249,7 +249,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.subdirectory.message).pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
-            const source = (await readConfig(getDir())).source as GitSource
+            const source = (await readConfig(getDir())).sources[0] as GitSource
             expect(source.branch).toBe('develop')
         }, TIMEOUT_MS)
 
@@ -263,7 +263,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.subdirectory.message).write('packages/ai').pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
-            const source = (await readConfig(getDir())).source as GitSource
+            const source = (await readConfig(getDir())).sources[0] as GitSource
             expect(source.path).toBe('packages/ai')
         }, TIMEOUT_MS)
 
@@ -280,7 +280,7 @@ describe('forge init — e2e', () => {
                     .waitForText(GM.subdirectory.message).pressEnter()
                     .waitForText(M.sync.runNow).pressKey(N),
             )
-            const source = (await readConfig(getDir())).source as GitSource
+            const source = (await readConfig(getDir())).sources[0] as GitSource
             expect(source.url).toBe(SOURCE_URL)
         }, TIMEOUT_MS)
 
@@ -292,7 +292,7 @@ describe('forge init — e2e', () => {
 
             // config was written before sync was attempted
             expect(existsSync(configFilePath(getDir()))).toBe(true)
-            const source = (await readConfig(getDir())).source as GitSource
+            const source = (await readConfig(getDir())).sources[0] as GitSource
             expect(source.url).toBe(SOURCE_URL)
         }, TIMEOUT_MS)
     })

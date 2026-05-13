@@ -43,8 +43,12 @@ export const projectConfigSchema = z.object({
         .optional(),
     assistants: z.array(assistantConfigSchema),
     source: sourceSchema.optional(),
+    sources: z.array(sourceSchema).optional(),
     lastSync: z.string().optional(),
-})
+}).transform(({source, sources, ...rest}) => ({
+    ...rest,
+    sources: sources ?? (source ? [source] : []),
+}))
 
 export const globalConfigSchema = z.object({
     version: z.string(),
@@ -57,6 +61,11 @@ export const globalConfigSchema = z.object({
         .object({
             assistants: z.array(assistantConfigSchema).optional(),
             source: sourceSchema.optional(),
+            sources: z.array(sourceSchema).optional(),
         })
+        .transform(({source, sources, ...rest}) => ({
+            ...rest,
+            sources: sources ?? (source ? [source] : undefined),
+        }))
         .optional(),
 })

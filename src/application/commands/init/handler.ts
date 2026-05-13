@@ -65,7 +65,7 @@ export const runInit: InitCommandAction = async (options) => {
             ({id: id as AssistantId, enabled: true}))
 
     // 4. Ask for source
-    let source: Source | undefined
+    const sources: Source[] = []
 
     const addSource = await prompts.confirm({
         message: M.source.addSource,
@@ -78,7 +78,7 @@ export const runInit: InitCommandAction = async (options) => {
             options: getSourceLoaderOptions(),
         })
 
-        source = await getSourceLoader(sourceType).configure()
+        sources.push(await getSourceLoader(sourceType).configure())
     }
 
     // 5. Build and write config
@@ -90,7 +90,7 @@ export const runInit: InitCommandAction = async (options) => {
             name: basename(projectRoot),
         },
         assistants: enabledAssistants,
-        source,
+        sources,
     }
 
     const configPath = await writeProjectConfig(projectRoot, config)
@@ -100,7 +100,7 @@ export const runInit: InitCommandAction = async (options) => {
     renderer.renderNewline()
 
     // 6. Offer to sync now
-    if (source) {
+    if (sources.length > 0) {
         const syncNow = await prompts.confirm({
             message: M.sync.runNow,
             initialValue: true,
@@ -113,5 +113,5 @@ export const runInit: InitCommandAction = async (options) => {
         }
     }
 
-    prompts.outro(source ? M.outro : M.outroNoSource)
+    prompts.outro(sources.length > 0 ? M.outro : M.outroNoSource)
 }

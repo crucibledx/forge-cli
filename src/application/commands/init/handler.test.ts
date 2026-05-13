@@ -178,9 +178,10 @@ describe('runInit handler', () => {
         }
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
-        const cfg = writtenConfig as {source?: {url: string, type: string}}
-        expect(cfg.source?.url).toBe('git@github.com:org/repo.git')
-        expect(cfg.source?.type).toBe('git')
+        const cfg = writtenConfig as {sources: Array<{url: string, type: string}>}
+        expect(cfg.sources).toHaveLength(1)
+        expect(cfg.sources[0].url).toBe('git@github.com:org/repo.git')
+        expect(cfg.sources[0].type).toBe('git')
     })
 
     it('includes local source in config when user selects local type', async () => {
@@ -193,9 +194,10 @@ describe('runInit handler', () => {
         }
         const {runInit} = await import('./handler')
         await runInit({verbose: false})
-        const cfg = writtenConfig as {source?: {path: string, type: string}}
-        expect(cfg.source?.type).toBe('local')
-        expect(cfg.source?.path).toBe('~/my-ai-configs')
+        const cfg = writtenConfig as {sources: Array<{path: string, type: string}>}
+        expect(cfg.sources).toHaveLength(1)
+        expect(cfg.sources[0].type).toBe('local')
+        expect(cfg.sources[0].path).toBe('~/my-ai-configs')
     })
 
     it('pre-selects detected assistants and includes them when returned', async () => {

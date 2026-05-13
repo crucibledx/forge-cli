@@ -15,7 +15,9 @@ export function mergeConfigs(
             global.defaults?.assistants ?? [],
             project.assistants,
         ),
-        source: project.source ?? global.defaults?.source,
+        sources: project.sources.length > 0
+            ? project.sources
+            : (global.defaults?.sources ?? []),
     }
 }
 
@@ -31,7 +33,7 @@ function globalAsProject(global: GlobalConfig): ProjectConfig {
     return {
         version: global.version,
         assistants: global.defaults?.assistants ?? [],
-        source: global.defaults?.source,
+        sources: global.defaults?.sources ?? [],
     }
 }
 
@@ -39,5 +41,6 @@ function defaultConfig(): ProjectConfig {
     return {
         version: '1',
         assistants: [],
+        sources: [],
     }
 }

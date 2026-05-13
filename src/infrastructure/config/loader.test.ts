@@ -20,11 +20,11 @@ version: "1"
 assistants:
   - id: cursor
     enabled: true
-source:
-  name: team
-  type: git
-  url: git@github.com:org/repo.git
-  branch: main
+sources:
+  - name: team
+    type: git
+    url: git@github.com:org/repo.git
+    branch: main
 `.trim()
 
 const VALID_GLOBAL_YAML = `
@@ -80,7 +80,7 @@ describe('loadProjectConfig', () => {
         expect(result).not.toBeNull()
         expect(result!.version).toBe('1')
         expect(result!.assistants[0].id).toBe('cursor')
-        expect(result!.source?.type).toBe('git')
+        expect(result!.sources[0].type).toBe('git')
     })
 
     it('throws on invalid YAML schema', async () => {

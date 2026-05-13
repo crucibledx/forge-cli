@@ -8,14 +8,14 @@ import type {GlobalConfig, ProjectConfig} from './types'
 const projectConfig: ProjectConfig = {
     version: '1',
     assistants: [{id: 'cursor', enabled: true}],
-    source: {name: 'proj-src', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'},
+    sources: [{name: 'proj-src', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}],
 }
 
 const globalConfig: GlobalConfig = {
     version: '1',
     defaults: {
         assistants: [{id: 'claude-code', enabled: true}],
-        source: {name: 'global-src', type: 'git', url: 'git@github.com:org/global.git', branch: 'main'},
+        sources: [{name: 'global-src', type: 'git', url: 'git@github.com:org/global.git', branch: 'main'}],
     },
 }
 
@@ -24,7 +24,7 @@ describe('mergeConfigs', () => {
         const result = mergeConfigs(null, null)
         expect(result.version).toBe('1')
         expect(result.assistants).toEqual([])
-        expect(result.source).toBeUndefined()
+        expect(result.sources).toEqual([])
     })
 
     it('returns project config when global is null', () => {
@@ -35,7 +35,7 @@ describe('mergeConfigs', () => {
     it('converts global to project when project is null', () => {
         const result = mergeConfigs(globalConfig, null)
         expect(result.assistants).toEqual(globalConfig.defaults!.assistants as AssistantConfig[])
-        expect(result.source).toEqual(globalConfig.defaults!.source)
+        expect(result.sources).toEqual(globalConfig.defaults!.sources!)
     })
 
     it('project assistants take precedence over global defaults', () => {
@@ -43,15 +43,15 @@ describe('mergeConfigs', () => {
         expect(result.assistants).toEqual(projectConfig.assistants)
     })
 
-    it('project source takes precedence over global source', () => {
+    it('project sources take precedence over global sources', () => {
         const result = mergeConfigs(globalConfig, projectConfig)
-        expect(result.source).toEqual(projectConfig.source)
+        expect(result.sources).toEqual(projectConfig.sources)
     })
 
-    it('falls back to global source when project has no source', () => {
-        const noSource: ProjectConfig = {...projectConfig, source: undefined}
-        const result = mergeConfigs(globalConfig, noSource)
-        expect(result.source).toEqual(globalConfig.defaults!.source)
+    it('falls back to global sources when project has empty array', () => {
+        const noSources: ProjectConfig = {...projectConfig, sources: []}
+        const result = mergeConfigs(globalConfig, noSources)
+        expect(result.sources).toEqual(globalConfig.defaults!.sources!)
     })
 
     it('falls back to global assistants when project has empty array', () => {
