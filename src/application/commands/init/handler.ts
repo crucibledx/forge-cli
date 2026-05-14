@@ -1,15 +1,13 @@
 import {basename, relative} from 'node:path'
 
-import {getAllAssistants} from '@domain/assistants/registry'
-import type {AssistantConfig, AssistantId} from '@domain/assistants/types'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {projectConfigExists, writeProjectConfig} from '@infrastructure/config'
-import {scanForAssistants} from '@infrastructure/fs'
 import io from '@infrastructure/io'
-import {getSourceLoader, getSourceLoaderOptions} from '@infrastructure/source'
 
+import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
+import {promptNewSource} from '../shared/source.prompt'
 import {INIT_MESSAGES as M} from './messages'
 import type {InitCommandAction} from './types'
 
@@ -27,42 +25,16 @@ export const runInit: InitCommandAction = async (options) => {
     }
 
     // 2. Scan for existing AI configs
-    const s = prompts.spinner()
-    s.start(M.spinner.scanning)
-    const allAssistants = getAllAssistants()
-    const detectionResults = scanForAssistants(projectRoot, allAssistants)
-    s.stop(M.spinner.scanDone)
+    const scan = runAssistantScan(projectRoot)
 
     renderer.renderNewline()
     renderer.renderInfo(M.detected)
-    renderer.renderDetectionResults(detectionResults)
+    renderer.renderDetectionResults(scan.detectionResults)
     renderer.renderNewline()
 
-    // 3. Ask which assistants to enable — single multiselect, detected pre-selected
-    const detectionByAssistant = new Map(detectionResults.map((r) => [r.id, r]))
-
-    const selectedIds = await prompts.multiselect({
-        message: M.assistants.select,
-        options: allAssistants.map((a) => {
-            const result = detectionByAssistant.get(a.id)
-            let hint: string | undefined
-            if (result?.detected) {
-                hint = result.scope === 'global'
-                    ? (result.evidence?.split(', ')[0] ?? M.assistants.detectedGlobalHint)
-                    : M.assistants.detectedHint
-            }
-            return {value: a.id, label: a.name, hint}
-        }),
-        initialValues: detectionResults.filter((r) => r.detected).map((r) => r.id),
-    })
-
-    if (selectedIds.length === 0) {
-        renderer.renderWarning(M.assistants.noneSelected)
-    }
-
-    const assistantConfigs: AssistantConfig[] = selectedIds
-        .map((id) =>
-            ({id: id as AssistantId, enabled: true}))
+    // 3. Ask which assistants to enable — detected ones pre-selected
+    const detectedIds = scan.detectionResults.filter((r) => r.detected).map((r) => r.id)
+    const assistants = await promptAssistantSelection(scan, detectedIds)
 
     // 4. Ask for sources — loop until user declines
     const sources: Source[] = []
@@ -73,16 +45,7 @@ export const runInit: InitCommandAction = async (options) => {
     })
 
     while (addMore) {
-        const sourceType = await prompts.select({
-            message: M.source.selectType,
-            options: getSourceLoaderOptions(),
-        })
-
-        const source = await getSourceLoader(sourceType).configure()
-        if (sources.length > 0) {
-            source.name = `source-${sources.length + 1}`
-        }
-        sources.push(source)
+        sources.push(await promptNewSource(sources.length))
 
         addMore = await prompts.confirm({
             message: M.source.addAnother,
@@ -91,14 +54,12 @@ export const runInit: InitCommandAction = async (options) => {
     }
 
     // 5. Build and write config
-    const enabledAssistants = assistantConfigs.filter((a) => a.enabled)
-
     const config: ProjectConfig = {
         version: `${++configVersion}`,
         project: {
             name: basename(projectRoot),
         },
-        assistants: enabledAssistants,
+        assistants,
         sources,
     }
 

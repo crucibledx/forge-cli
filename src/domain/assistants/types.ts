@@ -4,7 +4,8 @@ export type AssistantId = (typeof ASSISTANT_IDS)[number]
 export interface TargetMapping {
     sourceGlob: string
     destination: string
-    transform?: string // e.g., "rename:.md→.mdc"
+    transform?: string        // filename transform, e.g. "rename:.md→.mdc"
+    contentTransform?: string // content transform, e.g. "frontmatter:paths→globs"
 }
 
 export interface DetectionRule {

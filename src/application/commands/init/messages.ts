@@ -3,7 +3,13 @@
  *
  * Centralised here so tests reference the same strings as the handler.
  * Change text in one place and tests stay in sync automatically.
+ *
+ * Shared prompt messages (assistant selection, source type) are re-exported
+ * from the shared/ module so both init and config use the same strings.
  */
+
+import {ASSISTANT_PROMPT_MESSAGES as AP} from '@application/commands/shared/assistant.prompt'
+import {SOURCE_PROMPT_MESSAGES as SP} from '@application/commands/shared/source.prompt'
 
 export const INIT_MESSAGES = {
     intro: 'Forge — AI Environment Setup',
@@ -11,26 +17,21 @@ export const INIT_MESSAGES = {
     outroNoSource: 'Done. Add a source to .crucible/forge.config.yaml to enable sync.',
     outroCancelled: 'Cancelled — existing config preserved',
 
-    spinner: {
-        scanning: 'Scanning for existing AI configs...',
-        scanDone: 'Scan complete',
-    },
-
     detected: 'Detected:',
-    configExists: 'Existing .crucible/forge.config.yaml found. Edit it manually or use `forge config` (coming in v0.2).',
+    configExists: 'Existing .crucible/forge.config.yaml found. Edit it manually or run `forge config`.',
     configWrittenTo: (path: string) => `Config written to ${path}`,
 
     assistants: {
-        select: 'Select AI assistants to enable:',
-        detectedHint: 'detected',
-        detectedGlobalHint: 'detected globally',
-        noneSelected: 'No assistants selected — edit .crucible/forge.config.yaml to add some later.',
+        select: AP.select,
+        detectedHint: AP.detectedHint,
+        detectedGlobalHint: AP.detectedGlobalHint,
+        noneSelected: AP.noneSelected,
     },
 
     source: {
         addSource: 'Add a shared skills source?',
         addAnother: 'Add another source?',
-        selectType: 'Source type:',
+        selectType: SP.selectType,
     },
 
     sync: {

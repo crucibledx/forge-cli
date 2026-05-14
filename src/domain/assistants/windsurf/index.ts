@@ -9,7 +9,7 @@ export const windsurf: AssistantDefinition = {
     },
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.windsurf/skills/'},
-        {sourceGlob: 'rules/**', destination: '.windsurf/rules/'},
+        {sourceGlob: 'rules/**', destination: '.windsurf/rules/', contentTransform: 'frontmatter:paths→globs'},
         {sourceGlob: 'workflows/**', destination: '.windsurf/workflows/'},
     ],
 }

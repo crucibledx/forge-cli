@@ -9,7 +9,7 @@ export const cursor: AssistantDefinition = {
     },
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.cursor/skills/'},
-        {sourceGlob: 'rules/**', destination: '.cursor/rules/', transform: 'rename:.md→.mdc'},
+        {sourceGlob: 'rules/**', destination: '.cursor/rules/', transform: 'rename:.md→.mdc', contentTransform: 'frontmatter:paths→globs'},
         {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
     ],
 }

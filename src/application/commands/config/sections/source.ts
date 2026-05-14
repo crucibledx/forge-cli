@@ -1,7 +1,7 @@
 import type {Source} from '@domain/config/types'
+import {configureSource, promptNewSource, SOURCE_PROMPT_MESSAGES} from '@application/commands/shared/source.prompt'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
-import {getSourceLoader, getSourceLoaderOptions} from '@infrastructure/source'
 
 import type {ConfigSectionEntry} from './types'
 
@@ -13,7 +13,7 @@ export const SOURCE_MESSAGES = {
     actionEdit: 'Edit an existing source',
     actionRemove: 'Remove a source',
     actionDone: 'Done',
-    addType: 'Source type:',
+    addType: SOURCE_PROMPT_MESSAGES.selectType,
     editWhich: 'Which source to edit?',
     removeWhich: 'Which source to remove?',
     confirmRemove: (name: string) => `Remove source "${name}"?`,
@@ -76,16 +76,8 @@ export const sourceSection: ConfigSectionEntry = {
 type ActionHandler = (sources: Source[]) => Promise<Source[]>
 
 const addSource: ActionHandler = async (sources: Source[]): Promise<Source[]> => {
-    const M = SOURCE_MESSAGES
-    const sourceType = await prompts.select({
-        message: M.addType,
-        options: getSourceLoaderOptions(),
-    })
-    const source = await getSourceLoader(sourceType).configure()
-    if (sources.length > 0) {
-        source.name = `source-${sources.length + 1}`
-    }
-    renderer.renderSuccess(M.added(source.name))
+    const source = await promptNewSource(sources.length)
+    renderer.renderSuccess(SOURCE_MESSAGES.added(source.name))
     return [...sources, source]
 }
 
@@ -97,11 +89,7 @@ const editSource: ActionHandler = async (sources: Source[]): Promise<Source[]> =
     })
     const idx = sources.findIndex((s) => s.name === sourceName)
     const existing = sources[idx]
-    const sourceType = await prompts.select({
-        message: M.addType,
-        options: getSourceLoaderOptions(),
-    })
-    const updated = await getSourceLoader(sourceType).configure()
+    const updated = await configureSource()
     updated.name = existing.name
     const next = [...sources]
     next[idx] = updated

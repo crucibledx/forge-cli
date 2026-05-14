@@ -9,6 +9,6 @@ export const copilot: AssistantDefinition = {
     },
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.github/skills/'},
-        {sourceGlob: 'rules/**', destination: '.github/instructions/', transform: 'rename:.md→.instructions.md'},
+        {sourceGlob: 'rules/**', destination: '.github/instructions/', transform: 'rename:.md→.instructions.md', contentTransform: 'frontmatter:paths→applyTo'},
     ],
 }

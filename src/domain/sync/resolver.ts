@@ -17,11 +17,12 @@ export function resolveTargets(
 
                 const filename = applyTransform(match.relativePath, mapping.transform)
                 const targetPath = join(mapping.destination, filename)
+                const content = applyContentTransform(file.content, mapping.contentTransform)
 
                 resolved.push({
                     sourcePath: file.relativePath,
                     targetPath,
-                    content: file.content,
+                    content,
                     assistantId: assistant.id,
                 })
             }
@@ -69,4 +70,47 @@ function applyTransform(filename: string, transform?: string): string {
 
     const handler = transformHandlers[type]
     return handler ? handler(filename, spec) : filename
+}
+
+// ─── Content transforms ──────────────────────────────────────────────────────
+
+type ContentTransformHandler = (content: string, spec: string) => string
+
+const contentTransformHandlers: Record<string, ContentTransformHandler> = {
+    frontmatter: (content, spec) => {
+        const parts = spec.split('→')
+        if (parts.length !== 2) return content
+        const [fromKey, toKey] = parts
+        return renameFrontmatterKey(content, fromKey, toKey)
+    },
+}
+
+function applyContentTransform(content: string, transform?: string): string {
+    if (!transform) return content
+
+    const colonIdx = transform.indexOf(':')
+    if (colonIdx === -1) return content
+
+    const type = transform.slice(0, colonIdx)
+    const spec = transform.slice(colonIdx + 1)
+
+    const handler = contentTransformHandlers[type]
+    return handler ? handler(content, spec) : content
+}
+
+function renameFrontmatterKey(content: string, fromKey: string, toKey: string): string {
+    if (!content.startsWith('---')) return content
+
+    const endIdx = content.indexOf('---', 3)
+    if (endIdx === -1) return content
+
+    const frontmatter = content.slice(0, endIdx + 3)
+    const body = content.slice(endIdx + 3)
+
+    const updated = frontmatter.replace(
+        new RegExp(`^${fromKey}:`, 'm'),
+        `${toKey}:`,
+    )
+
+    return updated + body
 }

@@ -10,7 +10,7 @@ const cursorDef: AssistantDefinition = {
     detection: {directories: ['.cursor'], files: []},
     targetMappings: [
         {sourceGlob: 'skills/**', destination: '.cursor/skills/'},
-        {sourceGlob: 'rules/**', destination: '.cursor/rules/', transform: 'rename:.md→.mdc'},
+        {sourceGlob: 'rules/**', destination: '.cursor/rules/', transform: 'rename:.md→.mdc', contentTransform: 'frontmatter:paths→globs'},
         {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
     ],
 }
@@ -106,5 +106,70 @@ describe('resolveTargets', () => {
         const result = resolveTargets(sourceFiles, [defWithMalformed])
         const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
         expect(skill!.targetPath).toBe('.cursor/skills/typescript.md')
+    })
+
+    // ── Content transforms (frontmatter) ─────────────────────────────────
+
+    it('renames paths→globs in frontmatter for cursor rules', () => {
+        const ruleWithFrontmatter: SourceFile[] = [{
+            relativePath: 'rules/api.md',
+            content: '---\npaths:\n  - "src/api/**/*.ts"\n---\nAll endpoints must validate input.',
+        }]
+        const result = resolveTargets(ruleWithFrontmatter, [cursorDef])
+        const rule = result.find((r) => r.sourcePath === 'rules/api.md')!
+        expect(rule.content).toContain('globs:')
+        expect(rule.content).not.toContain('paths:')
+        expect(rule.content).toContain('All endpoints must validate input.')
+    })
+
+    it('renames paths→applyTo in frontmatter for copilot rules', () => {
+        const copilotDef: AssistantDefinition = {
+            id: 'copilot',
+            name: 'GitHub Copilot',
+            detection: {directories: [], files: []},
+            targetMappings: [
+                {sourceGlob: 'rules/**', destination: '.github/instructions/', transform: 'rename:.md→.instructions.md', contentTransform: 'frontmatter:paths→applyTo'},
+            ],
+        }
+        const ruleWithFrontmatter: SourceFile[] = [{
+            relativePath: 'rules/api.md',
+            content: '---\npaths:\n  - "src/**"\n---\nUse strict types.',
+        }]
+        const result = resolveTargets(ruleWithFrontmatter, [copilotDef])
+        const rule = result.find((r) => r.sourcePath === 'rules/api.md')!
+        expect(rule.content).toContain('applyTo:')
+        expect(rule.content).not.toContain('paths:')
+        expect(rule.targetPath).toBe('.github/instructions/api.instructions.md')
+    })
+
+    it('leaves content unchanged when no contentTransform', () => {
+        const ruleWithFrontmatter: SourceFile[] = [{
+            relativePath: 'rules/api.md',
+            content: '---\npaths:\n  - "src/**"\n---\nKeep paths key.',
+        }]
+        const result = resolveTargets(ruleWithFrontmatter, [claudeDef])
+        const rule = result.find((r) => r.sourcePath === 'rules/api.md')!
+        expect(rule.content).toContain('paths:')
+    })
+
+    it('leaves content unchanged when file has no frontmatter', () => {
+        const result = resolveTargets(sourceFiles, [cursorDef])
+        const rule = result.find((r) => r.sourcePath === 'rules/no-any.md')!
+        expect(rule.content).toBe('# No any')
+    })
+
+    it('ignores unknown contentTransform type gracefully', () => {
+        const defWithBadContent: AssistantDefinition = {
+            ...cursorDef,
+            targetMappings: [
+                {sourceGlob: 'rules/**', destination: '.cursor/rules/', contentTransform: 'unknown:foo→bar'},
+            ],
+        }
+        const ruleWithFrontmatter: SourceFile[] = [{
+            relativePath: 'rules/api.md',
+            content: '---\npaths:\n  - "src/**"\n---\nBody.',
+        }]
+        const result = resolveTargets(ruleWithFrontmatter, [defWithBadContent])
+        expect(result[0].content).toContain('paths:')
     })
 })
