@@ -68,6 +68,8 @@ mock.module('@infrastructure/cli/prompts', () => ({
 // sections is a mutable array — mutate directly instead of mocking the module
 import {sections} from './sections'
 
+const originalSections = [...sections]
+
 function setSections(...entries: ConfigSectionEntry[]) {
     sections.length = 0
     sections.push(...entries)
@@ -85,7 +87,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-    setSections()
+    setSections(...originalSections)
 })
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
