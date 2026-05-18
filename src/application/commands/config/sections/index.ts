@@ -1,7 +1,5 @@
-import {assistantsSection} from './assistants'
-import {sourceSection} from './source'
-import type {ConfigSectionEntry} from './types'
+import './assistants'
+import './source'
 
+export {sectionsRegistry as sections} from './registry'
 export type {ConfigSectionEntry} from './types'
-
-export const sections: ConfigSectionEntry[] = [assistantsSection, sourceSection]

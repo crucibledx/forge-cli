@@ -1,6 +1,7 @@
 import {promptAssistantSelection, runAssistantScan} from '@application/commands/shared/assistant.prompt'
 import * as renderer from '@infrastructure/cli/renderer'
 
+import {sectionsRegistry} from './registry'
 import type {ConfigSectionEntry} from './types'
 
 export {ASSISTANT_PROMPT_MESSAGES as ASSISTANTS_MESSAGES} from '@application/commands/shared/assistant.prompt'
@@ -24,3 +25,5 @@ export const assistantsSection: ConfigSectionEntry = {
     return {...config, assistants}
   },
 }
+
+sectionsRegistry.push(assistantsSection)

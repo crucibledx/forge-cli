@@ -3,6 +3,7 @@ import {configureSource, promptNewSource, SOURCE_PROMPT_MESSAGES} from '@applica
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 
+import {sectionsRegistry} from './registry'
 import type {ConfigSectionEntry} from './types'
 
 // ─── Messages ────────────────────────────────────────────────────────────────
@@ -113,3 +114,5 @@ const actionHandlers: Record<string, ActionHandler> = {
   [ACTION_EDIT]: editSource,
   [ACTION_REMOVE]: removeSource,
 }
+
+sectionsRegistry.push(sourceSection)
