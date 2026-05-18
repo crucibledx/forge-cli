@@ -1,4 +1,4 @@
-import type {AssistantConfig} from '../assistants/types'
+import type {AssistantConfig} from '@domain/assistants'
 
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]

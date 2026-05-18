@@ -1,48 +1,27 @@
 import {describe, expect, it} from 'bun:test'
 
-import {getSourceLoader, getSourceLoaderOptions, sourceLoaders} from './index'
-
-describe('sourceLoaders', () => {
-  it('contains a git entry', () => {
-    expect(sourceLoaders['git']).toBeDefined()
-  })
-
-  it('contains a local entry', () => {
-    expect(sourceLoaders['local']).toBeDefined()
-  })
-
-  it('git entry has alias "git"', () => {
-    expect(sourceLoaders['git'].alias).toBe('git')
-  })
-
-  it('git entry has label "Git (SSH / HTTPS)"', () => {
-    expect(sourceLoaders['git'].label).toBe('Git (SSH / HTTPS)')
-  })
-
-  it('local entry has alias "local"', () => {
-    expect(sourceLoaders['local'].alias).toBe('local')
-  })
-
-  it('local entry has label "Local directory"', () => {
-    expect(sourceLoaders['local'].label).toBe('Local directory')
-  })
-
-  it('each entry has a load function', () => {
-    for (const loader of Object.values(sourceLoaders)) {
-      expect(typeof loader.load).toBe('function')
-    }
-  })
-})
+import {getSourceLoader, getSourceLoaderOptions} from './index'
 
 describe('getSourceLoader', () => {
-  it('returns the git loader for type "git"', () => {
-    const loader = getSourceLoader('git')
-    expect(loader.alias).toBe('git')
+  it('returns git loader with correct alias', () => {
+    expect(getSourceLoader('git').alias).toBe('git')
   })
 
-  it('returns the local loader for type "local"', () => {
-    const loader = getSourceLoader('local')
-    expect(loader.alias).toBe('local')
+  it('returns git loader with correct label', () => {
+    expect(getSourceLoader('git').label).toBe('Git (SSH / HTTPS)')
+  })
+
+  it('returns local loader with correct alias', () => {
+    expect(getSourceLoader('local').alias).toBe('local')
+  })
+
+  it('returns local loader with correct label', () => {
+    expect(getSourceLoader('local').label).toBe('Local directory')
+  })
+
+  it('each loader has a load function', () => {
+    expect(typeof getSourceLoader('git').load).toBe('function')
+    expect(typeof getSourceLoader('local').load).toBe('function')
   })
 
   it('throws for unknown source type', () => {

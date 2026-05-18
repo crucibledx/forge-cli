@@ -1,17 +1,16 @@
-import {loadersRegistry} from '@infrastructure/source/registry'
+import './git'
+import './local'
 
-import type {SourceLoaderDictionary, SourceLoaderEntry} from './types'
-
-export const sourceLoaders: SourceLoaderDictionary = Object.fromEntries(
-  loadersRegistry.map((loader) => [loader.alias, loader]),
-)
+import {loadersRegistry} from './registry'
+import type {SourceLoaderEntry} from './types'
 
 export {sourceConfigSchema} from './schema'
 
 export function getSourceLoader(type: string): SourceLoaderEntry {
-  const loader = sourceLoaders[type]
+  const loader = loadersRegistry.find((l) => l.alias === type)
   if (!loader) {
-    throw new Error(`Unsupported source type: "${type}". Available: ${Object.keys(sourceLoaders).join(', ')}`)
+    const available = loadersRegistry.map((l) => l.alias).join(', ')
+    throw new Error(`Unsupported source type: "${type}". Available: ${available}`)
   }
   return loader
 }
@@ -25,4 +24,4 @@ export {GIT_SOURCE_MESSAGES} from './git'
 export type {GitSourceConfig} from './git/types'
 export {LOCAL_SOURCE_MESSAGES, LocalSourceError} from './local'
 export type {LocalSourceConfig} from './local/types'
-export type {SourceLoaderDictionary, SourceLoaderEntry, SourceLoadResult} from './types'
+export type {SourceLoaderEntry, SourceLoadResult} from './types'

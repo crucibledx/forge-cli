@@ -40,7 +40,7 @@ describe('projectConfigSchema', () => {
       sources: [{name: 'team', type: 'git', url: 'git@github.com:org/repo.git'}],
     }
     const result = projectConfigSchema.parse(raw)
-    expect((result.sources[0] as {branch: string}).branch).toBe('main')
+    expect((result.sources[0] as unknown as {branch: string}).branch).toBe('main')
   })
 
   it('migrates v0.1 singular source field into sources array', () => {

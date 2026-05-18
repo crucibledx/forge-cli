@@ -14,5 +14,3 @@ export interface SourceLoaderEntry {
   configure: () => Promise<Source>
   load: (source: Source) => Promise<SourceLoadResult>
 }
-
-export type SourceLoaderDictionary = Record<string, SourceLoaderEntry>
