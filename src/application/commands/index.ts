@@ -5,8 +5,4 @@ import type {CommandDefinition} from './types'
 
 export type * from './types'
 
-export const commands: CommandDefinition[] = [
-    initCommand,
-    syncCommand,
-    configCommand,
-]
+export const commands: CommandDefinition[] = [initCommand, syncCommand, configCommand]

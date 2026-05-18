@@ -10,58 +10,58 @@ import {sections} from './sections'
 import type {ConfigCommandAction} from './types'
 
 export const runConfig: ConfigCommandAction = async () => {
-    const projectRoot = io.resolveProjectRoot()
+  const projectRoot = io.resolveProjectRoot()
 
-    prompts.intro(M.intro)
+  prompts.intro(M.intro)
 
-    const loaded = await loadProjectConfig(projectRoot)
+  const loaded = await loadProjectConfig(projectRoot)
 
-    if (!loaded) {
-        renderer.renderWarning(M.noConfig)
-        prompts.outro(M.outroCancelled)
-        return
-    }
+  if (!loaded) {
+    renderer.renderWarning(M.noConfig)
+    prompts.outro(M.outroCancelled)
+    return
+  }
 
-    if (sections.length === 0) {
-        renderer.renderWarning(M.noSections)
-        prompts.outro(M.outroCancelled)
-        return
-    }
+  if (sections.length === 0) {
+    renderer.renderWarning(M.noSections)
+    prompts.outro(M.outroCancelled)
+    return
+  }
 
-    let config = loaded
-    let changed = false
-    let editing = true
+  let config = loaded
+  let changed = false
+  let editing = true
 
-    while (editing) {
-        const sectionId = await prompts.select({
-            message: M.selectSection,
-            options: sections.map((s) => ({
-                value: s.id,
-                label: s.label,
-                hint: s.hint(config),
-            })),
-        })
+  while (editing) {
+    const sectionId = await prompts.select({
+      message: M.selectSection,
+      options: sections.map((s) => ({
+        value: s.id,
+        label: s.label,
+        hint: s.hint(config),
+      })),
+    })
 
-        const section = sections.find((s) => s.id === sectionId)!
-        config = await section.edit(config, projectRoot)
-        changed = true
+    const section = sections.find((s) => s.id === sectionId)!
+    config = await section.edit(config, projectRoot)
+    changed = true
 
-        if (sections.length > 1) {
-            editing = await prompts.confirm({
-                message: M.changeAnother,
-                initialValue: false,
-            })
-        } else {
-            editing = false
-        }
-    }
-
-    if (changed) {
-        const configPath = await writeProjectConfig(projectRoot, config)
-        renderer.renderNewline()
-        renderer.renderSuccess(M.outro)
-        renderer.renderDim(relative(projectRoot, configPath))
+    if (sections.length > 1) {
+      editing = await prompts.confirm({
+        message: M.changeAnother,
+        initialValue: false,
+      })
     } else {
-        prompts.outro(M.outroCancelled)
+      editing = false
     }
+  }
+
+  if (changed) {
+    const configPath = await writeProjectConfig(projectRoot, config)
+    renderer.renderNewline()
+    renderer.renderSuccess(M.outro)
+    renderer.renderDim(relative(projectRoot, configPath))
+  } else {
+    prompts.outro(M.outroCancelled)
+  }
 }

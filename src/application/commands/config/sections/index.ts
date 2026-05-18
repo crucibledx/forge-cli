@@ -4,7 +4,4 @@ import type {ConfigSectionEntry} from './types'
 
 export type {ConfigSectionEntry} from './types'
 
-export const sections: ConfigSectionEntry[] = [
-    assistantsSection,
-    sourceSection,
-]
+export const sections: ConfigSectionEntry[] = [assistantsSection, sourceSection]

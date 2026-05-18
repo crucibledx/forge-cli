@@ -8,10 +8,10 @@ export type GetProjectConfigPathFunction = (projectRoot: string) => string
 export type GetGlobalConfigPathFunction = () => string
 
 export interface ConfigService {
-    loadProjectConfig: LoadProjectConfigFunction
-    loadGlobalConfig: LoadGlobalConfigFunction
-    writeProjectConfig: WriteProjectConfigFunction
-    projectConfigExists: ProjectConfigExistsFunction
-    getProjectConfigPath: GetProjectConfigPathFunction
-    getGlobalConfigPath: GetGlobalConfigPathFunction
+  loadProjectConfig: LoadProjectConfigFunction
+  loadGlobalConfig: LoadGlobalConfigFunction
+  writeProjectConfig: WriteProjectConfigFunction
+  projectConfigExists: ProjectConfigExistsFunction
+  getProjectConfigPath: GetProjectConfigPathFunction
+  getGlobalConfigPath: GetGlobalConfigPathFunction
 }

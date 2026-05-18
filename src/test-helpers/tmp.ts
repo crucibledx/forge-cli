@@ -10,11 +10,11 @@ export const CRUCIBLE_DIR = '.crucible'
 export const CONFIG_FILE = 'forge.config.yaml'
 
 export function crucibleDirPath(root: string): string {
-    return join(root, CRUCIBLE_DIR)
+  return join(root, CRUCIBLE_DIR)
 }
 
 export function configFilePath(root: string): string {
-    return join(root, CRUCIBLE_DIR, CONFIG_FILE)
+  return join(root, CRUCIBLE_DIR, CONFIG_FILE)
 }
 
 // ─── Temp directory lifecycle ─────────────────────────────────────────────────
@@ -35,16 +35,16 @@ export function configFilePath(root: string): string {
  *   const getDir = useTmpDir('config', import.meta.dir)
  */
 export function useTmpDir(prefix: string, base: string = tmpdir()): () => string {
-    let dir = ''
+  let dir = ''
 
-    beforeEach(async () => {
-        dir = join(base, `__tmp_${prefix}_${Date.now()}__`)
-        await mkdir(dir, {recursive: true})
-    })
+  beforeEach(async () => {
+    dir = join(base, `__tmp_${prefix}_${Date.now()}__`)
+    await mkdir(dir, {recursive: true})
+  })
 
-    afterEach(async () => {
-        await rm(dir, {recursive: true, force: true})
-    })
+  afterEach(async () => {
+    await rm(dir, {recursive: true, force: true})
+  })
 
-    return () => dir
+  return () => dir
 }

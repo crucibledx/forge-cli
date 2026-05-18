@@ -22,23 +22,23 @@ import type {GitSource} from '@domain/config/types'
 
 import type {CliStep} from './helpers'
 import {
-    ARROW_DOWN,
-    type CLISession,
-    CONFIG_FILE,
-    configFilePath,
-    crucibleDirPath,
-    CTRL_C,
-    GIT_SOURCE_MESSAGES as GM,
-    INIT_MESSAGES as M,
-    LOCAL_SOURCE_MESSAGES as LM,
-    N,
-    readConfig,
-    readConfigRaw,
-    runInitSession,
-    SPACE,
-    TIMEOUT_MS,
-    useTmpDir,
-    Y,
+  ARROW_DOWN,
+  type CLISession,
+  CONFIG_FILE,
+  configFilePath,
+  crucibleDirPath,
+  CTRL_C,
+  GIT_SOURCE_MESSAGES as GM,
+  INIT_MESSAGES as M,
+  LOCAL_SOURCE_MESSAGES as LM,
+  N,
+  readConfig,
+  readConfigRaw,
+  runInitSession,
+  SPACE,
+  TIMEOUT_MS,
+  useTmpDir,
+  Y,
 } from './helpers'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
@@ -48,337 +48,464 @@ const getDir = useTmpDir('forge-e2e')
 // ─── Reusable drivers ─────────────────────────────────────────────────────────
 
 function declineAllAssistants(cli: CLISession): CliStep {
-    // Multiselect: no assistants detected in tmp dir, so none pre-selected.
-    // Press Enter immediately to confirm with zero selection.
-    return cli.waitForText(M.assistants.select).pressEnter()
+  // Multiselect: no assistants detected in tmp dir, so none pre-selected.
+  // Press Enter immediately to confirm with zero selection.
+  return cli.waitForText(M.assistants.select).pressEnter()
 }
 
 function declineAll(cli: CLISession): CliStep {
-    return declineAllAssistants(cli)
-        // then decline adding a source
-        .waitForText(M.source.addSource).pressKey(N)
+  return (
+    declineAllAssistants(cli)
+      // then decline adding a source
+      .waitForText(M.source.addSource)
+      .pressKey(N)
+  )
 }
 
 const SOURCE_URL = 'git@github.com:org/ai-configs.git'
 
 function addSource(cli: CLISession, runSync = N): CliStep {
-    return declineAllAssistants(cli)
-        // then accept adding a source
-        .waitForText(M.source.addSource).pressKey(Y)
-        // select source type — press Enter to pick the first option (git)
-        .waitForText(M.source.selectType).pressEnter()
-        // write source URL
-        .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
-        // skip branch - use default
-        .waitForText(GM.branch).pressEnter()
-        // skip subdirectory - use root
-        .waitForText(GM.subdirectory.message).pressEnter()
-        // decline adding another source
-        .waitForText(M.source.addAnother).pressKey(N)
-        // decline run sync command
-        .waitForText(M.sync.runNow).pressKey(runSync)
+  return (
+    declineAllAssistants(cli)
+      // then accept adding a source
+      .waitForText(M.source.addSource)
+      .pressKey(Y)
+      // select source type — press Enter to pick the first option (git)
+      .waitForText(M.source.selectType)
+      .pressEnter()
+      // write source URL
+      .waitForText(GM.url.message)
+      .write(SOURCE_URL)
+      .pressEnter()
+      // skip branch - use default
+      .waitForText(GM.branch)
+      .pressEnter()
+      // skip subdirectory - use root
+      .waitForText(GM.subdirectory.message)
+      .pressEnter()
+      // decline adding another source
+      .waitForText(M.source.addAnother)
+      .pressKey(N)
+      // decline run sync command
+      .waitForText(M.sync.runNow)
+      .pressKey(runSync)
+  )
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('forge init — e2e', () => {
-    describe('cancellation', () => {
-        it('cancels gracefully on Ctrl+C — no config written', async () => {
-            const {exitCode} = await runInitSession(getDir(), cli =>
-                cli.waitForText(M.assistants.select).pressKey(CTRL_C)
-            )
-            expect([0, 1]).toContain(exitCode)
-            expect(existsSync(configFilePath(getDir()))).toBe(false)
-        }, TIMEOUT_MS)
+  describe('cancellation', () => {
+    it(
+      'cancels gracefully on Ctrl+C — no config written',
+      async () => {
+        const {exitCode} = await runInitSession(getDir(), (cli) =>
+          cli.waitForText(M.assistants.select).pressKey(CTRL_C),
+        )
+        expect([0, 1]).toContain(exitCode)
+        expect(existsSync(configFilePath(getDir()))).toBe(false)
+      },
+      TIMEOUT_MS,
+    )
+  })
+
+  describe('minimal config (all declined)', () => {
+    it(
+      'writes a valid config file',
+      async () => {
+        await runInitSession(getDir(), declineAll)
+        expect(existsSync(configFilePath(getDir()))).toBe(true)
+
+        const config = await readConfig(getDir())
+        expect(config.version).toBeDefined()
+        expect(Array.isArray(config.assistants)).toBe(true)
+        expect(config.assistants).toHaveLength(0)
+        expect(config.sources).toEqual([])
+        expect(config.project?.name).toBe(getDir().split('/').at(-1))
+      },
+      TIMEOUT_MS,
+    )
+
+    it(
+      'file contains forge header comment',
+      async () => {
+        await runInitSession(getDir(), declineAll)
+        expect(existsSync(configFilePath(getDir()))).toBe(true)
+
+        const raw = await readConfigRaw(getDir())
+        expect(raw).toContain('# .crucible/forge.config.yaml')
+        expect(raw).toContain('Generated by forge init')
+      },
+      TIMEOUT_MS,
+    )
+
+    it(
+      'warns when no assistants selected',
+      async () => {
+        const {output} = await runInitSession(getDir(), declineAll)
+        expect(output).toContain(M.assistants.noneSelected)
+      },
+      TIMEOUT_MS,
+    )
+
+    it(
+      'shows no-source outro when no source configured',
+      async () => {
+        const {output} = await runInitSession(getDir(), declineAll)
+        expect(output).toContain(M.outroNoSource)
+      },
+      TIMEOUT_MS,
+    )
+  })
+
+  describe('assistant selection', () => {
+    it(
+      'enables a single selected assistant (Cursor — 2nd in list)',
+      async () => {
+        // List order: claudeCode(0), cursor(1), windsurf(2), copilot(3), cline(4)
+        // Navigate to cursor: Down(×1), Space to toggle, Enter to confirm
+        await runInitSession(getDir(), (cli) =>
+          cli
+            .waitForText(M.assistants.select)
+            .pressKey(ARROW_DOWN) // move to cursor
+            .pressKey(SPACE) // select cursor
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(1)
+        expect(config.assistants[0].id).toBe(cursor.id)
+        expect(config.assistants[0].enabled).toBe(true)
+      },
+      TIMEOUT_MS,
+    )
+
+    it(
+      'enables multiple selected assistants (Claude Code + Cursor)',
+      async () => {
+        // Space on first (claudeCode), Down, Space on second (cursor), Enter
+        await runInitSession(getDir(), (cli) =>
+          cli
+            .waitForText(M.assistants.select)
+            .pressKey(SPACE) // select claudeCode
+            .pressKey(ARROW_DOWN) // move to cursor
+            .pressKey(SPACE) // select cursor
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(2)
+
+        const ids = map(config.assistants, (a) => a.id)
+        expect(ids).toContainValues([claudeCode.id, cursor.id])
+      },
+      TIMEOUT_MS,
+    )
+
+    it(
+      'enables all assistants when user selects all (Space×5 + Enter)',
+      async () => {
+        // Select each in turn: Space, Down, Space, Down, ..., Enter
+        await runInitSession(getDir(), (cli) =>
+          cli
+            .waitForText(M.assistants.select)
+            .pressKey(SPACE) // claudeCode
+            .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // cursor
+            .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // windsurf
+            .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // copilot
+            .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // cline
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(5)
+
+        const ids = map(config.assistants, (a) => a.id)
+        expect(ids).toContainValues([claudeCode.id, cursor.id, windsurf.id, copilot.id, cline.id])
+      },
+      TIMEOUT_MS,
+    )
+  })
+
+  describe('source configuration — git', () => {
+    it(
+      'writes git source with correct url, branch, name and type',
+      async () => {
+        await runInitSession(getDir(), addSource)
+        expect(existsSync(configFilePath(getDir()))).toBe(true)
+
+        const source = (await readConfig(getDir())).sources[0] as GitSource
+        expect(source.type).toBe('git')
+        expect(source.url).toBe(SOURCE_URL)
+        expect(source.branch).toBe('main')
+        expect(source.name).toBe('default')
+      },
+      TIMEOUT_MS,
+    )
+  })
+
+  describe('source configuration — local', () => {
+    it(
+      'writes local source with correct path, name and type',
+      async () => {
+        const localPath = getDir()
+        await runInitSession(getDir(), (cli) =>
+          declineAllAssistants(cli)
+            .waitForText(M.source.addSource)
+            .pressKey(Y)
+            // arrow down to select 'Local directory' (second option)
+            .waitForText(M.source.selectType)
+            .pressKey(ARROW_DOWN)
+            .pressEnter()
+            .waitForText(LM.path.message)
+            .write(localPath)
+            .pressEnter()
+            .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(M.sync.runNow)
+            .pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.sources[0].type).toBe('local')
+        expect((config.sources[0] as {path: string}).path).toBe(localPath)
+        expect(config.sources[0].name).toBe('default')
+      },
+      TIMEOUT_MS,
+    )
+  })
+
+  describe('existing config — aborts early', () => {
+    const existingContent = '# .crucible/forge.config.yaml\nversion: "1"\nassistants: []\n'
+
+    beforeEach(async () => {
+      await Bun.write(join(crucibleDirPath(getDir()), CONFIG_FILE), existingContent)
     })
 
-    describe('minimal config (all declined)', () => {
-        it('writes a valid config file', async () => {
-            await runInitSession(getDir(), declineAll)
-            expect(existsSync(configFilePath(getDir()))).toBe(true)
+    it(
+      'exits without writing when config already exists',
+      async () => {
+        await runInitSession(getDir(), (cli) => cli.waitForText(M.configExists))
 
-            const config = await readConfig(getDir())
-            expect(config.version).toBeDefined()
-            expect(Array.isArray(config.assistants)).toBe(true)
-            expect(config.assistants).toHaveLength(0)
-            expect(config.sources).toEqual([])
-            expect(config.project?.name).toBe(getDir().split('/').at(-1))
-        }, TIMEOUT_MS)
+        const raw = await readConfigRaw(getDir())
+        expect(raw).toEqual(existingContent)
+      },
+      TIMEOUT_MS,
+    )
 
-        it('file contains forge header comment', async () => {
-            await runInitSession(getDir(), declineAll)
-            expect(existsSync(configFilePath(getDir()))).toBe(true)
+    it(
+      'does not prompt for assistants or source when config exists',
+      async () => {
+        const {output} = await runInitSession(getDir(), (cli) => cli.waitForText(M.configExists))
 
-            const raw = await readConfigRaw(getDir())
-            expect(raw).toContain('# .crucible/forge.config.yaml')
-            expect(raw).toContain('Generated by forge init')
-        }, TIMEOUT_MS)
+        // Should see the abort message but NOT the assistant prompt
+        expect(output).not.toContain(M.assistants.select)
+        expect(output).not.toContain(M.source.addSource)
+      },
+      TIMEOUT_MS,
+    )
+  })
 
-        it('warns when no assistants selected', async () => {
-            const {output} = await runInitSession(getDir(), declineAll)
-            expect(output).toContain(M.assistants.noneSelected)
-        }, TIMEOUT_MS)
+  describe('source configuration — advanced', () => {
+    it(
+      'writes custom branch when user enters one',
+      async () => {
+        await runInitSession(getDir(), (cli) =>
+          declineAllAssistants(cli)
+            .waitForText(M.source.addSource)
+            .pressKey(Y)
+            .waitForText(M.source.selectType)
+            .pressEnter()
+            .waitForText(GM.url.message)
+            .write(SOURCE_URL)
+            .pressEnter()
+            .waitForText(GM.branch)
+            .write('develop')
+            .pressEnter()
+            .waitForText(GM.subdirectory.message)
+            .pressEnter()
+            .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(M.sync.runNow)
+            .pressKey(N),
+        )
+        const source = (await readConfig(getDir())).sources[0] as GitSource
+        expect(source.branch).toBe('develop')
+      },
+      TIMEOUT_MS,
+    )
 
-        it('shows no-source outro when no source configured', async () => {
-            const {output} = await runInitSession(getDir(), declineAll)
-            expect(output).toContain(M.outroNoSource)
-        }, TIMEOUT_MS)
-    })
+    it(
+      'writes subdirectory path when user enters one',
+      async () => {
+        await runInitSession(getDir(), (cli) =>
+          declineAllAssistants(cli)
+            .waitForText(M.source.addSource)
+            .pressKey(Y)
+            .waitForText(M.source.selectType)
+            .pressEnter()
+            .waitForText(GM.url.message)
+            .write(SOURCE_URL)
+            .pressEnter()
+            .waitForText(GM.branch)
+            .pressEnter()
+            .waitForText(GM.subdirectory.message)
+            .write('packages/ai')
+            .pressEnter()
+            .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(M.sync.runNow)
+            .pressKey(N),
+        )
+        const source = (await readConfig(getDir())).sources[0] as GitSource
+        expect(source.path).toBe('packages/ai')
+      },
+      TIMEOUT_MS,
+    )
 
-    describe('assistant selection', () => {
-        it('enables a single selected assistant (Cursor — 2nd in list)', async () => {
-            // List order: claudeCode(0), cursor(1), windsurf(2), copilot(3), cline(4)
-            // Navigate to cursor: Down(×1), Space to toggle, Enter to confirm
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select)
-                    .pressKey(ARROW_DOWN)    // move to cursor
-                    .pressKey(SPACE)          // select cursor
-                    .pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(1)
-            expect(config.assistants[0].id).toBe(cursor.id)
-            expect(config.assistants[0].enabled).toBe(true)
-        }, TIMEOUT_MS)
+    it(
+      'shows url validation error on empty input and re-prompts',
+      async () => {
+        await runInitSession(getDir(), (cli) =>
+          declineAllAssistants(cli)
+            .waitForText(M.source.addSource)
+            .pressKey(Y)
+            .waitForText(M.source.selectType)
+            .pressEnter()
+            // submit empty URL — should trigger validation error
+            .waitForText(GM.url.message)
+            .pressEnter()
+            // wait for the error message to appear, then enter valid URL
+            .waitForText(GM.url.required)
+            .write(SOURCE_URL)
+            .pressEnter()
+            .waitForText(GM.branch)
+            .pressEnter()
+            .waitForText(GM.subdirectory.message)
+            .pressEnter()
+            .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(M.sync.runNow)
+            .pressKey(N),
+        )
+        const source = (await readConfig(getDir())).sources[0] as GitSource
+        expect(source.url).toBe(SOURCE_URL)
+      },
+      TIMEOUT_MS,
+    )
 
-        it('enables multiple selected assistants (Claude Code + Cursor)', async () => {
-            // Space on first (claudeCode), Down, Space on second (cursor), Enter
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select)
-                    .pressKey(SPACE)          // select claudeCode
-                    .pressKey(ARROW_DOWN)    // move to cursor
-                    .pressKey(SPACE)          // select cursor
-                    .pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(2)
+    it(
+      'reaches sync-now prompt and config is written before sync attempt',
+      async () => {
+        // Accepting sync-now with a non-cloneable URL will cause sync to fail,
+        // but the config MUST already be written before sync is attempted.
+        // pass Y to `addSource` to accept sync — will fail because SOURCE_URL is not a real remote
+        await runInitSession(getDir(), (cli) => addSource(cli, Y))
 
-            const ids = map(config.assistants, a => a.id)
-            expect(ids).toContainValues([claudeCode.id, cursor.id])
-        }, TIMEOUT_MS)
+        // config was written before sync was attempted
+        expect(existsSync(configFilePath(getDir()))).toBe(true)
+        const source = (await readConfig(getDir())).sources[0] as GitSource
+        expect(source.url).toBe(SOURCE_URL)
+      },
+      TIMEOUT_MS,
+    )
+  })
 
-        it('enables all assistants when user selects all (Space×5 + Enter)', async () => {
-            // Select each in turn: Space, Down, Space, Down, ..., Enter
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select)
-                    .pressKey(SPACE)          // claudeCode
-                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // cursor
-                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // windsurf
-                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // copilot
-                    .pressKey(ARROW_DOWN).pressKey(SPACE)  // cline
-                    .pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(5)
+  describe('detected assistants', () => {
+    it(
+      'pre-selects detected assistant (.cursor dir) — Enter confirms it',
+      async () => {
+        // cursor is detected (pre-selected); press Enter immediately to confirm
+        await mkdir(join(getDir(), '.cursor'), {recursive: true})
+        await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
-            const ids = map(config.assistants, a => a.id)
-            expect(ids).toContainValues([claudeCode.id, cursor.id, windsurf.id, copilot.id, cline.id])
-        }, TIMEOUT_MS)
-    })
+        await runInitSession(getDir(), (cli) =>
+          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(1)
+        expect(config.assistants[0].id).toBe(cursor.id)
+        expect(config.assistants[0].enabled).toBe(true)
+      },
+      TIMEOUT_MS,
+    )
 
-    describe('source configuration — git', () => {
-        it('writes git source with correct url, branch, name and type', async () => {
-            await runInitSession(getDir(), addSource)
-            expect(existsSync(configFilePath(getDir()))).toBe(true)
+    it(
+      'deselects pre-selected detected assistant — not written to config',
+      async () => {
+        // cursor detected at list position 1; navigate to it, Space deselects, Enter confirms
+        await mkdir(join(getDir(), '.cursor'), {recursive: true})
+        await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
-            const source = (await readConfig(getDir())).sources[0] as GitSource
-            expect(source.type).toBe('git')
-            expect(source.url).toBe(SOURCE_URL)
-            expect(source.branch).toBe('main')
-            expect(source.name).toBe('default')
-        }, TIMEOUT_MS)
-    })
+        await runInitSession(getDir(), (cli) =>
+          cli
+            .waitForText(M.assistants.select)
+            .pressKey(ARROW_DOWN) // move to cursor (position 1)
+            .pressKey(SPACE) // deselect cursor
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(0)
+      },
+      TIMEOUT_MS,
+    )
 
-    describe('source configuration — local', () => {
-        it('writes local source with correct path, name and type', async () => {
-            const localPath = getDir()
-            await runInitSession(getDir(), (cli) =>
-                declineAllAssistants(cli)
-                    .waitForText(M.source.addSource).pressKey(Y)
-                    // arrow down to select 'Local directory' (second option)
-                    .waitForText(M.source.selectType).pressKey(ARROW_DOWN).pressEnter()
-                    .waitForText(LM.path.message).write(localPath).pressEnter()
-                    .waitForText(M.source.addAnother).pressKey(N)
-                    .waitForText(M.sync.runNow).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.sources[0].type).toBe('local')
-            expect((config.sources[0] as {path: string}).path).toBe(localPath)
-            expect(config.sources[0].name).toBe('default')
-        }, TIMEOUT_MS)
-    })
+    it(
+      'pre-selects detected assistant by file evidence (CLAUDE.md → claude-code)',
+      async () => {
+        // claudeCode detected at position 0 (first item, already focused)
+        await Bun.write(join(getDir(), 'CLAUDE.md'), '# Claude instructions')
 
-    describe('existing config — aborts early', () => {
-        const existingContent = '# .crucible/forge.config.yaml\nversion: "1"\nassistants: []\n'
+        await runInitSession(getDir(), (cli) =>
+          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(1)
+        expect(config.assistants[0].id).toBe(claudeCode.id)
+        expect(config.assistants[0].enabled).toBe(true)
+      },
+      TIMEOUT_MS,
+    )
 
-        beforeEach(async () => {
-            await Bun.write(join(crucibleDirPath(getDir()), CONFIG_FILE), existingContent)
-        })
+    it(
+      'pre-selects detected assistant by file evidence (copilot-instructions.md → copilot)',
+      async () => {
+        // copilot detected at position 3; pressing Enter includes only the pre-selected one
+        await mkdir(join(getDir(), '.github'), {recursive: true})
+        await Bun.write(join(getDir(), '.github', 'copilot-instructions.md'), '# Copilot instructions')
 
-        it('exits without writing when config already exists', async () => {
-            await runInitSession(getDir(), cli =>
-                cli.waitForText(M.configExists)
-            )
+        await runInitSession(getDir(), (cli) =>
+          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(1)
+        expect(config.assistants[0].id).toBe(copilot.id)
+        expect(config.assistants[0].enabled).toBe(true)
+      },
+      TIMEOUT_MS,
+    )
 
-            const raw = await readConfigRaw(getDir())
-            expect(raw).toEqual(existingContent)
-        }, TIMEOUT_MS)
+    it(
+      'does not pre-select assistant when its directory exists but is empty',
+      async () => {
+        // empty .cursor/ dir — not detected, so Enter writes no assistants
+        await mkdir(join(getDir(), '.cursor'), {recursive: true})
 
-        it('does not prompt for assistants or source when config exists', async () => {
-            const {output} = await runInitSession(getDir(), cli =>
-                cli.waitForText(M.configExists)
-            )
-
-            // Should see the abort message but NOT the assistant prompt
-            expect(output).not.toContain(M.assistants.select)
-            expect(output).not.toContain(M.source.addSource)
-        }, TIMEOUT_MS)
-    })
-
-    describe('source configuration — advanced', () => {
-        it('writes custom branch when user enters one', async () => {
-            await runInitSession(getDir(), (cli) =>
-                declineAllAssistants(cli)
-                    .waitForText(M.source.addSource).pressKey(Y)
-                    .waitForText(M.source.selectType).pressEnter()
-                    .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
-                    .waitForText(GM.branch).write('develop').pressEnter()
-                    .waitForText(GM.subdirectory.message).pressEnter()
-                    .waitForText(M.source.addAnother).pressKey(N)
-                    .waitForText(M.sync.runNow).pressKey(N),
-            )
-            const source = (await readConfig(getDir())).sources[0] as GitSource
-            expect(source.branch).toBe('develop')
-        }, TIMEOUT_MS)
-
-        it('writes subdirectory path when user enters one', async () => {
-            await runInitSession(getDir(), (cli) =>
-                declineAllAssistants(cli)
-                    .waitForText(M.source.addSource).pressKey(Y)
-                    .waitForText(M.source.selectType).pressEnter()
-                    .waitForText(GM.url.message).write(SOURCE_URL).pressEnter()
-                    .waitForText(GM.branch).pressEnter()
-                    .waitForText(GM.subdirectory.message).write('packages/ai').pressEnter()
-                    .waitForText(M.source.addAnother).pressKey(N)
-                    .waitForText(M.sync.runNow).pressKey(N),
-            )
-            const source = (await readConfig(getDir())).sources[0] as GitSource
-            expect(source.path).toBe('packages/ai')
-        }, TIMEOUT_MS)
-
-        it('shows url validation error on empty input and re-prompts', async () => {
-            await runInitSession(getDir(), (cli) =>
-                declineAllAssistants(cli)
-                    .waitForText(M.source.addSource).pressKey(Y)
-                    .waitForText(M.source.selectType).pressEnter()
-                    // submit empty URL — should trigger validation error
-                    .waitForText(GM.url.message).pressEnter()
-                    // wait for the error message to appear, then enter valid URL
-                    .waitForText(GM.url.required).write(SOURCE_URL).pressEnter()
-                    .waitForText(GM.branch).pressEnter()
-                    .waitForText(GM.subdirectory.message).pressEnter()
-                    .waitForText(M.source.addAnother).pressKey(N)
-                    .waitForText(M.sync.runNow).pressKey(N),
-            )
-            const source = (await readConfig(getDir())).sources[0] as GitSource
-            expect(source.url).toBe(SOURCE_URL)
-        }, TIMEOUT_MS)
-
-        it('reaches sync-now prompt and config is written before sync attempt', async () => {
-            // Accepting sync-now with a non-cloneable URL will cause sync to fail,
-            // but the config MUST already be written before sync is attempted.
-            // pass Y to `addSource` to accept sync — will fail because SOURCE_URL is not a real remote
-            await runInitSession(getDir(), cli => addSource(cli, Y))
-
-            // config was written before sync was attempted
-            expect(existsSync(configFilePath(getDir()))).toBe(true)
-            const source = (await readConfig(getDir())).sources[0] as GitSource
-            expect(source.url).toBe(SOURCE_URL)
-        }, TIMEOUT_MS)
-    })
-
-    describe('detected assistants', () => {
-        it('pre-selects detected assistant (.cursor dir) — Enter confirms it', async () => {
-            // cursor is detected (pre-selected); press Enter immediately to confirm
-            await mkdir(join(getDir(), '.cursor'), {recursive: true})
-            await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
-
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select).pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(1)
-            expect(config.assistants[0].id).toBe(cursor.id)
-            expect(config.assistants[0].enabled).toBe(true)
-        }, TIMEOUT_MS)
-
-        it('deselects pre-selected detected assistant — not written to config', async () => {
-            // cursor detected at list position 1; navigate to it, Space deselects, Enter confirms
-            await mkdir(join(getDir(), '.cursor'), {recursive: true})
-            await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
-
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select)
-                    .pressKey(ARROW_DOWN)  // move to cursor (position 1)
-                    .pressKey(SPACE)        // deselect cursor
-                    .pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(0)
-        }, TIMEOUT_MS)
-
-        it('pre-selects detected assistant by file evidence (CLAUDE.md → claude-code)', async () => {
-            // claudeCode detected at position 0 (first item, already focused)
-            await Bun.write(join(getDir(), 'CLAUDE.md'), '# Claude instructions')
-
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select).pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(1)
-            expect(config.assistants[0].id).toBe(claudeCode.id)
-            expect(config.assistants[0].enabled).toBe(true)
-        }, TIMEOUT_MS)
-
-        it('pre-selects detected assistant by file evidence (copilot-instructions.md → copilot)', async () => {
-            // copilot detected at position 3; pressing Enter includes only the pre-selected one
-            await mkdir(join(getDir(), '.github'), {recursive: true})
-            await Bun.write(join(getDir(), '.github', 'copilot-instructions.md'), '# Copilot instructions')
-
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select).pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(1)
-            expect(config.assistants[0].id).toBe(copilot.id)
-            expect(config.assistants[0].enabled).toBe(true)
-        }, TIMEOUT_MS)
-
-        it('does not pre-select assistant when its directory exists but is empty', async () => {
-            // empty .cursor/ dir — not detected, so Enter writes no assistants
-            await mkdir(join(getDir(), '.cursor'), {recursive: true})
-
-            await runInitSession(getDir(), (cli) =>
-                cli
-                    .waitForText(M.assistants.select).pressEnter()
-                    .waitForText(M.source.addSource).pressKey(N),
-            )
-            const config = await readConfig(getDir())
-            expect(config.assistants).toHaveLength(0)
-        }, TIMEOUT_MS)
-    })
+        await runInitSession(getDir(), (cli) =>
+          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+        )
+        const config = await readConfig(getDir())
+        expect(config.assistants).toHaveLength(0)
+      },
+      TIMEOUT_MS,
+    )
+  })
 })

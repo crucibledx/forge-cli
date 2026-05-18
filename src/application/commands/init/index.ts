@@ -4,10 +4,8 @@ import type {InitCommandDefinition} from './types'
 export * from './types'
 
 export const initCommand: InitCommandDefinition = {
-    name: 'init',
-    description: 'Initialize AI assistant config in this project',
-    options: [
-        {flags: '-v, --verbose', description: 'Show debug output', defaultValue: false},
-    ],
-    action: runInit,
+  name: 'init',
+  description: 'Initialize AI assistant config in this project',
+  options: [{flags: '-v, --verbose', description: 'Show debug output', defaultValue: false}],
+  action: runInit,
 }

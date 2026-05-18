@@ -6,143 +6,141 @@ import type {OutputEntry} from '@domain/protocol/types'
 import * as renderer from './renderer'
 
 describe('renderHeader', () => {
-    it('calls console.log with box-drawing border containing the title', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
+  it('calls console.log with box-drawing border containing the title', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
 
-        renderer.renderHeader('Test Title')
+    renderer.renderHeader('Test Title')
 
-        spy.mockRestore()
-        const output = logs.join('\n')
-        expect(output).toContain('Test Title')
-        expect(output).toContain('┌')
-        expect(output).toContain('┘')
-    })
+    spy.mockRestore()
+    const output = logs.join('\n')
+    expect(output).toContain('Test Title')
+    expect(output).toContain('┌')
+    expect(output).toContain('┘')
+  })
 })
 
 describe('renderDetectionResults', () => {
-    it('prints detected assistant with checkmark', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('prints detected assistant with checkmark', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        const results: DetectionResult[] = [
-            {id: 'cursor', name: 'Cursor', detected: true, evidence: '.cursor/ found (2 items)'},
-        ]
-        renderer.renderDetectionResults(results)
-        spy.mockRestore()
+    const results: DetectionResult[] = [
+      {id: 'cursor', name: 'Cursor', detected: true, evidence: '.cursor/ found (2 items)'},
+    ]
+    renderer.renderDetectionResults(results)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('Cursor')
-    })
+    expect(logs[0]).toContain('Cursor')
+  })
 
-    it('prints undetected assistant with dim marker', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('prints undetected assistant with dim marker', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        const results: DetectionResult[] = [
-            {id: 'cline', name: 'Cline', detected: false},
-        ]
-        renderer.renderDetectionResults(results)
-        spy.mockRestore()
+    const results: DetectionResult[] = [{id: 'cline', name: 'Cline', detected: false}]
+    renderer.renderDetectionResults(results)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('Cline')
-    })
+    expect(logs[0]).toContain('Cline')
+  })
 })
 
 describe('renderSyncFile', () => {
-    it('renders new file status', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders new file status', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderSyncFile('skills/ts.md', 'new', false)
-        spy.mockRestore()
+    renderer.renderSyncFile('skills/ts.md', 'new', false)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('skills/ts.md')
-        expect(logs[0]).toContain('new')
-    })
+    expect(logs[0]).toContain('skills/ts.md')
+    expect(logs[0]).toContain('new')
+  })
 
-    it('renders update file status', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders update file status', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderSyncFile('skills/ts.md', 'update', false)
-        spy.mockRestore()
+    renderer.renderSyncFile('skills/ts.md', 'update', false)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('update')
-    })
+    expect(logs[0]).toContain('update')
+  })
 
-    it('renders no_change file status', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders no_change file status', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderSyncFile('skills/ts.md', 'no_change', false)
-        spy.mockRestore()
+    renderer.renderSyncFile('skills/ts.md', 'no_change', false)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('no change')
-    })
+    expect(logs[0]).toContain('no change')
+  })
 
-    it('uses + prefix in dry-run for new files', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('uses + prefix in dry-run for new files', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderSyncFile('file.md', 'new', true)
-        spy.mockRestore()
+    renderer.renderSyncFile('file.md', 'new', true)
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('+')
-    })
+    expect(logs[0]).toContain('+')
+  })
 })
 
 describe('renderOutputEntries', () => {
-    it('dispatches each entry to the correct renderer', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('dispatches each entry to the correct renderer', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        const entries: OutputEntry[] = [
-            {level: 'success', message: 'done'},
-            {level: 'info', message: 'note'},
-            {level: 'warn', message: 'careful'},
-            {level: 'error', message: 'bad'},
-            {level: 'debug', message: 'verbose'},
-        ]
-        renderer.renderOutputEntries(entries)
-        spy.mockRestore()
+    const entries: OutputEntry[] = [
+      {level: 'success', message: 'done'},
+      {level: 'info', message: 'note'},
+      {level: 'warn', message: 'careful'},
+      {level: 'error', message: 'bad'},
+      {level: 'debug', message: 'verbose'},
+    ]
+    renderer.renderOutputEntries(entries)
+    spy.mockRestore()
 
-        const combined = logs.join('\n')
-        expect(combined).toContain('done')
-        expect(combined).toContain('note')
-        expect(combined).toContain('careful')
-        expect(combined).toContain('bad')
-        expect(combined).toContain('verbose')
-    })
+    const combined = logs.join('\n')
+    expect(combined).toContain('done')
+    expect(combined).toContain('note')
+    expect(combined).toContain('careful')
+    expect(combined).toContain('bad')
+    expect(combined).toContain('verbose')
+  })
 
-    it('renders entry detail as dimmed line', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders entry detail as dimmed line', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderOutputEntries([{level: 'info', message: 'msg', detail: 'some detail'}])
-        spy.mockRestore()
+    renderer.renderOutputEntries([{level: 'info', message: 'msg', detail: 'some detail'}])
+    spy.mockRestore()
 
-        expect(logs.join('\n')).toContain('some detail')
-    })
+    expect(logs.join('\n')).toContain('some detail')
+  })
 })
 
 describe('renderError', () => {
-    it('renders message', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders message', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderError('Something failed')
-        spy.mockRestore()
+    renderer.renderError('Something failed')
+    spy.mockRestore()
 
-        expect(logs[0]).toContain('Something failed')
-    })
+    expect(logs[0]).toContain('Something failed')
+  })
 
-    it('renders optional suggestion on second line', () => {
-        const logs: string[] = []
-        const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
+  it('renders optional suggestion on second line', () => {
+    const logs: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
-        renderer.renderError('Fail', 'Try again')
-        spy.mockRestore()
+    renderer.renderError('Fail', 'Try again')
+    spy.mockRestore()
 
-        expect(logs.join('\n')).toContain('Try again')
-    })
+    expect(logs.join('\n')).toContain('Try again')
+  })
 })
