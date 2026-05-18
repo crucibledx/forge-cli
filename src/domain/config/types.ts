@@ -4,26 +4,11 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
 }
 
-export interface GitSource {
+export interface Source {
   name: string
-  type: 'git'
-  url: string
-  branch: string
-  path?: string
-  auth?: {
-    type: 'ssh-key' | 'token'
-    keyPath?: string
-    token?: string
-  }
+  type: string
+  [key: string]: unknown
 }
-
-export interface LocalSource {
-  name: string
-  type: 'local'
-  path: string
-}
-
-export type Source = GitSource | LocalSource
 
 export interface ProjectConfig {
   version: string

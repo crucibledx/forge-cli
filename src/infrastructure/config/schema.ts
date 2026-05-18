@@ -1,6 +1,7 @@
 import {z} from 'zod'
 
-import {ASSISTANT_IDS} from '../assistants/types'
+import {ASSISTANT_IDS} from '@domain/assistants/types'
+import {sourceConfigSchema} from '@infrastructure/source'
 
 const assistantIdSchema = z.enum(ASSISTANT_IDS)
 
@@ -9,29 +10,6 @@ const assistantConfigSchema = z.object({
   enabled: z.boolean(),
   config: z.record(z.string(), z.unknown()).optional(),
 })
-
-const gitAuthSchema = z.object({
-  type: z.enum(['ssh-key', 'token']),
-  keyPath: z.string().optional(),
-  token: z.string().optional(),
-})
-
-const gitSourceSchema = z.object({
-  name: z.string(),
-  type: z.literal('git'),
-  url: z.string(),
-  branch: z.string().default('main'),
-  path: z.string().optional(),
-  auth: gitAuthSchema.optional(),
-})
-
-const localSourceSchema = z.object({
-  name: z.string(),
-  type: z.literal('local'),
-  path: z.string(),
-})
-
-const sourceSchema = z.discriminatedUnion('type', [gitSourceSchema, localSourceSchema])
 
 export const projectConfigSchema = z
   .object({
@@ -43,8 +21,8 @@ export const projectConfigSchema = z
       })
       .optional(),
     assistants: z.array(assistantConfigSchema),
-    source: sourceSchema.optional(),
-    sources: z.array(sourceSchema).optional(),
+    source: sourceConfigSchema.optional(),
+    sources: z.array(sourceConfigSchema).optional(),
     lastSync: z.string().optional(),
   })
   .transform(({source, sources, ...rest}) => ({
@@ -62,8 +40,8 @@ export const globalConfigSchema = z.object({
   defaults: z
     .object({
       assistants: z.array(assistantConfigSchema).optional(),
-      source: sourceSchema.optional(),
-      sources: z.array(sourceSchema).optional(),
+      source: sourceConfigSchema.optional(),
+      sources: z.array(sourceConfigSchema).optional(),
     })
     .transform(({source, sources, ...rest}) => ({
       ...rest,

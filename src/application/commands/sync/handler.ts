@@ -53,8 +53,7 @@ export const runSync: SyncCommandAction = async (options) => {
     renderer.renderNewline()
 
     // Collect source files
-    const sourcePath = source.type === 'git' && source.path ? join(localPath, source.path) : localPath
-    const sourceFiles = await collectFiles(sourcePath)
+    const sourceFiles = await collectFiles(localPath)
 
     if (sourceFiles.length === 0) {
       renderer.renderWarning(`No files found in source: ${source.name}`)

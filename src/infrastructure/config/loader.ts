@@ -5,8 +5,7 @@ import {join} from 'node:path'
 
 import {parse as parseYaml} from 'yaml'
 
-import {globalConfigSchema, projectConfigSchema} from '@domain/config/schema'
-
+import {globalConfigSchema, projectConfigSchema} from './schema'
 import type {
   GetGlobalConfigPathFunction,
   GetProjectConfigPathFunction,

@@ -107,7 +107,7 @@ describe('loadGlobalConfig', () => {
 
   it('parses global config from a valid YAML string (unit-level via schema)', async () => {
     // Validate schema parsing directly since loadGlobalConfig path is fixed to homedir()
-    const {globalConfigSchema} = await import('@domain/config/schema')
+    const {globalConfigSchema} = await import('./schema')
     const {parse: parseYaml} = await import('yaml')
     const parsed = globalConfigSchema.parse(parseYaml(VALID_GLOBAL_YAML))
     expect(parsed.user?.name).toBe('Alice')
