@@ -5,9 +5,4 @@ export interface GitSourceConfig extends Source {
   url: string
   branch: string
   path?: string
-  auth?: {
-    type: 'ssh-key' | 'token'
-    keyPath?: string
-    token?: string
-  }
 }
