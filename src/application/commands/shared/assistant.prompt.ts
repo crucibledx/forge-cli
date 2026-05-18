@@ -1,5 +1,5 @@
-import {getAllAssistants} from '@domain/assistants/registry'
-import type {AssistantConfig, AssistantDefinition, AssistantId, DetectionResult} from '@domain/assistants/types'
+import type {AssistantConfig, AssistantDefinition, AssistantId, DetectionResult} from '@domain/assistants'
+import {getAllAssistants} from '@domain/assistants'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {scanForAssistants} from '@infrastructure/fs'

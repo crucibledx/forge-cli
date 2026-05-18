@@ -1,3 +1,4 @@
+import {assistantsRegistry} from '../registry'
 import type {AssistantDefinition} from '../types'
 
 export const claudeCode: AssistantDefinition = {
@@ -13,3 +14,5 @@ export const claudeCode: AssistantDefinition = {
     {sourceGlob: 'workflows/**', destination: '.claude/commands/'},
   ],
 }
+
+assistantsRegistry.push(claudeCode)

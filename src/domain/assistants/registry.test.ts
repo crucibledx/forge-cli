@@ -1,10 +1,13 @@
+import './cline'
+import './copilot'
+import './windsurf'
+
 import {describe, expect, it} from 'bun:test'
 import {map} from 'lodash-es'
 
 import {claudeCode} from './claude-code'
 import {cursor} from './cursor'
-import {getAllAssistants, getAssistant} from './registry'
-import {ASSISTANT_IDS} from './types'
+import {getAllAssistants, getAssistant, getAssistantIds} from './registry'
 
 describe('getAllAssistants', () => {
   it('returns all 5 assistants', () => {
@@ -12,9 +15,9 @@ describe('getAllAssistants', () => {
     expect(all).toHaveLength(5)
   })
 
-  it('covers every AssistantId', () => {
+  it('covers every registered id', () => {
     const ids = map(getAllAssistants(), (a) => a.id)
-    for (const id of ASSISTANT_IDS) {
+    for (const id of getAssistantIds()) {
       expect(ids).toContain(id)
     }
   })
@@ -35,7 +38,6 @@ describe('getAssistant', () => {
   })
 
   it('throws for unknown id', () => {
-    // @ts-expect-error testing invalid input
     expect(() => getAssistant('unknown-tool')).toThrow('Unknown assistant: unknown-tool')
   })
 

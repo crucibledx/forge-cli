@@ -1,9 +1,9 @@
 import {z} from 'zod'
 
-import {ASSISTANT_IDS} from '@domain/assistants/types'
+import {getAssistantIds} from '@domain/assistants'
 import {sourceConfigSchema} from '@infrastructure/source'
 
-const assistantIdSchema = z.enum(ASSISTANT_IDS)
+const assistantIdSchema = z.enum(getAssistantIds() as [string, ...string[]])
 
 const assistantConfigSchema = z.object({
   id: assistantIdSchema,

@@ -1,5 +1,4 @@
-export const ASSISTANT_IDS = ['claude-code', 'cursor', 'windsurf', 'copilot', 'cline'] as const
-export type AssistantId = (typeof ASSISTANT_IDS)[number]
+export type AssistantId = string
 
 export interface TargetMapping {
   sourceGlob: string

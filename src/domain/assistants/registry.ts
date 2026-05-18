@@ -1,22 +1,19 @@
-import {claudeCode} from './claude-code'
-import {cline} from './cline'
-import {copilot} from './copilot'
-import {cursor} from './cursor'
-import type {AssistantDefinition, AssistantId} from './types'
-import {windsurf} from './windsurf'
+import type {AssistantDefinition} from './types'
 
-const ALL_ASSISTANTS: readonly AssistantDefinition[] = [claudeCode, cursor, windsurf, copilot, cline]
-
-const ASSISTANT_REGISTRY: Record<string, AssistantDefinition> = Object.fromEntries(ALL_ASSISTANTS.map((a) => [a.id, a]))
+export const assistantsRegistry: AssistantDefinition[] = []
 
 export function getAllAssistants(): readonly AssistantDefinition[] {
-  return ALL_ASSISTANTS
+  return assistantsRegistry
 }
 
-export function getAssistant(id: AssistantId): AssistantDefinition {
-  const assistant = ASSISTANT_REGISTRY[id]
+export function getAssistant(id: string): AssistantDefinition {
+  const assistant = assistantsRegistry.find((a) => a.id === id)
   if (!assistant) {
     throw new Error(`Unknown assistant: ${id}`)
   }
   return assistant
+}
+
+export function getAssistantIds(): string[] {
+  return assistantsRegistry.map((a) => a.id)
 }

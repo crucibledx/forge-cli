@@ -1,3 +1,4 @@
+import {assistantsRegistry} from '../registry'
 import type {AssistantDefinition} from '../types'
 
 export const cursor: AssistantDefinition = {
@@ -18,3 +19,5 @@ export const cursor: AssistantDefinition = {
     {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
   ],
 }
+
+assistantsRegistry.push(cursor)

@@ -1,3 +1,4 @@
+import {assistantsRegistry} from '../registry'
 import type {AssistantDefinition} from '../types'
 
 export const windsurf: AssistantDefinition = {
@@ -13,3 +14,5 @@ export const windsurf: AssistantDefinition = {
     {sourceGlob: 'workflows/**', destination: '.windsurf/workflows/'},
   ],
 }
+
+assistantsRegistry.push(windsurf)

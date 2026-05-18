@@ -1,6 +1,6 @@
 import {describe, expect, it, spyOn} from 'bun:test'
 
-import type {DetectionResult} from '@domain/assistants/types'
+import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
 
 import * as renderer from './renderer'

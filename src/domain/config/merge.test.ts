@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 
-import type {AssistantConfig} from '@domain/assistants/types'
+import type {AssistantConfig} from '@domain/assistants'
 
 import {mergeConfigs} from './merge'
 import type {GlobalConfig, ProjectConfig} from './types'

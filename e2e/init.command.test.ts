@@ -160,13 +160,15 @@ describe('forge init — e2e', () => {
 
   describe('assistant selection', () => {
     it(
-      'enables a single selected assistant (Cursor — 2nd in list)',
+      'enables a single selected assistant (Cursor — 4th in list)',
       async () => {
-        // List order: claudeCode(0), cursor(1), windsurf(2), copilot(3), cline(4)
-        // Navigate to cursor: Down(×1), Space to toggle, Enter to confirm
+        // List order: claudeCode(0), cline(1), copilot(2), cursor(3), windsurf(4)
+        // Navigate to cursor: Down(×3), Space to toggle, Enter to confirm
         await runInitSession(getDir(), (cli) =>
           cli
             .waitForText(M.assistants.select)
+            .pressKey(ARROW_DOWN) // move to cline
+            .pressKey(ARROW_DOWN) // move to copilot
             .pressKey(ARROW_DOWN) // move to cursor
             .pressKey(SPACE) // select cursor
             .pressEnter()
@@ -184,11 +186,13 @@ describe('forge init — e2e', () => {
     it(
       'enables multiple selected assistants (Claude Code + Cursor)',
       async () => {
-        // Space on first (claudeCode), Down, Space on second (cursor), Enter
+        // Space on first (claudeCode), Down×3, Space on cursor, Enter
         await runInitSession(getDir(), (cli) =>
           cli
             .waitForText(M.assistants.select)
             .pressKey(SPACE) // select claudeCode
+            .pressKey(ARROW_DOWN) // move to cline
+            .pressKey(ARROW_DOWN) // move to copilot
             .pressKey(ARROW_DOWN) // move to cursor
             .pressKey(SPACE) // select cursor
             .pressEnter()
@@ -213,13 +217,13 @@ describe('forge init — e2e', () => {
             .waitForText(M.assistants.select)
             .pressKey(SPACE) // claudeCode
             .pressKey(ARROW_DOWN)
-            .pressKey(SPACE) // cursor
-            .pressKey(ARROW_DOWN)
-            .pressKey(SPACE) // windsurf
+            .pressKey(SPACE) // cline
             .pressKey(ARROW_DOWN)
             .pressKey(SPACE) // copilot
             .pressKey(ARROW_DOWN)
-            .pressKey(SPACE) // cline
+            .pressKey(SPACE) // cursor
+            .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // windsurf
             .pressEnter()
             .waitForText(M.source.addSource)
             .pressKey(N),
@@ -439,14 +443,16 @@ describe('forge init — e2e', () => {
     it(
       'deselects pre-selected detected assistant — not written to config',
       async () => {
-        // cursor detected at list position 1; navigate to it, Space deselects, Enter confirms
+        // cursor detected at list position 3; navigate to it, Space deselects, Enter confirms
         await mkdir(join(getDir(), '.cursor'), {recursive: true})
         await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
         await runInitSession(getDir(), (cli) =>
           cli
             .waitForText(M.assistants.select)
-            .pressKey(ARROW_DOWN) // move to cursor (position 1)
+            .pressKey(ARROW_DOWN) // move to cline (position 1)
+            .pressKey(ARROW_DOWN) // move to copilot (position 2)
+            .pressKey(ARROW_DOWN) // move to cursor (position 3)
             .pressKey(SPACE) // deselect cursor
             .pressEnter()
             .waitForText(M.source.addSource)
@@ -478,7 +484,7 @@ describe('forge init — e2e', () => {
     it(
       'pre-selects detected assistant by file evidence (copilot-instructions.md → copilot)',
       async () => {
-        // copilot detected at position 3; pressing Enter includes only the pre-selected one
+        // copilot detected at position 2; pressing Enter includes only the pre-selected one
         await mkdir(join(getDir(), '.github'), {recursive: true})
         await Bun.write(join(getDir(), '.github', 'copilot-instructions.md'), '# Copilot instructions')
 

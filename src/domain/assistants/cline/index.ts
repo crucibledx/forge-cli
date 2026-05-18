@@ -1,3 +1,4 @@
+import {assistantsRegistry} from '../registry'
 import type {AssistantDefinition} from '../types'
 
 export const cline: AssistantDefinition = {
@@ -13,3 +14,5 @@ export const cline: AssistantDefinition = {
     {sourceGlob: 'workflows/**', destination: '.clinerules/workflows/'},
   ],
 }
+
+assistantsRegistry.push(cline)

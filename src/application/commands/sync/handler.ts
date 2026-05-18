@@ -4,8 +4,8 @@ import {join} from 'node:path'
 
 import {groupBy} from 'lodash-es'
 
-import {getAssistant} from '@domain/assistants/registry'
-import type {AssistantId} from '@domain/assistants/types'
+import type {AssistantId} from '@domain/assistants'
+import {getAssistant} from '@domain/assistants'
 import {mergeConfigs} from '@domain/config/merge'
 import {resolveTargets} from '@domain/sync/resolver'
 import type {Mutation, SyncFileSummary} from '@domain/sync/types'

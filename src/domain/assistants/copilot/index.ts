@@ -1,3 +1,4 @@
+import {assistantsRegistry} from '../registry'
 import type {AssistantDefinition} from '../types'
 
 export const copilot: AssistantDefinition = {
@@ -17,3 +18,5 @@ export const copilot: AssistantDefinition = {
     },
   ],
 }
+
+assistantsRegistry.push(copilot)

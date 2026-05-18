@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
-import type {AssistantDefinition} from '@domain/assistants/types'
+import type {AssistantDefinition} from '@domain/assistants'
 
 import {scanForAssistants} from './scanner'
 

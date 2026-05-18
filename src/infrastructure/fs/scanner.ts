@@ -2,7 +2,7 @@ import {existsSync, readdirSync, statSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
-import type {AssistantDefinition, DetectionResult} from '@domain/assistants/types'
+import type {AssistantDefinition, DetectionResult} from '@domain/assistants'
 
 function resolvePath(projectRoot: string, homeDir: string, path: string): string {
   return path.startsWith('~/') ? join(homeDir, path.slice(2)) : join(projectRoot, path)

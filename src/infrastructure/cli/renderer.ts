@@ -1,6 +1,6 @@
 import pc from 'picocolors'
 
-import type {DetectionResult} from '@domain/assistants/types'
+import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
 
 export function renderHeader(title: string): void {
