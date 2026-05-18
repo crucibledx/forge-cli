@@ -1,3 +1,4 @@
+import {commandsRegistry} from '../registry'
 import {runSync} from './handler'
 import type {SyncCommandDefinition} from './types'
 
@@ -12,3 +13,5 @@ export const syncCommand: SyncCommandDefinition = {
   ],
   action: runSync,
 }
+
+commandsRegistry.push(syncCommand)

@@ -1,8 +1,6 @@
-import {configCommand} from './config'
-import {initCommand} from './init'
-import {syncCommand} from './sync'
-import type {CommandDefinition} from './types'
+import './config'
+import './init'
+import './sync'
 
+export {commandsRegistry as commands} from './registry'
 export type * from './types'
-
-export const commands: CommandDefinition[] = [initCommand, syncCommand, configCommand]

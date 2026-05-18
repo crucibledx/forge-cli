@@ -1,3 +1,4 @@
+import {commandsRegistry} from '../registry'
 import {runConfig} from './handler'
 import type {ConfigCommandDefinition} from './types'
 
@@ -9,3 +10,5 @@ export const configCommand: ConfigCommandDefinition = {
   options: [{flags: '-v, --verbose', description: 'Show debug output', defaultValue: false}],
   action: runConfig,
 }
+
+commandsRegistry.push(configCommand)

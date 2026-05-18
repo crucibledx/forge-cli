@@ -1,3 +1,4 @@
+import {commandsRegistry} from '../registry'
 import {runInit} from './handler'
 import type {InitCommandDefinition} from './types'
 
@@ -9,3 +10,5 @@ export const initCommand: InitCommandDefinition = {
   options: [{flags: '-v, --verbose', description: 'Show debug output', defaultValue: false}],
   action: runInit,
 }
+
+commandsRegistry.push(initCommand)
