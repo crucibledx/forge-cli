@@ -10,8 +10,8 @@ import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
 
-import {readTarget, RULE_WITH_MULTI_PATHS, RULE_WITH_PATHS, setupLocalSync} from '../../fixtures'
-import {runSync, useTmpDir} from '../../framework'
+import {readTarget, RULE_WITH_MULTI_PATHS, RULE_WITH_PATHS, setupLocalSync} from '@e2e/fixtures'
+import {runSync, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-transforms')
 

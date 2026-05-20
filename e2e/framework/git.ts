@@ -1,6 +1,6 @@
 import {join} from 'node:path'
 
-import {writeSourceFile} from '../fixtures/sources'
+import {writeSourceFile} from '@e2e/fixtures/sources'
 
 // ─── Git test utilities ──────────────────────────────────────────────────────
 

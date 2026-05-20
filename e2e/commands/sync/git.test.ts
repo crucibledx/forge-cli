@@ -7,8 +7,8 @@
 
 import {describe, expect, it} from 'bun:test'
 
-import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '../../fixtures'
-import {createBareRepo, runSync, useTmpDir} from '../../framework'
+import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '@e2e/fixtures'
+import {createBareRepo, runSync, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-git')
 

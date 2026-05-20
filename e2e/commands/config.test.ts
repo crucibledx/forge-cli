@@ -14,8 +14,7 @@ import {CONFIG_MESSAGES as M} from '@application/commands/config/messages'
 import {ASSISTANTS_MESSAGES as AM} from '@application/commands/config/sections/assistants'
 import {SOURCE_MESSAGES as SM} from '@application/commands/config/sections/source'
 import {LOCAL_SOURCE_MESSAGES as LM} from '@infrastructure/source'
-
-import {ARROW_DOWN, configFilePath, N, readConfig, runConfigSession, TIMEOUT_MS, useTmpDir, Y} from '../framework'
+import {ARROW_DOWN, configFilePath, N, readConfig, runConfigSession, TIMEOUT_MS, useTmpDir, Y} from '@e2e/framework'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
 

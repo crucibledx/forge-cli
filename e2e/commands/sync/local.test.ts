@@ -21,8 +21,8 @@ import {
   SKILL_DEPLOY_V2,
   writeConfig,
   writeSourceTree,
-} from '../../fixtures'
-import {runSync, useTmpDir} from '../../framework'
+} from '@e2e/fixtures'
+import {runSync, useTmpDir} from '@e2e/framework'
 
 // ─── Temp directory ──────────────────────────────────────────────────────────
 

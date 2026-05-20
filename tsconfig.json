@@ -14,7 +14,8 @@
       "@domain/*": ["./src/domain/*"],
       "@application/*": ["./src/application/*"],
       "@infrastructure/*": ["./src/infrastructure/*"],
-      "@test-helpers/*": ["./src/test-helpers/*"]
+      "@test-helpers/*": ["./src/test-helpers/*"],
+      "@e2e/*": ["./e2e/*"]
     }
   },
   "include": ["src/**/*.ts", "e2e/**/*.ts"],

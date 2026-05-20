@@ -19,7 +19,6 @@ import {copilot} from '@domain/assistants/copilot'
 import {cursor} from '@domain/assistants/cursor'
 import {windsurf} from '@domain/assistants/windsurf'
 import type {GitSourceConfig, LocalSourceConfig} from '@infrastructure/source'
-
 import {
   ARROW_DOWN,
   type CLISession,
@@ -39,7 +38,7 @@ import {
   TIMEOUT_MS,
   useTmpDir,
   Y,
-} from '../framework'
+} from '@e2e/framework'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
 

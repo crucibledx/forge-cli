@@ -22,7 +22,7 @@ export default tseslint.config(
             // External packages
             ['^[a-z@](?!domain|application|infrastructure)'],
             // Internal aliases — namespace/default imports before named
-            ['^@domain', '^@application', '^@infrastructure'],
+            ['^@domain', '^@application', '^@infrastructure', '^@e2e'],
             // Relative imports
             ['^\\.'],
           ],

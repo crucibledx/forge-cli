@@ -146,6 +146,62 @@ sources:
 
 ---
 
+## Global Config — User-Level AI Resource Management
+
+Currently, the global config (`~/.crucible/forge.config.yaml`) is just another
+layer in the config merge chain with no clear purpose. This section proposes
+giving it a focused role: **user-level AI resource management**.
+
+### Use Cases
+
+- **Personal skill libraries** — a developer maintains a git repo with
+  personal AI rules/skills that should sync to every project automatically.
+- **Default assistant preferences** — which assistants to enable by default
+  when running `forge init` in a new project.
+- **Template defaults** — default source name, branch, etc. for `forge init`.
+
+### Proposed Schema
+
+```yaml
+# ~/.crucible/forge.config.yaml
+version: "1"
+
+defaults:
+  assistants:
+    - id: claude-code
+      enabled: true
+    - id: cursor
+      enabled: true
+
+sources:
+  - name: my-global-skills
+    type: git
+    url: https://github.com/me/ai-rules.git
+    scope: global    # synced to every project alongside project sources
+```
+
+### Sync Behavior
+
+- Global sources are fetched and resolved **alongside** project sources.
+- On conflict (same file path), **project source wins** — global is a
+  fallback, not an override.
+- `forge sync` displays global sources separately in the plan output:
+  ```
+  ● my-global-skills (global)  →  3 files synced
+  ● team-rules (project)       →  5 files synced
+  ```
+- `forge sync --no-global` skips global sources for a single run.
+
+### Implementation Notes
+
+- Add `scope: 'global' | 'project'` to `Source` type (default: `'project'`).
+- `mergeConfigs()` already merges global + project — extend it to tag source
+  origin so the renderer can distinguish them.
+- Global sources respect the same layout detection (canonical vs
+  pre-structured) as project sources.
+
+---
+
 ## Future Ideas
 
 _Items below are not committed to v0.5 but captured for consideration._
@@ -156,3 +212,5 @@ _Items below are not committed to v0.5 but captured for consideration._
   assistants not enabled in config
 - **Source scaffolding** — `forge source init` to generate a canonical or
   pre-structured source template
+- **Global config wizard** — `forge config --global` to set up default
+  assistants and personal source repos interactively
