@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.3] — 2026-05-20
+
+### Added
+
+- **Sync handler unit tests** — 18 tests covering `validateConfig`, `buildPlan`, `displayPlan`, `executePlan`. Tests use real filesystem for `buildPlan` (temp dirs) and mock infrastructure boundary for renderer/fs/config/io.
+  Covers: new/update/no_change/error statuses, mixed file sets, per-file error recovery, dry-run rendering, rollback on failure, config write skip when null.
+
+---
+
 ## [0.3.2] — 2026-05-20
 
 ### Changed
