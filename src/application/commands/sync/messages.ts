@@ -5,12 +5,17 @@ export const SYNC_MESSAGES = {
     noAssistants: 'No assistants enabled',
     noAssistantsHint: 'Run `forge init` to configure assistants',
     applyFailed: (error: string) => `Failed: ${error}`,
+    sourceFetchFailed: (name: string, error: string) => `Failed to fetch source "${name}": ${error}`,
   },
 
   warnings: {
     noFilesInSource: (name: string) => `No files found in source: ${name}`,
     noTargetsFromSource: (name: string) => `No files matched any target mapping from: ${name}`,
     noFilesToSync: 'No files to sync from any source',
+  },
+
+  summary: {
+    errors: (count: number) => `${count} file(s) had errors during planning`,
   },
 
   progress: {

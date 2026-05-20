@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.2] — 2026-05-20
+
+### Changed
+
+- **Parallel source fetching** — all sources are fetched concurrently via `Promise.allSettled`, then resolved sequentially. Failed sources are reported but don't block others.
+- **Per-file error handling** — `buildPlan` catches errors per target file (e.g. permission denied, binary read failure). Failed files get `status: 'error'` and are excluded from mutations. Error count shown in summary.
+- **`SyncFileStatus` type** — new `'error'` status added to `SyncFileSummary`, rendered with red `✗` in output.
+- Spinner removed from fetch phase (parallel fetching renders status after all sources complete).
+
+---
+
 ## [0.3.1] — 2026-05-20
 
 ### Changed

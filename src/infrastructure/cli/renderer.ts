@@ -2,6 +2,7 @@ import pc from 'picocolors'
 
 import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
+import type {SyncFileStatus} from '@domain/sync/types'
 
 export function renderHeader(title: string): void {
   const line = '─'.repeat(title.length + 4)
@@ -27,9 +28,10 @@ const syncStatusRenderers: Record<string, (path: string, dryRun: boolean) => voi
   update: (path, dryRun) =>
     console.log(`  ${dryRun ? pc.yellow('~') : pc.green('✓')}  ${pc.white(path)}  ${pc.dim('(update)')}`),
   no_change: (path) => console.log(`  ${pc.dim('=')}  ${pc.dim(path)}  ${pc.dim('(no change)')}`),
+  error: (path) => console.log(`  ${pc.red('✗')}  ${pc.red(path)}  ${pc.red('(error)')}`),
 }
 
-export function renderSyncFile(path: string, status: 'new' | 'update' | 'no_change', dryRun: boolean): void {
+export function renderSyncFile(path: string, status: SyncFileStatus, dryRun: boolean): void {
   const render = syncStatusRenderers[status]
   if (render) render(path, dryRun)
 }

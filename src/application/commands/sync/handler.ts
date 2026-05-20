@@ -9,8 +9,7 @@ import {getAssistant} from '@domain/assistants'
 import {mergeConfigs} from '@domain/config/merge'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import {resolveTargets} from '@domain/sync/resolver'
-import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
-import * as prompts from '@infrastructure/cli/prompts'
+import {Mutation, ResolvedTarget, SyncFileStatus, SyncFileSummary} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {writeProjectConfig} from '@infrastructure/config'
 import {applyMutations, collectFiles, rollbackMutations} from '@infrastructure/fs'
@@ -61,23 +60,31 @@ export async function fetchAndResolve(
   sources: Source[],
   assistantDefs: AssistantDefinition[],
 ): Promise<ResolvedTarget[]> {
+  const fetchResults = await Promise.allSettled(
+    sources.map(async (source) => {
+      const loader = getSourceLoader(source.type)
+      const {localPath} = await loader.load(source)
+      const sourceFiles = await collectFiles(localPath)
+      return {source, sourceFiles}
+    }),
+  )
+
   const allResolved: ResolvedTarget[] = []
 
-  for (const source of sources) {
-    const loader = getSourceLoader(source.type)
+  for (let i = 0; i < sources.length; i++) {
+    const result = fetchResults[i]
+    const source = sources[i]
 
     renderer.renderNewline()
     renderer.renderInfo(M.progress.syncingSource(source.name))
-    renderer.renderDim(M.progress.pullingSource(source.type, source.name))
 
-    const s = prompts.spinner()
-    s.start(M.progress.fetchingSource)
-    const {localPath} = await loader.load(source)
-    s.stop(M.progress.sourceReady)
+    if (result.status === 'rejected') {
+      const error = result.reason instanceof Error ? result.reason.message : String(result.reason)
+      renderer.renderError(M.errors.sourceFetchFailed(source.name, error))
+      continue
+    }
 
-    renderer.renderNewline()
-
-    const sourceFiles = await collectFiles(localPath)
+    const {sourceFiles} = result.value
 
     if (sourceFiles.length === 0) {
       renderer.renderWarning(M.warnings.noFilesInSource(source.name))
@@ -105,23 +112,33 @@ export async function buildPlan(
   const mutations: Mutation[] = []
 
   for (const target of resolved) {
-    const fullPath = join(projectRoot, target.targetPath)
-    let status: SyncFileSummary['status'] = 'new'
+    try {
+      const fullPath = join(projectRoot, target.targetPath)
+      let status: SyncFileStatus = 'new'
 
-    if (existsSync(fullPath)) {
-      const existing = await readFile(fullPath, 'utf-8')
-      status = existing === target.content ? 'no_change' : 'update'
-    }
+      if (existsSync(fullPath)) {
+        const existing = await readFile(fullPath, 'utf-8')
+        status = existing === target.content ? 'no_change' : 'update'
+      }
 
-    summaries.push({
-      targetPath: target.targetPath,
-      sourcePath: target.sourcePath,
-      assistantId: target.assistantId,
-      status,
-    })
+      summaries.push({
+        targetPath: target.targetPath,
+        sourcePath: target.sourcePath,
+        assistantId: target.assistantId,
+        status,
+      })
 
-    if (status !== 'no_change') {
-      mutations.push({type: 'file_write', path: target.targetPath, content: target.content})
+      if (status !== 'no_change') {
+        mutations.push({type: 'file_write', path: target.targetPath, content: target.content})
+      }
+    } catch (err) {
+      summaries.push({
+        targetPath: target.targetPath,
+        sourcePath: target.sourcePath,
+        assistantId: target.assistantId,
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 
@@ -144,6 +161,11 @@ export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dry
       renderer.renderSyncFile(file.targetPath, file.status, dryRun)
     }
     renderer.renderNewline()
+  }
+
+  const errorCount = summaries.filter((s) => s.status === 'error').length
+  if (errorCount > 0) {
+    renderer.renderWarning(M.summary.errors(errorCount))
   }
 
   if (dryRun) {

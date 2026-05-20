@@ -6,11 +6,14 @@ export type Mutation =
   | {type: 'dir_create'; path: string}
   | {type: 'symlink_create'; path: string; target: string}
 
+export type SyncFileStatus = 'new' | 'update' | 'no_change' | 'error'
+
 export interface SyncFileSummary {
   targetPath: string
   sourcePath: string
   assistantId: AssistantId
-  status: 'new' | 'update' | 'no_change'
+  status: SyncFileStatus
+  error?: string
 }
 
 export interface SyncPlan {
