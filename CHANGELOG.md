@@ -5,19 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.2.0] — 2026-05-13
+## [0.3.0] — Unreleased
+
+### Milestone — "Sync Solid"
+
+*In progress. See `docs/forge-v0.3.md` for design.*
+
+---
+
+## [0.2.0] — 2026-05-20
 
 ### Milestone — "Config Control"
 
-v0.2 design finalized. Simplified scope from the original plan:
+### Added
 
-- **`forge config`** — interactive config editor with registry-driven section select loop. Each config section (assistants, sources, future: scheduler, plugins) is a self-contained editor registered in a sections array. The handler is generic — zero changes needed when adding new sections.
-- **Multi-source support** — `source:` becomes `sources:` (array). Auto-migration wraps existing single source. Init gains "Add another source?" loop.
-- **Rules frontmatter translation** — path-scoped rules translated during sync (`paths` ↔ `globs` ↔ `applyTo`).
+- **`forge config`** — interactive config editor with registry-driven section select loop. Each config section (assistants, sources) is a self-contained editor registered via self-registration pattern. The handler is generic — zero changes needed when adding new sections.
+- **Multi-source support** — `source:` becomes `sources:` (array). Auto-migration wraps existing single source. Init gains "Add another source?" loop with auto-naming.
+- **Sync handler iterates all sources** — `forge sync` pulls and resolves files from every configured source.
+- **Shared prompts** — assistant detection+multiselect and source type+configure extracted to `commands/shared/`, reused by both init and config.
 
-**Dropped from earlier v0.2 plans:** `forge config set/show/diff/promote`, `forge update`, config layers (local/project/global). Users edit YAML directly for one-offs; `forge config` handles interactive changes.
+### Changed
 
-See `docs/forge-v0.2.md` for full architecture and implementation order.
+- **Self-registering transformer pipeline** — replaced string-based `transform`/`contentTransform` fields with `transforms: TransformStep[]` array. Each transformer is a self-contained module in `domain/transforms/<name>/` with `TransformContext` pipeline (`{filename, content}` in → out). No closed type union — fully open for extension.
+- **Self-registering modules across the board** — commands, assistants, config sections, source loaders, source schema, and transformers all use the same mutable-registry + side-effect-import pattern. Adding a new variant requires only creating a file and a barrel import.
+- **Security hardening on transformers** — rename rejects path separators in params; frontmatter-rename uses `escapeRegExp` and rejects newlines to prevent YAML injection.
+- **Dynamic source config schema** — `sourceConfigSchema` built from `loadersRegistry` at import time instead of hardcoded discriminated union.
+- **Prettier replaces @stylistic/eslint-plugin** — formatting fully delegated to Prettier, ESLint handles code quality only.
+
+### Documentation
+
+- `docs/how-to-add-command.md`
+- `docs/how-to-add-assistant.md`
+- `docs/how-to-add-config-section.md`
+- `docs/how-to-add-transformer.md`
+
+**Dropped from earlier v0.2 plans:** `forge config set/show/diff/promote`, `forge update`, config layers (local/project/global).
 
 ---
 
