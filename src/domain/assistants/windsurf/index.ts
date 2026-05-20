@@ -10,7 +10,11 @@ export const windsurf: AssistantDefinition = {
   },
   targetMappings: [
     {sourceGlob: 'skills/**', destination: '.windsurf/skills/'},
-    {sourceGlob: 'rules/**', destination: '.windsurf/rules/', contentTransform: 'frontmatter:paths→globs'},
+    {
+      sourceGlob: 'rules/**',
+      destination: '.windsurf/rules/',
+      transforms: [{transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}}],
+    },
     {sourceGlob: 'workflows/**', destination: '.windsurf/workflows/'},
   ],
 }

@@ -1,10 +1,11 @@
+import type {TransformStep} from '../transforms/types'
+
 export type AssistantId = string
 
 export interface TargetMapping {
   sourceGlob: string
   destination: string
-  transform?: string // filename transform, e.g. "rename:.md→.mdc"
-  contentTransform?: string // content transform, e.g. "frontmatter:paths→globs"
+  transforms?: TransformStep[]
 }
 
 export interface DetectionRule {

@@ -13,8 +13,10 @@ export const cursor: AssistantDefinition = {
     {
       sourceGlob: 'rules/**',
       destination: '.cursor/rules/',
-      transform: 'rename:.md→.mdc',
-      contentTransform: 'frontmatter:paths→globs',
+      transforms: [
+        {transformer: 'rename', params: {from: '.md', to: '.mdc'}},
+        {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}},
+      ],
     },
     {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
   ],

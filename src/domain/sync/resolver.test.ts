@@ -1,3 +1,6 @@
+import '../transforms/frontmatter-rename'
+import '../transforms/rename'
+
 import {describe, expect, it} from 'bun:test'
 
 import type {AssistantDefinition} from '../assistants/types'
@@ -13,8 +16,10 @@ const cursorDef: AssistantDefinition = {
     {
       sourceGlob: 'rules/**',
       destination: '.cursor/rules/',
-      transform: 'rename:.md→.mdc',
-      contentTransform: 'frontmatter:paths→globs',
+      transforms: [
+        {transformer: 'rename', params: {from: '.md', to: '.mdc'}},
+        {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}},
+      ],
     },
     {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
   ],
@@ -91,29 +96,25 @@ describe('resolveTargets', () => {
     expect(rule!.content).toBe('# No any')
   })
 
-  it('ignores unknown transform prefix gracefully (returns filename unchanged)', () => {
+  it('ignores unknown transformer id gracefully (returns filename unchanged)', () => {
     const defWithBadTransform: AssistantDefinition = {
       ...cursorDef,
-      targetMappings: [{sourceGlob: 'skills/**', destination: '.cursor/skills/', transform: 'unknown:foo→bar'}],
+      targetMappings: [
+        {
+          sourceGlob: 'skills/**',
+          destination: '.cursor/skills/',
+          transforms: [{transformer: 'unknown', params: {from: 'foo', to: 'bar'}}],
+        },
+      ],
     }
     const result = resolveTargets(sourceFiles, [defWithBadTransform])
     const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
     expect(skill!.targetPath).toBe('.cursor/skills/typescript.md')
   })
 
-  it('ignores transform with no colon gracefully', () => {
-    const defWithMalformed: AssistantDefinition = {
-      ...cursorDef,
-      targetMappings: [{sourceGlob: 'skills/**', destination: '.cursor/skills/', transform: 'notransform'}],
-    }
-    const result = resolveTargets(sourceFiles, [defWithMalformed])
-    const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
-    expect(skill!.targetPath).toBe('.cursor/skills/typescript.md')
-  })
-
   // ── Content transforms (frontmatter) ─────────────────────────────────
 
-  it('renames paths→globs in frontmatter for cursor rules', () => {
+  it('renames paths to globs in frontmatter for cursor rules', () => {
     const ruleWithFrontmatter: SourceFile[] = [
       {
         relativePath: 'rules/api.md',
@@ -127,7 +128,7 @@ describe('resolveTargets', () => {
     expect(rule.content).toContain('All endpoints must validate input.')
   })
 
-  it('renames paths→applyTo in frontmatter for copilot rules', () => {
+  it('renames paths to applyTo in frontmatter for copilot rules', () => {
     const copilotDef: AssistantDefinition = {
       id: 'copilot',
       name: 'GitHub Copilot',
@@ -136,8 +137,10 @@ describe('resolveTargets', () => {
         {
           sourceGlob: 'rules/**',
           destination: '.github/instructions/',
-          transform: 'rename:.md→.instructions.md',
-          contentTransform: 'frontmatter:paths→applyTo',
+          transforms: [
+            {transformer: 'rename', params: {from: '.md', to: '.instructions.md'}},
+            {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'applyTo'}},
+          ],
         },
       ],
     }
@@ -154,7 +157,7 @@ describe('resolveTargets', () => {
     expect(rule.targetPath).toBe('.github/instructions/api.instructions.md')
   })
 
-  it('leaves content unchanged when no contentTransform', () => {
+  it('leaves content unchanged when no transforms', () => {
     const ruleWithFrontmatter: SourceFile[] = [
       {
         relativePath: 'rules/api.md',
@@ -172,10 +175,16 @@ describe('resolveTargets', () => {
     expect(rule.content).toBe('# No any')
   })
 
-  it('ignores unknown contentTransform type gracefully', () => {
+  it('ignores unknown content transformer gracefully', () => {
     const defWithBadContent: AssistantDefinition = {
       ...cursorDef,
-      targetMappings: [{sourceGlob: 'rules/**', destination: '.cursor/rules/', contentTransform: 'unknown:foo→bar'}],
+      targetMappings: [
+        {
+          sourceGlob: 'rules/**',
+          destination: '.cursor/rules/',
+          transforms: [{transformer: 'nonexistent', params: {from: 'foo', to: 'bar'}}],
+        },
+      ],
     }
     const ruleWithFrontmatter: SourceFile[] = [
       {

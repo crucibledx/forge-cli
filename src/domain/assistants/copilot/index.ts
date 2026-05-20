@@ -13,8 +13,10 @@ export const copilot: AssistantDefinition = {
     {
       sourceGlob: 'rules/**',
       destination: '.github/instructions/',
-      transform: 'rename:.md→.instructions.md',
-      contentTransform: 'frontmatter:paths→applyTo',
+      transforms: [
+        {transformer: 'rename', params: {from: '.md', to: '.instructions.md'}},
+        {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'applyTo'}},
+      ],
     },
   ],
 }

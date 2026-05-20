@@ -21,11 +21,10 @@ Each assistant is a self-contained module in `src/domain/assistants/<name>/`.
 - **`name`** — human-readable label (shown in CLI prompts)
 - **`detection.directories`** — dirs whose presence signals the assistant is in use (prefix `~/` for global)
 - **`detection.files`** — files whose presence signals the assistant is in use
-- **`targetMappings`** — array of `{ sourceGlob, destination, transform?, contentTransform? }`
+- **`targetMappings`** — array of `{ sourceGlob, destination, transforms? }`
     - `sourceGlob` — glob matching files from the source
     - `destination` — target directory to place matched files
-    - `transform` — optional filename transform (e.g. `rename:.md→.mdc`)
-    - `contentTransform` — optional content transform (e.g. `frontmatter:paths→globs`)
+    - `transforms` — optional array of `{ transformer, params }` steps (see `docs/how-to-add-transformer.md`)
 
 ## File structure reference
 
