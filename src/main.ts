@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import '@domain/transforms'
+
 import {commands} from '@application/commands'
 import {createProgram} from '@infrastructure/cli'
 

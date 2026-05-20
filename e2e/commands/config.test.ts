@@ -15,31 +15,11 @@ import {ASSISTANTS_MESSAGES as AM} from '@application/commands/config/sections/a
 import {SOURCE_MESSAGES as SM} from '@application/commands/config/sections/source'
 import {LOCAL_SOURCE_MESSAGES as LM} from '@infrastructure/source'
 
-import {
-  ARROW_DOWN,
-  type CLIResult,
-  type CLISession,
-  configFilePath,
-  N,
-  readConfig,
-  spawnCommand,
-  TIMEOUT_MS,
-  useTmpDir,
-  Y,
-} from './helpers'
+import {ARROW_DOWN, configFilePath, N, readConfig, runConfigSession, TIMEOUT_MS, useTmpDir, Y} from '../framework'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
 
 const getDir = useTmpDir('forge-config-e2e')
-
-// ─── Convenience ──────────────────────────────────────────────────────────────
-
-async function runConfigSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
-  const cli = spawnCommand(cwd, 'config')
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
-}
 
 function writeConfig(dir: string, yaml: string) {
   return Bun.write(configFilePath(dir), yaml)

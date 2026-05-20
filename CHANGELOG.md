@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.4] — 2026-05-20
+
+### Added
+
+- **E2E testing framework** (`e2e/framework/`) — replaced monolithic `helpers.ts` with focused modules: `spawn.ts` (PTY session), `run.ts` (non-interactive runner + per-command helpers), `keys.ts` (terminal constants), `config.ts` (config reader), `constants.ts` (CLI entry, timeout), `git.ts` (`createBareRepo` for git source tests).
+- **E2E fixtures module** (`e2e/fixtures/`) — reusable test data builders: `buildConfigYaml()` (local + git sources), `writeConfig()`, `setupLocalSync()`, `writeSourceTree()`, `readTarget()`, and sample content constants (`RULE_WITH_PATHS`, `SKILL_DEPLOY`, etc.).
+- **Sync e2e tests** — 26 tests across 4 files:
+  - `local.test.ts` — core sync flow: placement, dry-run, idempotency, update detection, multi-assistant, empty source
+  - `transforms.test.ts` — per-assistant transform coverage: cursor (rename + frontmatter), copilot (rename + frontmatter), windsurf (frontmatter only), claude-code (passthrough), no-frontmatter passthrough
+  - `git.test.ts` — git source via local bare repo: skills sync, transforms, custom branch
+  - `edge-cases.test.ts` — missing config, no sources, disabled assistants, nonexistent path, spaces in filenames, nested dirs, 50-file performance (with real file count verification)
+- **v0.5 design doc** (`docs/forge-v0.5.md`) — "Smart Sources": pre-structured source support, layout detection, passthrough mode for shared repos with assistant-specific directories.
+
+### Changed
+
+- **E2E test restructure** — moved tests from `e2e/` root to `e2e/commands/` with command-specific subfolders. Deleted old `helpers.ts`. Consolidated `runConfigSession` and `runInitSession` into `framework/run.ts`.
+
+### Fixed
+
+- **Transform self-registration** — transforms were never loaded at runtime because `@domain/transforms` barrel (with side-effect imports) was not imported by `main.ts`. Added `import '@domain/transforms'` to `main.ts`.
+
+---
+
 ## [0.3.3] — 2026-05-20
 
 ### Added

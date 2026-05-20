@@ -20,10 +20,10 @@ import {cursor} from '@domain/assistants/cursor'
 import {windsurf} from '@domain/assistants/windsurf'
 import type {GitSourceConfig, LocalSourceConfig} from '@infrastructure/source'
 
-import type {CliStep} from './helpers'
 import {
   ARROW_DOWN,
   type CLISession,
+  type CliStep,
   CONFIG_FILE,
   configFilePath,
   crucibleDirPath,
@@ -39,7 +39,7 @@ import {
   TIMEOUT_MS,
   useTmpDir,
   Y,
-} from './helpers'
+} from '../framework'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
 

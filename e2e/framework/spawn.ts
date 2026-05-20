@@ -1,45 +1,9 @@
-import {readFile} from 'node:fs/promises'
-import {join} from 'node:path'
-
-import {configFilePath} from '@test-helpers/tmp'
 import stripAnsi from 'strip-ansi'
-import {parse as parseYaml} from 'yaml'
 
-import type {ProjectConfig} from '@domain/config/types'
+import {CLI_ENTRY, TIMEOUT_MS} from './constants'
+import {ENTER} from './keys'
 
-export {INIT_MESSAGES} from '@application/commands/init/messages'
-export {GIT_SOURCE_MESSAGES, LOCAL_SOURCE_MESSAGES} from '@infrastructure/source'
-export {CONFIG_FILE, configFilePath, CRUCIBLE_DIR, crucibleDirPath, useTmpDir} from '@test-helpers/tmp'
-
-// ─── CLI entry ────────────────────────────────────────────────────────────────
-
-export const CLI_ENTRY = join(import.meta.dir, '..', 'src', 'main.ts')
-export const TIMEOUT_MS = 20_000
-
-// ─── Key constants ────────────────────────────────────────────────────────────
-
-export const ENTER = '\r'
-export const SPACE = ' '
-export const CTRL_C = '\x03'
-export const ARROW_DOWN = '\x1b[B'
-export const ARROW_UP = '\x1b[A'
-
-/** Accept a confirmation prompt (raw TTY — submits on single keypress) */
-export const Y = 'y'
-/** Decline a confirmation prompt (raw TTY — submits on single keypress) */
-export const N = 'n'
-
-// ─── Config reader ────────────────────────────────────────────────────────────
-
-export async function readConfig(projectRoot: string): Promise<ProjectConfig> {
-  return parseYaml(await readConfigRaw(projectRoot)) as ProjectConfig
-}
-
-export async function readConfigRaw(projectRoot: string): Promise<string> {
-  return await readFile(configFilePath(projectRoot), 'utf-8')
-}
-
-// ─── CLI session ─────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface CLIResult {
   output: string
@@ -81,6 +45,8 @@ export interface CLISession {
   waitForExit(): Promise<CLIResult>
 }
 
+// ─── Spawn ───────────────────────────────────────────────────────────────────
+
 /**
  * Spawns `bun run <CLI_ENTRY> <command> [...args]` inside Bun's built-in PTY
  * (Bun.spawn `terminal` option, available since v1.3.5).
@@ -90,7 +56,7 @@ export interface CLISession {
  *
  * Use `waitForText` before each `pressKey` — no fixed sleeps needed.
  */
-export function spawnCommand(
+export function spawnInteractive(
   cwd: string,
   command: string,
   args: string[] = [],
@@ -161,17 +127,4 @@ export function spawnCommand(
   }
 
   return {getOutput, waitForText, waitForExit}
-}
-
-// ─── Convenience: drive a full init session ──────────────────────────────────
-
-/**
- * Runs `forge init` in `cwd`, drives it via the `drive` callback, then waits
- * for the process to exit and returns the result.
- */
-export async function runInitSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
-  const cli = spawnCommand(cwd, 'init')
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
 }
