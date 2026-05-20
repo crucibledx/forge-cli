@@ -146,59 +146,95 @@ sources:
 
 ---
 
-## Global Config — User-Level AI Resource Management
+## Global Config — Fully Separated Scope
 
-Currently, the global config (`~/.crucible/forge.config.yaml`) is just another
-layer in the config merge chain with no clear purpose. This section proposes
-giving it a focused role: **user-level AI resource management**.
+### Design Principle
 
-### Use Cases
+Global and project configs are **completely independent scopes**. No merging,
+no inheritance, no precedence rules. Each scope owns its own config, sources,
+assistants, and sync target.
 
-- **Personal skill libraries** — a developer maintains a git repo with
-  personal AI rules/skills that should sync to every project automatically.
-- **Default assistant preferences** — which assistants to enable by default
-  when running `forge init` in a new project.
-- **Template defaults** — default source name, branch, etc. for `forge init`.
+| Scope   | Config file                     | Sync target | Flag        |
+|---------|---------------------------------|-------------|-------------|
+| Project | `.crucible/forge.config.yaml`   | `./`        | _(default)_ |
+| Global  | `~/.crucible/forge.config.yaml` | `~/`        | `--global`  |
 
-### Proposed Schema
+This works because AI assistants already support both scopes natively:
 
-```yaml
-# ~/.crucible/forge.config.yaml
-version: "1"
+| Assistant   | Project rules           | Global rules              |
+|-------------|-------------------------|---------------------------|
+| Claude Code | `.claude/rules/`        | `~/.claude/rules/`        |
+| Cursor      | `.cursor/rules/`        | `~/.cursor/rules/`        |
+| Windsurf    | `.windsurf/rules/`      | `~/.windsurf/rules/`      |
+| Copilot     | `.github/instructions/` | `~/.github/instructions/` |
 
-defaults:
-  assistants:
-    - id: claude-code
-      enabled: true
-    - id: cursor
-      enabled: true
+### How It Works
 
-sources:
-  - name: my-global-skills
-    type: git
-    url: https://github.com/me/ai-rules.git
-    scope: global    # synced to every project alongside project sources
+The entire sync pipeline stays unchanged — only `projectRoot` differs:
+
+- `forge sync` → `projectRoot = cwd` → syncs to `.claude/`, `.cursor/`, etc.
+- `forge sync --global` → `projectRoot = ~` → syncs to `~/.claude/`, `~/.cursor/`, etc.
+
+Assistant `targetMappings` are relative paths (`.claude/skills/`), so they
+resolve correctly in both scopes with zero changes to assistant definitions.
+
+### Commands with `--global`
+
+Every command gains a `--global` flag:
+
+```
+forge init --global        # scans ~/ for assistants, writes ~/.crucible/forge.config.yaml
+forge config --global      # edits global config
+forge sync --global        # syncs global sources to ~/
+forge sync --global --dry-run
 ```
 
-### Sync Behavior
+### Config Schema
 
-- Global sources are fetched and resolved **alongside** project sources.
-- On conflict (same file path), **project source wins** — global is a
-  fallback, not an override.
-- `forge sync` displays global sources separately in the plan output:
-  ```
-  ● my-global-skills (global)  →  3 files synced
-  ● team-rules (project)       →  5 files synced
-  ```
-- `forge sync --no-global` skips global sources for a single run.
+Both scopes use the **exact same schema** — no `scope` field, no `defaults`
+block, no special keys:
+
+```yaml
+# ~/.crucible/forge.config.yaml — global config
+version: "1"
+assistants:
+  - id: claude-code
+    enabled: true
+  - id: cursor
+    enabled: true
+sources:
+  - name: my-personal-rules
+    type: git
+    url: https://github.com/me/ai-rules.git
+```
+
+```yaml
+# .crucible/forge.config.yaml — project config (unchanged)
+version: "1"
+assistants:
+  - id: claude-code
+    enabled: true
+sources:
+  - name: team-rules
+    type: git
+    url: https://github.com/org/shared-rules.git
+```
 
 ### Implementation Notes
 
-- Add `scope: 'global' | 'project'` to `Source` type (default: `'project'`).
-- `mergeConfigs()` already merges global + project — extend it to tag source
-  origin so the renderer can distinguish them.
-- Global sources respect the same layout detection (canonical vs
-  pre-structured) as project sources.
+- `io.resolveProjectRoot()` currently finds the nearest `.crucible/` dir
+  walking upward. With `--global`, it returns `os.homedir()` instead.
+- Remove `mergeConfigs()` — each scope loads exactly one config file.
+- Add `--global` as a shared `CommandOption` available on all commands.
+- `configFilePath()` and `crucibleDirPath()` accept a root parameter
+  (already do) — no changes needed.
+
+### What This Eliminates
+
+- No merge logic, no precedence confusion
+- No `scope` field on sources
+- No "where did this rule come from?" debugging
+- No `--no-global` flag needed
 
 ---
 
@@ -212,5 +248,3 @@ _Items below are not committed to v0.5 but captured for consideration._
   assistants not enabled in config
 - **Source scaffolding** — `forge source init` to generate a canonical or
   pre-structured source template
-- **Global config wizard** — `forge config --global` to set up default
-  assistants and personal source repos interactively
