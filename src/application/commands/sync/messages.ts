@@ -1,0 +1,31 @@
+export const SYNC_MESSAGES = {
+  errors: {
+    noSource: 'No source configured',
+    noSourceHint: 'Run `forge init` to configure a source',
+    noAssistants: 'No assistants enabled',
+    noAssistantsHint: 'Run `forge init` to configure assistants',
+    applyFailed: (error: string) => `Failed: ${error}`,
+  },
+
+  warnings: {
+    noFilesInSource: (name: string) => `No files found in source: ${name}`,
+    noTargetsFromSource: (name: string) => `No files matched any target mapping from: ${name}`,
+    noFilesToSync: 'No files to sync from any source',
+  },
+
+  progress: {
+    syncingSource: (name: string) => `Syncing from source: ${name}`,
+    pullingSource: (type: string, name: string) => `Pulling ${type} source (${name})...`,
+    fetchingSource: 'Fetching source...',
+    sourceReady: 'Source ready',
+    rollingBack: 'Rolling back...',
+    rollbackComplete: 'Rollback complete',
+  },
+
+  output: {
+    wouldSync: (names: string) => `Would sync from: ${names}`,
+    dryRunHint: 'Run without --dry-run to apply.',
+    done: (count: number, names: string) => `Done. ${count} files synced from ${names}.`,
+    lastSync: (iso: string) => `Last sync: ${iso.replace('T', ' ').slice(0, 16)}`,
+  },
+} as const

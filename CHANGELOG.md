@@ -5,11 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.3.0] — Unreleased
+## [0.3.1] — 2026-05-20
+
+### Changed
+
+- **Sync handler messages extracted** — all user-facing strings moved to `sync/messages.ts`, consistent with init/config pattern.
+- **Sync handler split into focused functions** — `runSync` is now a thin orchestrator calling `validateConfig`, `fetchAndResolve`, `buildPlan`, `displayPlan`, `executePlan`. Each function has a single responsibility and typed inputs/outputs.
+
+---
+
+## [0.3.0] — 2026-05-20
 
 ### Milestone — "Sync Solid"
 
-*In progress. See `docs/forge-v0.3.md` for design.*
+*See `docs/forge-v0.3.md` for design.*
 
 ---
 

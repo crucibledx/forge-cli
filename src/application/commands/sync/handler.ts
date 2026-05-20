@@ -4,18 +4,21 @@ import {join} from 'node:path'
 
 import {groupBy} from 'lodash-es'
 
-import type {AssistantId} from '@domain/assistants'
+import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant} from '@domain/assistants'
 import {mergeConfigs} from '@domain/config/merge'
+import type {ProjectConfig, Source} from '@domain/config/types'
 import {resolveTargets} from '@domain/sync/resolver'
-import type {Mutation, SyncFileSummary} from '@domain/sync/types'
+import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {writeProjectConfig} from '@infrastructure/config'
 import {applyMutations, collectFiles, rollbackMutations} from '@infrastructure/fs'
+import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {getSourceLoader} from '@infrastructure/source'
 
+import {SYNC_MESSAGES as M} from './messages'
 import type {SyncCommandAction} from './types'
 
 export const runSync: SyncCommandAction = async (options) => {
@@ -23,89 +26,114 @@ export const runSync: SyncCommandAction = async (options) => {
   const context = await io.buildContext(projectRoot)
   const config = mergeConfigs(context.globalConfig, context.projectConfig)
 
+  validateConfig(config)
+
+  const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
+  const resolved = await fetchAndResolve(config.sources, assistantDefs)
+
+  if (resolved.length === 0) {
+    renderer.renderWarning(M.warnings.noFilesToSync)
+    return
+  }
+
+  const {summaries, mutations} = await buildPlan(projectRoot, resolved)
+
+  displayPlan(summaries, config.sources, options.dryRun)
+
+  if (options.dryRun) return
+
+  await executePlan(projectRoot, mutations, context)
+}
+
+export function validateConfig(config: ProjectConfig): void {
   if (config.sources.length === 0) {
-    renderer.renderError('No source configured', 'Run `forge init` to configure a source')
+    renderer.renderError(M.errors.noSource, M.errors.noSourceHint)
     process.exit(1)
   }
 
   if (config.assistants?.every((a) => !a.enabled)) {
-    renderer.renderError('No assistants enabled', 'Run `forge init` to configure assistants')
+    renderer.renderError(M.errors.noAssistants, M.errors.noAssistantsHint)
     process.exit(1)
   }
+}
 
-  const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
-  const mutations: Mutation[] = []
-  const summaries: SyncFileSummary[] = []
+export async function fetchAndResolve(
+  sources: Source[],
+  assistantDefs: AssistantDefinition[],
+): Promise<ResolvedTarget[]> {
+  const allResolved: ResolvedTarget[] = []
 
-  // Process each source
-  for (const source of config.sources) {
+  for (const source of sources) {
     const loader = getSourceLoader(source.type)
 
     renderer.renderNewline()
-    renderer.renderInfo(`Syncing from source: ${source.name}`)
-    renderer.renderDim(`Pulling ${source.type} source (${source.name})...`)
+    renderer.renderInfo(M.progress.syncingSource(source.name))
+    renderer.renderDim(M.progress.pullingSource(source.type, source.name))
 
     const s = prompts.spinner()
-    s.start('Fetching source...')
+    s.start(M.progress.fetchingSource)
     const {localPath} = await loader.load(source)
-    s.stop('Source ready')
+    s.stop(M.progress.sourceReady)
 
     renderer.renderNewline()
 
-    // Collect source files
     const sourceFiles = await collectFiles(localPath)
 
     if (sourceFiles.length === 0) {
-      renderer.renderWarning(`No files found in source: ${source.name}`)
+      renderer.renderWarning(M.warnings.noFilesInSource(source.name))
       continue
     }
 
-    // Resolve targets
     const resolved = resolveTargets(sourceFiles, assistantDefs)
 
     if (resolved.length === 0) {
-      renderer.renderWarning(`No files matched any target mapping from: ${source.name}`)
+      renderer.renderWarning(M.warnings.noTargetsFromSource(source.name))
       continue
     }
 
-    // Build plan — check existing files to determine status
-    for (const target of resolved) {
-      const fullPath = join(projectRoot, target.targetPath)
-      let status: 'new' | 'update' | 'no_change' = 'new'
+    allResolved.push(...resolved)
+  }
 
-      if (existsSync(fullPath)) {
-        const existing = await readFile(fullPath, 'utf-8')
-        status = existing === target.content ? 'no_change' : 'update'
-      }
+  return allResolved
+}
 
-      summaries.push({
-        targetPath: target.targetPath,
-        sourcePath: target.sourcePath,
-        assistantId: target.assistantId,
-        status,
-      })
+export async function buildPlan(
+  projectRoot: string,
+  resolved: ResolvedTarget[],
+): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]}> {
+  const summaries: SyncFileSummary[] = []
+  const mutations: Mutation[] = []
 
-      if (status !== 'no_change') {
-        mutations.push({
-          type: 'file_write',
-          path: target.targetPath,
-          content: target.content,
-        })
-      }
+  for (const target of resolved) {
+    const fullPath = join(projectRoot, target.targetPath)
+    let status: SyncFileSummary['status'] = 'new'
+
+    if (existsSync(fullPath)) {
+      const existing = await readFile(fullPath, 'utf-8')
+      status = existing === target.content ? 'no_change' : 'update'
+    }
+
+    summaries.push({
+      targetPath: target.targetPath,
+      sourcePath: target.sourcePath,
+      assistantId: target.assistantId,
+      status,
+    })
+
+    if (status !== 'no_change') {
+      mutations.push({type: 'file_write', path: target.targetPath, content: target.content})
     }
   }
 
-  if (summaries.length === 0) {
-    renderer.renderWarning('No files to sync from any source')
-    return
-  }
+  return {summaries, mutations}
+}
 
-  // Display results grouped by assistant
+export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dryRun: boolean): void {
   const byAssistant = groupBy(summaries, (item) => item.assistantId)
-  const sourceNames = config.sources.map((s) => s.name).join(', ')
+  const sourceNames = sources.map((s) => s.name).join(', ')
 
-  if (options.dryRun) {
-    renderer.renderInfo(`Would sync from: ${sourceNames}`)
+  if (dryRun) {
+    renderer.renderInfo(M.output.wouldSync(sourceNames))
     renderer.renderNewline()
   }
 
@@ -113,38 +141,37 @@ export const runSync: SyncCommandAction = async (options) => {
     const def = getAssistant(assistantId as AssistantId)
     renderer.render(`${def.name}:`)
     for (const file of files) {
-      renderer.renderSyncFile(file.targetPath, file.status, options.dryRun)
+      renderer.renderSyncFile(file.targetPath, file.status, dryRun)
     }
     renderer.renderNewline()
   }
 
-  if (options.dryRun) {
-    renderer.renderDim('Run without --dry-run to apply.')
-    return
+  if (dryRun) {
+    renderer.renderDim(M.output.dryRunHint)
   }
+}
 
-  // Apply mutations
+export async function executePlan(projectRoot: string, mutations: Mutation[], context: IOContext): Promise<void> {
   const applied = await applyMutations(projectRoot, mutations)
   const failed = applied.find((a) => !a.success)
 
   if (failed) {
-    renderer.renderError(`Failed: ${failed.error}`)
-    renderer.renderDim('Rolling back...')
+    renderer.renderError(M.errors.applyFailed(failed.error ?? 'Unknown error'))
+    renderer.renderDim(M.progress.rollingBack)
     await rollbackMutations(projectRoot, applied)
-    renderer.renderDim('Rollback complete')
+    renderer.renderDim(M.progress.rollbackComplete)
     process.exit(1)
   }
 
-  // Update lastSync in config
   if (context.projectConfig) {
-    const updated = {
+    await writeProjectConfig(projectRoot, {
       ...context.projectConfig,
       lastSync: new Date().toISOString(),
-    }
-    await writeProjectConfig(projectRoot, updated)
+    })
   }
 
-  const changeCount = summaries.filter((item) => item.status !== 'no_change').length
-  renderer.renderSuccess(`Done. ${changeCount} files synced from ${sourceNames}.`)
-  renderer.renderDim(`Last sync: ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`)
+  const sourceNames = context.projectConfig?.sources?.map((s) => s.name).join(', ') ?? ''
+  const changeCount = mutations.length
+  renderer.renderSuccess(M.output.done(changeCount, sourceNames))
+  renderer.renderDim(M.output.lastSync(new Date().toISOString()))
 }
