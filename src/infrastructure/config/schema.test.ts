@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 
+import {LOCAL_CONFLICT_STRATEGIES, SOURCE_CONFLICT_STRATEGIES} from '@domain/config/types'
+
 import {globalConfigSchema, projectConfigSchema} from './schema'
 
 describe('projectConfigSchema', () => {
@@ -82,6 +84,62 @@ describe('projectConfigSchema', () => {
         version: '1',
         assistants: [],
         sources: [{name: 'x', type: 'ftp', path: '/foo'}],
+      }),
+    ).toThrow()
+  })
+})
+
+describe('projectConfigSchema — sync block', () => {
+  it('parses config without sync block (optional)', () => {
+    const result = projectConfigSchema.parse({version: '1', assistants: []})
+    expect(result.sync).toBeUndefined()
+  })
+
+  it('parses a full sync block', () => {
+    const raw = {
+      version: '1',
+      assistants: [],
+      sync: {
+        source_conflict_strategy: SOURCE_CONFLICT_STRATEGIES.FIRST_WINS,
+        local_conflict_strategy: LOCAL_CONFLICT_STRATEGIES.LOCAL_WINS,
+        backup: false,
+        keep_local: false,
+      },
+    }
+    const result = projectConfigSchema.parse(raw)
+    expect(result.sync?.source_conflict_strategy).toBe(SOURCE_CONFLICT_STRATEGIES.FIRST_WINS)
+    expect(result.sync?.local_conflict_strategy).toBe(LOCAL_CONFLICT_STRATEGIES.LOCAL_WINS)
+    expect(result.sync?.backup).toBe(false)
+    expect(result.sync?.keep_local).toBe(false)
+  })
+
+  it('parses partial sync block', () => {
+    const raw = {
+      version: '1',
+      assistants: [],
+      sync: {backup: true},
+    }
+    const result = projectConfigSchema.parse(raw)
+    expect(result.sync?.backup).toBe(true)
+    expect(result.sync?.source_conflict_strategy).toBeUndefined()
+  })
+
+  it('rejects invalid source_conflict_strategy', () => {
+    expect(() =>
+      projectConfigSchema.parse({
+        version: '1',
+        assistants: [],
+        sync: {source_conflict_strategy: 'invalid'},
+      }),
+    ).toThrow()
+  })
+
+  it('rejects invalid local_conflict_strategy', () => {
+    expect(() =>
+      projectConfigSchema.parse({
+        version: '1',
+        assistants: [],
+        sync: {local_conflict_strategy: 'invalid'},
       }),
     ).toThrow()
   })

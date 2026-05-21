@@ -34,6 +34,7 @@ import {
   readConfig,
   readConfigRaw,
   runInitSession,
+  SOURCE_PROMPT_MESSAGES as SM,
   SPACE,
   TIMEOUT_MS,
   useTmpDir,
@@ -69,6 +70,9 @@ function addSource(cli: CLISession, runSync = N): CliStep {
       // then accept adding a source
       .waitForText(M.source.addSource)
       .pressKey(Y)
+      // accept default source name
+      .waitForText(SM.name.message)
+      .pressEnter()
       // select source type — press Enter to pick the first option (git)
       .waitForText(M.source.selectType)
       .pressEnter()
@@ -263,6 +267,8 @@ describe('forge init — e2e', () => {
           declineAllAssistants(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
+            .waitForText(SM.name.message)
+            .pressEnter()
             // arrow down to select 'Local directory' (second option)
             .waitForText(M.source.selectType)
             .pressKey(ARROW_DOWN)
@@ -323,6 +329,8 @@ describe('forge init — e2e', () => {
           declineAllAssistants(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
+            .waitForText(SM.name.message)
+            .pressEnter()
             .waitForText(M.source.selectType)
             .pressEnter()
             .waitForText(GM.url.message)
@@ -351,6 +359,8 @@ describe('forge init — e2e', () => {
           declineAllAssistants(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
+            .waitForText(SM.name.message)
+            .pressEnter()
             .waitForText(M.source.selectType)
             .pressEnter()
             .waitForText(GM.url.message)
@@ -379,6 +389,8 @@ describe('forge init — e2e', () => {
           declineAllAssistants(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
+            .waitForText(SM.name.message)
+            .pressEnter()
             .waitForText(M.source.selectType)
             .pressEnter()
             // submit empty URL — should trigger validation error

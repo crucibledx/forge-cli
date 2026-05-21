@@ -73,7 +73,7 @@ export const sourceSection: ConfigSectionEntry = {
 type ActionHandler = (sources: Source[]) => Promise<Source[]>
 
 const addSource: ActionHandler = async (sources: Source[]): Promise<Source[]> => {
-  const source = await promptNewSource(sources.length)
+  const source = await promptNewSource(sources.map((s) => s.name))
   renderer.renderSuccess(SOURCE_MESSAGES.added(source.name))
   return [...sources, source]
 }

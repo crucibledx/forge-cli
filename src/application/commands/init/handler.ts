@@ -45,7 +45,7 @@ export const runInit: InitCommandAction = async (options) => {
   })
 
   while (addMore) {
-    sources.push(await promptNewSource(sources.length))
+    sources.push(await promptNewSource(sources.map((s) => s.name)))
 
     addMore = await prompts.confirm({
       message: M.source.addAnother,

@@ -14,7 +14,17 @@ import {CONFIG_MESSAGES as M} from '@application/commands/config/messages'
 import {ASSISTANTS_MESSAGES as AM} from '@application/commands/config/sections/assistants'
 import {SOURCE_MESSAGES as SM} from '@application/commands/config/sections/source'
 import {LOCAL_SOURCE_MESSAGES as LM} from '@infrastructure/source'
-import {ARROW_DOWN, configFilePath, N, readConfig, runConfigSession, TIMEOUT_MS, useTmpDir, Y} from '@e2e/framework'
+import {
+  ARROW_DOWN,
+  configFilePath,
+  N,
+  readConfig,
+  runConfigSession,
+  SOURCE_PROMPT_MESSAGES as SPM,
+  TIMEOUT_MS,
+  useTmpDir,
+  Y,
+} from '@e2e/framework'
 
 // ─── Temp directory ───────────────────────────────────────────────────────────
 
@@ -105,6 +115,9 @@ describe('forge config — e2e', () => {
           .pressEnter()
           // pick "Add a new source" — menu: Add(0) Done(1)
           .waitForText(SM.action)
+          .pressEnter()
+          // accept default source name
+          .waitForText(SPM.name.message)
           .pressEnter()
           // pick local directory (second option: Git=0, Local=1)
           .waitForText(SM.addType)

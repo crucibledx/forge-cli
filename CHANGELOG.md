@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.7] — 2026-05-21
+
+### Added
+
+- **Source naming prompt** — `promptNewSource()` now asks for a source name during init/config with smart defaults (`default` for first, `source-N` for subsequent). Validates against duplicates.
+- **Sync config block** — new `sync` section in project config schema supporting `source_conflict_strategy`, `local_conflict_strategy`, `backup`, and `keep_local`. All fields optional with sensible defaults.
+- **Const object literals for strategies** — `SOURCE_CONFLICT_STRATEGIES` and `LOCAL_CONFLICT_STRATEGIES` as single source of truth, replacing repeated string literal unions. Zod schema derives enums from these objects.
+
+### Changed
+
+- `promptNewSource()` signature simplified — removed redundant `existingCount` param, reuses `placeholder()` for default value.
+
+---
+
 ## [0.3.6] — 2026-05-21
 
 ### Added
