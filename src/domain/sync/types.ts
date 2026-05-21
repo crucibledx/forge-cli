@@ -39,4 +39,5 @@ export interface ResolvedTarget {
   targetPath: string
   content: string
   assistantId: AssistantId
+  sourceName: string
 }

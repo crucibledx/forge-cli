@@ -8,9 +8,10 @@ import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant} from '@domain/assistants'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import {resolveTargets} from '@domain/sync/resolver'
+import {buildSyncState} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileStatus, SyncFileSummary} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
-import {writeProjectConfig} from '@infrastructure/config'
+import {writeProjectConfig, writeSyncState} from '@infrastructure/config'
 import {applyMutations, collectFiles, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
@@ -45,7 +46,7 @@ export const runSync: SyncCommandAction = async (options) => {
 
   if (options.dryRun) return
 
-  await executePlan(projectRoot, mutations, context)
+  await executePlan(projectRoot, mutations, resolved, context)
 }
 
 export function validateConfig(config: ProjectConfig): void {
@@ -95,7 +96,7 @@ export async function fetchAndResolve(
       continue
     }
 
-    const resolved = resolveTargets(sourceFiles, assistantDefs)
+    const resolved = resolveTargets(sourceFiles, assistantDefs, source.name)
 
     if (resolved.length === 0) {
       renderer.renderWarning(M.warnings.noTargetsFromSource(source.name))
@@ -177,7 +178,12 @@ export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dry
   }
 }
 
-export async function executePlan(projectRoot: string, mutations: Mutation[], context: IOContext): Promise<void> {
+export async function executePlan(
+  projectRoot: string,
+  mutations: Mutation[],
+  resolved: ResolvedTarget[],
+  context: IOContext,
+): Promise<void> {
   const applied = await applyMutations(projectRoot, mutations)
   const failed = applied.find((a) => !a.success)
 
@@ -189,15 +195,18 @@ export async function executePlan(projectRoot: string, mutations: Mutation[], co
     process.exit(1)
   }
 
+  const syncState = buildSyncState(resolved)
+  await writeSyncState(projectRoot, syncState)
+
   if (context.projectConfig) {
     await writeProjectConfig(projectRoot, {
       ...context.projectConfig,
-      lastSync: new Date().toISOString(),
+      lastSync: syncState.lastSync,
     })
   }
 
   const sourceNames = context.projectConfig?.sources?.map((s) => s.name).join(', ') ?? ''
   const changeCount = mutations.length
   renderer.renderSuccess(M.output.done(changeCount, sourceNames))
-  renderer.renderDim(M.output.lastSync(new Date().toISOString()))
+  renderer.renderDim(M.output.lastSync(syncState.lastSync))
 }

@@ -37,6 +37,7 @@ mock.module('@infrastructure/config', () => ({
     writtenConfig = config
     return `${mockProjectRoot}/.crucible/forge.config.yaml`
   },
+  writeSyncState: async () => {},
 }))
 
 mock.module('@infrastructure/cli/renderer', () => ({

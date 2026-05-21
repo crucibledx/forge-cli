@@ -96,6 +96,16 @@ describe('resolveTargets', () => {
     expect(rule!.content).toBe('# No any')
   })
 
+  it('carries sourceName through to resolved targets', () => {
+    const result = resolveTargets(sourceFiles, [claudeDef], 'team-rules')
+    expect(result.every((r) => r.sourceName === 'team-rules')).toBe(true)
+  })
+
+  it('defaults sourceName to empty string when omitted', () => {
+    const result = resolveTargets(sourceFiles, [claudeDef])
+    expect(result.every((r) => r.sourceName === '')).toBe(true)
+  })
+
   it('ignores unknown transformer id gracefully (returns filename unchanged)', () => {
     const defWithBadTransform: AssistantDefinition = {
       ...cursorDef,

@@ -8,6 +8,7 @@ import type {ResolvedTarget, SourceFile} from './types'
 export function resolveTargets(
   sourceFiles: SourceFile[],
   assistants: readonly AssistantDefinition[],
+  sourceName = '',
 ): ResolvedTarget[] {
   const resolved: ResolvedTarget[] = []
 
@@ -25,6 +26,7 @@ export function resolveTargets(
           targetPath,
           content,
           assistantId: assistant.id,
+          sourceName,
         })
       }
     }

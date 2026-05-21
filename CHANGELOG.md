@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.6] — 2026-05-21
+
+### Added
+
+- **Sync state** (`sync-state.json`) — SHA-256 content hashes written to `.crucible/sync-state.json` after each successful sync. Domain types + helpers in `domain/sync/state.ts`, infrastructure read/write in `infrastructure/config/state.ts`.
+- **`sourceName` on `ResolvedTarget`** — each resolved target now carries its source name for sync state tracking. `resolveTargets()` accepts optional `sourceName` parameter.
+- **`buildSyncState()`** — pure domain function that builds `SyncState` from resolved targets.
+- **Sync handler writes state** — `executePlan()` now builds and persists sync state, and uses its `lastSync` timestamp for config update.
+
+### Fixed
+
+- All `mock.module('@infrastructure/config')` test stubs now include `writeSyncState` to prevent Bun test runner cross-file mock conflicts.
+
+---
+
 ## [0.3.5] — 2026-05-21
 
 ### Changed

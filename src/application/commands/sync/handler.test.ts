@@ -13,6 +13,7 @@ import {SYNC_MESSAGES as M} from './messages'
 let rendererCalls: Array<{method: string; args: unknown[]}> = []
 let mockApplied: Array<{mutation: unknown; success: boolean; error?: string}> = []
 let writtenConfigs: unknown[] = []
+let syncStatesWritten: unknown[] = []
 let rollbackCalled = false
 
 const track =
@@ -49,6 +50,9 @@ mock.module('@infrastructure/config', () => ({
   writeProjectConfig: async (_root: string, config: unknown) => {
     writtenConfigs.push(config)
   },
+  writeSyncState: async (_root: string, state: unknown) => {
+    syncStatesWritten.push(state)
+  },
 }))
 
 mock.module('@infrastructure/io', () => ({
@@ -78,6 +82,7 @@ beforeEach(() => {
   rendererCalls = []
   mockApplied = []
   writtenConfigs = []
+  syncStatesWritten = []
   rollbackCalled = false
 })
 
@@ -145,6 +150,7 @@ describe('buildPlan', () => {
     targetPath: path,
     content,
     assistantId: 'claude-code',
+    sourceName: 'test',
   })
 
   it('marks new files as "new" with file_write mutation', async () => {
@@ -275,10 +281,31 @@ describe('executePlan', () => {
     hasProjectConfig: true,
   }
 
+  const resolved = [
+    {
+      sourcePath: 'skills/a.md',
+      targetPath: '.claude/skills/a.md',
+      content: '#',
+      assistantId: 'claude-code',
+      sourceName: 'test',
+    },
+  ]
+
+  it('writes sync state on success', async () => {
+    mockApplied = [{mutation: {type: 'file_write', path: 'a.md', content: '#'}, success: true}]
+
+    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context)
+
+    expect(syncStatesWritten).toHaveLength(1)
+    const state = syncStatesWritten[0] as {lastSync: string; files: Record<string, unknown>}
+    expect(state.lastSync).toBeTruthy()
+    expect(state.files['.claude/skills/a.md']).toBeDefined()
+  })
+
   it('writes config with lastSync on success', async () => {
     mockApplied = [{mutation: {type: 'file_write', path: 'a.md', content: '#'}, success: true}]
 
-    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], context)
+    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context)
 
     expect(writtenConfigs).toHaveLength(1)
     expect((writtenConfigs[0] as {lastSync: string}).lastSync).toBeDefined()
@@ -287,7 +314,7 @@ describe('executePlan', () => {
   it('renders success message', async () => {
     mockApplied = [{mutation: {type: 'file_write', path: 'a.md', content: '#'}, success: true}]
 
-    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], context)
+    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context)
 
     const successCalls = rendererCalls.filter((c) => c.method === 'renderSuccess')
     expect(successCalls).toHaveLength(1)
@@ -300,7 +327,7 @@ describe('executePlan', () => {
     const origExit = process.exit
     process.exit = exitMock as never
 
-    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], context)
+    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context)
 
     expect(rollbackCalled).toBe(true)
     expect(exitMock).toHaveBeenCalledWith(1)
@@ -311,7 +338,7 @@ describe('executePlan', () => {
     mockApplied = [{mutation: {type: 'file_write', path: 'a.md', content: '#'}, success: true}]
 
     const noConfigContext = {...context, projectConfig: null}
-    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], noConfigContext)
+    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, noConfigContext)
 
     expect(writtenConfigs).toHaveLength(0)
   })
