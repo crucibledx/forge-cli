@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.5] — 2026-05-21
+
+### Changed
+
+- **Removed global/project config merging** — global and project configs are now fully independent scopes (per v0.5 design). Deleted `mergeConfigs()`, `GlobalConfig` type, and `defaults` wrapper from global schema. Global config now uses the same schema as project config.
+- **Simplified IOContext** — removed `globalConfig` field. `buildContext()` only loads project config.
+- **Sync handler** — no longer merges configs; uses `projectConfig` directly with explicit "no config" error when missing.
+
+### Removed
+
+- `domain/config/merge.ts` + `merge.test.ts` — config merging logic (15 tests removed).
+- `loadGlobalConfig()` and `getGlobalConfigPath()` from config infrastructure barrel — will be re-added when `--global` flag is implemented.
+
+---
+
 ## [0.3.4] — 2026-05-20
 
 ### Added

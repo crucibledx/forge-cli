@@ -1,17 +1,10 @@
 import {mkdir, writeFile} from 'node:fs/promises'
-import {homedir} from 'node:os'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
-import {
-  getGlobalConfigPath,
-  getProjectConfigPath,
-  loadGlobalConfig,
-  loadProjectConfig,
-  projectConfigExists,
-} from './loader'
+import {getProjectConfigPath, loadProjectConfig, projectConfigExists} from './loader'
 
 const getDir = useTmpDir('config_loader')
 
@@ -27,27 +20,10 @@ sources:
     branch: main
 `.trim()
 
-const VALID_GLOBAL_YAML = `
-version: "1"
-user:
-  name: Alice
-defaults:
-  assistants:
-    - id: windsurf
-      enabled: true
-`.trim()
-
 describe('getProjectConfigPath', () => {
   it('returns path inside .crucible dir', () => {
     const p = getProjectConfigPath('/my/project')
     expect(p).toBe('/my/project/.crucible/forge.config.yaml')
-  })
-})
-
-describe('getGlobalConfigPath', () => {
-  it('returns path inside home .crucible dir', () => {
-    const p = getGlobalConfigPath()
-    expect(p).toBe(join(homedir(), '.crucible', 'forge.config.yaml'))
   })
 })
 
@@ -93,24 +69,5 @@ describe('loadProjectConfig', () => {
       'utf-8',
     )
     expect(loadProjectConfig(dir)).rejects.toThrow()
-  })
-})
-
-describe('loadGlobalConfig', () => {
-  it('returns null when config file absent', async () => {
-    // Use a non-home tmp path — loadGlobalConfig uses homedir() so we can only test null branch
-    // if global config doesn't happen to exist. We verify the function runs without throwing.
-    const result = await loadGlobalConfig()
-    // Can be null or a valid object depending on test machine — just check it doesn't throw
-    expect(result === null || typeof result === 'object').toBe(true)
-  })
-
-  it('parses global config from a valid YAML string (unit-level via schema)', async () => {
-    // Validate schema parsing directly since loadGlobalConfig path is fixed to homedir()
-    const {globalConfigSchema} = await import('./schema')
-    const {parse: parseYaml} = await import('yaml')
-    const parsed = globalConfigSchema.parse(parseYaml(VALID_GLOBAL_YAML))
-    expect(parsed.user?.name).toBe('Alice')
-    expect(parsed.defaults?.assistants?.[0].id).toBe('windsurf')
   })
 })

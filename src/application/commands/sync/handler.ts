@@ -6,7 +6,6 @@ import {groupBy} from 'lodash-es'
 
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant} from '@domain/assistants'
-import {mergeConfigs} from '@domain/config/merge'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import {resolveTargets} from '@domain/sync/resolver'
 import type {Mutation, ResolvedTarget, SyncFileStatus, SyncFileSummary} from '@domain/sync/types'
@@ -23,8 +22,13 @@ import type {SyncCommandAction} from './types'
 export const runSync: SyncCommandAction = async (options) => {
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
-  const config = mergeConfigs(context.globalConfig, context.projectConfig)
 
+  if (!context.projectConfig) {
+    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
+    process.exit(1)
+  }
+
+  const config = context.projectConfig
   validateConfig(config)
 
   const assistantDefs = config.assistants.map((a) => getAssistant(a.id))

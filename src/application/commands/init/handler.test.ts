@@ -31,7 +31,6 @@ mock.module('@infrastructure/io', () => ({
     resolveProjectRoot: () => mockProjectRoot,
     buildContext: async () => ({
       projectRoot: mockProjectRoot,
-      globalConfig: null,
       projectConfig: null,
       hasProjectConfig: false,
     }),
@@ -62,7 +61,6 @@ mock.module('@infrastructure/config', () => ({
     return `${mockProjectRoot}/.crucible/forge.config.yaml`
   },
   loadProjectConfig: async () => null,
-  loadGlobalConfig: async () => null,
 }))
 
 mock.module('@infrastructure/cli/renderer', () => ({

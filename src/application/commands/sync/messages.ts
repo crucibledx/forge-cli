@@ -1,5 +1,7 @@
 export const SYNC_MESSAGES = {
   errors: {
+    noConfig: 'No configuration file found',
+    noConfigHint: 'Run `forge init` to create .crucible/forge.config.yaml',
     noSource: 'No source configured',
     noSourceHint: 'Run `forge init` to configure a source',
     noAssistants: 'No assistants enabled',

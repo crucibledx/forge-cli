@@ -88,44 +88,13 @@ describe('projectConfigSchema', () => {
 })
 
 describe('globalConfigSchema', () => {
-  it('parses a minimal valid global config', () => {
-    const result = globalConfigSchema.parse({version: '1'})
-    expect(result.version).toBe('1')
-  })
-
-  it('parses defaults with sources and assistants', () => {
-    const raw = {
+  it('uses the same schema as projectConfigSchema', () => {
+    const result = globalConfigSchema.parse({
       version: '1',
-      user: {name: 'Alice'},
-      defaults: {
-        assistants: [{id: 'windsurf', enabled: true}],
-        sources: [{name: 'global', type: 'git', url: 'git@github.com:org/g.git', branch: 'main'}],
-      },
-    }
-    const result = globalConfigSchema.parse(raw)
-    expect(result.user?.name).toBe('Alice')
-    expect(result.defaults?.assistants?.[0].id).toBe('windsurf')
-    expect(result.defaults?.sources?.[0].name).toBe('global')
-  })
-
-  it('migrates v0.1 singular source in defaults', () => {
-    const raw = {
-      version: '1',
-      defaults: {
-        source: {name: 'old', type: 'git', url: 'git@github.com:org/g.git', branch: 'main'},
-      },
-    }
-    const result = globalConfigSchema.parse(raw)
-    expect(result.defaults?.sources).toHaveLength(1)
-    expect(result.defaults?.sources?.[0].name).toBe('old')
-  })
-
-  it('rejects invalid assistant id in defaults', () => {
-    expect(() =>
-      globalConfigSchema.parse({
-        version: '1',
-        defaults: {assistants: [{id: 'bad', enabled: true}]},
-      }),
-    ).toThrow()
+      assistants: [{id: 'windsurf', enabled: true}],
+      sources: [{name: 'global', type: 'git', url: 'git@github.com:org/g.git', branch: 'main'}],
+    })
+    expect(result.assistants[0].id).toBe('windsurf')
+    expect(result.sources[0].name).toBe('global')
   })
 })

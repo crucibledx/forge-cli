@@ -1,8 +1,7 @@
-import type {GlobalConfig, ProjectConfig} from '@domain/config/types'
+import type {ProjectConfig} from '@domain/config/types'
 
 export interface IOContext {
   projectRoot: string
-  globalConfig: GlobalConfig | null
   projectConfig: ProjectConfig | null
   hasProjectConfig: boolean
 }

@@ -56,7 +56,6 @@ mock.module('@infrastructure/io', () => ({
     resolveProjectRoot: () => '/fake',
     buildContext: async () => ({
       projectRoot: '/fake',
-      globalConfig: null,
       projectConfig: null,
       hasProjectConfig: false,
     }),
@@ -272,7 +271,6 @@ describe('displayPlan', () => {
 describe('executePlan', () => {
   const context = {
     projectRoot: '/fake',
-    globalConfig: null,
     projectConfig: {version: '1', assistants: [], sources: [{name: 'test', type: 'local'}]},
     hasProjectConfig: true,
   }

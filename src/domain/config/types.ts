@@ -20,14 +20,3 @@ export interface ProjectConfig {
   sources: Source[]
   lastSync?: string
 }
-
-export interface GlobalConfig {
-  version: string
-  user?: {
-    name: string
-  }
-  defaults?: {
-    assistants?: AssistantConfig[]
-    sources?: Source[]
-  }
-}

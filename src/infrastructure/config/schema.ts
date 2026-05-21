@@ -30,22 +30,4 @@ export const projectConfigSchema = z
     sources: sources ?? (source ? [source] : []),
   }))
 
-export const globalConfigSchema = z.object({
-  version: z.string(),
-  user: z
-    .object({
-      name: z.string(),
-    })
-    .optional(),
-  defaults: z
-    .object({
-      assistants: z.array(assistantConfigSchema).optional(),
-      source: sourceConfigSchema.optional(),
-      sources: z.array(sourceConfigSchema).optional(),
-    })
-    .transform(({source, sources, ...rest}) => ({
-      ...rest,
-      sources: sources ?? (source ? [source] : undefined),
-    }))
-    .optional(),
-})
+export const globalConfigSchema = projectConfigSchema

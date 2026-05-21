@@ -3,11 +3,9 @@ import {describe, expect, it, mock, spyOn} from 'bun:test'
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockProjectConfig = {version: '1', assistants: [], sources: []}
-const mockGlobalConfig = {version: '1', defaults: {assistants: []}}
 
 mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async (root: string) => (root === '/has-project' ? mockProjectConfig : null),
-  loadGlobalConfig: async () => mockGlobalConfig,
   projectConfigExists: (root: string) => root === '/has-project',
 }))
 
@@ -53,12 +51,6 @@ describe('standaloneIO', () => {
       const {standaloneIO} = await import('./index')
       const ctx = await standaloneIO.buildContext('/no-project')
       expect(ctx.projectConfig).toBeNull()
-    })
-
-    it('includes loaded globalConfig', async () => {
-      const {standaloneIO} = await import('./index')
-      const ctx = await standaloneIO.buildContext('/any/path')
-      expect(ctx.globalConfig).toEqual(mockGlobalConfig)
     })
   })
 })

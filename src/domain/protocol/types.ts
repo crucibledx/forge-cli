@@ -1,4 +1,4 @@
-import type {GlobalConfig, ProjectConfig} from '../config/types'
+import type {ProjectConfig} from '../config/types'
 import type {Mutation} from '../sync/types'
 
 export interface PluginRequest {
@@ -8,7 +8,6 @@ export interface PluginRequest {
   args: string[]
   flags: Record<string, unknown>
   context: {
-    globalConfig: GlobalConfig | null
     projectConfig: ProjectConfig | null
     projectRoot: string
     crucibleDir: string
