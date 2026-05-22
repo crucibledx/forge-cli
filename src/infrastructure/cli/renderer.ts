@@ -3,6 +3,7 @@ import pc from 'picocolors'
 import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
 import type {SyncFileStatus} from '@domain/sync/types'
+import {SYNC_FILE_STATUSES} from '@domain/sync/types'
 
 export function renderHeader(title: string): void {
   const line = '─'.repeat(title.length + 4)
@@ -23,12 +24,14 @@ export function renderDetectionResults(results: DetectionResult[]): void {
 }
 
 const syncStatusRenderers: Record<string, (path: string, dryRun: boolean) => void> = {
-  new: (path, dryRun) =>
+  [SYNC_FILE_STATUSES.NEW]: (path, dryRun) =>
     console.log(`  ${dryRun ? pc.green('+') : pc.green('✓')}  ${pc.white(path)}  ${pc.dim('(new)')}`),
-  update: (path, dryRun) =>
+  [SYNC_FILE_STATUSES.UPDATE]: (path, dryRun) =>
     console.log(`  ${dryRun ? pc.yellow('~') : pc.green('✓')}  ${pc.white(path)}  ${pc.dim('(update)')}`),
-  no_change: (path) => console.log(`  ${pc.dim('=')}  ${pc.dim(path)}  ${pc.dim('(no change)')}`),
-  error: (path) => console.log(`  ${pc.red('✗')}  ${pc.red(path)}  ${pc.red('(error)')}`),
+  [SYNC_FILE_STATUSES.NO_CHANGE]: (path) => console.log(`  ${pc.dim('=')}  ${pc.dim(path)}  ${pc.dim('(no change)')}`),
+  [SYNC_FILE_STATUSES.SKIPPED]: (path) =>
+    console.log(`  ${pc.yellow('⊘')}  ${pc.yellow(path)}  ${pc.dim('(local-wins)')}`),
+  [SYNC_FILE_STATUSES.ERROR]: (path) => console.log(`  ${pc.red('✗')}  ${pc.red(path)}  ${pc.red('(error)')}`),
 }
 
 export function renderSyncFile(path: string, status: SyncFileStatus, dryRun: boolean): void {

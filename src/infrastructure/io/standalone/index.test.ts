@@ -6,6 +6,7 @@ const mockProjectConfig = {version: '1', assistants: [], sources: []}
 
 mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async (root: string) => (root === '/has-project' ? mockProjectConfig : null),
+  loadSyncState: async () => ({lastSync: '', files: {}}),
   projectConfigExists: (root: string) => root === '/has-project',
 }))
 

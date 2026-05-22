@@ -1,6 +1,6 @@
 {
   "name": "@crucible/forge-cli",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "AI development environment setup & config sync CLI",
   "type": "module",
   "bin": {

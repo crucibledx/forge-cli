@@ -9,6 +9,7 @@ export const SYNC_MESSAGES = {
     applyFailed: (error: string) => `Failed: ${error}`,
     sourceFetchFailed: (name: string, error: string) => `Failed to fetch source "${name}": ${error}`,
     sourceConflict: (count: number) => `${count} file(s) have conflicting sources (strategy: error)`,
+    localConflict: (count: number) => `${count} file(s) modified locally and remotely (strategy: error)`,
   },
 
   warnings: {

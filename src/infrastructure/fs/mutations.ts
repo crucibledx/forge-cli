@@ -3,6 +3,7 @@ import {mkdir, readFile, symlink, unlink, writeFile} from 'node:fs/promises'
 import {dirname, isAbsolute, join} from 'node:path'
 
 import type {Mutation} from '@domain/sync/types'
+import {MUTATION_TYPES} from '@domain/sync/types'
 
 export interface AppliedMutation {
   mutation: Mutation
@@ -33,13 +34,13 @@ function resolve(projectRoot: string, p: string): string {
 async function applyOne(projectRoot: string, mutation: Mutation): Promise<AppliedMutation> {
   try {
     switch (mutation.type) {
-      case 'dir_create': {
+      case MUTATION_TYPES.DIR_CREATE: {
         const target = resolve(projectRoot, mutation.path)
         await mkdir(target, {recursive: true})
         return {mutation, success: true}
       }
 
-      case 'file_write': {
+      case MUTATION_TYPES.FILE_WRITE: {
         const target = resolve(projectRoot, mutation.path)
         let previousContent: string | undefined
 
@@ -52,7 +53,7 @@ async function applyOne(projectRoot: string, mutation: Mutation): Promise<Applie
         return {mutation, success: true, previousContent}
       }
 
-      case 'file_delete': {
+      case MUTATION_TYPES.FILE_DELETE: {
         const target = resolve(projectRoot, mutation.path)
         let previousContent: string | undefined
 
@@ -64,7 +65,7 @@ async function applyOne(projectRoot: string, mutation: Mutation): Promise<Applie
         return {mutation, success: true, previousContent}
       }
 
-      case 'symlink_create': {
+      case MUTATION_TYPES.SYMLINK_CREATE: {
         const linkPath = resolve(projectRoot, mutation.path)
         await mkdir(dirname(linkPath), {recursive: true})
         await symlink(mutation.target, linkPath)

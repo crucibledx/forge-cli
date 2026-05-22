@@ -1,12 +1,29 @@
 import type {AssistantId} from '../assistants/types'
 
-export type Mutation =
-  | {type: 'file_write'; path: string; content: string}
-  | {type: 'file_delete'; path: string}
-  | {type: 'dir_create'; path: string}
-  | {type: 'symlink_create'; path: string; target: string}
+export const MUTATION_TYPES = {
+  FILE_WRITE: 'file_write',
+  FILE_DELETE: 'file_delete',
+  DIR_CREATE: 'dir_create',
+  SYMLINK_CREATE: 'symlink_create',
+} as const
 
-export type SyncFileStatus = 'new' | 'update' | 'no_change' | 'error'
+export type MutationType = (typeof MUTATION_TYPES)[keyof typeof MUTATION_TYPES]
+
+export type Mutation =
+  | {type: typeof MUTATION_TYPES.FILE_WRITE; path: string; content: string}
+  | {type: typeof MUTATION_TYPES.FILE_DELETE; path: string}
+  | {type: typeof MUTATION_TYPES.DIR_CREATE; path: string}
+  | {type: typeof MUTATION_TYPES.SYMLINK_CREATE; path: string; target: string}
+
+export const SYNC_FILE_STATUSES = {
+  NEW: 'new',
+  UPDATE: 'update',
+  NO_CHANGE: 'no_change',
+  SKIPPED: 'skipped',
+  ERROR: 'error',
+} as const
+
+export type SyncFileStatus = (typeof SYNC_FILE_STATUSES)[keyof typeof SYNC_FILE_STATUSES]
 
 export interface SyncFileSummary {
   targetPath: string
@@ -14,19 +31,6 @@ export interface SyncFileSummary {
   assistantId: AssistantId
   status: SyncFileStatus
   error?: string
-}
-
-export interface SyncPlan {
-  sourceName: string
-  mutations: Mutation[]
-  files: SyncFileSummary[]
-}
-
-export interface SyncResult {
-  applied: number
-  skipped: number
-  errors: Array<{path: string; error: string}>
-  lastSync: string // ISO date
 }
 
 export interface SourceFile {

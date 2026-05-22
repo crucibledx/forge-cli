@@ -56,6 +56,7 @@ mock.module('@infrastructure/fs', () => ({
 
 mock.module('@infrastructure/config', () => ({
   projectConfigExists: () => mockConfigExists,
+  loadSyncState: async () => ({lastSync: '', files: {}}),
   writeProjectConfig: async (_root: string, config: unknown) => {
     writtenConfig = config
     return `${mockProjectRoot}/.crucible/forge.config.yaml`

@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.9] — 2026-05-22
+
+### Added
+
+- **Local conflict strategy** (`domain/sync/conflict.ts`) — detects when a locally modified file also changed remotely since last sync. Three strategies:
+  - `remote-wins` (default): overwrite local changes
+  - `local-wins`: skip the file, keep local edits
+  - `error`: abort sync with conflict details
+- **Backup support** — when `sync.backup: true` (default) and `remote-wins` overwrites a locally modified file, a `.bak` copy is created before overwriting.
+- **`LocalConflictError`** — custom error with structured `conflicts` array for batch reporting.
+- **`detectLocalConflict()` + `resolveLocalConflict()`** — pure domain functions using sync state hashes for three-way comparison (local vs stored vs remote).
+- **`skipped` sync file status** — files kept by `local-wins` render with `⊘` indicator.
+- 5 unit tests for conflict detection/resolution, 9 E2E tests covering all strategies, backup on/off, and non-conflict edge cases.
+
+### Changed
+
+- **Const object pattern for all domain literals** — `SYNC_FILE_STATUSES`, `MUTATION_TYPES`, `CONFLICT_ACTIONS` replace bare string unions. Renderer, handler, mutations, and rollback all use computed keys.
+- **`buildPlan` refactored** — extracted `classifyExisting()` and `processTarget()` as hoisted closured functions, reducing nesting in the main loop.
+- All `mock.module('@infrastructure/config')` stubs now include `loadSyncState` to prevent Bun mock leak across test files.
+- Removed unused `SyncPlan` and `SyncResult` types.
+
+---
+
 ## [0.3.8] — 2026-05-21
 
 ### Added

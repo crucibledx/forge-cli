@@ -4,6 +4,8 @@ import {join} from 'node:path'
 
 import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 
+import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {emptySyncState} from '@domain/sync/state'
 import type {ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 
 import {SYNC_MESSAGES as M} from './messages'
@@ -47,6 +49,7 @@ mock.module('@infrastructure/fs', () => ({
 }))
 
 mock.module('@infrastructure/config', () => ({
+  loadSyncState: async () => emptySyncState(),
   writeProjectConfig: async (_root: string, config: unknown) => {
     writtenConfigs.push(config)
   },
@@ -135,6 +138,8 @@ describe('validateConfig', () => {
 
 describe('buildPlan', () => {
   let tempDir: string
+  const emptyState = emptySyncState()
+  const defaultConfig = SYNC_CONFIG_DEFAULTS
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -155,7 +160,7 @@ describe('buildPlan', () => {
 
   it('marks new files as "new" with file_write mutation', async () => {
     const resolved = [target('skills/deploy.md', '# Deploy')]
-    const {summaries, mutations} = await buildPlan(tempDir, resolved)
+    const {summaries, mutations} = await buildPlan(tempDir, resolved, emptyState, defaultConfig)
 
     expect(summaries).toHaveLength(1)
     expect(summaries[0].status).toBe('new')
@@ -169,7 +174,7 @@ describe('buildPlan', () => {
     writeFileSync(filePath, '# Deploy')
 
     const resolved = [target('skills/deploy.md', '# Deploy')]
-    const {summaries, mutations} = await buildPlan(tempDir, resolved)
+    const {summaries, mutations} = await buildPlan(tempDir, resolved, emptyState, defaultConfig)
 
     expect(summaries[0].status).toBe('no_change')
     expect(mutations).toHaveLength(0)
@@ -181,7 +186,7 @@ describe('buildPlan', () => {
     writeFileSync(filePath, '# Old content')
 
     const resolved = [target('skills/deploy.md', '# New content')]
-    const {summaries, mutations} = await buildPlan(tempDir, resolved)
+    const {summaries, mutations} = await buildPlan(tempDir, resolved, emptyState, defaultConfig)
 
     expect(summaries[0].status).toBe('update')
     expect(mutations).toHaveLength(1)
@@ -197,7 +202,7 @@ describe('buildPlan', () => {
       target('skills/changed.md', '# New'),
       target('skills/brand-new.md', '# Brand New'),
     ]
-    const {summaries, mutations} = await buildPlan(tempDir, resolved)
+    const {summaries, mutations} = await buildPlan(tempDir, resolved, emptyState, defaultConfig)
 
     expect(summaries.map((s) => s.status)).toEqual(['no_change', 'update', 'new'])
     expect(mutations).toHaveLength(2)
@@ -208,7 +213,7 @@ describe('buildPlan', () => {
     mkdirSync(join(tempDir, 'skills/deploy.md'), {recursive: true})
 
     const resolved = [target('skills/deploy.md', '# Deploy'), target('skills/ok.md', '# OK')]
-    const {summaries, mutations} = await buildPlan(tempDir, resolved)
+    const {summaries, mutations} = await buildPlan(tempDir, resolved, emptyState, defaultConfig)
 
     expect(summaries[0].status).toBe('error')
     expect(summaries[0].error).toBeDefined()
@@ -217,7 +222,7 @@ describe('buildPlan', () => {
   })
 
   it('returns empty plan for empty resolved array', async () => {
-    const {summaries, mutations} = await buildPlan(tempDir, [])
+    const {summaries, mutations} = await buildPlan(tempDir, [], emptyState, defaultConfig)
 
     expect(summaries).toHaveLength(0)
     expect(mutations).toHaveLength(0)

@@ -2,6 +2,8 @@ import {existsSync} from 'node:fs'
 import {mkdir, rmdir, unlink, writeFile} from 'node:fs/promises'
 import {dirname, isAbsolute, join} from 'node:path'
 
+import {MUTATION_TYPES} from '@domain/sync/types'
+
 import type {AppliedMutation} from './mutations'
 
 export async function rollbackMutations(projectRoot: string, applied: AppliedMutation[]): Promise<void> {
@@ -13,7 +15,7 @@ export async function rollbackMutations(projectRoot: string, applied: AppliedMut
 
     try {
       switch (entry.mutation.type) {
-        case 'file_write': {
+        case MUTATION_TYPES.FILE_WRITE: {
           const target = resolve(entry.mutation.path)
           if (entry.previousContent !== undefined) {
             await writeFile(target, entry.previousContent, 'utf-8')
@@ -23,7 +25,7 @@ export async function rollbackMutations(projectRoot: string, applied: AppliedMut
           break
         }
 
-        case 'file_delete': {
+        case MUTATION_TYPES.FILE_DELETE: {
           if (entry.previousContent !== undefined) {
             const target = resolve(entry.mutation.path)
             await mkdir(dirname(target), {recursive: true})
@@ -32,7 +34,7 @@ export async function rollbackMutations(projectRoot: string, applied: AppliedMut
           break
         }
 
-        case 'dir_create': {
+        case MUTATION_TYPES.DIR_CREATE: {
           const target = resolve(entry.mutation.path)
           if (existsSync(target)) {
             try {
@@ -44,7 +46,7 @@ export async function rollbackMutations(projectRoot: string, applied: AppliedMut
           break
         }
 
-        case 'symlink_create': {
+        case MUTATION_TYPES.SYMLINK_CREATE: {
           const target = resolve(entry.mutation.path)
           if (existsSync(target)) {
             await unlink(target)

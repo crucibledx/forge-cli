@@ -6,14 +6,18 @@ import {groupBy} from 'lodash-es'
 
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant} from '@domain/assistants'
-import type {ProjectConfig, Source} from '@domain/config/types'
+import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import type {LocalConflict} from '@domain/sync/conflict'
+import {CONFLICT_ACTIONS, detectLocalConflict, LocalConflictError, resolveLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {resolveTargets} from '@domain/sync/resolver'
+import type {SyncState} from '@domain/sync/state'
 import {buildSyncState} from '@domain/sync/state'
-import type {Mutation, ResolvedTarget, SyncFileStatus, SyncFileSummary} from '@domain/sync/types'
+import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
+import {MUTATION_TYPES, SYNC_FILE_STATUSES} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
-import {writeProjectConfig, writeSyncState} from '@infrastructure/config'
+import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure/config'
 import {applyMutations, collectFiles, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
@@ -55,7 +59,21 @@ export const runSync: SyncCommandAction = async (options) => {
     throw err
   }
 
-  const {summaries, mutations} = await buildPlan(projectRoot, resolved)
+  const syncState = await loadSyncState(projectRoot)
+  const syncConfig: SyncConfig = {...SYNC_CONFIG_DEFAULTS, ...config.sync}
+
+  let planResult: {summaries: SyncFileSummary[]; mutations: Mutation[]}
+  try {
+    planResult = await buildPlan(projectRoot, resolved, syncState, syncConfig)
+  } catch (err) {
+    if (err instanceof LocalConflictError) {
+      renderer.renderError(M.errors.localConflict(err.conflicts.length), err.message)
+      process.exit(1)
+    }
+    throw err
+  }
+
+  const {summaries, mutations} = planResult
 
   displayPlan(summaries, config.sources, options.dryRun)
 
@@ -127,42 +145,75 @@ export async function fetchAndResolve(
 export async function buildPlan(
   projectRoot: string,
   resolved: ResolvedTarget[],
+  syncState: SyncState,
+  syncConfig: SyncConfig,
 ): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]}> {
   const summaries: SyncFileSummary[] = []
   const mutations: Mutation[] = []
+  const conflicts: LocalConflict[] = []
 
   for (const target of resolved) {
     try {
-      const fullPath = join(projectRoot, target.targetPath)
-      let status: SyncFileStatus = 'new'
-
-      if (existsSync(fullPath)) {
-        const existing = await readFile(fullPath, 'utf-8')
-        status = existing === target.content ? 'no_change' : 'update'
-      }
-
-      summaries.push({
-        targetPath: target.targetPath,
-        sourcePath: target.sourcePath,
-        assistantId: target.assistantId,
-        status,
-      })
-
-      if (status !== 'no_change') {
-        mutations.push({type: 'file_write', path: target.targetPath, content: target.content})
-      }
+      await processTarget(target)
     } catch (err) {
       summaries.push({
         targetPath: target.targetPath,
         sourcePath: target.sourcePath,
         assistantId: target.assistantId,
-        status: 'error',
+        status: SYNC_FILE_STATUSES.ERROR,
         error: err instanceof Error ? err.message : String(err),
       })
     }
   }
 
+  if (conflicts.length > 0) {
+    throw new LocalConflictError(conflicts)
+  }
+
   return {summaries, mutations}
+
+  function classifyExisting(target: ResolvedTarget, existing: string): SyncFileSummary['status'] | 'conflict' {
+    if (existing === target.content) return SYNC_FILE_STATUSES.NO_CHANGE
+
+    const conflict = detectLocalConflict(target.targetPath, existing, target.content, syncState)
+    if (!conflict) return SYNC_FILE_STATUSES.UPDATE
+
+    const {action} = resolveLocalConflict(syncConfig.local_conflict_strategy)
+
+    if (action === CONFLICT_ACTIONS.SKIP) return SYNC_FILE_STATUSES.SKIPPED
+    if (action === CONFLICT_ACTIONS.ERROR) {
+      conflicts.push(conflict)
+      return 'conflict'
+    }
+
+    if (syncConfig.backup) {
+      mutations.push({type: MUTATION_TYPES.FILE_WRITE, path: `${target.targetPath}.bak`, content: existing})
+    }
+    return SYNC_FILE_STATUSES.UPDATE
+  }
+
+  async function processTarget(target: ResolvedTarget) {
+    const fullPath = join(projectRoot, target.targetPath)
+    let status: SyncFileSummary['status'] = SYNC_FILE_STATUSES.NEW
+
+    if (existsSync(fullPath)) {
+      const existing = await readFile(fullPath, 'utf-8')
+      const result = classifyExisting(target, existing)
+      if (result === 'conflict') return
+      status = result
+    }
+
+    summaries.push({
+      targetPath: target.targetPath,
+      sourcePath: target.sourcePath,
+      assistantId: target.assistantId,
+      status,
+    })
+
+    if (status !== SYNC_FILE_STATUSES.NO_CHANGE && status !== SYNC_FILE_STATUSES.SKIPPED) {
+      mutations.push({type: MUTATION_TYPES.FILE_WRITE, path: target.targetPath, content: target.content})
+    }
+  }
 }
 
 export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dryRun: boolean): void {
@@ -183,7 +234,7 @@ export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dry
     renderer.renderNewline()
   }
 
-  const errorCount = summaries.filter((s) => s.status === 'error').length
+  const errorCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.ERROR).length
   if (errorCount > 0) {
     renderer.renderWarning(M.summary.errors(errorCount))
   }
