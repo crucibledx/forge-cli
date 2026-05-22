@@ -7,6 +7,8 @@ import {groupBy} from 'lodash-es'
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant} from '@domain/assistants'
 import type {ProjectConfig, Source} from '@domain/config/types'
+import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {resolveTargets} from '@domain/sync/resolver'
 import {buildSyncState} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileStatus, SyncFileSummary} from '@domain/sync/types'
@@ -33,11 +35,24 @@ export const runSync: SyncCommandAction = async (options) => {
   validateConfig(config)
 
   const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
-  const resolved = await fetchAndResolve(config.sources, assistantDefs)
+  const allResolved = await fetchAndResolve(config.sources, assistantDefs)
 
-  if (resolved.length === 0) {
+  if (allResolved.length === 0) {
     renderer.renderWarning(M.warnings.noFilesToSync)
     return
+  }
+
+  const strategy = config.sync?.source_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.source_conflict_strategy
+
+  let resolved: ResolvedTarget[]
+  try {
+    resolved = resolveSourceConflicts(allResolved, strategy)
+  } catch (err) {
+    if (err instanceof SourceConflictError) {
+      renderer.renderError(M.errors.sourceConflict(err.conflicts.length), err.message)
+      process.exit(1)
+    }
+    throw err
   }
 
   const {summaries, mutations} = await buildPlan(projectRoot, resolved)

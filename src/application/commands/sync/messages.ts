@@ -8,6 +8,7 @@ export const SYNC_MESSAGES = {
     noAssistantsHint: 'Run `forge init` to configure assistants',
     applyFailed: (error: string) => `Failed: ${error}`,
     sourceFetchFailed: (name: string, error: string) => `Failed to fetch source "${name}": ${error}`,
+    sourceConflict: (count: number) => `${count} file(s) have conflicting sources (strategy: error)`,
   },
 
   warnings: {

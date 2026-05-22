@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.8] — 2026-05-21
+
+### Added
+
+- **Source conflict resolution** (`domain/sync/merge.ts`) — pure function `resolveSourceConflicts()` deduplicates targets when multiple sources produce the same `targetPath`.
+  - Strategies:
+    - `last-wins`: later source wins
+    - `first-wins`: earlier source wins
+    - `error`: throw with conflict details
+- **`SourceConflictError`** — custom error with structured `conflicts` array listing all colliding paths and their sources.
+- **Sync handler integration** — `runSync` now applies `source_conflict_strategy` (from config or default `last-wins`) between fetch and plan phases. Strategy `error` aborts sync with clear error message.
+- 11 unit tests covering all three strategies, edge cases (same-source duplicates, order preservation).
+- **E2E: source conflict tests** (`e2e/commands/sync/conflicts.test.ts`) — 5 tests covering last-wins (default + explicit), first-wins, error strategy, and non-conflicting multi-source sync.
+- **E2E: rollback tests** (`e2e/commands/sync/rollback.test.ts`) — 3 tests covering rollback of written files on mutation failure, cleanup of new files, and error reporting.
+- **`buildConfigYaml` extended** — supports `localSources[]` (multiple local sources) and `sync` config block for E2E test setup.
+
+---
+
 ## [0.3.7] — 2026-05-21
 
 ### Added

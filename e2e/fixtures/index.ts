@@ -1,4 +1,4 @@
-export type {ConfigOptions, GitSourceOptions, LocalSourceOptions} from './configs'
+export type {ConfigOptions, GitSourceOptions, LocalSourceOptions, SyncConfigOptions} from './configs'
 export {buildConfigYaml, setupLocalSync, writeConfig} from './configs'
 export type {SourceTreeDescriptor} from './sources'
 export {

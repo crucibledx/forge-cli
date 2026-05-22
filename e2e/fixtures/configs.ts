@@ -19,11 +19,20 @@ export interface GitSourceOptions {
   branch?: string
 }
 
+export interface SyncConfigOptions {
+  source_conflict_strategy?: string
+  local_conflict_strategy?: string
+  backup?: boolean
+  keep_local?: boolean
+}
+
 export interface ConfigOptions {
   assistants: string[]
   localSource?: LocalSourceOptions
+  localSources?: LocalSourceOptions[]
   gitSource?: GitSourceOptions
   rawSources?: string
+  sync?: SyncConfigOptions
 }
 
 /**
@@ -35,6 +44,13 @@ export function buildConfigYaml(options: ConfigOptions): string {
   let sourcesBlock: string
   if (options.rawSources) {
     sourcesBlock = options.rawSources
+  } else if (options.localSources) {
+    sourcesBlock = options.localSources
+      .map((s) => {
+        const name = s.name ?? 'test-source'
+        return [`  - name: ${name}`, '    type: local', `    path: "${s.path}"`].join('\n')
+      })
+      .join('\n')
   } else if (options.localSource) {
     const name = options.localSource.name ?? 'test-source'
     sourcesBlock = [`  - name: ${name}`, '    type: local', `    path: "${options.localSource.path}"`].join('\n')
@@ -54,7 +70,20 @@ export function buildConfigYaml(options: ConfigOptions): string {
   const assistantsYaml = assistantLines ? `assistants:\n${assistantLines}` : 'assistants: []'
   const sourcesYaml = sourcesBlock === '[]' ? 'sources: []' : `sources:\n${sourcesBlock}`
 
-  return ['version: "1"', assistantsYaml, sourcesYaml, ''].join('\n')
+  const parts = ['version: "1"', assistantsYaml, sourcesYaml]
+
+  if (options.sync) {
+    const syncLines = ['sync:']
+    if (options.sync.source_conflict_strategy)
+      syncLines.push(`  source_conflict_strategy: ${options.sync.source_conflict_strategy}`)
+    if (options.sync.local_conflict_strategy)
+      syncLines.push(`  local_conflict_strategy: ${options.sync.local_conflict_strategy}`)
+    if (options.sync.backup !== undefined) syncLines.push(`  backup: ${options.sync.backup}`)
+    if (options.sync.keep_local !== undefined) syncLines.push(`  keep_local: ${options.sync.keep_local}`)
+    parts.push(syncLines.join('\n'))
+  }
+
+  return [...parts, ''].join('\n')
 }
 
 /**
