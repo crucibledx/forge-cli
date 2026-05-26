@@ -57,3 +57,10 @@ export async function runConfigSession(cwd: string, drive: (cli: CLISession) => 
 export async function runSync(cwd: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'sync', args)
 }
+
+/**
+ * Runs `forge status` non-interactively. Returns stripped output and exit code.
+ */
+export async function runStatus(cwd: string): Promise<CLIResult> {
+  return runCommand(cwd, 'status')
+}

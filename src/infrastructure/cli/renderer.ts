@@ -2,6 +2,8 @@ import pc from 'picocolors'
 
 import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
+import type {DriftStatus} from '@domain/sync/drift'
+import {DRIFT_STATUSES} from '@domain/sync/drift'
 import type {SyncFileStatus} from '@domain/sync/types'
 import {SYNC_FILE_STATUSES} from '@domain/sync/types'
 
@@ -37,6 +39,18 @@ const syncStatusRenderers: Record<string, (path: string, dryRun: boolean) => voi
 export function renderSyncFile(path: string, status: SyncFileStatus, dryRun: boolean): void {
   const render = syncStatusRenderers[status]
   if (render) render(path, dryRun)
+}
+
+const driftStatusRenderers: Record<string, (path: string) => void> = {
+  [DRIFT_STATUSES.IN_SYNC]: (path) => console.log(`  ${pc.green('✓')}  ${pc.dim(path)}  ${pc.dim('(in sync)')}`),
+  [DRIFT_STATUSES.MODIFIED]: (path) =>
+    console.log(`  ${pc.yellow('✗')}  ${pc.yellow(path)}  ${pc.dim('(locally modified)')}`),
+  [DRIFT_STATUSES.DELETED]: (path) => console.log(`  ${pc.red('-')}  ${pc.red(path)}  ${pc.dim('(deleted)')}`),
+}
+
+export function renderDriftFile(path: string, status: DriftStatus): void {
+  const render = driftStatusRenderers[status]
+  if (render) render(path)
 }
 
 export function renderSuccess(message: string): void {

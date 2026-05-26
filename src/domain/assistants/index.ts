@@ -4,7 +4,7 @@ import './copilot'
 import './cursor'
 import './windsurf'
 
-export {assistantsRegistry, getAllAssistants, getAssistant, getAssistantIds} from './registry'
+export {assistantsRegistry, getAllAssistants, getAssistant, getAssistantIds, resolveAssistantByPath} from './registry'
 export type {
   AssistantConfig,
   AssistantDefinition,

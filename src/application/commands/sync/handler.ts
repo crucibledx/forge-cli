@@ -1,7 +1,3 @@
-import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
-import {join} from 'node:path'
-
 import {groupBy} from 'lodash-es'
 
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
@@ -18,7 +14,7 @@ import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types
 import {MUTATION_TYPES, SYNC_FILE_STATUSES} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure/config'
-import {applyMutations, collectFiles, rollbackMutations} from '@infrastructure/fs'
+import {applyMutations, collectFiles, readFileContent, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {getSourceLoader} from '@infrastructure/source'
@@ -193,11 +189,10 @@ export async function buildPlan(
   }
 
   async function processTarget(target: ResolvedTarget) {
-    const fullPath = join(projectRoot, target.targetPath)
+    const existing = await readFileContent(projectRoot, target.targetPath)
     let status: SyncFileSummary['status'] = SYNC_FILE_STATUSES.NEW
 
-    if (existsSync(fullPath)) {
-      const existing = await readFile(fullPath, 'utf-8')
+    if (existing !== null) {
       const result = classifyExisting(target, existing)
       if (result === 'conflict') return
       status = result

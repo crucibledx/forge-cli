@@ -1,0 +1,17 @@
+export const STATUS_MESSAGES = {
+  errors: {
+    noConfig: 'No project config found',
+    noConfigHint: 'Run `forge init` to create one.',
+    neverSynced: 'No sync state found — run `forge sync` first.',
+  },
+  output: {
+    configFound: (path: string) => `Config: ${path}`,
+    lastSync: (timeAgo: string) => `Last sync: ${timeAgo}`,
+    allInSync: 'All files in sync ✓',
+    hint: 'Run `forge sync` to apply remote changes.',
+  },
+  summary: {
+    modified: (count: number) => `${count} file(s) modified locally`,
+    deleted: (count: number) => `${count} file(s) deleted locally`,
+  },
+}

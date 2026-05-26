@@ -17,3 +17,11 @@ export function getAssistant(id: string): AssistantDefinition {
 export function getAssistantIds(): string[] {
   return assistantsRegistry.map((a) => a.id)
 }
+
+/**
+ * Derives the assistant ID from a target file path by matching against
+ * registered targetMappings destinations.
+ */
+export function resolveAssistantByPath(targetPath: string): AssistantDefinition | undefined {
+  return assistantsRegistry.find((a) => a.targetMappings.some((m) => targetPath.startsWith(m.destination)))
+}

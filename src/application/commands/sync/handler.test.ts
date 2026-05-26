@@ -43,6 +43,14 @@ mock.module('@infrastructure/cli/renderer', () => ({
 mock.module('@infrastructure/fs', () => ({
   applyMutations: async () => mockApplied,
   collectFiles: async () => [],
+  readFileContent: async (root: string, rel: string) => {
+    const {existsSync} = await import('node:fs')
+    const {readFile} = await import('node:fs/promises')
+    const full = join(root, rel)
+    if (!existsSync(full)) return null
+    return readFile(full, 'utf-8')
+  },
+  readDiskContents: async () => ({}),
   rollbackMutations: async () => {
     rollbackCalled = true
   },

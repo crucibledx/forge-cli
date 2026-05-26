@@ -1,6 +1,6 @@
 export type {AppliedMutation} from './mutations'
 export {applyMutations} from './mutations'
-export {collectFiles} from './reader'
+export {collectFiles, readDiskContents, readFileContent} from './reader'
 export {rollbackMutations} from './rollback'
 export {scanForAssistants} from './scanner'
 export type {FsService} from './types'

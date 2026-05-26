@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.10] — 2026-05-22
+
+### Added
+
+- **`forge status`** — new command showing drift between last sync state and current filesystem.
+  Reads `sync-state.json`, hashes each tracked file on disk, and displays per-assistant drift grouped by status.
+  - `✓` in sync — file unchanged since last sync
+  - `✗` locally modified — disk hash differs from stored hash
+  - `-` deleted — file removed from disk
+- **Drift detection** (`domain/sync/drift.ts`) — pure function `detectDrift()` comparing sync state hashes against disk content. Returns `DriftSummary` with `in_sync`, `modified`, or `deleted` per file.
+- **`DRIFT_STATUSES`** const object with derived `DriftStatus` type.
+- **`formatTimeAgo()`** — human-readable relative time for last sync display.
+- 7 unit tests for drift detection, 13 unit tests for status handler/display, 6 E2E tests covering never-synced, all-in-sync, modified, deleted, mixed drift, and missing config.
+
+### Changed
+
+- **DDD layering cleanup** — removed direct `node:fs` usage from application handlers:
+  - `readFileContent()` and `readDiskContents()` moved to `infrastructure/fs/reader.ts`.
+  - `sync/handler.ts` now uses `readFileContent` from `@infrastructure/fs` instead of `existsSync`/`readFile`.
+- **`resolveAssistantByPath()`** added to `domain/assistants/registry.ts` — derives assistant from `targetMappings.destination`, replacing hardcoded path prefixes.
+- **Drift renderers** moved from status handler to `infrastructure/cli/renderer.ts` (consistent with `syncStatusRenderers`).
+- **Status handler split** — `handler.ts` is now a thin orchestrator; display logic lives in `display.ts`.
+
+---
+
 ## [0.3.9] — 2026-05-22
 
 ### Added
