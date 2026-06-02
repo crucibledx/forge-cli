@@ -1,8 +1,14 @@
-import {detectDrift} from '@domain/sync/drift'
+import {getAssistant} from '@domain/assistants'
+import type {ProjectConfig} from '@domain/config/types'
+import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {detectDrift, detectFullDrift} from '@domain/sync/drift'
+import {resolveSourceConflicts} from '@domain/sync/merge'
+import {resolveTargets} from '@domain/sync/resolver'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState} from '@infrastructure/config'
-import {readDiskContents} from '@infrastructure/fs'
+import {collectFiles, readDiskContents} from '@infrastructure/fs'
 import io from '@infrastructure/io'
+import {getSourceLoader} from '@infrastructure/source'
 
 import {displayDrift} from './display'
 import {STATUS_MESSAGES as M} from './messages'
@@ -24,8 +30,43 @@ export const runStatus: StatusCommandAction = async () => {
     return
   }
 
+  const config = context.projectConfig
   const diskContents = await readDiskContents(projectRoot, syncState)
-  const summary = detectDrift(syncState, diskContents)
+
+  // Try to fetch remote state for richer drift info
+  const remoteContents = await fetchRemoteContents(config)
+
+  const summary = remoteContents
+    ? detectFullDrift(syncState, diskContents, remoteContents)
+    : detectDrift(syncState, diskContents)
 
   displayDrift(summary)
+}
+
+async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string, string> | null> {
+  if (config.sources.length === 0) return null
+
+  try {
+    const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
+    const allResolved = []
+
+    for (const source of config.sources) {
+      const loader = getSourceLoader(source.type)
+      const {localPath} = await loader.load(source)
+      const sourceFiles = await collectFiles(localPath)
+      const resolved = resolveTargets(sourceFiles, assistantDefs, source.name)
+      allResolved.push(...resolved)
+    }
+
+    const strategy = config.sync?.source_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.source_conflict_strategy
+    const merged = resolveSourceConflicts(allResolved, strategy)
+
+    const contents: Record<string, string> = {}
+    for (const target of merged) {
+      contents[target.targetPath] = target.content
+    }
+    return contents
+  } catch {
+    return null
+  }
 }

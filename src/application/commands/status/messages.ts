@@ -13,5 +13,9 @@ export const STATUS_MESSAGES = {
   summary: {
     modified: (count: number) => `${count} file(s) modified locally`,
     deleted: (count: number) => `${count} file(s) deleted locally`,
+    remoteUpdated: (count: number) => `${count} file(s) updated remotely — will overwrite on sync`,
+    conflict: (count: number) => `${count} file(s) modified locally AND remotely — conflict`,
+    newInSource: (count: number) => `${count} new file(s) in source — will be added on sync`,
+    removedFromSource: (count: number) => `${count} file(s) removed from source`,
   },
 }

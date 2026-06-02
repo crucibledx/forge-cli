@@ -33,6 +33,8 @@ const syncStatusRenderers: Record<string, (path: string, dryRun: boolean) => voi
   [SYNC_FILE_STATUSES.NO_CHANGE]: (path) => console.log(`  ${pc.dim('=')}  ${pc.dim(path)}  ${pc.dim('(no change)')}`),
   [SYNC_FILE_STATUSES.SKIPPED]: (path) =>
     console.log(`  ${pc.yellow('⊘')}  ${pc.yellow(path)}  ${pc.dim('(local-wins)')}`),
+  [SYNC_FILE_STATUSES.DELETED]: (path, dryRun) =>
+    console.log(`  ${dryRun ? pc.red('-') : pc.red('✓')}  ${pc.red(path)}  ${pc.dim('(removed from source)')}`),
   [SYNC_FILE_STATUSES.ERROR]: (path) => console.log(`  ${pc.red('✗')}  ${pc.red(path)}  ${pc.red('(error)')}`),
 }
 
@@ -46,6 +48,14 @@ const driftStatusRenderers: Record<string, (path: string) => void> = {
   [DRIFT_STATUSES.MODIFIED]: (path) =>
     console.log(`  ${pc.yellow('✗')}  ${pc.yellow(path)}  ${pc.dim('(locally modified)')}`),
   [DRIFT_STATUSES.DELETED]: (path) => console.log(`  ${pc.red('-')}  ${pc.red(path)}  ${pc.dim('(deleted)')}`),
+  [DRIFT_STATUSES.REMOTE_UPDATED]: (path) =>
+    console.log(`  ${pc.blue('↓')}  ${pc.white(path)}  ${pc.dim('(remote updated)')}`),
+  [DRIFT_STATUSES.CONFLICT]: (path) =>
+    console.log(`  ${pc.red('✗')}  ${pc.red(path)}  ${pc.dim('(locally modified — conflict)')}`),
+  [DRIFT_STATUSES.NEW_IN_SOURCE]: (path) =>
+    console.log(`  ${pc.green('+')}  ${pc.green(path)}  ${pc.dim('(new in source)')}`),
+  [DRIFT_STATUSES.REMOVED_FROM_SOURCE]: (path) =>
+    console.log(`  ${pc.red('-')}  ${pc.red(path)}  ${pc.dim('(removed from source)')}`),
 }
 
 export function renderDriftFile(path: string, status: DriftStatus): void {

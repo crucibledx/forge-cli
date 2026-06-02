@@ -106,7 +106,7 @@ describe('forge sync — local source', () => {
     await runSync(dir)
     const {output} = await runSync(dir)
 
-    expect(output).toContain('0 files synced')
+    expect(output).toContain('0 file(s) synced')
   })
 
   it('detects update when source content changes', async () => {
@@ -120,7 +120,7 @@ describe('forge sync — local source', () => {
     await writeSourceTree(sourceDir, {skills: {'deploy.md': SKILL_DEPLOY_V2}})
     const {output} = await runSync(dir)
 
-    expect(output).toContain('1 files synced')
+    expect(output).toContain('1 file(s) synced')
     expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY_V2)
   })
 })

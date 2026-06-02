@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.11] — 2026-06-02
+
+### Added
+
+- **`keep_local: false` file cleanup** — when `sync.keep_local` is `false` in config, files tracked in sync state but no longer present in any source are deleted on sync. Default remains `true` (keep stale files).
+  - `DELETED` status added to `SYNC_FILE_STATUSES` for display.
+  - Stale file detection compares sync state keys against resolved target paths.
+  - 3 unit tests + 4 E2E tests for keep_local behavior (default keep, explicit delete, dry-run, still-in-source).
+- **Rich `forge status` output** — status now fetches remote sources and compares with local state using `detectFullDrift()`:
+  - `↓` remote updated — source changed, local unchanged
+  - `✗` conflict — both local and remote changed
+  - `+` new in source — file added to source since last sync
+  - `-` removed from source — file no longer in any source
+  - Falls back gracefully to simple drift detection when sources are unavailable.
+  - 8 unit tests for `detectFullDrift()`.
+- **Strategy banner** in `forge sync` output — shows active source and local conflict strategies before file list.
+- **Summary counters** in sync output for deleted, skipped, and error counts.
+
+### Changed
+
+- `forge sync` output message uses `file(s)` instead of `files` for consistency.
+- `displayPlan()` now accepts `SyncConfig` for strategy banner rendering.
+- `DRIFT_STATUSES` extended with `remote_updated`, `conflict`, `new_in_source`, `removed_from_source`.
+- Drift renderers in `infrastructure/cli/renderer.ts` extended for all new statuses.
+
+---
+
 ## [0.3.10] — 2026-05-22
 
 ### Added

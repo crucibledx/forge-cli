@@ -110,7 +110,7 @@ describe('forge sync — edge cases', () => {
 
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).toBe(0)
-    expect(output).toContain('50 files synced')
+    expect(output).toContain('50 file(s) synced')
 
     const filesOnDisk = countFilesRecursive(join(dir, '.claude/skills'))
     expect(filesOnDisk).toBe(50)

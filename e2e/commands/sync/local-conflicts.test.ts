@@ -90,7 +90,7 @@ describe('forge sync — local conflicts', () => {
 
     const content = await readFile(targetFile, 'utf-8')
     expect(content).toBe('# User Modified')
-    expect(output).toContain('0 files synced')
+    expect(output).toContain('0 file(s) synced')
   })
 
   it('error: exits non-zero when local conflict detected', async () => {

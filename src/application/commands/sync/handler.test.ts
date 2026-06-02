@@ -5,6 +5,7 @@ import {join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import type {SyncState} from '@domain/sync/state'
 import {emptySyncState} from '@domain/sync/state'
 import type {ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 
@@ -235,12 +236,61 @@ describe('buildPlan', () => {
     expect(summaries).toHaveLength(0)
     expect(mutations).toHaveLength(0)
   })
+
+  it('deletes stale files when keep_local is false', async () => {
+    const stateWithStale: SyncState = {
+      lastSync: new Date().toISOString(),
+      files: {
+        '.claude/skills/old.md': {hash: 'abc', sourceName: 'team'},
+      },
+    }
+    const config = {...defaultConfig, keep_local: false}
+
+    const {summaries, mutations} = await buildPlan(tempDir, [], stateWithStale, config)
+
+    expect(summaries).toHaveLength(1)
+    expect(summaries[0].status).toBe('deleted')
+    expect(summaries[0].targetPath).toBe('.claude/skills/old.md')
+    expect(mutations).toHaveLength(1)
+    expect(mutations[0].type).toBe('file_delete')
+  })
+
+  it('keeps stale files when keep_local is true (default)', async () => {
+    const stateWithStale: SyncState = {
+      lastSync: new Date().toISOString(),
+      files: {
+        '.claude/skills/old.md': {hash: 'abc', sourceName: 'team'},
+      },
+    }
+
+    const {summaries, mutations} = await buildPlan(tempDir, [], stateWithStale, defaultConfig)
+
+    expect(summaries).toHaveLength(0)
+    expect(mutations).toHaveLength(0)
+  })
+
+  it('does not delete files still present in resolved targets', async () => {
+    const stateWithFile: SyncState = {
+      lastSync: new Date().toISOString(),
+      files: {
+        'skills/deploy.md': {hash: 'abc', sourceName: 'team'},
+      },
+    }
+    const config = {...defaultConfig, keep_local: false}
+    const resolved = [target('skills/deploy.md', '# Deploy')]
+
+    const {summaries} = await buildPlan(tempDir, resolved, stateWithFile, config)
+
+    const deleted = summaries.filter((s) => s.status === 'deleted')
+    expect(deleted).toHaveLength(0)
+  })
 })
 
 // ── displayPlan ──────────────────────────────────────────────────────────────
 
 describe('displayPlan', () => {
   const sources = [{name: 'team', type: 'local'}]
+  const syncCfg = SYNC_CONFIG_DEFAULTS
 
   const summary = (status: SyncFileSummary['status']): SyncFileSummary => ({
     targetPath: '.claude/skills/test.md',
@@ -250,35 +300,42 @@ describe('displayPlan', () => {
   })
 
   it('renders dry-run header when dryRun is true', () => {
-    displayPlan([summary('new')], sources, true)
+    displayPlan([summary('new')], sources, syncCfg, true)
 
     const infoCalls = rendererCalls.filter((c) => c.method === 'renderInfo')
     expect(infoCalls.some((c) => (c.args[0] as string).includes('team'))).toBe(true)
   })
 
   it('does not render dry-run header when dryRun is false', () => {
-    displayPlan([summary('new')], sources, false)
+    displayPlan([summary('new')], sources, syncCfg, false)
 
     const infoCalls = rendererCalls.filter((c) => c.method === 'renderInfo')
     expect(infoCalls.some((c) => (c.args[0] as string).includes('Would sync'))).toBe(false)
   })
 
   it('renders error count when errors present', () => {
-    displayPlan([summary('error'), summary('new')], sources, false)
+    displayPlan([summary('error'), summary('new')], sources, syncCfg, false)
 
     const warningCalls = rendererCalls.filter((c) => c.method === 'renderWarning')
     expect(warningCalls.some((c) => (c.args[0] as string).includes('1 file(s)'))).toBe(true)
   })
 
   it('does not render error count when no errors', () => {
-    displayPlan([summary('new')], sources, false)
+    displayPlan([summary('new')], sources, syncCfg, false)
 
     const warningCalls = rendererCalls.filter((c) => c.method === 'renderWarning')
     expect(warningCalls).toHaveLength(0)
   })
 
+  it('renders strategy banner', () => {
+    displayPlan([summary('new')], sources, syncCfg, false)
+
+    const dimCalls = rendererCalls.filter((c) => c.method === 'renderDim')
+    expect(dimCalls.some((c) => (c.args[0] as string).includes('last-wins'))).toBe(true)
+  })
+
   it('renders dry-run hint when dryRun is true', () => {
-    displayPlan([summary('new')], sources, true)
+    displayPlan([summary('new')], sources, syncCfg, true)
 
     const dimCalls = rendererCalls.filter((c) => c.method === 'renderDim')
     expect(dimCalls.some((c) => c.args[0] === M.output.dryRunHint)).toBe(true)

@@ -20,6 +20,7 @@ export const SYNC_FILE_STATUSES = {
   UPDATE: 'update',
   NO_CHANGE: 'no_change',
   SKIPPED: 'skipped',
+  DELETED: 'deleted',
   ERROR: 'error',
 } as const
 

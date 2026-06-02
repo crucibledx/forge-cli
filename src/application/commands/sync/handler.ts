@@ -1,7 +1,7 @@
 import {groupBy} from 'lodash-es'
 
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
-import {getAssistant} from '@domain/assistants'
+import {getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import type {LocalConflict} from '@domain/sync/conflict'
@@ -71,7 +71,7 @@ export const runSync: SyncCommandAction = async (options) => {
 
   const {summaries, mutations} = planResult
 
-  displayPlan(summaries, config.sources, options.dryRun)
+  displayPlan(summaries, config.sources, syncConfig, options.dryRun)
 
   if (options.dryRun) return
 
@@ -162,6 +162,22 @@ export async function buildPlan(
     }
   }
 
+  if (!syncConfig.keep_local) {
+    const resolvedPaths = new Set(resolved.map((r) => r.targetPath))
+    for (const targetPath of Object.keys(syncState.files)) {
+      if (!resolvedPaths.has(targetPath)) {
+        const assistantId = resolveAssistantByPath(targetPath)?.id ?? 'unknown'
+        mutations.push({type: MUTATION_TYPES.FILE_DELETE, path: targetPath})
+        summaries.push({
+          targetPath,
+          sourcePath: '',
+          assistantId,
+          status: SYNC_FILE_STATUSES.DELETED,
+        })
+      }
+    }
+  }
+
   if (conflicts.length > 0) {
     throw new LocalConflictError(conflicts)
   }
@@ -211,17 +227,24 @@ export async function buildPlan(
   }
 }
 
-export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dryRun: boolean): void {
+export function displayPlan(
+  summaries: SyncFileSummary[],
+  sources: Source[],
+  syncConfig: SyncConfig,
+  dryRun: boolean,
+): void {
   const byAssistant = groupBy(summaries, (item) => item.assistantId)
   const sourceNames = sources.map((s) => s.name).join(', ')
 
   if (dryRun) {
     renderer.renderInfo(M.output.wouldSync(sourceNames))
-    renderer.renderNewline()
   }
 
+  renderer.renderDim(M.output.strategyBanner(syncConfig.source_conflict_strategy, syncConfig.local_conflict_strategy))
+  renderer.renderNewline()
+
   for (const [assistantId, files] of Object.entries(byAssistant)) {
-    const def = getAssistant(assistantId as AssistantId)
+    const def = assistantId === 'unknown' ? {name: 'Other'} : getAssistant(assistantId as AssistantId)
     renderer.render(`${def.name}:`)
     for (const file of files) {
       renderer.renderSyncFile(file.targetPath, file.status, dryRun)
@@ -230,9 +253,12 @@ export function displayPlan(summaries: SyncFileSummary[], sources: Source[], dry
   }
 
   const errorCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.ERROR).length
-  if (errorCount > 0) {
-    renderer.renderWarning(M.summary.errors(errorCount))
-  }
+  const deletedCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.DELETED).length
+  const skippedCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.SKIPPED).length
+
+  if (errorCount > 0) renderer.renderWarning(M.summary.errors(errorCount))
+  if (deletedCount > 0) renderer.renderWarning(M.summary.deleted(deletedCount))
+  if (skippedCount > 0) renderer.renderInfo(M.summary.skipped(skippedCount))
 
   if (dryRun) {
     renderer.renderDim(M.output.dryRunHint)

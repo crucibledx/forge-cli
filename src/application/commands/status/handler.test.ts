@@ -51,6 +51,14 @@ mock.module('@infrastructure/config', () => ({
   writeSyncState: async () => {},
 }))
 
+mock.module('@infrastructure/source', () => ({
+  getSourceLoader: () => ({
+    load: async () => {
+      throw new Error('mock: source not available')
+    },
+  }),
+}))
+
 mock.module('@infrastructure/io', () => ({
   default: {
     resolveProjectRoot: () => '/fake',

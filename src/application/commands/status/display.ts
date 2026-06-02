@@ -52,13 +52,31 @@ export function displayDrift(summary: DriftSummary): void {
     renderer.renderNewline()
   }
 
-  const modifiedCount = summary.files.filter((f) => f.status === DRIFT_STATUSES.MODIFIED).length
-  const deletedCount = summary.files.filter((f) => f.status === DRIFT_STATUSES.DELETED).length
+  const counts = {
+    modified: summary.files.filter((f) => f.status === DRIFT_STATUSES.MODIFIED).length,
+    deleted: summary.files.filter((f) => f.status === DRIFT_STATUSES.DELETED).length,
+    remoteUpdated: summary.files.filter((f) => f.status === DRIFT_STATUSES.REMOTE_UPDATED).length,
+    conflict: summary.files.filter((f) => f.status === DRIFT_STATUSES.CONFLICT).length,
+    newInSource: summary.files.filter((f) => f.status === DRIFT_STATUSES.NEW_IN_SOURCE).length,
+    removedFromSource: summary.files.filter((f) => f.status === DRIFT_STATUSES.REMOVED_FROM_SOURCE).length,
+  }
 
-  if (modifiedCount > 0) renderer.renderWarning(M.summary.modified(modifiedCount))
-  if (deletedCount > 0) renderer.renderWarning(M.summary.deleted(deletedCount))
+  if (counts.remoteUpdated > 0) renderer.renderInfo(M.summary.remoteUpdated(counts.remoteUpdated))
+  if (counts.newInSource > 0) renderer.renderInfo(M.summary.newInSource(counts.newInSource))
+  if (counts.modified > 0) renderer.renderWarning(M.summary.modified(counts.modified))
+  if (counts.conflict > 0) renderer.renderWarning(M.summary.conflict(counts.conflict))
+  if (counts.deleted > 0) renderer.renderWarning(M.summary.deleted(counts.deleted))
+  if (counts.removedFromSource > 0) renderer.renderDim(M.summary.removedFromSource(counts.removedFromSource))
 
-  if (modifiedCount > 0 || deletedCount > 0) {
+  const hasActionable =
+    counts.modified +
+      counts.deleted +
+      counts.remoteUpdated +
+      counts.conflict +
+      counts.newInSource +
+      counts.removedFromSource >
+    0
+  if (hasActionable) {
     renderer.renderNewline()
     renderer.renderDim(M.output.hint)
   }
