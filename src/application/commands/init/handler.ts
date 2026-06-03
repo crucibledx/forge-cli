@@ -7,6 +7,7 @@ import {projectConfigExists, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
 
 import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
+import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
 import {promptNewSource} from '../shared/source.prompt'
 import {INIT_MESSAGES as M} from './messages'
 import type {InitCommandAction} from './types'
@@ -53,7 +54,17 @@ export const runInit: InitCommandAction = async (options) => {
     })
   }
 
-  // 5. Build and write config
+  // 5. Ask for schedule
+  let schedule: string | undefined
+  const wantsSchedule = await prompts.confirm({
+    message: SP.enableSchedule,
+    initialValue: false,
+  })
+  if (wantsSchedule) {
+    schedule = await promptSchedule()
+  }
+
+  // 6. Build and write config
   const config: ProjectConfig = {
     version: `${++configVersion}`,
     project: {
@@ -61,6 +72,7 @@ export const runInit: InitCommandAction = async (options) => {
     },
     assistants,
     sources,
+    ...(schedule ? {sync: {schedule}} : {}),
   }
 
   const configPath = await writeProjectConfig(projectRoot, config)
@@ -69,7 +81,7 @@ export const runInit: InitCommandAction = async (options) => {
   renderer.renderSuccess(M.configWrittenTo(relative(projectRoot, configPath)))
   renderer.renderNewline()
 
-  // 6. Offer to sync now
+  // 7. Offer to sync now
   if (sources.length > 0) {
     const syncNow = await prompts.confirm({
       message: M.sync.runNow,

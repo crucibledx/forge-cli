@@ -69,6 +69,7 @@ describe('forge config — e2e', () => {
       )
       expect(output).toContain(M.selectSection)
       expect(output).toContain('Assistants')
+      expect(output).toContain('Scheduler')
       expect(output).toContain('Sources')
     },
     TIMEOUT_MS,
@@ -108,9 +109,10 @@ describe('forge config — e2e', () => {
       await mkdir(localSourceDir, {recursive: true})
 
       await runConfigSession(getDir(), (cli) =>
-        // pick Sources (second option)
+        // pick Sources (third option — after Assistants, Scheduler)
         cli
           .waitForText(M.selectSection)
+          .pressKey(ARROW_DOWN)
           .pressKey(ARROW_DOWN)
           .pressEnter()
           // pick "Add a new source" — menu: Add(0) Done(1)
@@ -158,9 +160,10 @@ describe('forge config — e2e', () => {
       )
 
       await runConfigSession(getDir(), (cli) =>
-        // pick Sources
+        // pick Sources (third option — after Assistants, Scheduler)
         cli
           .waitForText(M.selectSection)
+          .pressKey(ARROW_DOWN)
           .pressKey(ARROW_DOWN)
           .pressEnter()
           // pick "Remove a source" — menu: Add(0) Done(1) Edit(2) Remove(3) → 3 downs
@@ -198,9 +201,10 @@ describe('forge config — e2e', () => {
       await writeConfig(getDir(), EMPTY_CONFIG)
 
       const {output} = await runConfigSession(getDir(), (cli) =>
-        // pick Sources
+        // pick Sources (third option — after Assistants, Scheduler)
         cli
           .waitForText(M.selectSection)
+          .pressKey(ARROW_DOWN)
           .pressKey(ARROW_DOWN)
           .pressEnter()
           // pick Done — menu: Add(0) Done(1) → 1 down

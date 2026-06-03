@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.1] — 2026-06-03
+
+### Added
+
+- **Scheduler section in `forge config`** — set, change, or clear the `sync.schedule` cron expression interactively.
+- **Schedule prompt in `forge init`** — optional step after sources to configure automatic sync schedule.
+- **Shared `promptSchedule()`** — reusable cron input prompt with inline validation via `Bun.cron.parse()` and human-readable preview via `cronstrue`.
+- 6 unit tests for the scheduler config section.
+
+---
+
 ## [0.4.0] — 2026-06-03
 
 Milestone: **"Auto-Pilot"** — scheduled sync via OS-level cron, `forge scheduler` commands, unattended error logging.

@@ -18,6 +18,7 @@ import {cline} from '@domain/assistants/cline'
 import {copilot} from '@domain/assistants/copilot'
 import {cursor} from '@domain/assistants/cursor'
 import {windsurf} from '@domain/assistants/windsurf'
+import {SCHEDULER_PROMPT_MESSAGES as SchM} from '@application/commands/shared/scheduler.prompt'
 import type {GitSourceConfig, LocalSourceConfig} from '@infrastructure/source'
 import {
   ARROW_DOWN,
@@ -59,6 +60,9 @@ function declineAll(cli: CLISession): CliStep {
       // then decline adding a source
       .waitForText(M.source.addSource)
       .pressKey(N)
+      // decline schedule
+      .waitForText(SchM.enableSchedule)
+      .pressKey(N)
   )
 }
 
@@ -88,6 +92,9 @@ function addSource(cli: CLISession, runSync = N): CliStep {
       .pressEnter()
       // decline adding another source
       .waitForText(M.source.addAnother)
+      .pressKey(N)
+      // decline schedule
+      .waitForText(SchM.enableSchedule)
       .pressKey(N)
       // decline run sync command
       .waitForText(M.sync.runNow)
@@ -176,6 +183,8 @@ describe('forge init — e2e', () => {
             .pressKey(SPACE) // select cursor
             .pressEnter()
             .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -200,6 +209,8 @@ describe('forge init — e2e', () => {
             .pressKey(SPACE) // select cursor
             .pressEnter()
             .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -229,6 +240,8 @@ describe('forge init — e2e', () => {
             .pressKey(SPACE) // windsurf
             .pressEnter()
             .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -277,6 +290,8 @@ describe('forge init — e2e', () => {
             .write(localPath)
             .pressEnter()
             .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -343,6 +358,8 @@ describe('forge init — e2e', () => {
             .pressEnter()
             .waitForText(M.source.addAnother)
             .pressKey(N)
+            .waitForText(SchM.enableSchedule)
+            .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
         )
@@ -372,6 +389,8 @@ describe('forge init — e2e', () => {
             .write('packages/ai')
             .pressEnter()
             .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -405,6 +424,8 @@ describe('forge init — e2e', () => {
             .waitForText(GM.subdirectory.message)
             .pressEnter()
             .waitForText(M.source.addAnother)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -441,7 +462,13 @@ describe('forge init — e2e', () => {
         await Bun.write(join(getDir(), '.cursor', 'no-any.mdc'), 'rule')
 
         await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+          cli
+            .waitForText(M.assistants.select)
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
+            .pressKey(N),
         )
         const config = await readConfig(getDir())
         expect(config.assistants).toHaveLength(1)
@@ -467,6 +494,8 @@ describe('forge init — e2e', () => {
             .pressKey(SPACE) // deselect cursor
             .pressEnter()
             .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -482,7 +511,13 @@ describe('forge init — e2e', () => {
         await Bun.write(join(getDir(), 'CLAUDE.md'), '# Claude instructions')
 
         await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+          cli
+            .waitForText(M.assistants.select)
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
+            .pressKey(N),
         )
         const config = await readConfig(getDir())
         expect(config.assistants).toHaveLength(1)
@@ -500,7 +535,13 @@ describe('forge init — e2e', () => {
         await Bun.write(join(getDir(), '.github', 'copilot-instructions.md'), '# Copilot instructions')
 
         await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+          cli
+            .waitForText(M.assistants.select)
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
+            .pressKey(N),
         )
         const config = await readConfig(getDir())
         expect(config.assistants).toHaveLength(1)
@@ -517,7 +558,13 @@ describe('forge init — e2e', () => {
         await mkdir(join(getDir(), '.cursor'), {recursive: true})
 
         await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.assistants.select).pressEnter().waitForText(M.source.addSource).pressKey(N),
+          cli
+            .waitForText(M.assistants.select)
+            .pressEnter()
+            .waitForText(M.source.addSource)
+            .pressKey(N)
+            .waitForText(SchM.enableSchedule)
+            .pressKey(N),
         )
         const config = await readConfig(getDir())
         expect(config.assistants).toHaveLength(0)
