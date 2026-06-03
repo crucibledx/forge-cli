@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.0] — 2026-06-XX
+
+Milestone: **"Smart Sources"** — pre-structured source layouts, global config support.
+
+### Added
+
+- **Pre-structured source layout** — sources containing assistant-specific directories (`.claude/`, `.cursor/`, `.windsurf/`, `.github/`, `.cline/`) are detected and copied as-is without transforms.
+- **Layout detection** — `detectSourceLayout()` auto-classifies sources as `canonical` or `pre-structured` based on top-level directory names.
+- **Explicit layout override** — `layout: auto | canonical | pre-structured` field on source config.
+- **Global config (`--global`)** — `forge init --global`, `forge sync --global`, `forge config --global` operate on `~/.crucible/forge.config.yaml` and sync to `~/`.
+- **`--global` flag** — shared option across all commands. `io.resolveProjectRoot()` returns `homedir()` when set.
+
+### Changed
+
+- Source loaders pass layout info through `SourceLoadResult`.
+- Sync resolver skips transform chain for pre-structured sources.
+
+---
+
 ## [0.4.5] — 2026-06-03
 
 ### Added
