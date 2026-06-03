@@ -1,12 +1,12 @@
 import {commandsRegistry} from '../registry'
 import type {CommandDefinition} from '../types'
-import {runSchedulerInstall, runSchedulerStatus, runSchedulerUninstall} from './handler'
+import {runScheduler, runSchedulerInstall, runSchedulerStatus, runSchedulerUninstall} from './handler'
 
 export const schedulerCommand: CommandDefinition = {
   name: 'scheduler',
   description: 'Manage automatic sync scheduling',
   options: [],
-  action: async () => {},
+  action: runScheduler,
   subcommands: [
     {
       name: 'install',

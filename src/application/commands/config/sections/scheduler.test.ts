@@ -8,6 +8,7 @@ import {SCHEDULER_SECTION_MESSAGES as M} from './scheduler'
 
 let promptResponses: Record<string, unknown> = {}
 let rendererCalls: Array<{method: string; args: unknown[]}> = []
+let mockScheduleResult: string | undefined
 
 const track =
   (method: string) =>
@@ -40,11 +41,25 @@ mock.module('@infrastructure/cli/prompts', () => ({
   },
 }))
 
+mock.module('@application/commands/shared/scheduler.prompt', () => ({
+  promptSchedule: async () => mockScheduleResult,
+  SCHEDULER_PROMPT_MESSAGES: {
+    enableSchedule: 'Set up automatic sync schedule?',
+    enterCron: 'Enter cron expression:',
+    enterCronEdit: 'Enter new cron expression:',
+    cronPlaceholder: '0 9 * * 1',
+    invalidCron: 'Invalid cron expression.',
+    schedulePreview: (desc: string) => `→ ${desc}`,
+    confirmSchedule: 'Use this schedule?',
+  },
+}))
+
 // ─── Reset ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   promptResponses = {}
   rendererCalls = []
+  mockScheduleResult = undefined
 })
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -66,11 +81,10 @@ describe('schedulerSection', () => {
 
   it('sets a new schedule', async () => {
     const {schedulerSection} = await import('./scheduler')
-    const {SCHEDULER_PROMPT_MESSAGES: SP} = await import('../../shared/scheduler.prompt')
+    mockScheduleResult = '0 9 * * 1'
 
     promptResponses = {
       [M.action]: 'set',
-      [SP.enterCron]: '0 9 * * 1',
     }
 
     const result = await schedulerSection.edit(baseConfig, '/fake')

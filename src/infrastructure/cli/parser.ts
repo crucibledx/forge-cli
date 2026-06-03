@@ -21,10 +21,10 @@ export function createProgram(commands: CommandDefinition[]): Command {
     const command = program.command(cmd.name).description(cmd.description)
     applyOptions(command, cmd.options)
 
+    command.action(wrapAction(cmd.action))
+
     if (cmd.subcommands?.length) {
       registerSubcommands(command, cmd.subcommands)
-    } else {
-      command.action(wrapAction(cmd.action))
     }
   }
 

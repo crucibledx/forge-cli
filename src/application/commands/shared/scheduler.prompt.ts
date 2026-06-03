@@ -8,26 +8,35 @@ export const SCHEDULER_PROMPT_MESSAGES = {
   enterCronEdit: 'Enter new cron expression (press Enter to keep current):',
   cronPlaceholder: '0 9 * * 1',
   invalidCron: 'Invalid cron expression. Use standard 5-field format (minute hour day month weekday).',
-  scheduleSet: (desc: string) => `Schedule: ${desc}`,
+  schedulePreview: (desc: string) => `→ ${desc}`,
+  confirmSchedule: 'Use this schedule?',
 } as const
 
 export async function promptSchedule(currentSchedule?: string): Promise<string | undefined> {
   const M = SCHEDULER_PROMPT_MESSAGES
 
-  const expression = await prompts.text({
-    message: currentSchedule ? M.enterCronEdit : M.enterCron,
-    placeholder: currentSchedule ?? M.cronPlaceholder,
-    defaultValue: currentSchedule,
-    validate: (value) => {
-      if (!value || value.trim() === '') return undefined
-      if (!isValidCron(value)) return M.invalidCron
-      return undefined
-    },
-  })
+  while (true) {
+    const expression = await prompts.text({
+      message: currentSchedule ? M.enterCronEdit : M.enterCron,
+      placeholder: currentSchedule ?? M.cronPlaceholder,
+      defaultValue: currentSchedule,
+      validate: (value) => {
+        if (!value || value.trim() === '') return undefined
+        if (!isValidCron(value)) return M.invalidCron
+        return undefined
+      },
+    })
 
-  const trimmed = expression.trim()
-  if (!trimmed) return undefined
+    const trimmed = expression.trim()
+    if (!trimmed) return undefined
 
-  renderer.renderDim(M.scheduleSet(describeCron(trimmed)))
-  return trimmed
+    renderer.renderDim(M.schedulePreview(describeCron(trimmed)))
+
+    const confirmed = await prompts.confirm({
+      message: M.confirmSchedule,
+      initialValue: true,
+    })
+
+    if (confirmed) return trimmed
+  }
 }

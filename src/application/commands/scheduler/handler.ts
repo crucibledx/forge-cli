@@ -1,11 +1,14 @@
 import {resolve} from 'node:path'
 
 import {describeCron, isValidCron} from '@domain/scheduler'
+import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
+import {loadProjectConfig, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
 import {createSchedulerLogger, getLogPath, LOG_LEVELS} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
+import {promptSchedule} from '../shared/scheduler.prompt'
 import {SCHEDULER_MESSAGES as M} from './messages'
 
 const WORKER_PATH = resolve(import.meta.dir, 'worker.ts')
@@ -31,7 +34,7 @@ export async function runSchedulerInstall(): Promise<void> {
   }
 
   const desc = describeCron(schedule)
-  renderer.renderWarning(M.confirm.install(desc))
+  renderer.renderDim(M.confirm.install(desc))
 
   const backend = getSchedulerBackend()
 
@@ -66,6 +69,92 @@ export async function runSchedulerUninstall(): Promise<void> {
 
   renderer.renderSuccess(M.output.uninstalled)
 }
+
+// ─── Interactive menu (forge scheduler with no subcommand) ───────────────────
+
+const ACTION_INSTALL = 'install'
+const ACTION_UNINSTALL = 'uninstall'
+const ACTION_CHANGE = 'change'
+const ACTION_DONE = 'done'
+
+export async function runScheduler(): Promise<void> {
+  const projectRoot = io.resolveProjectRoot()
+
+  prompts.intro(M.intro)
+
+  // Always show status first
+  await showStatus(projectRoot)
+
+  let editing = true
+  while (editing) {
+    const action = await prompts.select({
+      message: M.selectAction,
+      options: [
+        {value: ACTION_INSTALL, label: M.actionInstall},
+        {value: ACTION_UNINSTALL, label: M.actionUninstall},
+        {value: ACTION_CHANGE, label: M.actionChangeSchedule},
+        {value: ACTION_DONE, label: M.actionDone},
+      ],
+    })
+
+    if (action === ACTION_DONE) break
+
+    if (action === ACTION_INSTALL) await runSchedulerInstall()
+    if (action === ACTION_UNINSTALL) await runSchedulerUninstall()
+    if (action === ACTION_CHANGE) await changeSchedule(projectRoot)
+
+    await showStatus(projectRoot)
+
+    editing = await prompts.confirm({
+      message: M.changeAnother,
+      initialValue: false,
+    })
+  }
+
+  prompts.outro(M.actionDone)
+}
+
+async function changeSchedule(projectRoot: string): Promise<void> {
+  const config = await loadProjectConfig(projectRoot)
+  if (!config) {
+    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
+    return
+  }
+
+  const currentSchedule = config.sync?.schedule
+  const schedule = await promptSchedule(currentSchedule)
+
+  if (schedule) {
+    await writeProjectConfig(projectRoot, {
+      ...config,
+      sync: {...(config.sync ?? {}), schedule},
+    })
+    renderer.renderSuccess(M.configSaved)
+  }
+}
+
+async function showStatus(projectRoot: string): Promise<void> {
+  const context = await io.buildContext(projectRoot)
+  const backend = getSchedulerBackend()
+  const installed = await backend.isInstalled(projectRoot)
+
+  renderer.renderNewline()
+
+  if (!installed) {
+    renderer.renderInfo(M.output.status.notInstalled)
+  } else {
+    renderer.renderSuccess(M.output.status.installed)
+  }
+
+  const schedule = context.projectConfig?.sync?.schedule
+  if (schedule) {
+    renderer.renderDim(M.output.status.schedule(describeCron(schedule)))
+  }
+
+  renderer.renderNewline()
+}
+
+// ─── Subcommand handlers ─────────────────────────────────────────────────────
 
 export async function runSchedulerStatus(): Promise<void> {
   const projectRoot = io.resolveProjectRoot()

@@ -1,6 +1,14 @@
 import {SHARED_MESSAGES} from '../shared'
 
 export const SCHEDULER_MESSAGES = {
+  intro: 'Forge — Scheduler',
+  selectAction: 'What would you like to do?',
+  actionInstall: 'Install scheduler',
+  actionUninstall: 'Uninstall scheduler',
+  actionChangeSchedule: 'Change schedule',
+  actionDone: 'Done',
+  changeAnother: 'Anything else?',
+  configSaved: 'Schedule updated in config.',
   errors: {
     ...SHARED_MESSAGES.errors,
     noSchedule: 'No schedule configured',
@@ -10,8 +18,7 @@ export const SCHEDULER_MESSAGES = {
     uninstallFailed: (err: string) => `Failed to uninstall scheduler: ${err}`,
   },
   confirm: {
-    install: (desc: string) =>
-      `This will register a scheduled task with your OS.\n    forge sync will run automatically: ${desc}`,
+    install: (desc: string) => `Registering scheduled task: ${desc}`,
     uninstall: 'Remove the scheduled sync task?',
   },
   output: {

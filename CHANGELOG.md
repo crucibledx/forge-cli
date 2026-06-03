@@ -5,13 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.2] — 2026-06-03
+
+### Added
+
+- **Interactive `forge scheduler`** — running with no subcommand shows current status, then offers an action menu (install / uninstall / change schedule / done) with a "anything else?" loop. Status refreshes after each action.
+- **Cron preview + confirm** — `promptSchedule()` now shows a human-readable description after input (e.g. `→ At 09:00, only on Monday`) and asks to confirm before saving. Declines loop back to re-enter.
+- CLI parser now supports parent action + subcommands simultaneously (parent runs when no subcommand given).
+- 4 unit tests for interactive scheduler menu.
+
+### Fixed
+
+- Install output no longer shows misleading "registered" warning before the actual install attempt.
+
+---
+
 ## [0.4.1] — 2026-06-03
 
 ### Added
 
 - **Scheduler section in `forge config`** — set, change, or clear the `sync.schedule` cron expression interactively.
 - **Schedule prompt in `forge init`** — optional step after sources to configure automatic sync schedule.
-- **Shared `promptSchedule()`** — reusable cron input prompt with inline validation via `Bun.cron.parse()` and human-readable preview via `cronstrue`.
+- **Shared `promptSchedule()`** — reusable cron input prompt with inline validation via `Bun.cron.parse()` and human-readable preview via `cronstrue`. Context-aware: shows current value when editing, example when new.
 - 6 unit tests for the scheduler config section.
 
 ---
