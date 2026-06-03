@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.5] — 2026-06-03
+
+### Added
+
+- **Cron validation in config schema** — `sync.schedule` is now validated via zod refine on config load. Invalid cron expressions are rejected at parse time with a clear `"Invalid cron expression"` error, not just at scheduler install.
+- 3 e2e tests for `forge sync --silent` (no output on success, files still synced, non-zero exit on missing config).
+- 4 unit tests for cron schedule validation in config schema.
+
+---
+
 ## [0.4.4] — 2026-06-03
 
 ### Added

@@ -143,6 +143,44 @@ describe('projectConfigSchema — sync block', () => {
       }),
     ).toThrow()
   })
+
+  it('accepts valid cron schedule', () => {
+    const result = projectConfigSchema.parse({
+      version: '1',
+      assistants: [],
+      sync: {schedule: '0 9 * * 1'},
+    })
+    expect(result.sync?.schedule).toBe('0 9 * * 1')
+  })
+
+  it('accepts interval cron schedule', () => {
+    const result = projectConfigSchema.parse({
+      version: '1',
+      assistants: [],
+      sync: {schedule: '*/5 * * * *'},
+    })
+    expect(result.sync?.schedule).toBe('*/5 * * * *')
+  })
+
+  it('rejects invalid cron schedule', () => {
+    expect(() =>
+      projectConfigSchema.parse({
+        version: '1',
+        assistants: [],
+        sync: {schedule: 'every monday'},
+      }),
+    ).toThrow('Invalid cron expression')
+  })
+
+  it('rejects malformed cron schedule', () => {
+    expect(() =>
+      projectConfigSchema.parse({
+        version: '1',
+        assistants: [],
+        sync: {schedule: '* * *'},
+      }),
+    ).toThrow('Invalid cron expression')
+  })
 })
 
 describe('globalConfigSchema', () => {

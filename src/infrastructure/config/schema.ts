@@ -3,6 +3,7 @@ import {z} from 'zod'
 import {getAssistantIds} from '@domain/assistants'
 import type {LocalConflictStrategy, SourceConflictStrategy} from '@domain/config/types'
 import {LOCAL_CONFLICT_STRATEGIES, SOURCE_CONFLICT_STRATEGIES} from '@domain/config/types'
+import {isValidCron} from '@domain/scheduler'
 import {sourceConfigSchema} from '@infrastructure/source'
 
 const sourceConflictValues = Object.values(SOURCE_CONFLICT_STRATEGIES) as [
@@ -28,7 +29,10 @@ const syncConfigSchema = z
     local_conflict_strategy: z.enum(localConflictValues).optional(),
     backup: z.boolean().optional(),
     keep_local: z.boolean().optional(),
-    schedule: z.string().optional(),
+    schedule: z
+      .string()
+      .refine((v) => isValidCron(v), {message: 'Invalid cron expression'})
+      .optional(),
   })
   .optional()
 

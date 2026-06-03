@@ -124,3 +124,30 @@ describe('forge sync — local source', () => {
     expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY_V2)
   })
 })
+
+// ─── Silent mode (scheduled runs) ───────────────────────────────────────────
+
+describe('sync --silent', () => {
+  it('produces no console output on success', async () => {
+    const dir = getDir()
+    await setupLocalSync(dir, ['claude-code'], {rules: {'api.md': '# API'}})
+
+    const {output, exitCode} = await runSync(dir, ['--silent'])
+    expect(exitCode).toBe(0)
+    expect(output.trim()).toBe('')
+  })
+
+  it('syncs files normally despite silent mode', async () => {
+    const dir = getDir()
+    await setupLocalSync(dir, ['claude-code'], {rules: {'api.md': '# API'}})
+
+    await runSync(dir, ['--silent'])
+    expect(existsSync(join(dir, '.claude', 'rules', 'api.md'))).toBe(true)
+  })
+
+  it('exits non-zero when no config exists', async () => {
+    const dir = getDir()
+    const {exitCode} = await runSync(dir, ['--silent'])
+    expect(exitCode).not.toBe(0)
+  })
+})
