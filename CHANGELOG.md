@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-06-03
+
+Milestone: **"Auto-Pilot"** — scheduled sync via OS-level cron, `forge scheduler` commands, unattended error logging.
+
+*Version bump — implementation begins.*
+
+---
+
 ## [0.3.11] — 2026-06-02
 
 ### Added
