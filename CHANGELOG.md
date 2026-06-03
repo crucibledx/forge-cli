@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.3] — 2026-06-03
+
+### Changed
+
+- **Native OS scheduler backend** — replaced `Bun.cron` with direct OS-level job registration. No runtime dependency on `bun` binary.
+  - **macOS**: launchd plist in `~/Library/LaunchAgents/` with `StartCalendarInterval` for fixed times, `StartInterval` for intervals
+  - **Linux**: crontab entry with comment markers for clean install/uninstall
+  - **Windows**: Task Scheduler via `schtasks.exe` with cron-to-schedule mapping (daily, weekly, minute/hour intervals)
+- **Self-registering scheduler registry** — each platform scheduler lives in its own file and registers itself. Adding a new platform requires zero changes to existing code.
+- Scheduler command is now passed as a full string from the application layer — infrastructure schedulers are command-agnostic.
+- Removed `worker.ts` — scheduler no longer needs a separate worker script.
+- **macOS**: use `launchctl bootstrap/bootout` instead of deprecated `load/unload`.
+- **macOS**: use `process.getuid()` instead of spawning `id -u`.
+
+### Fixed
+
+- **Compiled binary scheduler install** — `dist/forge scheduler install` no longer fails with "Failed to resolve path". The job runs the forge binary directly instead of requiring a `.ts` worker file.
+- **Crontab reinstall orphan bug** — `install` now removes both the marker comment and the command line below it, preventing orphan entries on schedule update.
+- **Launchd step value crash** — cron expressions like `*/5 * * * *` now correctly use `StartInterval` instead of producing invalid plist XML.
+- **Paths with spaces** — crontab entries now quote `projectRoot`, schtasks quotes all command arguments.
+
+---
+
 ## [0.4.2] — 2026-06-03
 
 ### Added

@@ -1,5 +1,3 @@
-import {resolve} from 'node:path'
-
 import {describeCron, isValidCron} from '@domain/scheduler'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
@@ -11,7 +9,13 @@ import {getSchedulerBackend} from '@infrastructure/scheduler'
 import {promptSchedule} from '../shared/scheduler.prompt'
 import {SCHEDULER_MESSAGES as M} from './messages'
 
-const WORKER_PATH = resolve(import.meta.dir, 'worker.ts')
+function resolveForgeCommand(): string {
+  // Compiled binary: process.execPath IS the forge binary
+  // Dev mode (bun run): process.execPath is bun, argv[1] is the script
+  const execPath = process.execPath
+  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
+  return `${base} sync --silent`
+}
 
 export async function runSchedulerInstall(): Promise<void> {
   const projectRoot = io.resolveProjectRoot()
@@ -39,7 +43,7 @@ export async function runSchedulerInstall(): Promise<void> {
   const backend = getSchedulerBackend()
 
   try {
-    await backend.install(projectRoot, schedule, WORKER_PATH)
+    await backend.install(projectRoot, schedule, resolveForgeCommand())
   } catch (err) {
     renderer.renderError(M.errors.installFailed(err instanceof Error ? err.message : String(err)))
     process.exit(1)
