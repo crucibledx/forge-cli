@@ -24,6 +24,7 @@ export interface SyncConfigOptions {
   local_conflict_strategy?: string
   backup?: boolean
   keep_local?: boolean
+  schedule?: string
 }
 
 export interface ConfigOptions {
@@ -80,6 +81,7 @@ export function buildConfigYaml(options: ConfigOptions): string {
       syncLines.push(`  local_conflict_strategy: ${options.sync.local_conflict_strategy}`)
     if (options.sync.backup !== undefined) syncLines.push(`  backup: ${options.sync.backup}`)
     if (options.sync.keep_local !== undefined) syncLines.push(`  keep_local: ${options.sync.keep_local}`)
+    if (options.sync.schedule) syncLines.push(`  schedule: "${options.sync.schedule}"`)
     parts.push(syncLines.join('\n'))
   }
 

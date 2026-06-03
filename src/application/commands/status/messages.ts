@@ -1,7 +1,8 @@
+import {SHARED_MESSAGES} from '../shared'
+
 export const STATUS_MESSAGES = {
   errors: {
-    noConfig: 'No project config found',
-    noConfigHint: 'Run `forge init` to create one.',
+    ...SHARED_MESSAGES.errors,
     neverSynced: 'No sync state found — run `forge sync` first.',
   },
   output: {

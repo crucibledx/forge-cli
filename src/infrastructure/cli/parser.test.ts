@@ -20,12 +20,12 @@ function makeCmd(overrides: Partial<CommandDefinition> = {}): CommandDefinition 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('createProgram', () => {
-  it('sets program name from COMMON_MESSAGES', () => {
+  it('sets program name from PROGRAM_DETAILS', () => {
     const program = createProgram([])
     expect(program.name()).toBe(PROGRAM_DETAILS.name)
   })
 
-  it('sets program description from COMMON_MESSAGES', () => {
+  it('sets program description from PROGRAM_DETAILS', () => {
     const program = createProgram([])
     expect(program.description()).toBe(PROGRAM_DETAILS.description)
   })

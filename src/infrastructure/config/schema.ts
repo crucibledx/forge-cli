@@ -28,6 +28,7 @@ const syncConfigSchema = z
     local_conflict_strategy: z.enum(localConflictValues).optional(),
     backup: z.boolean().optional(),
     keep_local: z.boolean().optional(),
+    schedule: z.string().optional(),
   })
   .optional()
 

@@ -30,6 +30,7 @@ export interface SyncConfig {
   local_conflict_strategy: LocalConflictStrategy
   backup: boolean
   keep_local: boolean
+  schedule?: string
 }
 
 export const SYNC_CONFIG_DEFAULTS: SyncConfig = {

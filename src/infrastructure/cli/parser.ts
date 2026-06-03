@@ -19,19 +19,40 @@ export function createProgram(commands: CommandDefinition[]): Command {
 
   for (const cmd of commands) {
     const command = program.command(cmd.name).description(cmd.description)
+    applyOptions(command, cmd.options)
 
-    cmd.options.forEach((opt) => command.option(opt.flags, opt.description, opt.defaultValue))
+    if (cmd.subcommands?.length) {
+      registerSubcommands(command, cmd.subcommands)
+    } else {
+      command.action(wrapAction(cmd.action))
+    }
+  }
 
-    command.action(async (options) => {
+  return program
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function wrapAction(action: (options: any) => Promise<void>) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return async (options: any) => {
       try {
-        await cmd.action(options)
+        await action(options)
       } catch (err) {
         renderer.renderNewline()
         renderer.renderError(err instanceof Error ? err.message : String(err))
         process.exit(1)
       }
-    })
+    }
   }
 
-  return program
+  function applyOptions(command: Command, options: CommandDefinition['options']): void {
+    options.forEach((opt) => command.option(opt.flags, opt.description, opt.defaultValue))
+  }
+
+  function registerSubcommands(parent: Command, subcommands: NonNullable<CommandDefinition['subcommands']>): void {
+    for (const sub of subcommands) {
+      const subcmd = parent.command(sub.name).description(sub.description)
+      applyOptions(subcmd, sub.options)
+      subcmd.action(wrapAction(sub.action))
+    }
+  }
 }

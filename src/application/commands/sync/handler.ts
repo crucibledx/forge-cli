@@ -20,9 +20,24 @@ import io from '@infrastructure/io'
 import {getSourceLoader} from '@infrastructure/source'
 
 import {SYNC_MESSAGES as M} from './messages'
-import type {SyncCommandAction} from './types'
+import type {SyncCommandAction, SyncOptions} from './types'
 
 export const runSync: SyncCommandAction = async (options) => {
+  const originalLog = console.log
+  if (options.silent) {
+    console.log = () => {}
+  }
+
+  try {
+    await runSyncInner(options)
+  } finally {
+    if (options.silent) {
+      console.log = originalLog
+    }
+  }
+}
+
+async function runSyncInner(options: SyncOptions): Promise<void> {
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
 

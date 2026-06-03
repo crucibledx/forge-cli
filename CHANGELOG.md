@@ -9,7 +9,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Milestone: **"Auto-Pilot"** — scheduled sync via OS-level cron, `forge scheduler` commands, unattended error logging.
 
-*Version bump — implementation begins.*
+### Added
+
+- **`forge scheduler install`** — registers an OS-level cron job via `Bun.cron` (launchd on macOS, crontab on Linux, Task Scheduler on Windows).
+- **`forge scheduler uninstall`** — removes the registered scheduled task.
+- **`forge scheduler status`** — shows whether the scheduler is installed, the schedule description, last run info, and log path.
+- **Subcommand support** in CLI parser — `CommandDefinition` now supports optional `subcommands[]` array, handled by Commander.
+- **`--silent` flag** on `forge sync` (optional) — suppresses all console output for unattended/scheduled runs. Errors still cause non-zero exit.
+- **`sync.schedule`** config field — optional cron expression (e.g. `"0 9 * * 1"`) for automatic sync.
+- **Scheduler infrastructure** — `Bun.cron` OS-level API with worker script (`scheduled()` handler), cross-platform out of the box.
+- **File logger** — `infrastructure/logger/` writes timestamped log entries (`[ts] LEVEL | message`) to `~/.crucible/logs/scheduled/forge.sync.log`.
+- **Cron validation** via `Bun.cron.parse()`, **human-readable descriptions** via `cronstrue`.
+- **Shared messages** — `noConfig`/`noConfigHint` extracted to `shared/messages.ts`, reused across sync, status, and scheduler.
+- 6 unit tests (cron + logger) + 6 e2e tests (scheduler commands).
 
 ---
 

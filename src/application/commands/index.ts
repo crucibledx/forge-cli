@@ -1,5 +1,6 @@
 import './config'
 import './init'
+import './scheduler'
 import './status'
 import './sync'
 

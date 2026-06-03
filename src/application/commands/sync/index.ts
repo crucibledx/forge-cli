@@ -10,6 +10,7 @@ export const syncCommand: SyncCommandDefinition = {
   options: [
     {flags: '--dry-run', description: 'Preview changes without writing', defaultValue: false},
     {flags: '-v, --verbose', description: 'Show debug output', defaultValue: false},
+    {flags: '--silent', description: 'Suppress all output (for scheduled runs)', defaultValue: false},
   ],
   action: runSync,
 }
