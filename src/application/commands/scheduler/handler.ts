@@ -1,4 +1,4 @@
-import {describeCron, isValidCron} from '@domain/scheduler'
+import {describeCron, isValidCron, nextCronRun} from '@domain/scheduler'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig, writeProjectConfig} from '@infrastructure/config'
@@ -15,6 +15,19 @@ function resolveForgeCommand(): string {
   const execPath = process.execPath
   const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
   return `${base} sync --silent`
+}
+
+const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function formatDateTime(date: Date): string {
+  const day = days[date.getDay()]
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mon = months[date.getMonth()]
+  const yyyy = date.getFullYear()
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  return `${day} ${dd} ${mon} ${yyyy}, ${hh}:${mm}`
 }
 
 export async function runSchedulerInstall(): Promise<void> {
@@ -153,6 +166,13 @@ async function showStatus(projectRoot: string): Promise<void> {
   const schedule = context.projectConfig?.sync?.schedule
   if (schedule) {
     renderer.renderDim(M.output.status.schedule(describeCron(schedule)))
+
+    if (installed) {
+      const next = nextCronRun(schedule)
+      if (next) {
+        renderer.renderDim(M.output.status.nextRun(formatDateTime(next)))
+      }
+    }
   }
 
   renderer.renderNewline()
@@ -184,6 +204,11 @@ export async function runSchedulerStatus(): Promise<void> {
   const schedule = context.projectConfig.sync?.schedule
   if (schedule) {
     renderer.renderDim(M.output.status.schedule(describeCron(schedule)))
+
+    const next = nextCronRun(schedule)
+    if (next) {
+      renderer.renderDim(M.output.status.nextRun(formatDateTime(next)))
+    }
   }
 
   const logger = createSchedulerLogger()

@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.4] — 2026-06-03
+
+### Added
+
+- **Next run display** in `forge scheduler status` — shows the next scheduled run date/time calculated from the cron expression (via `cron-parser`).
+- **30-day log rotation** — scheduled sync runs (`--silent`) automatically prune log entries older than 30 days after each run.
+
+### Dependencies
+
+- Added `cron-parser@5.5.0` for next cron occurrence calculation.
+
+---
+
 ## [0.4.3] — 2026-06-03
 
 ### Changed

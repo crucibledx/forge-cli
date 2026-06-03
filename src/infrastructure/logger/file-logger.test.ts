@@ -10,6 +10,7 @@ describe('file-logger (integration)', () => {
     expect(typeof logger.warn).toBe('function')
     expect(typeof logger.error).toBe('function')
     expect(typeof logger.readRecent).toBe('function')
+    expect(typeof logger.rotate).toBe('function')
     expect(typeof logger.getLogPath).toBe('function')
   })
 

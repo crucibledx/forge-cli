@@ -31,6 +31,7 @@ export const SCHEDULER_MESSAGES = {
       installed: 'Scheduler: installed',
       notInstalled: 'Scheduler: not installed',
       schedule: (desc: string) => `Schedule: ${desc}`,
+      nextRun: (time: string) => `Next run: ${time}`,
       lastRun: (time: string, success: boolean) => `Last run: ${time}  ${success ? '✓ (no errors)' : '✗ (had errors)'}`,
       noRuns: 'Last run: never',
     },

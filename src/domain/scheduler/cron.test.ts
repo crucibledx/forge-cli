@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 
-import {describeCron, isValidCron} from './cron'
+import {describeCron, isValidCron, nextCronRun} from './cron'
 
 describe('isValidCron', () => {
   it('accepts standard 5-field cron', () => {
@@ -34,5 +34,32 @@ describe('describeCron', () => {
 
   it('falls back to raw expression for invalid input', () => {
     expect(describeCron('not a cron')).toBe('not a cron')
+  })
+})
+
+describe('nextCronRun', () => {
+  it('returns next occurrence for weekly schedule', () => {
+    const from = new Date('2026-06-01T10:00:00Z') // Sunday
+    const next = nextCronRun('0 9 * * 1', from) // Every Monday at 9am
+    expect(next).not.toBeNull()
+    expect(next!.getDay()).toBe(1) // Monday
+  })
+
+  it('returns next occurrence for daily schedule', () => {
+    const from = new Date('2026-06-01T08:00:00Z')
+    const next = nextCronRun('0 9 * * *', from)
+    expect(next).not.toBeNull()
+    expect(next!.getHours()).toBe(9)
+  })
+
+  it('returns next occurrence for interval schedule', () => {
+    const from = new Date('2026-06-01T08:00:00Z')
+    const next = nextCronRun('*/5 * * * *', from)
+    expect(next).not.toBeNull()
+    expect(next!.getTime()).toBeGreaterThan(from.getTime())
+  })
+
+  it('returns null for invalid expression', () => {
+    expect(nextCronRun('not a cron')).toBeNull()
   })
 })

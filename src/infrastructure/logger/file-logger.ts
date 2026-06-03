@@ -1,5 +1,5 @@
 import {existsSync} from 'node:fs'
-import {appendFile, mkdir, readFile} from 'node:fs/promises'
+import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
@@ -9,6 +9,7 @@ import {LOG_LEVELS} from './types'
 const LOG_DIR = join(homedir(), '.crucible', 'logs', 'scheduled')
 const LOG_FILE = 'forge.sync.log'
 const DEFAULT_MAX_LINES = 50
+const DEFAULT_MAX_AGE_DAYS = 30
 
 function formatTimestamp(): string {
   return new Date().toISOString()
@@ -53,6 +54,24 @@ export function createSchedulerLogger(): SchedulerLogger {
         .slice(-maxLines)
         .map(parseLine)
         .filter((e): e is LogEntry => e !== null)
+    },
+
+    async rotate(maxAgeDays = DEFAULT_MAX_AGE_DAYS): Promise<void> {
+      if (!existsSync(logPath)) return
+
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - maxAgeDays)
+
+      const content = await readFile(logPath, 'utf-8')
+      const lines = content.split('\n')
+      const kept = lines.filter((line) => {
+        const match = line.match(/^\[(.+?)]\s/)
+        if (!match) return false
+        const ts = new Date(match[1])
+        return !isNaN(ts.getTime()) && ts >= cutoff
+      })
+
+      await writeFile(logPath, kept.length > 0 ? kept.join('\n') + '\n' : '')
     },
 
     getLogPath: () => logPath,

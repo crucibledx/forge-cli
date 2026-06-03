@@ -17,5 +17,6 @@ export interface SchedulerLogger {
   warn: (message: string) => Promise<void>
   error: (message: string) => Promise<void>
   readRecent: (maxLines?: number) => Promise<LogEntry[]>
+  rotate: (maxAgeDays?: number) => Promise<void>
   getLogPath: () => string
 }

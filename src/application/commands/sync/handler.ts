@@ -17,6 +17,7 @@ import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure
 import {applyMutations, collectFiles, readFileContent, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
+import {createSchedulerLogger} from '@infrastructure/logger'
 import {getSourceLoader} from '@infrastructure/source'
 
 import {SYNC_MESSAGES as M} from './messages'
@@ -33,6 +34,7 @@ export const runSync: SyncCommandAction = async (options) => {
   } finally {
     if (options.silent) {
       console.log = originalLog
+      await createSchedulerLogger().rotate()
     }
   }
 }
