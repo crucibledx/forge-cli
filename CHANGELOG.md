@@ -5,22 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.5.0] — 2026-06-XX
+## [0.5.0] — 2026-06-09
 
 Milestone: **"Smart Sources"** — pre-structured source layouts, global config support.
 
 ### Added
 
-- **Pre-structured source layout** — sources containing assistant-specific directories (`.claude/`, `.cursor/`, `.windsurf/`, `.github/`, `.cline/`) are detected and copied as-is without transforms.
-- **Layout detection** — `detectSourceLayout()` auto-classifies sources as `canonical` or `pre-structured` based on top-level directory names.
-- **Explicit layout override** — `layout: auto | canonical | pre-structured` field on source config.
-- **Global config (`--global`)** — `forge init --global`, `forge sync --global`, `forge config --global` operate on `~/.crucible/forge.config.yaml` and sync to `~/`.
-- **`--global` flag** — shared option across all commands. `io.resolveProjectRoot()` returns `homedir()` when set.
+- **Pre-structured source layout** — sources containing assistant-specific directories (`.claude/`, `.cursor/`, `.windsurf/`, `.github/`, `.cline/`) are auto-detected and copied as-is without transforms.
+- **Layout auto-detection** — `detectSourceLayout()` classifies sources as `canonical` or `pre-structured` based on top-level directory names. No config field needed — forge always does the right thing.
+- **Global config (`--global`)** — `forge --global <command>` operates on `~/.crucible/forge.config.yaml` and syncs to `~/`.
 
 ### Changed
 
-- Source loaders pass layout info through `SourceLoadResult`.
-- Sync resolver skips transform chain for pre-structured sources.
+- `collectFiles()` now includes known assistant dot-directories (`.claude/`, `.cursor/`, etc.) at source root.
+- **Resolver encapsulation** — `resolveTargets()` auto-detects layout and dispatches via `Record<SourceLayout, ResolverFn>` map. Sync handler calls one function with zero layout knowledge.
+- `SOURCE_LAYOUTS` const object replaces string literals; `SourceLayout` type derived from it.
+- Program-level options and hooks extracted to `application/program.ts` + `application/hooks.ts`.
 
 ---
 

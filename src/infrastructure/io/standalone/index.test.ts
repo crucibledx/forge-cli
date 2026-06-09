@@ -14,12 +14,38 @@ mock.module('@infrastructure/config', () => ({
 
 describe('standaloneIO', () => {
   describe('resolveProjectRoot', () => {
-    it('returns process.cwd()', async () => {
-      const {standaloneIO} = await import('./index')
+    it('returns process.cwd() by default', async () => {
+      const {setGlobalMode, standaloneIO} = await import('./index')
+      setGlobalMode(false)
       const cwdSpy = spyOn(process, 'cwd').mockReturnValue('/mocked/cwd')
 
       expect(standaloneIO.resolveProjectRoot()).toBe('/mocked/cwd')
       cwdSpy.mockRestore()
+    })
+
+    it('returns homedir() when global mode is enabled', async () => {
+      const {homedir} = await import('node:os')
+      const {setGlobalMode, standaloneIO} = await import('./index')
+      setGlobalMode(true)
+
+      expect(standaloneIO.resolveProjectRoot()).toBe(homedir())
+      setGlobalMode(false)
+    })
+  })
+
+  describe('globalMode', () => {
+    it('defaults to false', async () => {
+      const {isGlobalMode, setGlobalMode} = await import('./index')
+      setGlobalMode(false)
+      expect(isGlobalMode()).toBe(false)
+    })
+
+    it('can be toggled', async () => {
+      const {isGlobalMode, setGlobalMode} = await import('./index')
+      setGlobalMode(true)
+      expect(isGlobalMode()).toBe(true)
+      setGlobalMode(false)
+      expect(isGlobalMode()).toBe(false)
     })
   })
 

@@ -14,29 +14,32 @@ export async function writeSourceFile(sourceDir: string, relativePath: string, c
 
 /**
  * Descriptor for building a complete source tree.
+ * Supports nested directories: values can be files (string) or subdirectories (nested record).
  */
-export interface SourceTreeDescriptor {
-  skills?: Record<string, string>
-  rules?: Record<string, string>
-  workflows?: Record<string, string>
-}
+export type SourceTreeDescriptor = Record<string, string | Record<string, string | Record<string, string>>>
 
 /**
  * Creates a complete source directory from a descriptor.
+ * Supports arbitrarily nested structures.
  *
  * @example
  *   await writeSourceTree(sourceDir, {
  *     skills: { 'deploy.md': '# Deploy' },
  *     rules: { 'api.md': RULE_WITH_PATHS },
+ *     '.claude': { rules: { 'api.md': '# Claude rule' } },
  *   })
  */
-export async function writeSourceTree(sourceDir: string, tree: SourceTreeDescriptor): Promise<void> {
+export async function writeSourceTree(sourceDir: string, tree: SourceTreeDescriptor, prefix = ''): Promise<void> {
   const writes: Promise<void>[] = []
 
-  for (const [category, files] of Object.entries(tree)) {
-    if (!files) continue
-    for (const [filename, content] of Object.entries(files as Record<string, string>)) {
-      writes.push(writeSourceFile(sourceDir, `${category}/${filename}`, content))
+  for (const [key, value] of Object.entries(tree)) {
+    if (!value) continue
+    const relativePath = prefix ? `${prefix}/${key}` : key
+
+    if (typeof value === 'string') {
+      writes.push(writeSourceFile(sourceDir, relativePath, value))
+    } else {
+      writes.push(writeSourceTree(sourceDir, value as SourceTreeDescriptor, relativePath))
     }
   }
 

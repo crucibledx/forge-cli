@@ -2,8 +2,20 @@ import {existsSync} from 'node:fs'
 import {readdir, readFile} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 
+import {getAllAssistants} from '@domain/assistants'
 import type {SyncState} from '@domain/sync/state'
 import type {SourceFile} from '@domain/sync/types'
+
+function getKnownAssistantDirs(): Set<string> {
+  const dirs = new Set<string>()
+  for (const assistant of getAllAssistants()) {
+    for (const mapping of assistant.targetMappings) {
+      const topDir = mapping.destination.split('/')[0]
+      if (topDir) dirs.add(topDir)
+    }
+  }
+  return dirs
+}
 
 export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
   if (!existsSync(baseDir)) {
@@ -11,7 +23,8 @@ export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
   }
 
   const files: SourceFile[] = []
-  await walk(baseDir, baseDir, files)
+  const assistantDirs = getKnownAssistantDirs()
+  await walk(baseDir, baseDir, files, assistantDirs, true)
   return files
 }
 
@@ -39,16 +52,25 @@ export async function readDiskContents(
   return result
 }
 
-async function walk(baseDir: string, currentDir: string, files: SourceFile[]): Promise<void> {
+async function walk(
+  baseDir: string,
+  currentDir: string,
+  files: SourceFile[],
+  assistantDirs: Set<string>,
+  isTopLevel: boolean,
+): Promise<void> {
   const entries = await readdir(currentDir, {withFileTypes: true})
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue
+    if (entry.name.startsWith('.')) {
+      // At top level, allow known assistant dot-directories (.claude, .cursor, etc.)
+      if (!(isTopLevel && entry.isDirectory() && assistantDirs.has(entry.name))) continue
+    }
 
     const fullPath = join(currentDir, entry.name)
 
     if (entry.isDirectory()) {
-      await walk(baseDir, fullPath, files)
+      await walk(baseDir, fullPath, files, assistantDirs, false)
     } else if (entry.isFile()) {
       const content = await readFile(fullPath, 'utf-8')
       const relativePath = relative(baseDir, fullPath)

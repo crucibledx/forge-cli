@@ -1,3 +1,8 @@
+import '../assistants/claude-code'
+import '../assistants/cursor'
+import '../assistants/windsurf'
+import '../assistants/copilot'
+import '../assistants/cline'
 import '../transforms/frontmatter-rename'
 import '../transforms/rename'
 
@@ -32,6 +37,16 @@ const claudeDef: AssistantDefinition = {
   targetMappings: [
     {sourceGlob: 'skills/**', destination: '.claude/skills/'},
     {sourceGlob: 'rules/**', destination: '.claude/rules/'},
+  ],
+}
+
+const windsurfDef: AssistantDefinition = {
+  id: 'windsurf',
+  name: 'Windsurf',
+  detection: {directories: ['.windsurf'], files: []},
+  targetMappings: [
+    {sourceGlob: 'skills/**', destination: '.windsurf/skills/'},
+    {sourceGlob: 'rules/**', destination: '.windsurf/rules/'},
   ],
 }
 
@@ -204,5 +219,54 @@ describe('resolveTargets', () => {
     ]
     const result = resolveTargets(ruleWithFrontmatter, [defWithBadContent])
     expect(result[0].content).toContain('paths:')
+  })
+})
+
+// ── Pre-structured resolver (auto-detected via resolveTargets) ──────────
+
+const claudeOnlyDefs: readonly AssistantDefinition[] = [claudeDef]
+const multiDefs: readonly AssistantDefinition[] = [claudeDef, cursorDef, windsurfDef]
+
+function preFiles(...paths: string[]): SourceFile[] {
+  return paths.map((p) => ({relativePath: p, content: `content of ${p}`}))
+}
+
+describe('resolveTargets — pre-structured layout', () => {
+  it('maps files to their original paths', () => {
+    const result = resolveTargets(preFiles('.claude/rules/api.md', '.claude/skills/deploy.md'), claudeOnlyDefs, 'src')
+
+    expect(result).toHaveLength(2)
+    expect(result[0].targetPath).toBe('.claude/rules/api.md')
+    expect(result[0].sourcePath).toBe('.claude/rules/api.md')
+    expect(result[0].assistantId).toBe('claude-code')
+    expect(result[0].sourceName).toBe('src')
+  })
+
+  it('filters out files for disabled assistants', () => {
+    const result = resolveTargets(preFiles('.claude/rules/api.md', '.cursor/rules/api.mdc'), claudeOnlyDefs)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].assistantId).toBe('claude-code')
+  })
+
+  it('includes files for multiple enabled assistants', () => {
+    const result = resolveTargets(
+      preFiles('.claude/rules/api.md', '.cursor/rules/api.mdc', '.windsurf/rules/api.md'),
+      multiDefs,
+    )
+
+    expect(result).toHaveLength(3)
+  })
+
+  it('returns empty for files with no matching assistant', () => {
+    const result = resolveTargets(preFiles('random/file.md'), claudeOnlyDefs)
+
+    expect(result).toHaveLength(0)
+  })
+
+  it('preserves content', () => {
+    const result = resolveTargets(preFiles('.claude/rules/api.md'), claudeOnlyDefs)
+
+    expect(result[0].content).toBe('content of .claude/rules/api.md')
   })
 })
