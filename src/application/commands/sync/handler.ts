@@ -54,7 +54,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<v
   }
 
   const config = context.projectConfig
-  validateConfig(config)
+  validateConfig(config, true)
 
   const assistantIds = config.assistants.map((a) => a.id)
   const sourceNames = config.sources.map((s) => s.name)
@@ -113,9 +113,9 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<v
   logger.info('sync completed', {files: summaries.length, mutations: mutations.length})
 }
 
-export function validateConfig(config: ProjectConfig): void {
+export function validateConfig(config: ProjectConfig, configExists = false): void {
   if (config.sources.length === 0) {
-    renderer.renderError(M.errors.noSource, M.errors.noSourceHint)
+    renderer.renderError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
     process.exit(1)
   }
 

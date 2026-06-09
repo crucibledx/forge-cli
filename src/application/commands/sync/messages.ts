@@ -5,6 +5,7 @@ export const SYNC_MESSAGES = {
     ...SHARED_MESSAGES.errors,
     noSource: 'No source configured',
     noSourceHint: 'Run `forge init` to configure a source',
+    noSourceHintExisting: 'Run `forge config` to add a source',
     noAssistants: 'No assistants enabled',
     noAssistantsHint: 'Run `forge init` to configure assistants',
     applyFailed: (error: string) => `Failed: ${error}`,

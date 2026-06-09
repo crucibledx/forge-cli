@@ -15,6 +15,8 @@ export const SCHEDULER_MESSAGES = {
     noScheduleHint: 'Add `sync.schedule` to your config (e.g. "0 9 * * 1").',
     invalidCron: (expr: string) => `Invalid cron expression: "${expr}"`,
     installFailed: (err: string) => `Failed to install scheduler: ${err}`,
+    noSources: 'No sources configured — scheduler will have nothing to sync.',
+    noSourcesHint: 'Add a source with `forge config` before installing.',
     uninstallFailed: (err: string) => `Failed to uninstall scheduler: ${err}`,
   },
   confirm: {

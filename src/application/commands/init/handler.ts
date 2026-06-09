@@ -6,12 +6,19 @@ import * as renderer from '@infrastructure/cli/renderer'
 import {projectConfigExists, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
+import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
 import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
 import {promptNewSource} from '../shared/source.prompt'
 import {INIT_MESSAGES as M} from './messages'
 import type {InitCommandAction} from './types'
+
+function resolveForgeCommand(): string {
+  const execPath = process.execPath
+  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
+  return `${base} sync --silent`
+}
 
 export const runInit: InitCommandAction = async (options) => {
   let configVersion = 0
@@ -89,7 +96,24 @@ export const runInit: InitCommandAction = async (options) => {
   renderer.renderSuccess(M.configWrittenTo(relative(projectRoot, configPath)))
   renderer.renderNewline()
 
-  // 7. Offer to sync now
+  // 7. Offer to install scheduler if schedule was set
+  if (schedule) {
+    const installScheduler = await prompts.confirm({
+      message: M.scheduler.installNow,
+      initialValue: true,
+    })
+    if (installScheduler) {
+      try {
+        const backend = getSchedulerBackend()
+        await backend.install(projectRoot, schedule, resolveForgeCommand())
+        renderer.renderSuccess(M.scheduler.installed)
+      } catch (err) {
+        renderer.renderWarning(M.scheduler.failed(err instanceof Error ? err.message : String(err)))
+      }
+    }
+  }
+
+  // 8. Offer to sync now
   if (sources.length > 0) {
     const syncNow = await prompts.confirm({
       message: M.sync.runNow,

@@ -2,6 +2,7 @@ import {describeCron} from '@domain/scheduler'
 import {promptSchedule} from '@application/commands/shared/scheduler.prompt'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
+import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {sectionsRegistry} from './registry'
 import type {ConfigSectionEntry} from './types'
@@ -15,6 +16,9 @@ export const SCHEDULER_SECTION_MESSAGES = {
   actionDone: 'Done',
   cleared: 'Schedule cleared.',
   hintNone: 'not configured',
+  installNow: 'Install the scheduler now?',
+  installSuccess: (desc: string) => `Scheduler installed. Schedule: ${desc}`,
+  installFailed: (error: string) => `Failed to install scheduler: ${error}`,
 } as const
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -35,7 +39,7 @@ export const schedulerSection: ConfigSectionEntry = {
     return describeCron(schedule)
   },
 
-  edit: async (config) => {
+  edit: async (config, projectRoot) => {
     const M = SCHEDULER_SECTION_MESSAGES
     const currentSchedule = config.sync?.schedule
 
@@ -59,7 +63,9 @@ export const schedulerSection: ConfigSectionEntry = {
     if (action === ACTION_SET) {
       const schedule = await promptSchedule(currentSchedule)
       if (schedule) {
-        return {...config, sync: {...(config.sync ?? {}), schedule}}
+        const updated = {...config, sync: {...(config.sync ?? {}), schedule}}
+        await offerInstall(schedule, projectRoot)
+        return updated
       }
     }
 
@@ -68,3 +74,26 @@ export const schedulerSection: ConfigSectionEntry = {
 }
 
 sectionsRegistry.push(schedulerSection)
+
+function resolveForgeCommand(): string {
+  const execPath = process.execPath
+  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
+  return `${base} sync --silent`
+}
+
+async function offerInstall(schedule: string, projectRoot: string): Promise<void> {
+  const M = SCHEDULER_SECTION_MESSAGES
+  const backend = getSchedulerBackend()
+  const installed = await backend.isInstalled(projectRoot)
+  if (installed) return
+
+  const install = await prompts.confirm({message: M.installNow, initialValue: true})
+  if (!install) return
+
+  try {
+    await backend.install(projectRoot, schedule, resolveForgeCommand())
+    renderer.renderSuccess(M.installSuccess(describeCron(schedule)))
+  } catch (err) {
+    renderer.renderWarning(M.installFailed(err instanceof Error ? err.message : String(err)))
+  }
+}

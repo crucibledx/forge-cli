@@ -101,7 +101,7 @@ describe('log writing and reading', () => {
   it('respects log level filtering', async () => {
     const {createFileLogger} = await import('./file-logger')
     const logger = createFileLogger(LOG_LEVELS.ERROR)
-    const beforeEntries = await logger.readRecent(100)
+    const beforeEntries = await logger.readRecent(10_000)
     const beforeCount = beforeEntries.length
 
     logger.info('should not appear')
@@ -109,7 +109,7 @@ describe('log writing and reading', () => {
     logger.error('should appear')
     logger.flush()
 
-    const afterEntries = await logger.readRecent(100)
+    const afterEntries = await logger.readRecent(10_000)
     const newEntries = afterEntries.slice(beforeCount)
 
     expect(newEntries).toHaveLength(1)

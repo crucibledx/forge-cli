@@ -40,6 +40,11 @@ export async function runSchedulerInstall(): Promise<void> {
     process.exit(1)
   }
 
+  if (context.projectConfig.sources.length === 0) {
+    renderer.renderWarning(M.errors.noSources)
+    renderer.renderDim(M.errors.noSourcesHint)
+  }
+
   const schedule = context.projectConfig.sync?.schedule
   if (!schedule) {
     renderer.renderError(M.errors.noSchedule, M.errors.noScheduleHint)

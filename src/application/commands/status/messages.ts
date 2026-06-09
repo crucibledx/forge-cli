@@ -5,6 +5,21 @@ export const STATUS_MESSAGES = {
     ...SHARED_MESSAGES.errors,
     neverSynced: 'No sync state found — run `forge sync` first.',
   },
+  context: {
+    assistants: (ids: string[]) => `Assistants: ${ids.join(', ')}`,
+    sources: (names: string[]) => `Sources: ${names.join(', ')}`,
+    noSources: 'Sources: none configured',
+    schedule: (desc: string) => `Schedule: ${desc}`,
+    noSchedule: 'Schedule: not configured',
+    schedulerInstalled: 'Scheduler: installed',
+    schedulerNotInstalled: 'Scheduler: not installed',
+    hintSchedulerActive: (nextRun: string) =>
+      `Next auto-sync: ${nextRun}. Run \`forge sync\` if you don't want to wait.`,
+    hintScheduleNotInstalled:
+      'Schedule is configured but scheduler is not installed. Run `forge scheduler install` or `forge sync` manually.',
+    hintNoSchedule: 'Run `forge sync` to sync, or `forge scheduler` to set up auto-sync.',
+    hintNoSources: 'Add a source with `forge config` first, then run `forge sync`.',
+  },
   output: {
     configFound: (path: string) => `Config: ${path}`,
     lastSync: (timeAgo: string) => `Last sync: ${timeAgo}`,

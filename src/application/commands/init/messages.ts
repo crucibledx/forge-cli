@@ -34,6 +34,12 @@ export const INIT_MESSAGES = {
     selectType: SP.selectType,
   },
 
+  scheduler: {
+    installNow: 'Install the scheduler now?',
+    installed: 'Scheduler installed.',
+    failed: (error: string) => `Failed to install scheduler: ${error}`,
+  },
+
   sync: {
     runNow: 'Run forge sync now?',
   },

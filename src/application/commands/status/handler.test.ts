@@ -51,6 +51,15 @@ mock.module('@infrastructure/config', () => ({
   writeSyncState: async () => {},
 }))
 
+mock.module('@infrastructure/scheduler', () => ({
+  getSchedulerBackend: () => ({
+    isInstalled: async () => false,
+    install: async () => {},
+    uninstall: async () => {},
+    getJobTitle: () => 'forge-sync-fake',
+  }),
+}))
+
 mock.module('@infrastructure/source', () => ({
   getSourceLoader: () => ({
     load: async () => {

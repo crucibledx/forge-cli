@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.2] — 2026-06-09
+
+### Added
+
+- **`forge init` — offer to install scheduler** after setting a schedule during init wizard.
+- **`forge config` scheduler section — offer to install scheduler** immediately after setting a schedule.
+- **`forge status` — rich context when no sync state exists:**
+  - Shows assistants, sources, schedule, and scheduler install status.
+  - Smart hints based on state: next auto-sync time, missing scheduler install, no sources, or manual sync suggestion.
+- **`forge scheduler install` — warn if no sources configured** (scheduler would have nothing to sync).
+
+### Changed
+
+- **`forge sync` no-source error** now suggests `forge config` (not `forge init`) when config already exists.
+
+### Fixed
+
+- Log level filtering test now handles large log files without false failures.
+
+---
+
 ## [0.6.1] — 2026-06-09
 
 ### Added
