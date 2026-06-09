@@ -68,6 +68,10 @@ export async function runStatus(cwd: string): Promise<CLIResult> {
 /**
  * Runs `forge scheduler <subcommand>` non-interactively.
  */
+export async function runHealth(cwd: string): Promise<CLIResult> {
+  return runCommand(cwd, 'health')
+}
+
 export async function runScheduler(cwd: string, subcommand: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'scheduler', [subcommand, ...args])
 }

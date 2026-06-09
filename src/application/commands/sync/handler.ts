@@ -7,6 +7,8 @@ import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import type {LocalConflict} from '@domain/sync/conflict'
 import {CONFLICT_ACTIONS, detectLocalConflict, LocalConflictError, resolveLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
+import type {SyncReport} from '@domain/sync/report'
+import {buildSyncReport} from '@domain/sync/report'
 import {resolveTargets} from '@domain/sync/resolver'
 import type {SyncState} from '@domain/sync/state'
 import {buildSyncState} from '@domain/sync/state'
@@ -19,6 +21,7 @@ import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import type {FileLogger} from '@infrastructure/logger'
 import {createFileLogger} from '@infrastructure/logger'
+import {createReportService} from '@infrastructure/report'
 import {getSourceLoader} from '@infrastructure/source'
 
 import {SYNC_MESSAGES as M} from './messages'
@@ -33,7 +36,12 @@ export const runSync: SyncCommandAction = async (options) => {
   const logger = createFileLogger()
 
   try {
-    await runSyncInner(options, logger)
+    const report = await runSyncInner(options, logger)
+    if (report) {
+      const reports = createReportService()
+      await reports.writeReport(report)
+      await reports.rotate()
+    }
   } finally {
     if (options.silent) {
       console.log = originalLog
@@ -43,7 +51,8 @@ export const runSync: SyncCommandAction = async (options) => {
   }
 }
 
-async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<void> {
+async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<SyncReport | null> {
+  const startTime = Date.now()
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
 
@@ -56,7 +65,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<v
   const config = context.projectConfig
   validateConfig(config, true)
 
-  const assistantIds = config.assistants.map((a) => a.id)
+  const assistantIds = config.assistants.filter((a) => a.enabled !== false).map((a) => a.id)
   const sourceNames = config.sources.map((s) => s.name)
   logger.info('sync started', {assistants: assistantIds, sources: sourceNames})
 
@@ -66,7 +75,17 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<v
   if (allResolved.length === 0) {
     logger.warn('sync finished: no files to sync')
     renderer.renderWarning(M.warnings.noFilesToSync)
-    return
+    return buildSyncReport({
+      startTime,
+      sources: sourceNames,
+      assistants: assistantIds,
+      synced: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: 0,
+      driftDetails: [],
+      success: true,
+    })
   }
 
   const strategy = config.sync?.source_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.source_conflict_strategy
@@ -106,11 +125,27 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<v
 
   if (options.dryRun) {
     logger.info('sync dry-run completed', {files: summaries.length})
-    return
+    return null
   }
 
   await executePlan(projectRoot, mutations, resolved, context)
   logger.info('sync completed', {files: summaries.length, mutations: mutations.length})
+
+  return buildSyncReport({
+    startTime,
+    sources: sourceNames,
+    assistants: assistantIds,
+    synced: countByStatus(summaries, SYNC_FILE_STATUSES.NEW, SYNC_FILE_STATUSES.UPDATE, SYNC_FILE_STATUSES.DELETED),
+    skipped: countByStatus(summaries, SYNC_FILE_STATUSES.NO_CHANGE),
+    conflicts: countByStatus(summaries, SYNC_FILE_STATUSES.SKIPPED),
+    errors: countByStatus(summaries, SYNC_FILE_STATUSES.ERROR),
+    driftDetails: [],
+    success: true,
+  })
+}
+
+function countByStatus(summaries: SyncFileSummary[], ...statuses: string[]): number {
+  return summaries.filter((s) => statuses.includes(s.status)).length
 }
 
 export function validateConfig(config: ProjectConfig, configExists = false): void {

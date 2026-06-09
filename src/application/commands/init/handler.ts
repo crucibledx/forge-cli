@@ -8,17 +8,12 @@ import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
+import {resolveForgeCommand} from '../shared'
 import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
 import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
 import {promptNewSource} from '../shared/source.prompt'
 import {INIT_MESSAGES as M} from './messages'
 import type {InitCommandAction} from './types'
-
-function resolveForgeCommand(): string {
-  const execPath = process.execPath
-  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
-  return `${base} sync --silent`
-}
 
 export const runInit: InitCommandAction = async (options) => {
   let configVersion = 0

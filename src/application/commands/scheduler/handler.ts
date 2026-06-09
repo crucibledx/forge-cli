@@ -1,3 +1,4 @@
+import {formatDateTime} from '@domain/format'
 import {describeCron, isValidCron, nextCronRun} from '@domain/scheduler'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
@@ -6,29 +7,9 @@ import io from '@infrastructure/io'
 import {createFileLogger, getLogDir, LOG_LEVELS} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
+import {resolveForgeCommand} from '../shared'
 import {promptSchedule} from '../shared/scheduler.prompt'
 import {SCHEDULER_MESSAGES as M} from './messages'
-
-function resolveForgeCommand(): string {
-  // Compiled binary: process.execPath IS the forge binary
-  // Dev mode (bun run): process.execPath is bun, argv[1] is the script
-  const execPath = process.execPath
-  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
-  return `${base} sync --silent`
-}
-
-const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function formatDateTime(date: Date): string {
-  const day = days[date.getDay()]
-  const dd = String(date.getDate()).padStart(2, '0')
-  const mon = months[date.getMonth()]
-  const yyyy = date.getFullYear()
-  const hh = String(date.getHours()).padStart(2, '0')
-  const mm = String(date.getMinutes()).padStart(2, '0')
-  return `${day} ${dd} ${mon} ${yyyy}, ${hh}:${mm}`
-}
 
 export async function runSchedulerInstall(): Promise<void> {
   const logger = createFileLogger()

@@ -1,6 +1,7 @@
 import {getAssistant} from '@domain/assistants'
 import type {ProjectConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {formatShortDateTime} from '@domain/format'
 import {describeCron, nextCronRun} from '@domain/scheduler'
 import {detectDrift, detectFullDrift} from '@domain/sync/drift'
 import {resolveSourceConflicts} from '@domain/sync/merge'
@@ -81,21 +82,13 @@ async function showConfigContext(config: ProjectConfig, projectRoot: string): Pr
     renderer.renderDim(M.context.hintNoSources)
   } else if (installed && schedule) {
     const next = nextCronRun(schedule)
-    const nextStr = next ? formatNextRun(next) : 'unknown'
+    const nextStr = next ? formatShortDateTime(next) : 'unknown'
     renderer.renderDim(M.context.hintSchedulerActive(nextStr))
   } else if (schedule && !installed) {
     renderer.renderDim(M.context.hintScheduleNotInstalled)
   } else {
     renderer.renderDim(M.context.hintNoSchedule)
   }
-}
-
-function formatNextRun(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, '0')
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  return `${dd}/${mm} ${hh}:${min}`
 }
 
 async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string, string> | null> {

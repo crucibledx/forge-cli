@@ -1,4 +1,5 @@
 import {describeCron} from '@domain/scheduler'
+import {resolveForgeCommand} from '@application/commands/shared'
 import {promptSchedule} from '@application/commands/shared/scheduler.prompt'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
@@ -74,12 +75,6 @@ export const schedulerSection: ConfigSectionEntry = {
 }
 
 sectionsRegistry.push(schedulerSection)
-
-function resolveForgeCommand(): string {
-  const execPath = process.execPath
-  const base = execPath.endsWith('/bun') || execPath.endsWith('/bun.exe') ? `${execPath} ${process.argv[1]}` : execPath
-  return `${base} sync --silent`
-}
 
 async function offerInstall(schedule: string, projectRoot: string): Promise<void> {
   const M = SCHEDULER_SECTION_MESSAGES

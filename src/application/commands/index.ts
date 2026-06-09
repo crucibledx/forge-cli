@@ -1,4 +1,5 @@
 import './config'
+import './health'
 import './init'
 import './scheduler'
 import './status'

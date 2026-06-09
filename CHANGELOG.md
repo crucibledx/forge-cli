@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.3] — 2026-06-09
+
+### Added
+
+- **`forge health` command** — SLI dashboard showing last sync, sync frequency, config drift, source reachability, active assistants, log and report stats.
+- **Sync Reports** — every `forge sync` now produces a `SyncReport` written to `~/.crucible/forge/reports/`:
+  - `latest.json` — always the most recent sync result.
+  - `history/YYYY-MM-DD-HHmmss.json` — retained for 30 days (matches log rotation).
+- **`SyncReport` domain type** (`domain/sync/report.ts`) — captures timing, file counts (synced/skipped/conflicts/errors), drift details, and success status.
+- **`infrastructure/report` module** — report writer, reader, and 30-day rotation.
+- E2E tests for `forge health` and sync report generation.
+- Unit tests for `buildSyncReport`, report service, and `forge health` handler.
+
+### Changed
+
+- **Extracted `resolveForgeCommand`** from 3 copies into `application/commands/shared/resolve-command.ts`.
+- **Extracted date formatters** (`formatTimeAgo`, `formatDateTime`, `formatShortDateTime`) into `domain/format/` — removed duplicates from status/display, health/handler, scheduler/handler, status/handler.
+- **SyncReport conflicts count** now correctly counts skipped-due-to-conflict files instead of always 0.
+
+---
+
 ## [0.6.2] — 2026-06-09
 
 ### Added
