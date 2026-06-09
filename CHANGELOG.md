@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.0] — 2026-06-09
+
+### Added
+
+- **Structured logging via pino** — all sync events are written as JSON lines to `~/.crucible/forge/logs/forge-YYYY-MM-DD.jsonl`.
+- `FileLogger` interface with `error`, `warn`, `info`, `debug`, `trace` methods and structured data support.
+- `--log-level <level>` program option (silent, error, warn, info, debug, trace) — controls file log verbosity.
+- `setLogLevel` / `getLogLevel` module state with `preAction` program hook.
+- Date-based log files with automatic rotation (deletes files older than 30 days).
+- `readRecent()` reads across the last 5 daily log files for `forge scheduler status`.
+- 8 unit tests for file logger (interface, state, writing, reading, filtering, rotation).
+
+### Changed
+
+- Replaced custom plain-text `SchedulerLogger` with pino-based `FileLogger`.
+- Log path moved from `~/.crucible/logs/scheduled/forge.sync.log` to `~/.crucible/forge/logs/`.
+- Sync handler now logs key events: start, resolve, conflicts, completion, errors.
+
+---
+
 ## [0.5.1] — 2026-06-09
 
 ### Added

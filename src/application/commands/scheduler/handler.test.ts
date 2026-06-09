@@ -11,7 +11,7 @@ let mockSchedule: string | undefined = '0 9 * * 1'
 let mockIsInstalled = false
 let mockInstallError: Error | null = null
 let mockUninstallError: Error | null = null
-let mockLogEntries: Array<{timestamp: string; level: string; message: string}> = []
+let mockLogEntries: Array<{ts: string; level: string; msg: string}> = []
 let mockWrittenConfig: unknown = null
 let mockPromptScheduleResult: string | undefined = '0 9 * * 1'
 
@@ -111,15 +111,19 @@ mock.module('@infrastructure/scheduler', () => ({
 }))
 
 mock.module('@infrastructure/logger', () => ({
-  createSchedulerLogger: () => ({
-    info: async () => {},
-    warn: async () => {},
-    error: async () => {},
+  createFileLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+    trace: () => {},
     readRecent: async () => mockLogEntries,
-    getLogPath: () => '/fake/.crucible/logs/scheduled/forge.sync.log',
+    rotate: async () => {},
+    getLogDir: () => '/fake/.crucible/forge/logs',
+    flush: () => {},
   }),
-  getLogPath: () => '/fake/.crucible/logs/scheduled/forge.sync.log',
-  LOG_LEVELS: {INFO: 'INFO', WARN: 'WARN', ERROR: 'ERROR'},
+  getLogDir: () => '/fake/.crucible/forge/logs',
+  LOG_LEVELS: {SILENT: 'silent', ERROR: 'error', WARN: 'warn', INFO: 'info', DEBUG: 'debug', TRACE: 'trace'},
 }))
 
 // ─── Import after mocks ──────────────────────────────────────────────────────
@@ -294,7 +298,7 @@ describe('runSchedulerStatus', () => {
 
   it('shows last run info when log entries exist', async () => {
     mockIsInstalled = true
-    mockLogEntries = [{timestamp: '2026-06-03T09:00:00.000Z', level: 'INFO', message: 'Sync completed'}]
+    mockLogEntries = [{ts: '2026-06-03T09:00:00.000Z', level: 'info', msg: 'Sync completed'}]
 
     await runSchedulerStatus()
 

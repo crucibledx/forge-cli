@@ -17,7 +17,8 @@ import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure
 import {applyMutations, collectFiles, readFileContent, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
-import {createSchedulerLogger} from '@infrastructure/logger'
+import type {FileLogger} from '@infrastructure/logger'
+import {createFileLogger} from '@infrastructure/logger'
 import {getSourceLoader} from '@infrastructure/source'
 
 import {SYNC_MESSAGES as M} from './messages'
@@ -29,21 +30,25 @@ export const runSync: SyncCommandAction = async (options) => {
     console.log = () => {}
   }
 
+  const logger = createFileLogger()
+
   try {
-    await runSyncInner(options)
+    await runSyncInner(options, logger)
   } finally {
     if (options.silent) {
       console.log = originalLog
-      await createSchedulerLogger().rotate()
     }
+    await logger.rotate()
+    logger.flush()
   }
 }
 
-async function runSyncInner(options: SyncOptions): Promise<void> {
+async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<void> {
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
 
   if (!context.projectConfig) {
+    logger.error('sync aborted: no config found')
     renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
     process.exit(1)
   }
@@ -51,10 +56,15 @@ async function runSyncInner(options: SyncOptions): Promise<void> {
   const config = context.projectConfig
   validateConfig(config)
 
+  const assistantIds = config.assistants.map((a) => a.id)
+  const sourceNames = config.sources.map((s) => s.name)
+  logger.info('sync started', {assistants: assistantIds, sources: sourceNames})
+
   const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
   const allResolved = await fetchAndResolve(config.sources, assistantDefs)
 
   if (allResolved.length === 0) {
+    logger.warn('sync finished: no files to sync')
     renderer.renderWarning(M.warnings.noFilesToSync)
     return
   }
@@ -66,11 +76,14 @@ async function runSyncInner(options: SyncOptions): Promise<void> {
     resolved = resolveSourceConflicts(allResolved, strategy)
   } catch (err) {
     if (err instanceof SourceConflictError) {
+      logger.error('sync aborted: source conflicts', {count: err.conflicts.length})
       renderer.renderError(M.errors.sourceConflict(err.conflicts.length), err.message)
       process.exit(1)
     }
     throw err
   }
+
+  logger.debug('targets resolved', {count: resolved.length})
 
   const syncState = await loadSyncState(projectRoot)
   const syncConfig: SyncConfig = {...SYNC_CONFIG_DEFAULTS, ...config.sync}
@@ -80,6 +93,7 @@ async function runSyncInner(options: SyncOptions): Promise<void> {
     planResult = await buildPlan(projectRoot, resolved, syncState, syncConfig)
   } catch (err) {
     if (err instanceof LocalConflictError) {
+      logger.error('sync aborted: local conflicts', {count: err.conflicts.length})
       renderer.renderError(M.errors.localConflict(err.conflicts.length), err.message)
       process.exit(1)
     }
@@ -90,9 +104,13 @@ async function runSyncInner(options: SyncOptions): Promise<void> {
 
   displayPlan(summaries, config.sources, syncConfig, options.dryRun)
 
-  if (options.dryRun) return
+  if (options.dryRun) {
+    logger.info('sync dry-run completed', {files: summaries.length})
+    return
+  }
 
   await executePlan(projectRoot, mutations, resolved, context)
+  logger.info('sync completed', {files: summaries.length, mutations: mutations.length})
 }
 
 export function validateConfig(config: ProjectConfig): void {

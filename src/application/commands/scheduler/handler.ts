@@ -3,7 +3,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
-import {createSchedulerLogger, getLogPath, LOG_LEVELS} from '@infrastructure/logger'
+import {createFileLogger, getLogDir, LOG_LEVELS} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {promptSchedule} from '../shared/scheduler.prompt'
@@ -63,7 +63,7 @@ export async function runSchedulerInstall(): Promise<void> {
   }
 
   renderer.renderSuccess(M.output.installed(desc))
-  renderer.renderDim(M.output.logPath(getLogPath()))
+  renderer.renderDim(M.output.logPath(getLogDir()))
 }
 
 export async function runSchedulerUninstall(): Promise<void> {
@@ -211,16 +211,16 @@ export async function runSchedulerStatus(): Promise<void> {
     }
   }
 
-  const logger = createSchedulerLogger()
+  const logger = createFileLogger()
   const entries = await logger.readRecent(10)
 
   if (entries.length > 0) {
     const last = entries[entries.length - 1]
     const success = last.level !== LOG_LEVELS.ERROR
-    renderer.renderDim(M.output.status.lastRun(last.timestamp.replace('T', ' ').slice(0, 16), success))
+    renderer.renderDim(M.output.status.lastRun(last.ts.replace('T', ' ').slice(0, 16), success))
   } else {
     renderer.renderDim(M.output.status.noRuns)
   }
 
-  renderer.renderDim(M.output.logPath(logger.getLogPath()))
+  renderer.renderDim(M.output.logPath(logger.getLogDir()))
 }

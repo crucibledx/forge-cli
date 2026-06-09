@@ -1,83 +1,123 @@
-import {existsSync} from 'node:fs'
-import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises'
+import {existsSync, mkdirSync, readdirSync, unlinkSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
-import type {LogEntry, LogLevel, SchedulerLogger} from './types'
+import pino from 'pino'
+
+import type {FileLogger, LogEntry, LogLevel} from './types'
 import {LOG_LEVELS} from './types'
 
-const LOG_DIR = join(homedir(), '.crucible', 'logs', 'scheduled')
-const LOG_FILE = 'forge.sync.log'
+const LOG_DIR = join(homedir(), '.crucible', 'forge', 'logs')
 const DEFAULT_MAX_LINES = 50
 const DEFAULT_MAX_AGE_DAYS = 30
 
-function formatTimestamp(): string {
-  return new Date().toISOString()
+let currentLogLevel: LogLevel = LOG_LEVELS.INFO
+
+export function setLogLevel(level: LogLevel): void {
+  currentLogLevel = level
 }
 
-function formatLine(level: LogLevel, message: string): string {
-  return `[${formatTimestamp()}] ${level} | ${message}\n`
+export function getLogLevel(): LogLevel {
+  return currentLogLevel
+}
+
+function todayLogFile(): string {
+  return `forge-${new Date().toISOString().slice(0, 10)}.jsonl`
+}
+
+function ensureLogDir(): void {
+  if (!existsSync(LOG_DIR)) {
+    mkdirSync(LOG_DIR, {recursive: true})
+  }
 }
 
 function parseLine(line: string): LogEntry | null {
-  const match = line.match(/^\[(.+?)] (INFO|WARN|ERROR) \| (.+)$/)
-  if (!match) return null
-  return {timestamp: match[1], level: match[2] as LogLevel, message: match[3]}
-}
-
-async function ensureLogDir(): Promise<void> {
-  if (!existsSync(LOG_DIR)) {
-    await mkdir(LOG_DIR, {recursive: true})
+  try {
+    const obj = JSON.parse(line)
+    if (!obj.ts || !obj.level || !obj.msg) return null
+    return obj as LogEntry
+  } catch {
+    return null
   }
 }
 
-export function createSchedulerLogger(): SchedulerLogger {
-  const logPath = join(LOG_DIR, LOG_FILE)
+export function createFileLogger(level: LogLevel = currentLogLevel): FileLogger {
+  ensureLogDir()
 
-  async function write(level: LogLevel, message: string): Promise<void> {
-    await ensureLogDir()
-    await appendFile(logPath, formatLine(level, message))
+  const logPath = join(LOG_DIR, todayLogFile())
+  const dest = pino.destination({dest: logPath, sync: true, mkdir: true})
+
+  const logger = pino(
+    {
+      level,
+      formatters: {
+        level: (label) => ({level: label}),
+      },
+      timestamp: () => `,"ts":"${new Date().toISOString()}"`,
+      base: undefined,
+    },
+    dest,
+  )
+
+  function write(lvl: pino.Level, msg: string, data?: Record<string, unknown>): void {
+    if (data) {
+      logger[lvl](data, msg)
+    } else {
+      logger[lvl](msg)
+    }
   }
 
   return {
-    info: (message) => write(LOG_LEVELS.INFO, message),
-    warn: (message) => write(LOG_LEVELS.WARN, message),
-    error: (message) => write(LOG_LEVELS.ERROR, message),
+    error: (msg, data) => write(LOG_LEVELS.ERROR, msg, data),
+    warn: (msg, data) => write(LOG_LEVELS.WARN, msg, data),
+    info: (msg, data) => write(LOG_LEVELS.INFO, msg, data),
+    debug: (msg, data) => write(LOG_LEVELS.DEBUG, msg, data),
+    trace: (msg, data) => write(LOG_LEVELS.TRACE, msg, data),
 
     async readRecent(maxLines = DEFAULT_MAX_LINES): Promise<LogEntry[]> {
-      if (!existsSync(logPath)) return []
+      if (!existsSync(LOG_DIR)) return []
 
-      const content = await readFile(logPath, 'utf-8')
-      const lines = content.trim().split('\n').filter(Boolean)
+      const files = readdirSync(LOG_DIR)
+        .filter((f) => f.startsWith('forge-') && f.endsWith('.jsonl'))
+        .sort()
 
-      return lines
-        .slice(-maxLines)
-        .map(parseLine)
-        .filter((e): e is LogEntry => e !== null)
+      const entries: LogEntry[] = []
+
+      for (const file of files.slice(-5)) {
+        const content = await readFile(join(LOG_DIR, file), 'utf-8')
+        const lines = content.trim().split('\n').filter(Boolean)
+        entries.push(...lines.map(parseLine).filter((e): e is LogEntry => e !== null))
+      }
+
+      return entries.slice(-maxLines)
     },
 
     async rotate(maxAgeDays = DEFAULT_MAX_AGE_DAYS): Promise<void> {
-      if (!existsSync(logPath)) return
+      if (!existsSync(LOG_DIR)) return
 
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - maxAgeDays)
+      const cutoffStr = cutoff.toISOString().slice(0, 10)
 
-      const content = await readFile(logPath, 'utf-8')
-      const lines = content.split('\n')
-      const kept = lines.filter((line) => {
-        const match = line.match(/^\[(.+?)]\s/)
-        if (!match) return false
-        const ts = new Date(match[1])
-        return !isNaN(ts.getTime()) && ts >= cutoff
-      })
+      const files = readdirSync(LOG_DIR).filter((f) => f.startsWith('forge-') && f.endsWith('.jsonl'))
 
-      await writeFile(logPath, kept.length > 0 ? kept.join('\n') + '\n' : '')
+      for (const file of files) {
+        const dateStr = file.replace('forge-', '').replace('.jsonl', '')
+        if (dateStr < cutoffStr) {
+          unlinkSync(join(LOG_DIR, file))
+        }
+      }
     },
 
-    getLogPath: () => logPath,
+    getLogDir: () => LOG_DIR,
+
+    flush(): void {
+      dest.flushSync()
+    },
   }
 }
 
-export function getLogPath(): string {
-  return join(LOG_DIR, LOG_FILE)
+export function getLogDir(): string {
+  return LOG_DIR
 }
