@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.1] — 2026-06-09
+
+### Added
+
+- **Hybrid source layout** — sources can now mix canonical files (`rules/`, `skills/`) with assistant-specific directories (`.claude/`, `.cursor/`, etc.). Canonical files are transformed and distributed to all enabled assistants; pre-structured files are copied as-is to their original paths.
+- `SOURCE_LAYOUTS.HYBRID` layout type, auto-detected when both patterns are present.
+- `partitionByLayout()` splits source files for independent resolution.
+- 3 unit tests for hybrid resolver, 3 for `partitionByLayout`, 2 e2e tests for mixed sources.
+
+---
+
 ## [0.5.0] — 2026-06-09
 
 Milestone: **"Smart Sources"** — pre-structured source layouts, global config support.

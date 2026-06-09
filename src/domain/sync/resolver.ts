@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import type {AssistantDefinition, TargetMapping} from '../assistants/types'
 import {getTransformer} from '../transforms/registry'
 import type {TransformContext} from '../transforms/types'
-import {detectSourceLayout, getAssistantDirMap, SOURCE_LAYOUTS, type SourceLayout} from './layout'
+import {detectSourceLayout, getAssistantDirMap, partitionByLayout, SOURCE_LAYOUTS, type SourceLayout} from './layout'
 import type {ResolvedTarget, SourceFile} from './types'
 
 type ResolverFn = (
@@ -15,11 +15,13 @@ type ResolverFn = (
 const resolvers: Record<SourceLayout, ResolverFn> = {
   [SOURCE_LAYOUTS.CANONICAL]: resolveCanonical,
   [SOURCE_LAYOUTS.PRE_STRUCTURED]: resolvePreStructured,
+  [SOURCE_LAYOUTS.HYBRID]: resolveHybrid,
 }
 
 /**
  * Resolves source files to target paths. Auto-detects layout and dispatches
- * to the appropriate resolver — canonical (with transforms) or pre-structured (passthrough).
+ * to the appropriate resolver — canonical (with transforms), pre-structured
+ * (passthrough), or hybrid (partition + resolve each group).
  */
 export function resolveTargets(
   sourceFiles: SourceFile[],
@@ -28,6 +30,22 @@ export function resolveTargets(
 ): ResolvedTarget[] {
   const layout = detectSourceLayout(sourceFiles)
   return resolvers[layout](sourceFiles, assistants, sourceName)
+}
+
+/**
+ * Hybrid sources contain both assistant-specific dirs and canonical files.
+ * Partition files, resolve each group with its resolver, merge results.
+ */
+function resolveHybrid(
+  sourceFiles: SourceFile[],
+  assistants: readonly AssistantDefinition[],
+  sourceName: string,
+): ResolvedTarget[] {
+  const {preStructured, canonical} = partitionByLayout(sourceFiles)
+  const preResults = resolvePreStructured(preStructured, assistants, sourceName)
+  const preTargetPaths = new Set(preResults.map((r) => r.targetPath))
+  const canonicalResults = resolveCanonical(canonical, assistants, sourceName)
+  return [...preResults, ...canonicalResults.filter((r) => !preTargetPaths.has(r.targetPath))]
 }
 
 /**

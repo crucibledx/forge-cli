@@ -109,3 +109,62 @@ describe('sync — canonical source (auto-detected)', () => {
     expect(content).not.toContain('paths:')
   })
 })
+
+describe('sync — hybrid source (mixed canonical + pre-structured)', () => {
+  it('copies pre-structured files as-is and transforms canonical files', async () => {
+    const dir = getDir()
+    const sourceDir = join(dir, 'source')
+    await writeSourceTree(sourceDir, {
+      '.claude': {rules: {'claude-only.md': '# Claude-specific rule'}},
+      rules: {'shared.md': '---\npaths:\n  - "src/**"\n---\n# Shared rule'},
+    })
+    await writeConfig(
+      dir,
+      buildConfigYaml({
+        assistants: ['claude-code', 'windsurf'],
+        localSource: {path: sourceDir},
+      }),
+    )
+
+    const {exitCode} = await runSync(dir)
+    expect(exitCode).toBe(0)
+
+    // Pre-structured: claude-only.md copied as-is
+    const claudeOnly = await readFile(join(dir, '.claude', 'rules', 'claude-only.md'), 'utf-8')
+    expect(claudeOnly).toBe('# Claude-specific rule')
+
+    // Canonical: shared.md distributed to both assistants with transforms
+    const claudeShared = await readFile(join(dir, '.claude', 'rules', 'shared.md'), 'utf-8')
+    expect(claudeShared).toContain('paths:') // Claude has no frontmatter rename
+
+    const windsurfShared = await readFile(join(dir, '.windsurf', 'rules', 'shared.md'), 'utf-8')
+    expect(windsurfShared).toContain('globs:') // Windsurf renames paths → globs
+    expect(windsurfShared).not.toContain('paths:')
+  })
+
+  it('pre-structured files are not duplicated to other assistants', async () => {
+    const dir = getDir()
+    const sourceDir = join(dir, 'source')
+    await writeSourceTree(sourceDir, {
+      '.claude': {rules: {'claude-only.md': '# Claude only'}},
+      rules: {'shared.md': '# Shared'},
+    })
+    await writeConfig(
+      dir,
+      buildConfigYaml({
+        assistants: ['claude-code', 'windsurf'],
+        localSource: {path: sourceDir},
+      }),
+    )
+
+    const {exitCode} = await runSync(dir)
+    expect(exitCode).toBe(0)
+
+    // claude-only.md should NOT appear in windsurf
+    expect(existsSync(join(dir, '.windsurf', 'rules', 'claude-only.md'))).toBe(false)
+
+    // shared.md should appear in both
+    expect(existsSync(join(dir, '.claude', 'rules', 'shared.md'))).toBe(true)
+    expect(existsSync(join(dir, '.windsurf', 'rules', 'shared.md'))).toBe(true)
+  })
+})

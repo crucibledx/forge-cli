@@ -270,3 +270,74 @@ describe('resolveTargets — pre-structured layout', () => {
     expect(result[0].content).toBe('content of .claude/rules/api.md')
   })
 })
+
+// ── Hybrid resolver (auto-detected via resolveTargets) ──────────────────
+
+describe('resolveTargets — hybrid layout', () => {
+  it('resolves both pre-structured and canonical files', () => {
+    const hybridFiles: SourceFile[] = [
+      {relativePath: '.claude/rules/special.md', content: '# Claude special'},
+      {relativePath: 'rules/shared.md', content: '# Shared rule'},
+    ]
+    const result = resolveTargets(hybridFiles, claudeOnlyDefs, 'hybrid-src')
+
+    const preStructured = result.find((r) => r.targetPath === '.claude/rules/special.md')
+    expect(preStructured).toBeDefined()
+    expect(preStructured!.content).toBe('# Claude special')
+    expect(preStructured!.assistantId).toBe('claude-code')
+
+    const canonical = result.find((r) => r.sourcePath === 'rules/shared.md')
+    expect(canonical).toBeDefined()
+    expect(canonical!.targetPath).toBe('.claude/rules/shared.md')
+    expect(canonical!.assistantId).toBe('claude-code')
+  })
+
+  it('applies transforms to canonical portion only', () => {
+    const hybridFiles: SourceFile[] = [
+      {relativePath: '.cursor/rules/cursor-only.mdc', content: '# Cursor only'},
+      {relativePath: 'rules/shared.md', content: '---\npaths:\n  - "src/**"\n---\n# Shared'},
+    ]
+    const result = resolveTargets(hybridFiles, [cursorDef])
+
+    const preStructured = result.find((r) => r.targetPath === '.cursor/rules/cursor-only.mdc')
+    expect(preStructured).toBeDefined()
+    expect(preStructured!.content).toBe('# Cursor only')
+
+    const canonical = result.find((r) => r.sourcePath === 'rules/shared.md')
+    expect(canonical).toBeDefined()
+    expect(canonical!.targetPath).toBe('.cursor/rules/shared.mdc')
+    expect(canonical!.content).toContain('globs:')
+    expect(canonical!.content).not.toContain('paths:')
+  })
+
+  it('distributes canonical files to all enabled assistants', () => {
+    const hybridFiles: SourceFile[] = [
+      {relativePath: '.claude/rules/claude-only.md', content: '# Claude only'},
+      {relativePath: 'rules/shared.md', content: '# Shared'},
+    ]
+    const result = resolveTargets(hybridFiles, multiDefs, 'src')
+
+    const claudePreStructured = result.filter((r) => r.targetPath === '.claude/rules/claude-only.md')
+    expect(claudePreStructured).toHaveLength(1)
+
+    const sharedTargets = result.filter((r) => r.sourcePath === 'rules/shared.md')
+    expect(sharedTargets.length).toBeGreaterThanOrEqual(3)
+    const assistantIds = new Set(sharedTargets.map((r) => r.assistantId))
+    expect(assistantIds.has('claude-code')).toBe(true)
+    expect(assistantIds.has('cursor')).toBe(true)
+    expect(assistantIds.has('windsurf')).toBe(true)
+  })
+
+  it('pre-structured wins over canonical for same targetPath', () => {
+    const hybridFiles: SourceFile[] = [
+      {relativePath: '.claude/rules/api.md', content: '# Pre-structured version'},
+      {relativePath: 'rules/api.md', content: '# Canonical version'},
+    ]
+    const result = resolveTargets(hybridFiles, claudeOnlyDefs)
+
+    const targets = result.filter((r) => r.targetPath === '.claude/rules/api.md')
+    expect(targets).toHaveLength(1)
+    expect(targets[0].content).toBe('# Pre-structured version')
+    expect(targets[0].sourcePath).toBe('.claude/rules/api.md')
+  })
+})
