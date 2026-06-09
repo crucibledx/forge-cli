@@ -4,6 +4,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
+import {createFileLogger} from '@infrastructure/logger'
 
 import {CONFIG_MESSAGES as M} from './messages'
 import {sections} from './sections'
@@ -11,12 +12,14 @@ import type {ConfigCommandAction} from './types'
 
 export const runConfig: ConfigCommandAction = async () => {
   const projectRoot = io.resolveProjectRoot()
+  const logger = createFileLogger()
 
   prompts.intro(M.intro)
 
   const loaded = await loadProjectConfig(projectRoot)
 
   if (!loaded) {
+    logger.warn('config command: no config found', {projectRoot})
     renderer.renderWarning(M.noConfig)
     prompts.outro(M.outroCancelled)
     return
@@ -58,6 +61,7 @@ export const runConfig: ConfigCommandAction = async () => {
 
   if (changed) {
     const configPath = await writeProjectConfig(projectRoot, config)
+    logger.info('config updated', {projectRoot})
     renderer.renderNewline()
     renderer.renderSuccess(M.outro)
     renderer.renderDim(relative(projectRoot, configPath))

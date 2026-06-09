@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.1] — 2026-06-09
+
+### Added
+
+- **`debugCommandHook`** — program-level `preAction` hook that logs every command invocation with its name and options at debug level. Automatic coverage for all current and future commands.
+
+### Changed
+
+- **Structured logging injected across all commands and source loaders.**
+  - `forge init` — logs config creation with assistants, sources, and schedule.
+  - `forge config` — logs config updates and missing-config warnings.
+  - `forge scheduler` — logs install, uninstall, schedule changes, and errors.
+  - `forge status` — logs drift check results at debug level.
+  - Git source loader — logs clone vs fetch, cache state at debug level.
+  - Local source loader — logs path resolution and missing-path errors.
+
+---
+
 ## [0.6.0] — 2026-06-09
 
 ### Added

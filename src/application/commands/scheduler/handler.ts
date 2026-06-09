@@ -31,6 +31,7 @@ function formatDateTime(date: Date): string {
 }
 
 export async function runSchedulerInstall(): Promise<void> {
+  const logger = createFileLogger()
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
 
@@ -62,11 +63,13 @@ export async function runSchedulerInstall(): Promise<void> {
     process.exit(1)
   }
 
+  logger.info('scheduler installed', {schedule, cron: desc, projectRoot})
   renderer.renderSuccess(M.output.installed(desc))
   renderer.renderDim(M.output.logPath(getLogDir()))
 }
 
 export async function runSchedulerUninstall(): Promise<void> {
+  const logger = createFileLogger()
   const projectRoot = io.resolveProjectRoot()
 
   const backend = getSchedulerBackend()
@@ -80,10 +83,12 @@ export async function runSchedulerUninstall(): Promise<void> {
   try {
     await backend.uninstall(projectRoot)
   } catch (err) {
+    logger.error('scheduler uninstall failed', {error: err instanceof Error ? err.message : String(err)})
     renderer.renderError(M.errors.uninstallFailed(err instanceof Error ? err.message : String(err)))
     process.exit(1)
   }
 
+  logger.info('scheduler uninstalled', {projectRoot})
   renderer.renderSuccess(M.output.uninstalled)
 }
 
@@ -142,10 +147,12 @@ async function changeSchedule(projectRoot: string): Promise<void> {
   const schedule = await promptSchedule(currentSchedule)
 
   if (schedule) {
+    const logger = createFileLogger()
     await writeProjectConfig(projectRoot, {
       ...config,
       sync: {...(config.sync ?? {}), schedule},
     })
+    logger.info('schedule changed', {schedule})
     renderer.renderSuccess(M.configSaved)
   }
 }

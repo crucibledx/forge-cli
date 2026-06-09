@@ -1,6 +1,6 @@
 import {setGlobalMode} from '@infrastructure/io'
 import type {LogLevel} from '@infrastructure/logger'
-import {LOG_LEVELS, setLogLevel} from '@infrastructure/logger'
+import {createFileLogger, LOG_LEVELS, setLogLevel} from '@infrastructure/logger'
 
 import type {CommandHook} from './commands/types'
 
@@ -20,5 +20,14 @@ export const setLogLevelHook: CommandHook = {
     if (level && validLevels.has(level as LogLevel)) {
       setLogLevel(level as LogLevel)
     }
+  },
+}
+
+export const debugCommandHook: CommandHook = {
+  event: 'preAction',
+  listener: (_thisCommand, actionCommand) => {
+    const logger = createFileLogger()
+    const name = actionCommand.parent ? `${actionCommand.parent.name()} ${actionCommand.name()}` : actionCommand.name()
+    logger.debug('command invoked', {cmd: name, options: actionCommand.opts()})
   },
 }

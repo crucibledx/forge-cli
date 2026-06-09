@@ -8,6 +8,7 @@ import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState} from '@infrastructure/config'
 import {collectFiles, readDiskContents} from '@infrastructure/fs'
 import io from '@infrastructure/io'
+import {createFileLogger} from '@infrastructure/logger'
 import {getSourceLoader} from '@infrastructure/source'
 
 import {displayDrift} from './display'
@@ -15,6 +16,7 @@ import {STATUS_MESSAGES as M} from './messages'
 import type {StatusCommandAction} from './types'
 
 export const runStatus: StatusCommandAction = async () => {
+  const logger = createFileLogger()
   const projectRoot = io.resolveProjectRoot()
   const context = await io.buildContext(projectRoot)
 
@@ -40,6 +42,7 @@ export const runStatus: StatusCommandAction = async () => {
     ? detectFullDrift(syncState, diskContents, remoteContents)
     : detectDrift(syncState, diskContents)
 
+  logger.debug('status checked', {driftCount: summary.files.length, hasRemote: !!remoteContents})
   displayDrift(summary)
 }
 

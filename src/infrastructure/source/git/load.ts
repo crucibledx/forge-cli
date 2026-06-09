@@ -3,29 +3,35 @@ import {mkdir, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
+import {createFileLogger} from '@infrastructure/logger'
+
 import type {SourceLoaderEntry} from '../types'
 import type {GitSourceConfig} from './types'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
 
 export const load: SourceLoaderEntry['load'] = async (source) => {
+  const logger = createFileLogger()
   const git = source as GitSourceConfig
   const cacheKey = Buffer.from(git.url).toString('base64url')
   const cacheDir = join(CACHE_DIR, cacheKey)
 
   let fresh: boolean
   if (existsSync(join(cacheDir, '.git'))) {
+    logger.debug('git source: fetching updates', {url: git.url, branch: git.branch})
     await runGit(cacheDir, ['fetch', 'origin', git.branch])
     await runGit(cacheDir, ['checkout', git.branch])
     await runGit(cacheDir, ['reset', '--hard', `origin/${git.branch}`])
     fresh = false
   } else {
+    logger.debug('git source: cloning', {url: git.url, branch: git.branch})
     await mkdir(CACHE_DIR, {recursive: true})
     await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', git.url, cacheDir])
     fresh = true
   }
 
   const localPath = git.path ? join(cacheDir, git.path) : cacheDir
+  logger.debug('git source: loaded', {localPath, fresh})
   return {localPath, fresh}
 }
 

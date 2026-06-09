@@ -5,6 +5,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {projectConfigExists, writeProjectConfig} from '@infrastructure/config'
 import io from '@infrastructure/io'
+import {createFileLogger} from '@infrastructure/logger'
 
 import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
 import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
@@ -14,12 +15,14 @@ import type {InitCommandAction} from './types'
 
 export const runInit: InitCommandAction = async (options) => {
   let configVersion = 0
+  const logger = createFileLogger()
 
   const projectRoot = io.resolveProjectRoot()
   prompts.intro(M.intro)
 
   // 1. Abort immediately if config already exists — no overwrite in init
   if (projectConfigExists(projectRoot)) {
+    logger.info('init aborted: config already exists', {projectRoot})
     renderer.renderWarning(M.configExists)
     prompts.outro(M.outroCancelled)
     return
@@ -76,6 +79,11 @@ export const runInit: InitCommandAction = async (options) => {
   }
 
   const configPath = await writeProjectConfig(projectRoot, config)
+  logger.info('init completed', {
+    assistants: assistants.map((a) => a.id),
+    sources: sources.map((s) => s.name),
+    schedule: schedule ?? null,
+  })
 
   renderer.renderNewline()
   renderer.renderSuccess(M.configWrittenTo(relative(projectRoot, configPath)))
