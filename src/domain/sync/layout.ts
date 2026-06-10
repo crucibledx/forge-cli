@@ -17,8 +17,8 @@ export function getAssistantDirMap(): Record<string, string> {
   const map: Record<string, string> = {}
   for (const assistant of getAllAssistants()) {
     for (const mapping of assistant.targetMappings) {
-      // Extract top-level dir from destination, e.g. ".claude/rules/" → ".claude"
-      const topDir = mapping.destination.split('/')[0]
+      // Extract top-level dir from project destination, e.g. ".claude/rules/" → ".claude"
+      const topDir = mapping.destination.project.split('/')[0]
       if (topDir && !map[topDir]) {
         map[topDir] = assistant.id
       }

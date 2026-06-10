@@ -9,9 +9,12 @@ export const cline: AssistantDefinition = {
     files: [],
   },
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.cline/skills/'},
-    {sourceGlob: 'rules/**', destination: '.clinerules/'},
-    {sourceGlob: 'workflows/**', destination: '.clinerules/workflows/'},
+    {sourceGlob: 'skills/**', destination: {project: '.cline/skills/'}},
+    {sourceGlob: 'rules/**', destination: {project: '.clinerules/', global: 'Documents/Cline/Rules/'}},
+    {
+      sourceGlob: 'workflows/**',
+      destination: {project: '.clinerules/workflows/', global: 'Documents/Cline/Workflows/'},
+    },
   ],
 }
 

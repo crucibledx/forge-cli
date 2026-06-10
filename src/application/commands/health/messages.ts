@@ -10,8 +10,8 @@ export const HEALTH_MESSAGES = {
   syncFrequency: (desc: string, installed: boolean) =>
     `Sync frequency:   ${desc} (scheduler ${installed ? 'active' : 'not installed'})`,
   syncFrequencyNone: 'Sync frequency:   manual (no schedule)',
-  configDrift: (count: number) =>
-    `Config drift:     ${count === 0 ? 'none detected' : `${count} file(s) drifted since last sync`}`,
+  syncDrift: (count: number) =>
+    `Sync drift:       ${count === 0 ? 'none detected' : `${count} file(s) drifted since last sync`}`,
   sources: (configured: number, reachable: number) =>
     `Sources:          ${configured} configured, ${reachable} reachable`,
   assistants: (ids: string[]) => `Assistants:       ${ids.length} active (${ids.join(', ')})`,

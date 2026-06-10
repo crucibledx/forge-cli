@@ -2,9 +2,14 @@ import type {TransformStep} from '../transforms/types'
 
 export type AssistantId = string
 
+export interface TargetDestination {
+  project: string
+  global?: string
+}
+
 export interface TargetMapping {
   sourceGlob: string
-  destination: string
+  destination: TargetDestination
   transforms?: TransformStep[]
 }
 

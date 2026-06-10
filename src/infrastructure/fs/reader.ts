@@ -10,7 +10,7 @@ function getKnownAssistantDirs(): Set<string> {
   const dirs = new Set<string>()
   for (const assistant of getAllAssistants()) {
     for (const mapping of assistant.targetMappings) {
-      const topDir = mapping.destination.split('/')[0]
+      const topDir = mapping.destination.project.split('/')[0]
       if (topDir) dirs.add(topDir)
     }
   }

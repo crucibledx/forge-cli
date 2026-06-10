@@ -1,4 +1,4 @@
-import {setGlobalMode} from '@infrastructure/io'
+import {setGlobalMode} from '@domain/scope'
 import type {LogLevel} from '@infrastructure/logger'
 import {createFileLogger, LOG_LEVELS, setLogLevel} from '@infrastructure/logger'
 

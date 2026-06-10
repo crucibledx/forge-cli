@@ -23,5 +23,5 @@ export function getAssistantIds(): string[] {
  * registered targetMappings destinations.
  */
 export function resolveAssistantByPath(targetPath: string): AssistantDefinition | undefined {
-  return assistantsRegistry.find((a) => a.targetMappings.some((m) => targetPath.startsWith(m.destination)))
+  return assistantsRegistry.find((a) => a.targetMappings.some((m) => targetPath.startsWith(m.destination.project)))
 }

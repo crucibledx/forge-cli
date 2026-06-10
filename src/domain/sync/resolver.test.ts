@@ -6,27 +6,30 @@ import '../assistants/cline'
 import '../transforms/frontmatter-rename'
 import '../transforms/rename'
 
-import {describe, expect, it} from 'bun:test'
+import {afterEach, describe, expect, it} from 'bun:test'
 
 import type {AssistantDefinition} from '../assistants/types'
+import {setGlobalMode} from '../scope'
 import {resolveTargets} from './resolver'
 import type {SourceFile} from './types'
+
+afterEach(() => setGlobalMode(false))
 
 const cursorDef: AssistantDefinition = {
   id: 'cursor',
   name: 'Cursor',
   detection: {directories: ['.cursor'], files: []},
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.cursor/skills/'},
+    {sourceGlob: 'skills/**', destination: {project: '.cursor/skills/'}},
     {
       sourceGlob: 'rules/**',
-      destination: '.cursor/rules/',
+      destination: {project: '.cursor/rules/'},
       transforms: [
         {transformer: 'rename', params: {from: '.md', to: '.mdc'}},
         {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}},
       ],
     },
-    {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
+    {sourceGlob: 'workflows/**', destination: {project: '.cursor/commands/'}},
   ],
 }
 
@@ -35,8 +38,8 @@ const claudeDef: AssistantDefinition = {
   name: 'Claude Code',
   detection: {directories: ['.claude'], files: []},
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.claude/skills/'},
-    {sourceGlob: 'rules/**', destination: '.claude/rules/'},
+    {sourceGlob: 'skills/**', destination: {project: '.claude/skills/'}},
+    {sourceGlob: 'rules/**', destination: {project: '.claude/rules/'}},
   ],
 }
 
@@ -45,8 +48,8 @@ const windsurfDef: AssistantDefinition = {
   name: 'Windsurf',
   detection: {directories: ['.windsurf'], files: []},
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.windsurf/skills/'},
-    {sourceGlob: 'rules/**', destination: '.windsurf/rules/'},
+    {sourceGlob: 'skills/**', destination: {project: '.windsurf/skills/'}},
+    {sourceGlob: 'rules/**', destination: {project: '.windsurf/rules/'}},
   ],
 }
 
@@ -127,7 +130,7 @@ describe('resolveTargets', () => {
       targetMappings: [
         {
           sourceGlob: 'skills/**',
-          destination: '.cursor/skills/',
+          destination: {project: '.cursor/skills/'},
           transforms: [{transformer: 'unknown', params: {from: 'foo', to: 'bar'}}],
         },
       ],
@@ -161,7 +164,7 @@ describe('resolveTargets', () => {
       targetMappings: [
         {
           sourceGlob: 'rules/**',
-          destination: '.github/instructions/',
+          destination: {project: '.github/instructions/'},
           transforms: [
             {transformer: 'rename', params: {from: '.md', to: '.instructions.md'}},
             {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'applyTo'}},
@@ -206,7 +209,7 @@ describe('resolveTargets', () => {
       targetMappings: [
         {
           sourceGlob: 'rules/**',
-          destination: '.cursor/rules/',
+          destination: {project: '.cursor/rules/'},
           transforms: [{transformer: 'nonexistent', params: {from: 'foo', to: 'bar'}}],
         },
       ],
@@ -339,5 +342,77 @@ describe('resolveTargets — hybrid layout', () => {
     expect(targets).toHaveLength(1)
     expect(targets[0].content).toBe('# Pre-structured version')
     expect(targets[0].sourcePath).toBe('.claude/rules/api.md')
+  })
+})
+
+// ── Global mode ─────────────────────────────────────────────────────────
+
+const windsurfGlobalDef: AssistantDefinition = {
+  id: 'windsurf',
+  name: 'Windsurf',
+  detection: {directories: ['.windsurf'], files: []},
+  targetMappings: [
+    {sourceGlob: 'skills/**', destination: {project: '.windsurf/skills/', global: '.codeium/windsurf/skills/'}},
+    {sourceGlob: 'rules/**', destination: {project: '.windsurf/rules/'}},
+  ],
+}
+
+describe('resolveTargets — global mode (canonical)', () => {
+  it('uses global destination when defined', () => {
+    setGlobalMode(true)
+    const result = resolveTargets(sourceFiles, [windsurfGlobalDef])
+    const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
+    expect(skill!.targetPath).toBe('.codeium/windsurf/skills/typescript.md')
+  })
+
+  it('falls back to project destination when global is undefined', () => {
+    setGlobalMode(true)
+    const result = resolveTargets(sourceFiles, [windsurfGlobalDef])
+    const rule = result.find((r) => r.sourcePath === 'rules/no-any.md')
+    expect(rule!.targetPath).toBe('.windsurf/rules/no-any.md')
+  })
+
+  it('uses project destination when not in global mode', () => {
+    const result = resolveTargets(sourceFiles, [windsurfGlobalDef])
+    const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
+    expect(skill!.targetPath).toBe('.windsurf/skills/typescript.md')
+  })
+})
+
+describe('resolveTargets — global mode (pre-structured)', () => {
+  it('remaps project prefix to global destination', () => {
+    setGlobalMode(true)
+    const result = resolveTargets(preFiles('.windsurf/skills/deploy.md'), [windsurfGlobalDef])
+    expect(result).toHaveLength(1)
+    expect(result[0].targetPath).toBe('.codeium/windsurf/skills/deploy.md')
+    expect(result[0].sourcePath).toBe('.windsurf/skills/deploy.md')
+  })
+
+  it('falls back to project prefix when no global defined', () => {
+    setGlobalMode(true)
+    const result = resolveTargets(preFiles('.windsurf/rules/api.md'), [windsurfGlobalDef])
+    expect(result[0].targetPath).toBe('.windsurf/rules/api.md')
+  })
+
+  it('keeps original paths in project mode', () => {
+    const result = resolveTargets(preFiles('.windsurf/skills/deploy.md'), [windsurfGlobalDef])
+    expect(result[0].targetPath).toBe('.windsurf/skills/deploy.md')
+  })
+})
+
+describe('resolveTargets — global mode (hybrid)', () => {
+  it('remaps pre-structured and canonical portions', () => {
+    setGlobalMode(true)
+    const hybridFiles: SourceFile[] = [
+      {relativePath: '.windsurf/skills/existing.md', content: '# Existing'},
+      {relativePath: 'skills/new.md', content: '# New'},
+    ]
+    const result = resolveTargets(hybridFiles, [windsurfGlobalDef])
+
+    const pre = result.find((r) => r.sourcePath === '.windsurf/skills/existing.md')
+    expect(pre!.targetPath).toBe('.codeium/windsurf/skills/existing.md')
+
+    const canonical = result.find((r) => r.sourcePath === 'skills/new.md')
+    expect(canonical!.targetPath).toBe('.codeium/windsurf/skills/new.md')
   })
 })

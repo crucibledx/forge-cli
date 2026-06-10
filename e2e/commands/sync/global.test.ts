@@ -63,4 +63,46 @@ describe('sync --global', () => {
     const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
     expect(exitCode).not.toBe(0)
   })
+
+  it('remaps windsurf skills to global .codeium path', async () => {
+    const home = getDir()
+    const sourceDir = join(home, 'global-source')
+    await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy skill'}})
+    await writeConfig(home, buildConfigYaml({assistants: ['windsurf'], localSource: {path: sourceDir}}))
+
+    const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
+    expect(exitCode).toBe(0)
+
+    // Windsurf skills go to ~/.codeium/windsurf/skills/ in global mode
+    expect(existsSync(join(home, '.codeium', 'windsurf', 'skills', 'deploy.md'))).toBe(true)
+    // NOT to the project-style path
+    expect(existsSync(join(home, '.windsurf', 'skills', 'deploy.md'))).toBe(false)
+  })
+
+  it('uses project path as fallback when no global defined', async () => {
+    const home = getDir()
+    const sourceDir = join(home, 'global-source')
+    await writeSourceTree(sourceDir, {rules: {'api.md': '# API rule'}})
+    await writeConfig(home, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
+
+    const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
+    expect(exitCode).toBe(0)
+
+    // Claude has no separate global destination for rules, falls back to project path
+    expect(existsSync(join(home, '.claude', 'rules', 'api.md'))).toBe(true)
+  })
+
+  it('remaps windsurf workflows to global_workflows in global mode', async () => {
+    const home = getDir()
+    const sourceDir = join(home, 'global-source')
+    await writeSourceTree(sourceDir, {workflows: {'build.md': '# Build workflow'}})
+    await writeConfig(home, buildConfigYaml({assistants: ['windsurf'], localSource: {path: sourceDir}}))
+
+    const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
+    expect(exitCode).toBe(0)
+
+    // Windsurf workflows go to ~/.codeium/windsurf/global_workflows/ in global mode
+    expect(existsSync(join(home, '.codeium', 'windsurf', 'global_workflows', 'build.md'))).toBe(true)
+    expect(existsSync(join(home, '.windsurf', 'workflows', 'build.md'))).toBe(false)
+  })
 })

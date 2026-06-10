@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.5] — 2026-06-10
+
+### Changed
+
+- **TargetMapping destination** — `destination` is now a `{project, global?}` object instead of a plain string, supporting separate project and global paths per assistant mapping.
+- **Global destination fallback** — resolver falls back to `project` path when `global` is not defined, so only mappings with genuinely different global paths need a `global` field.
+- **Global mode state** moved to `domain/scope/` — `isGlobalMode`/`setGlobalMode` live in domain, resolver reads scope directly instead of threading a parameter through all functions.
+- **Cline global paths** — use `~/Cline/Rules/` and `~/Cline/Workflows/` per official Cline docs.
+- **Windsurf rules** — project-only (global rules is a single file, not a directory).
+- Updated all assistant definitions (Claude Code, Cursor, Windsurf, Copilot, Cline) with correct project/global paths.
+- Updated resolver tests, layout, reader, and registry to use new `destination.project` accessor.
+
+### Fixed
+
+- **Health report** — renamed misleading "Config drift" label to "Sync drift" (it checks synced files, not config).
+
+---
+
 ## [0.6.4] — 2026-06-10
 
 ### Added
@@ -30,7 +48,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **`forge health` command** — SLI dashboard showing last sync, sync frequency, config drift, source reachability, active assistants, log and report stats.
+- **`forge health` command** — SLI dashboard showing last sync, sync frequency, sync drift, source reachability, active assistants, log and report stats.
 - **Sync Reports** — every `forge sync` now produces a `SyncReport` written to `~/.crucible/forge/reports/`:
   - `latest.json` — always the most recent sync result.
   - `history/YYYY-MM-DD-HHmmss.json` — retained for 30 days (matches log rotation).

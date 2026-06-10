@@ -49,15 +49,15 @@ export const runHealth: HealthCommandAction = async () => {
     renderer.renderDim(M.syncFrequencyNone)
   }
 
-  // Config drift
+  // Sync drift
   const syncState = await loadSyncState(projectRoot)
   if (syncState.lastSync) {
     const diskContents = await readDiskContents(projectRoot, syncState)
     const drift = detectDrift(syncState, diskContents)
     const driftedCount = drift.files.filter((f) => f.status !== 'in_sync').length
-    renderer.renderDim(M.configDrift(driftedCount))
+    renderer.renderDim(M.syncDrift(driftedCount))
   } else {
-    renderer.renderDim(M.configDrift(0))
+    renderer.renderDim(M.syncDrift(0))
   }
 
   // Sources

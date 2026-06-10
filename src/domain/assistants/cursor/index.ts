@@ -9,16 +9,16 @@ export const cursor: AssistantDefinition = {
     files: ['.cursorrules', '~/.cursor/mcp.json'],
   },
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.cursor/skills/'},
+    {sourceGlob: 'skills/**', destination: {project: '.cursor/skills/'}},
     {
       sourceGlob: 'rules/**',
-      destination: '.cursor/rules/',
+      destination: {project: '.cursor/rules/'},
       transforms: [
         {transformer: 'rename', params: {from: '.md', to: '.mdc'}},
         {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}},
       ],
     },
-    {sourceGlob: 'workflows/**', destination: '.cursor/commands/'},
+    {sourceGlob: 'workflows/**', destination: {project: '.cursor/commands/'}},
   ],
 }
 

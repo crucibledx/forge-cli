@@ -9,9 +9,9 @@ export const claudeCode: AssistantDefinition = {
     files: ['CLAUDE.md', '.claude/settings.json'],
   },
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.claude/skills/'},
-    {sourceGlob: 'rules/**', destination: '.claude/rules/'},
-    {sourceGlob: 'workflows/**', destination: '.claude/commands/'},
+    {sourceGlob: 'skills/**', destination: {project: '.claude/skills/'}},
+    {sourceGlob: 'rules/**', destination: {project: '.claude/rules/'}},
+    {sourceGlob: 'workflows/**', destination: {project: '.claude/commands/'}},
   ],
 }
 

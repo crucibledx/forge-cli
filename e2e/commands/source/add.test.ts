@@ -25,9 +25,7 @@ describe('forge source add', () => {
     'exits with error when no config exists',
     async () => {
       const dir = getDir()
-      const {output, exitCode} = await runSourceSession(dir, 'add', (cli) =>
-        cli.waitForText('No project config found'),
-      )
+      const {output, exitCode} = await runSourceSession(dir, 'add', (cli) => cli.waitForText('No project config found'))
       expect(exitCode).toBe(1)
       expect(output).toContain('No project config found')
     },

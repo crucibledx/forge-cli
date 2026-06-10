@@ -142,7 +142,7 @@ $ forge health
 Forge Health Report
   Last sync:        2 hours ago (success)
   Sync frequency:   every 4 hours (scheduler active)
-  Config drift:     2 files drifted since last sync
+  Sync drift:       2 files drifted since last sync
   Sources:          1 configured, 1 reachable
   Assistants:       3 active (claude-code, windsurf, cursor)
   Logs:             ~/.crucible/forge/logs/ (12 files, 2.1 MB)

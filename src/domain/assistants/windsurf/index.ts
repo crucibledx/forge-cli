@@ -9,13 +9,19 @@ export const windsurf: AssistantDefinition = {
     files: [],
   },
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.windsurf/skills/'},
+    {
+      sourceGlob: 'skills/**',
+      destination: {project: '.windsurf/skills/', global: '.codeium/windsurf/skills/'},
+    },
     {
       sourceGlob: 'rules/**',
-      destination: '.windsurf/rules/',
+      destination: {project: '.windsurf/rules/', global: '.codeium/windsurf/rules/'},
       transforms: [{transformer: 'frontmatter-rename', params: {from: 'paths', to: 'globs'}}],
     },
-    {sourceGlob: 'workflows/**', destination: '.windsurf/workflows/'},
+    {
+      sourceGlob: 'workflows/**',
+      destination: {project: '.windsurf/workflows/', global: '.codeium/windsurf/global_workflows/'},
+    },
   ],
 }
 

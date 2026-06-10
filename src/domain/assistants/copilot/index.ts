@@ -9,10 +9,10 @@ export const copilot: AssistantDefinition = {
     files: ['.github/copilot-instructions.md'],
   },
   targetMappings: [
-    {sourceGlob: 'skills/**', destination: '.github/skills/'},
+    {sourceGlob: 'skills/**', destination: {project: '.github/skills/', global: '.copilot/skills/'}},
     {
       sourceGlob: 'rules/**',
-      destination: '.github/instructions/',
+      destination: {project: '.github/instructions/'},
       transforms: [
         {transformer: 'rename', params: {from: '.md', to: '.instructions.md'}},
         {transformer: 'frontmatter-rename', params: {from: 'paths', to: 'applyTo'}},
