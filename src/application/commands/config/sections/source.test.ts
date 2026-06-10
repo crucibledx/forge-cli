@@ -34,6 +34,11 @@ mock.module('@infrastructure/cli/renderer', () => ({
   renderSuccess: () => {},
 }))
 
+mock.module('@infrastructure/config', () => ({
+  loadSyncState: async () => ({lastSync: '', files: {}}),
+  writeSyncState: async () => {},
+}))
+
 mock.module('@infrastructure/cli/prompts', () => ({
   select: async (opts: {message: string}) => {
     const val = promptResponses[opts.message]

@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.4] — 2026-06-10
+
+### Added
+
+- **`forge source` command** — manage sync sources from the CLI:
+  - `forge source list` — show configured sources with type, detail, and synced file counts.
+  - `forge source add` — add a new source interactively (reuses shared prompts).
+  - `forge source remove` — remove a source with optional cleanup of synced files and sync state.
+  - Running `forge source` with no subcommand defaults to `list`.
+- **Source cleanup on remove via `forge config`** — when removing a source through the config editor, now prompts to clean synced files too.
+- **Shared source cleanup utilities** (`shared/source.cleanup.ts`) — `getFilesForSource`, `countFilesForSource`, `removeSourceFromState`, `deleteSourceFiles` used by both `forge source remove` and `forge config` source section.
+- Unit tests for source cleanup utilities and source handler.
+- E2E tests for `forge source list`, `forge source add`, and `forge source remove` (split into `e2e/commands/source/`).
+
+### Fixed
+
+- Flaky report history test — check entry ordering instead of absolute last position.
+- Config source section test missing `loadSyncState`/`writeSyncState` mocks after cleanup feature was added.
+
+---
+
 ## [0.6.3] — 2026-06-09
 
 ### Added

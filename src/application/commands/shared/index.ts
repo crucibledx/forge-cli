@@ -3,4 +3,5 @@ export {ASSISTANT_PROMPT_MESSAGES, promptAssistantSelection, runAssistantScan} f
 export {SHARED_MESSAGES} from './messages'
 export {resolveForgeCommand} from './resolve-command'
 export {promptSchedule, SCHEDULER_PROMPT_MESSAGES} from './scheduler.prompt'
+export {countFilesForSource, deleteSourceFiles, getFilesForSource, removeSourceFromState} from './source.cleanup'
 export {configureSource, promptNewSource, SOURCE_PROMPT_MESSAGES} from './source.prompt'

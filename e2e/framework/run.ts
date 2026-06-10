@@ -72,6 +72,24 @@ export async function runHealth(cwd: string): Promise<CLIResult> {
   return runCommand(cwd, 'health')
 }
 
+export async function runSource(cwd: string, subcommand: string, args: string[] = []): Promise<CLIResult> {
+  return runCommand(cwd, 'source', [subcommand, ...args])
+}
+
+/**
+ * Runs `forge source <subcommand>` interactively (PTY).
+ */
+export async function runSourceSession(
+  cwd: string,
+  subcommand: string,
+  drive: (cli: CLISession) => Promise<void>,
+): Promise<CLIResult> {
+  const cli = spawnInteractive(cwd, 'source', [subcommand])
+  const done = cli.waitForExit()
+  await drive(cli)
+  return done
+}
+
 export async function runScheduler(cwd: string, subcommand: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'scheduler', [subcommand, ...args])
 }

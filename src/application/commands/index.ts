@@ -2,6 +2,7 @@ import './config'
 import './health'
 import './init'
 import './scheduler'
+import './source'
 import './status'
 import './sync'
 

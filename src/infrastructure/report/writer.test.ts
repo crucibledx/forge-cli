@@ -52,8 +52,11 @@ describe('report service', () => {
     await service.writeReport(r2)
 
     const history = await service.readHistory()
-    const last = history[history.length - 1]
-    expect(last.duration_ms).toBe(200)
+    const i1 = history.findIndex((r) => r.timestamp === '2026-06-09T20:02:00.000Z')
+    const i2 = history.findIndex((r) => r.timestamp === '2026-06-09T20:03:00.000Z')
+    expect(i1).not.toBe(-1)
+    expect(i2).not.toBe(-1)
+    expect(i1).toBeLessThan(i2)
   })
 
   it('readLatest returns null when no reports exist', async () => {

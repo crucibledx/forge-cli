@@ -1,7 +1,9 @@
 import type {Source} from '@domain/config/types'
+import {deleteSourceFiles, getFilesForSource, removeSourceFromState} from '@application/commands/shared/source.cleanup'
 import {configureSource, promptNewSource, SOURCE_PROMPT_MESSAGES} from '@application/commands/shared/source.prompt'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
+import {loadSyncState, writeSyncState} from '@infrastructure/config'
 
 import {sectionsRegistry} from './registry'
 import type {ConfigSectionEntry} from './types'
@@ -21,6 +23,8 @@ export const SOURCE_MESSAGES = {
   removed: (name: string) => `Removed source "${name}".`,
   added: (name: string) => `Source "${name}" added.`,
   updated: (name: string) => `Source "${name}" updated.`,
+  cleanFiles: (count: number) => `Clean ${count} synced file(s) from this source?`,
+  cleaned: (count: number) => `Cleaned ${count} file(s).`,
   hintNone: 'none configured',
 } as const
 
@@ -44,7 +48,7 @@ export const sourceSection: ConfigSectionEntry = {
     return `${count} configured: ${names}`
   },
 
-  edit: async (config) => {
+  edit: async (config, projectRoot) => {
     const M = SOURCE_MESSAGES
     let sources = [...config.sources]
 
@@ -61,7 +65,7 @@ export const sourceSection: ConfigSectionEntry = {
 
       const handler = actionHandlers[action]
       if (!handler) break
-      sources = await handler(sources)
+      sources = await handler(sources, projectRoot)
     }
 
     return {...config, sources}
@@ -70,7 +74,7 @@ export const sourceSection: ConfigSectionEntry = {
 
 // ─── Actions Handlers ────────────────────────────────────────────────────────
 
-type ActionHandler = (sources: Source[]) => Promise<Source[]>
+type ActionHandler = (sources: Source[], projectRoot: string) => Promise<Source[]>
 
 const addSource: ActionHandler = async (sources: Source[]): Promise<Source[]> => {
   const source = await promptNewSource(sources.map((s) => s.name))
@@ -94,7 +98,7 @@ const editSource: ActionHandler = async (sources: Source[]): Promise<Source[]> =
   return next
 }
 
-const removeSource: ActionHandler = async (sources: Source[]): Promise<Source[]> => {
+const removeSource: ActionHandler = async (sources: Source[], projectRoot: string): Promise<Source[]> => {
   const M = SOURCE_MESSAGES
   const sourceName = await prompts.select({
     message: M.removeWhich,
@@ -105,8 +109,31 @@ const removeSource: ActionHandler = async (sources: Source[]): Promise<Source[]>
     initialValue: false,
   })
   if (!confirmed) return sources
+
+  await cleanupSourceFiles(projectRoot, sourceName)
+
   renderer.renderSuccess(M.removed(sourceName))
   return sources.filter((s) => s.name !== sourceName)
+}
+
+async function cleanupSourceFiles(projectRoot: string, sourceName: string): Promise<void> {
+  const M = SOURCE_MESSAGES
+  const syncState = await loadSyncState(projectRoot)
+  const filePaths = getFilesForSource(syncState, sourceName)
+
+  if (filePaths.length === 0) return
+
+  const shouldClean = await prompts.confirm({
+    message: M.cleanFiles(filePaths.length),
+    initialValue: true,
+  })
+
+  if (!shouldClean) return
+
+  const {cleaned} = await deleteSourceFiles(projectRoot, filePaths)
+  const updatedState = removeSourceFromState(syncState, sourceName)
+  await writeSyncState(projectRoot, updatedState)
+  renderer.renderSuccess(M.cleaned(cleaned))
 }
 
 const actionHandlers: Record<string, ActionHandler> = {
