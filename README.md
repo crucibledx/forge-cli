@@ -200,4 +200,4 @@ Adding a new assistant or source type is one file in the right folder. No change
 
 ## License
 
-TBD
+[MIT](LICENSE)

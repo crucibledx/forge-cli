@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.6] — 2026-06-11
+
+### Added
+
+- **MIT License** — `LICENSE` file and `license` field in `package.json`.
+- **CONTRIBUTING.md** — setup, testing, architecture overview, code style, and commit conventions.
+
+---
+
 ## [0.6.5] — 2026-06-10
 
 ### Changed
