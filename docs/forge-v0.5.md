@@ -1,5 +1,7 @@
 # Forge CLI — v0.5 Architecture & Design
 
+> ✅ **Implemented** — shipped as v0.5.x. Kept as historical reference.
+
 > **Milestone:** Forge v0.5 — "Smart Sources"
 >
 > **Prerequisite:** Forge v0.4 shipped (scheduler, auto-pilot).

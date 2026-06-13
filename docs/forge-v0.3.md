@@ -1,5 +1,7 @@
 # Forge CLI — v0.3 Architecture & Design
 
+> ✅ **Implemented** — shipped as v0.3.x. Kept as historical reference.
+
 > **Milestone:** Forge v0.3 — "Sync Solid"
 >
 > **Prerequisite:** Forge v0.2 shipped (config management, multi-source init).

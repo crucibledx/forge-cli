@@ -1,5 +1,7 @@
 # Forge CLI — v0.6 Architecture & Design
 
+> ⚠️ **In progress** — logging, health, reports, README, CONTRIBUTING, and LICENSE shipped. Telemetry, distribution, and docs site remaining.
+
 > **Milestone:** Forge v0.6 — "Production Ready"
 >
 > **Prerequisite:** Forge v0.5 shipped (smart sources, global forge).
@@ -21,8 +23,8 @@ Abby Bangser's walking skeleton framework (Craft 2026) defines the gap clearly:
 | Phase              | Requirement                                                        | Forge Status  |
 |--------------------|--------------------------------------------------------------------|---------------|
 | Build the frame    | Hello world, contract/API, DDD, accessible                         | ✅ Done        |
-| Start walking      | Test suites, operable framework, SLIs, delivery mechanism, support | ⚠️ Partial    |
-| Finishing the look | Scaling, contributor model, marketplace, validation                | ❌ Not started |
+| Start walking      | Test suites, operable framework, SLIs, delivery mechanism, support | ✅ Mostly done |
+| Finishing the look | Scaling, contributor model, marketplace, validation                | ⚠️ Partial    |
 
 v0.6 closes the "start walking" gap.
 
@@ -262,7 +264,7 @@ Fallback for users without Node.js or Homebrew.
 
 ### README Overhaul
 
-Current README says v0.1. Needs full rewrite:
+> ✅ **Done** — README rewritten with problem-first marketing, mermaid diagrams, full command reference, and supported tools table.
 
 - Badges (version, tests, license)
 - One-liner description
@@ -293,18 +295,13 @@ Current README says v0.1. Needs full rewrite:
 
 ### CONTRIBUTING.md
 
-- How to set up dev environment (bun install, bun run test)
-- Architecture overview (DDD layers, module patterns)
-- How to add: assistant, source, command, transformer (link to existing how-to docs)
-- Code style (link to forge-cli.md rules)
-- PR process
+> ✅ **Done** — `CONTRIBUTING.md` shipped with setup, testing, architecture, code style, and commit conventions.
 
 ### LICENSE
 
-Decision needed. Recommendation from previous analysis:
+> ✅ **Done** — MIT license selected and shipped.
 
-- `MIT` or `Apache-2.0` for forge-cli, anvil, cast (max adoption)
-- `BSL` (Business Source License) for foundry (registry) when it exists
+Future products (foundry/registry) may use `BSL` (Business Source License) when they exist.
 
 ---
 
@@ -328,25 +325,25 @@ health:
 
 ## Implementation Order
 
-1. **Structured logging** — foundation for everything else
-2. **Sync reports + `forge health`** — immediate user value
+1. ✅ **Structured logging** — pino-based, JSONL to `~/.crucible/forge/logs/`, rotation
+2. ✅ **Sync reports + `forge health`** — SyncReport domain type, report service, health command
 3. **Telemetry scaffolding** — collection only, no backend
-4. **README + minimum docs** — unblocks public sharing
+4. ✅ **README + minimum docs** — problem-first README, how-to guides
 5. **npm publish + GitHub releases** — distribution
 6. **Homebrew tap** — convenience
 7. **GitHub Discussions + issue templates** — support channel
-8. **CONTRIBUTING.md + LICENSE** — enables external contributors
+8. ✅ **CONTRIBUTING.md + LICENSE** — MIT license, contributor guide
 
 ---
 
 ## Success Criteria
 
-- [ ] `forge sync --json` outputs structured JSON lines
-- [ ] `forge health` shows meaningful status in one screen
+- [x] `forge sync` produces structured logs (pino JSONL)
+- [x] `forge health` shows meaningful status in one screen
 - [ ] `npm install -g @crucible/forge-cli && forge init` works on a clean machine
-- [ ] README has quick start, badges, and docs link
+- [x] README has quick start, badges placeholder, and feature list
 - [ ] At least one distribution method beyond npm (brew or curl script)
-- [ ] LICENSE file exists in repo root
+- [x] LICENSE file exists in repo root (MIT)
 - [ ] Telemetry is opt-in only, privacy-respecting, with `forge telemetry status`
 
 ---

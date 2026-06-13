@@ -1,5 +1,7 @@
 # Forge CLI — v0.4 Architecture & Design
 
+> ✅ **Implemented** — shipped as v0.4.x. Kept as historical reference.
+
 > **Milestone:** Forge v0.4 — "Auto-Pilot"
 >
 > **Prerequisite:** Forge v0.3 shipped (sync v2, merge engine, forge status).

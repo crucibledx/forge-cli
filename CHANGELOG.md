@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.7] — 2026-06-11
+
+### Changed
+
+- **Design doc cleanup** — marked `docs/forge-v0.1` through `v0.5` as ✅ implemented, updated `forge-v0.6.md` with shipped status for logging, health, README, CONTRIBUTING, and LICENSE.
+- **Monorepo design docs** — added status annotations to `design/crucible-architecture.md`, `crucible-first-cli.md`, and `crucible-project-structure.md` noting stale references (binary name, config path, Go rewrite) while preserving content as historical record.
+
+---
+
 ## [0.6.6] — 2026-06-11
 
 ### Added

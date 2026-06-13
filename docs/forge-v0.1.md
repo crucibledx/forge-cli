@@ -1,5 +1,7 @@
 # Forge CLI — v0.1 Architecture & Design
 
+> ✅ **Implemented** — shipped as v0.1.9. Kept as historical reference.
+
 > **Milestone:** Forge v0.1 — the first shippable product under the Crucible brand.
 >
 > **Scope:** Bootstrap (init AI environment) + Sync (fetch shared skills from **one** source).

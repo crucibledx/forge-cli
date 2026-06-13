@@ -1,5 +1,7 @@
 # Forge CLI — v0.2 Architecture & Design
 
+> ✅ **Implemented** — shipped as v0.2.x. Kept as historical reference.
+
 > **Milestone:** Forge v0.2 — "Config Control"
 >
 > **Prerequisite:** Forge v0.1 shipped (v0.1.9).
