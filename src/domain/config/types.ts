@@ -7,6 +7,9 @@ export type DeepPartial<T> = {
 export interface Source {
   name: string
   type: string
+  include?: string[]
+  exclude?: string[]
+  map?: string
   [key: string]: unknown
 }
 

@@ -6,4 +6,7 @@ export const gitSourceSchema = z.object({
   url: z.string(),
   branch: z.string().default('main'),
   path: z.string().optional(),
+  include: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+  map: z.string().optional(),
 })

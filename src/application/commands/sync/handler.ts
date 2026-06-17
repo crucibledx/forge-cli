@@ -16,13 +16,13 @@ import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types
 import {MUTATION_TYPES, SYNC_FILE_STATUSES} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure/config'
-import {applyMutations, collectFiles, readFileContent, rollbackMutations} from '@infrastructure/fs'
+import {applyMutations, readFileContent, rollbackMutations} from '@infrastructure/fs'
 import type {IOContext} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import type {FileLogger} from '@infrastructure/logger'
 import {createFileLogger} from '@infrastructure/logger'
 import {createReportService} from '@infrastructure/report'
-import {getSourceLoader} from '@infrastructure/source'
+import {loadSourceFiles} from '@infrastructure/source'
 
 import {SYNC_MESSAGES as M} from './messages'
 import type {SyncCommandAction, SyncOptions} from './types'
@@ -166,9 +166,7 @@ export async function fetchAndResolve(
 ): Promise<ResolvedTarget[]> {
   const fetchResults = await Promise.allSettled(
     sources.map(async (source) => {
-      const loader = getSourceLoader(source.type)
-      const {localPath} = await loader.load(source)
-      const sourceFiles = await collectFiles(localPath)
+      const sourceFiles = await loadSourceFiles(source)
       return {source, sourceFiles}
     }),
   )

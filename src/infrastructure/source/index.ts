@@ -1,6 +1,11 @@
 import './git'
 import './local'
 
+import type {Source} from '@domain/config/types'
+import {applySourceFilters} from '@domain/sync/filter'
+import type {SourceFile} from '@domain/sync/types'
+
+import {collectFiles} from '../fs'
 import {loadersRegistry} from './registry'
 import type {SourceLoaderEntry} from './types'
 
@@ -13,6 +18,13 @@ export function getSourceLoader(type: string): SourceLoaderEntry {
     throw new Error(`Unsupported source type: "${type}". Available: ${available}`)
   }
   return loader
+}
+
+export async function loadSourceFiles(source: Source): Promise<SourceFile[]> {
+  const loader = getSourceLoader(source.type)
+  const {localPath} = await loader.load(source)
+  const files = await collectFiles(localPath)
+  return applySourceFilters(files, source)
 }
 
 export function getSourceLoaderOptions(): Array<{value: string; label: string}> {

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.8] — 2026-06-17
+
+### Added
+
+- **Source filtering** — `include` and `exclude` glob patterns on source config to control which files are synced (e.g. `include: ["skills/**"]` to sync only skills from a large repo).
+- **Source mapping** — `map` field on source config to prepend a virtual directory prefix, allowing flat sources to be placed into canonical structure (e.g. `map: "skills"` turns `SKILL.md` into `skills/SKILL.md`).
+- **`loadSourceFiles()`** — new infrastructure function encapsulating the full source pipeline (load → collect → filter/map), keeping command handlers clean.
+
+---
+
 ## [0.6.7] — 2026-06-11
 
 ### Changed

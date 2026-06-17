@@ -11,6 +11,7 @@ import {buildConfigYaml, writeConfig} from '@e2e/fixtures'
 import {
   ARROW_DOWN,
   LOCAL_SOURCE_MESSAGES as LM,
+  N,
   readConfig,
   runSourceSession,
   SOURCE_PROMPT_MESSAGES as SPM,
@@ -53,6 +54,9 @@ describe('forge source add', () => {
           .waitForText(LM.path.message)
           .write(localDir)
           .pressEnter()
+          // decline advanced filtering
+          .waitForText(SPM.filters.gate)
+          .pressKey(N)
           // wait for success
           .waitForText('added'),
       )
@@ -91,6 +95,8 @@ describe('forge source add', () => {
           .waitForText(LM.path.message)
           .write(localDir2)
           .pressEnter()
+          .waitForText(SPM.filters.gate)
+          .pressKey(N)
           .waitForText('added'),
       )
 

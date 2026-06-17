@@ -90,6 +90,10 @@ const {runSourceList, runSourceAdd, runSourceRemove} = await import('./handler')
 
 beforeEach(() => {
   rendererCalls = []
+  selectMock.mockClear()
+  confirmMock.mockClear()
+  writeProjectConfigMock.mockClear()
+  writeSyncStateMock.mockClear()
   mockConfig = {
     version: '1',
     assistants: [{id: 'claude-code', enabled: true}],

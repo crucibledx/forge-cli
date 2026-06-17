@@ -129,6 +129,8 @@ describe('forge config — e2e', () => {
           .waitForText(LM.path.message)
           .write(localSourceDir)
           .pressEnter()
+          .waitForText(SPM.filters.gate)
+          .pressKey(N)
           // wait for Edit label (unique to post-add menu: Add(0) Done(1) Edit(2) Remove(3))
           // then pick Done at index 1
           .waitForText(SM.actionEdit)

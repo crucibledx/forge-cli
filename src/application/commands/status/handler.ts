@@ -8,11 +8,11 @@ import {resolveSourceConflicts} from '@domain/sync/merge'
 import {resolveTargets} from '@domain/sync/resolver'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState} from '@infrastructure/config'
-import {collectFiles, readDiskContents} from '@infrastructure/fs'
+import {readDiskContents} from '@infrastructure/fs'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
-import {getSourceLoader} from '@infrastructure/source'
+import {loadSourceFiles} from '@infrastructure/source'
 
 import {displayDrift} from './display'
 import {STATUS_MESSAGES as M} from './messages'
@@ -99,9 +99,7 @@ async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string
     const allResolved = []
 
     for (const source of config.sources) {
-      const loader = getSourceLoader(source.type)
-      const {localPath} = await loader.load(source)
-      const sourceFiles = await collectFiles(localPath)
+      const sourceFiles = await loadSourceFiles(source)
       const resolved = resolveTargets(sourceFiles, assistantDefs, source.name)
       allResolved.push(...resolved)
     }
