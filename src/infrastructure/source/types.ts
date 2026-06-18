@@ -11,6 +11,6 @@ export interface SourceLoaderEntry {
   alias: string
   label: string
   configSchema: z.ZodTypeAny
-  configure: () => Promise<Source>
+  configure: (existing?: Source) => Promise<Source>
   load: (source: Source) => Promise<SourceLoadResult>
 }

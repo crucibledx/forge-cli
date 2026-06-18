@@ -44,13 +44,13 @@ export const SOURCE_PROMPT_MESSAGES = {
 
 // ─── Prompts ─────────────────────────────────────────────────────────────────
 
-export async function configureSource(): Promise<Source> {
+export async function configureSource(existing?: Source): Promise<Source> {
   const sourceType = await prompts.select({
     message: SOURCE_PROMPT_MESSAGES.selectType,
     options: getSourceLoaderOptions(),
   })
-  const source = await getSourceLoader(sourceType).configure()
-  return promptSourceOptions(source)
+  const source = await getSourceLoader(sourceType).configure(existing)
+  return promptSourceOptions(source, existing)
 }
 
 export async function promptNewSource(existingNames: string[] = []): Promise<Source> {
@@ -74,20 +74,25 @@ export async function promptNewSource(existingNames: string[] = []): Promise<Sou
   return source
 }
 
-export async function promptSourceOptions(source: Source): Promise<Source> {
+export async function promptSourceOptions(source: Source, existing?: Source): Promise<Source> {
   const M = SOURCE_PROMPT_MESSAGES.options
-  const wantsOptions = await prompts.confirm({message: M.gate, initialValue: false})
+  const hasExisting = existing?.layout || existing?.include || existing?.exclude || existing?.map
+  const wantsOptions = await prompts.confirm({message: M.gate, initialValue: !!hasExisting})
   if (!wantsOptions) return source
 
   const layout = (await prompts.select({
     message: M.layout.message,
-    options: [...M.layout.options],
+    options: [...M.layout.options].map((o) => ({
+      ...o,
+      hint: o.value === (existing?.layout ?? SOURCE_LAYOUT_OPTIONS.AUTO) ? `${o.hint} (current)` : o.hint,
+    })),
   })) as SourceLayoutOption
   if (layout !== SOURCE_LAYOUT_OPTIONS.AUTO) source.layout = layout
 
   const includeRaw = await prompts.text({
     message: M.include.message,
     placeholder: M.include.placeholder,
+    defaultValue: existing?.include?.join(', '),
   })
   const include = parseCommaSeparated(includeRaw)
   if (include.length) source.include = include
@@ -95,6 +100,7 @@ export async function promptSourceOptions(source: Source): Promise<Source> {
   const excludeRaw = await prompts.text({
     message: M.exclude.message,
     placeholder: M.exclude.placeholder,
+    defaultValue: existing?.exclude?.join(', '),
   })
   const exclude = parseCommaSeparated(excludeRaw)
   if (exclude.length) source.exclude = exclude
@@ -102,6 +108,7 @@ export async function promptSourceOptions(source: Source): Promise<Source> {
   const mapRaw = await prompts.text({
     message: M.map.message,
     placeholder: M.map.placeholder,
+    defaultValue: existing?.map,
   })
   const map = mapRaw?.trim()
   if (map) source.map = map

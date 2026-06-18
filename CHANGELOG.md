@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.11] — 2026-06-18
+
+### Changed
+
+- **Source edit pre-fills existing values** — editing a source in `forge config` now shows current url, branch, path, layout, include, exclude, and map as defaults instead of blank prompts.
+- **Advanced source options gate defaults to Yes** when editing a source that already has layout, include, exclude, or map configured.
+- **Current value hints** in source layout select and sync settings selects show `(current)` next to the active option.
+
+---
+
 ## [0.6.10] — 2026-06-18
 
 ### Added

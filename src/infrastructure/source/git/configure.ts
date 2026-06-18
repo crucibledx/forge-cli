@@ -9,10 +9,12 @@ import type {GitSourceConfig} from './types'
 
 export {gitSourceSchema}
 
-export const configure: SourceLoaderEntry['configure'] = async () => {
+export const configure: SourceLoaderEntry['configure'] = async (existing) => {
+  const prev = existing as Partial<GitSourceConfig> | undefined
   const url = await prompts.text({
     message: GIT_SOURCE_MESSAGES.url.message,
-    placeholder: GIT_SOURCE_MESSAGES.url.placeholder,
+    placeholder: prev?.url ?? GIT_SOURCE_MESSAGES.url.placeholder,
+    defaultValue: prev?.url,
     validate: (val) => {
       if (!val?.trim()) return GIT_SOURCE_MESSAGES.url.required
       return undefined
@@ -20,12 +22,13 @@ export const configure: SourceLoaderEntry['configure'] = async () => {
   })
   const branch = await prompts.text({
     message: GIT_SOURCE_MESSAGES.branch,
-    placeholder: 'main',
-    defaultValue: 'main',
+    placeholder: prev?.branch ?? 'main',
+    defaultValue: prev?.branch ?? 'main',
   })
   const path = await prompts.text({
     message: GIT_SOURCE_MESSAGES.subdirectory.message,
-    placeholder: GIT_SOURCE_MESSAGES.subdirectory.placeholder,
+    placeholder: prev?.path ?? GIT_SOURCE_MESSAGES.subdirectory.placeholder,
+    defaultValue: prev?.path,
   })
 
   const source: GitSourceConfig = {

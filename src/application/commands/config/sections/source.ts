@@ -90,7 +90,7 @@ const editSource: ActionHandler = async (sources: Source[]): Promise<Source[]> =
   })
   const idx = sources.findIndex((s) => s.name === sourceName)
   const existing = sources[idx]
-  const updated = await configureSource()
+  const updated = await configureSource(existing)
   updated.name = existing.name
   const next = [...sources]
   next[idx] = updated

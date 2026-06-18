@@ -23,10 +23,12 @@ export function validateLocalPath(val: string | undefined): string | undefined {
   return undefined
 }
 
-export const configure: SourceLoaderEntry['configure'] = async () => {
+export const configure: SourceLoaderEntry['configure'] = async (existing) => {
+  const prev = existing as Partial<LocalSourceConfig> | undefined
   const path = await prompts.text({
     message: LOCAL_SOURCE_MESSAGES.path.message,
-    placeholder: LOCAL_SOURCE_MESSAGES.path.placeholder,
+    placeholder: prev?.path ?? LOCAL_SOURCE_MESSAGES.path.placeholder,
+    defaultValue: prev?.path,
     validate: validateLocalPath,
   })
   return {
