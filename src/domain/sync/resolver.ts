@@ -4,7 +4,14 @@ import type {AssistantDefinition, TargetDestination, TargetMapping} from '../ass
 import {isGlobalMode} from '../scope'
 import {getTransformer} from '../transforms/registry'
 import type {TransformContext} from '../transforms/types'
-import {detectSourceLayout, partitionByLayout, SOURCE_LAYOUTS, type SourceLayout} from './layout'
+import {
+  detectSourceLayout,
+  partitionByLayout,
+  SOURCE_LAYOUT_OPTIONS,
+  SOURCE_LAYOUTS,
+  type SourceLayout,
+  type SourceLayoutOption,
+} from './layout'
 import type {ResolvedTarget, SourceFile} from './types'
 
 type ResolverFn = (
@@ -30,8 +37,12 @@ export function resolveTargets(
   sourceFiles: SourceFile[],
   assistants: readonly AssistantDefinition[],
   sourceName = '',
+  layoutOverride?: SourceLayoutOption,
 ): ResolvedTarget[] {
-  const layout = detectSourceLayout(sourceFiles)
+  const layout =
+    layoutOverride && layoutOverride !== SOURCE_LAYOUT_OPTIONS.AUTO
+      ? (layoutOverride as SourceLayout)
+      : detectSourceLayout(sourceFiles)
   return resolvers[layout](sourceFiles, assistants, sourceName)
 }
 

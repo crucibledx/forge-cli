@@ -1,4 +1,5 @@
 import type {AssistantConfig} from '@domain/assistants'
+import type {SourceLayoutOption} from '@domain/sync/layout'
 
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
@@ -7,6 +8,7 @@ export type DeepPartial<T> = {
 export interface Source {
   name: string
   type: string
+  layout?: SourceLayoutOption
   include?: string[]
   exclude?: string[]
   map?: string

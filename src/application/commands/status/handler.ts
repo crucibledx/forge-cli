@@ -100,7 +100,7 @@ async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string
 
     for (const source of config.sources) {
       const sourceFiles = await loadSourceFiles(source)
-      const resolved = resolveTargets(sourceFiles, assistantDefs, source.name)
+      const resolved = resolveTargets(sourceFiles, assistantDefs, source.name, source.layout)
       allResolved.push(...resolved)
     }
 

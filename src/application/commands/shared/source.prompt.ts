@@ -1,4 +1,5 @@
 import type {Source} from '@domain/config/types'
+import {SOURCE_LAYOUT_OPTIONS, type SourceLayoutOption} from '@domain/sync/layout'
 import * as prompts from '@infrastructure/cli/prompts'
 import {getSourceLoader, getSourceLoaderOptions} from '@infrastructure/source'
 
@@ -12,8 +13,20 @@ export const SOURCE_PROMPT_MESSAGES = {
     required: 'Source name is required',
     duplicate: (name: string) => `Source "${name}" already exists`,
   },
-  filters: {
-    gate: 'Configure advanced filtering? (include/exclude/map)',
+  options: {
+    gate: 'Configure advanced source options? (layout/include/exclude/map)',
+    layout: {
+      message: 'Source layout:',
+      options: [
+        {
+          value: SOURCE_LAYOUT_OPTIONS.AUTO,
+          label: 'Auto',
+          hint: 'detect from source — handles both canonical and pre-structured',
+        },
+        {value: SOURCE_LAYOUT_OPTIONS.CANONICAL, label: 'Canonical only', hint: 'skills/, rules/, workflows/'},
+        {value: SOURCE_LAYOUT_OPTIONS.PRE_STRUCTURED, label: 'Pre-structured only', hint: '.claude/, .cursor/, etc.'},
+      ],
+    },
     include: {
       message: 'Include patterns (comma-separated globs, empty to skip):',
       placeholder: 'skills/**, rules/**',
@@ -37,7 +50,7 @@ export async function configureSource(): Promise<Source> {
     options: getSourceLoaderOptions(),
   })
   const source = await getSourceLoader(sourceType).configure()
-  return promptSourceFilters(source)
+  return promptSourceOptions(source)
 }
 
 export async function promptNewSource(existingNames: string[] = []): Promise<Source> {
@@ -61,10 +74,16 @@ export async function promptNewSource(existingNames: string[] = []): Promise<Sou
   return source
 }
 
-export async function promptSourceFilters(source: Source): Promise<Source> {
-  const M = SOURCE_PROMPT_MESSAGES.filters
-  const wantsFilters = await prompts.confirm({message: M.gate, initialValue: false})
-  if (!wantsFilters) return source
+export async function promptSourceOptions(source: Source): Promise<Source> {
+  const M = SOURCE_PROMPT_MESSAGES.options
+  const wantsOptions = await prompts.confirm({message: M.gate, initialValue: false})
+  if (!wantsOptions) return source
+
+  const layout = (await prompts.select({
+    message: M.layout.message,
+    options: [...M.layout.options],
+  })) as SourceLayoutOption
+  if (layout !== SOURCE_LAYOUT_OPTIONS.AUTO) source.layout = layout
 
   const includeRaw = await prompts.text({
     message: M.include.message,

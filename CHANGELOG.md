@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.9] — 2026-06-18
+
+### Added
+
+- **Source layout override** — `layout` field on source config (`auto`, `canonical`, `pre-structured`) to explicitly control how source files are interpreted instead of relying on auto-detection.
+- **Advanced source options wizard** — interactive prompt gate "Configure advanced source options?" during `forge init`, `forge config`, and `forge source add` that exposes layout selection, include/exclude patterns, and map prefix.
+
+### Changed
+
+- Renamed internal filter gate to unified "advanced source options" gate covering layout + filtering in one flow.
+
+---
+
 ## [0.6.8] — 2026-06-17
 
 ### Added

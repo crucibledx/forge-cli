@@ -9,6 +9,19 @@ export const SOURCE_LAYOUTS = {
 
 export type SourceLayout = (typeof SOURCE_LAYOUTS)[keyof typeof SOURCE_LAYOUTS]
 
+export const SOURCE_LAYOUT_OPTIONS = {
+  AUTO: 'auto',
+  CANONICAL: SOURCE_LAYOUTS.CANONICAL,
+  PRE_STRUCTURED: SOURCE_LAYOUTS.PRE_STRUCTURED,
+} as const
+
+export type SourceLayoutOption = (typeof SOURCE_LAYOUT_OPTIONS)[keyof typeof SOURCE_LAYOUT_OPTIONS]
+
+export const SOURCE_LAYOUT_VALUES = Object.values(SOURCE_LAYOUT_OPTIONS) as [
+  SourceLayoutOption,
+  ...SourceLayoutOption[],
+]
+
 /**
  * Known assistant directories that signal a pre-structured source.
  * Maps directory name → assistant id.

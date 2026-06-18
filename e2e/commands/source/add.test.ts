@@ -55,7 +55,7 @@ describe('forge source add', () => {
           .write(localDir)
           .pressEnter()
           // decline advanced filtering
-          .waitForText(SPM.filters.gate)
+          .waitForText(SPM.options.gate)
           .pressKey(N)
           // wait for success
           .waitForText('added'),
@@ -95,7 +95,7 @@ describe('forge source add', () => {
           .waitForText(LM.path.message)
           .write(localDir2)
           .pressEnter()
-          .waitForText(SPM.filters.gate)
+          .waitForText(SPM.options.gate)
           .pressKey(N)
           .waitForText('added'),
       )

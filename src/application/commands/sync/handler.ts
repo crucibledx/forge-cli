@@ -193,7 +193,7 @@ export async function fetchAndResolve(
       continue
     }
 
-    const resolved = resolveTargets(sourceFiles, assistantDefs, source.name)
+    const resolved = resolveTargets(sourceFiles, assistantDefs, source.name, source.layout)
 
     if (resolved.length === 0) {
       renderer.renderWarning(M.warnings.noTargetsFromSource(source.name))

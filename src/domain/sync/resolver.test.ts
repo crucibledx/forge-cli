@@ -10,6 +10,7 @@ import {afterEach, describe, expect, it} from 'bun:test'
 
 import type {AssistantDefinition} from '../assistants/types'
 import {setGlobalMode} from '../scope'
+import {SOURCE_LAYOUT_OPTIONS} from './layout'
 import {resolveTargets} from './resolver'
 import type {SourceFile} from './types'
 
@@ -414,5 +415,46 @@ describe('resolveTargets — global mode (hybrid)', () => {
 
     const canonical = result.find((r) => r.sourcePath === 'skills/new.md')
     expect(canonical!.targetPath).toBe('.codeium/windsurf/skills/new.md')
+  })
+})
+
+// ── Layout override ──────────────────────────────────────────────────────
+
+describe('resolveTargets — layout override', () => {
+  it('forces canonical layout even when files have assistant dirs', () => {
+    const files: SourceFile[] = [{relativePath: '.claude/rules/api.md', content: '# API'}]
+    const result = resolveTargets(files, claudeOnlyDefs, '', SOURCE_LAYOUT_OPTIONS.CANONICAL)
+    expect(result).toHaveLength(0)
+  })
+
+  it('forces pre-structured layout even when files look canonical', () => {
+    const files: SourceFile[] = [{relativePath: 'rules/api.md', content: '# API'}]
+    const result = resolveTargets(files, claudeOnlyDefs, '', SOURCE_LAYOUT_OPTIONS.PRE_STRUCTURED)
+    expect(result).toHaveLength(0)
+  })
+
+  it('auto-detects when layoutOverride is "auto"', () => {
+    const result = resolveTargets(sourceFiles, [cursorDef], '', SOURCE_LAYOUT_OPTIONS.AUTO)
+    expect(result.length).toBeGreaterThan(0)
+    expect(result[0].assistantId).toBe('cursor')
+  })
+
+  it('auto-detects when layoutOverride is undefined', () => {
+    const result = resolveTargets(sourceFiles, [cursorDef], '', undefined)
+    expect(result.length).toBeGreaterThan(0)
+  })
+
+  it('canonical override resolves canonical files normally', () => {
+    const result = resolveTargets(sourceFiles, [claudeDef], 'src', SOURCE_LAYOUT_OPTIONS.CANONICAL)
+    const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
+    expect(skill).toBeDefined()
+    expect(skill!.targetPath).toBe('.claude/skills/typescript.md')
+  })
+
+  it('pre-structured override resolves pre-structured files normally', () => {
+    const files: SourceFile[] = [{relativePath: '.claude/rules/api.md', content: '# API'}]
+    const result = resolveTargets(files, claudeOnlyDefs, 'src', SOURCE_LAYOUT_OPTIONS.PRE_STRUCTURED)
+    expect(result).toHaveLength(1)
+    expect(result[0].targetPath).toBe('.claude/rules/api.md')
   })
 })
