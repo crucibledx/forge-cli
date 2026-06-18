@@ -12,6 +12,7 @@ import {resolveForgeCommand} from '../shared'
 import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
 import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
 import {promptNewSource} from '../shared/source.prompt'
+import {promptSyncSettings, SYNC_PROMPT_MESSAGES as SyncP} from '../shared/sync.prompt'
 import {INIT_MESSAGES as M} from './messages'
 import type {InitCommandAction} from './types'
 
@@ -69,7 +70,18 @@ export const runInit: InitCommandAction = async (options) => {
     schedule = await promptSchedule()
   }
 
-  // 6. Build and write config
+  // 6. Ask for sync settings
+  let syncSettings: Record<string, unknown> | undefined
+  const wantsSyncSettings = await prompts.confirm({
+    message: SyncP.gate,
+    initialValue: false,
+  })
+  if (wantsSyncSettings) {
+    syncSettings = await promptSyncSettings()
+  }
+
+  // 7. Build and write config
+  const syncBlock = {...(schedule ? {schedule} : {}), ...(syncSettings ?? {})}
   const config: ProjectConfig = {
     version: `${++configVersion}`,
     project: {
@@ -77,7 +89,7 @@ export const runInit: InitCommandAction = async (options) => {
     },
     assistants,
     sources,
-    ...(schedule ? {sync: {schedule}} : {}),
+    ...(Object.keys(syncBlock).length > 0 ? {sync: syncBlock} : {}),
   }
 
   const configPath = await writeProjectConfig(projectRoot, config)
@@ -91,7 +103,7 @@ export const runInit: InitCommandAction = async (options) => {
   renderer.renderSuccess(M.configWrittenTo(relative(projectRoot, configPath)))
   renderer.renderNewline()
 
-  // 7. Offer to install scheduler if schedule was set
+  // 8. Offer to install scheduler if schedule was set
   if (schedule) {
     const installScheduler = await prompts.confirm({
       message: M.scheduler.installNow,
@@ -108,7 +120,7 @@ export const runInit: InitCommandAction = async (options) => {
     }
   }
 
-  // 8. Offer to sync now
+  // 9. Offer to sync now
   if (sources.length > 0) {
     const syncNow = await prompts.confirm({
       message: M.sync.runNow,

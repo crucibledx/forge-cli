@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.10] — 2026-06-18
+
+### Added
+
+- **Sync settings wizard** — new "Sync settings" section in `forge config` and "Configure sync settings?" gate in `forge init` exposing all 4 sync options: source conflict strategy, local conflict strategy, backup, and keep-local.
+- **Shared sync prompt** — `promptSyncSettings()` in `shared/sync.prompt.ts` reusable across init and config commands.
+
+---
+
 ## [0.6.9] — 2026-06-18
 
 ### Added

@@ -37,6 +37,7 @@ import {
   runInitSession,
   SOURCE_PROMPT_MESSAGES as SM,
   SPACE,
+  SYNC_PROMPT_MESSAGES as SyncM,
   TIMEOUT_MS,
   useTmpDir,
   Y,
@@ -62,6 +63,9 @@ function declineAll(cli: CLISession): CliStep {
       .pressKey(N)
       // decline schedule
       .waitForText(SchM.enableSchedule)
+      .pressKey(N)
+      // decline sync settings
+      .waitForText(SyncM.gate)
       .pressKey(N)
   )
 }
@@ -98,6 +102,9 @@ function addSource(cli: CLISession, runSync = N): CliStep {
       .pressKey(N)
       // decline schedule
       .waitForText(SchM.enableSchedule)
+      .pressKey(N)
+      // decline sync settings
+      .waitForText(SyncM.gate)
       .pressKey(N)
       // decline run sync command
       .waitForText(M.sync.runNow)
@@ -188,6 +195,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -214,6 +223,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -245,6 +256,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -297,6 +310,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addAnother)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -367,6 +382,8 @@ describe('forge init — e2e', () => {
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
+            .waitForText(SyncM.gate)
+            .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
         )
@@ -400,6 +417,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addAnother)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -437,6 +456,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addAnother)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -479,6 +500,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -507,6 +530,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -528,6 +553,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -552,6 +579,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -575,6 +604,8 @@ describe('forge init — e2e', () => {
             .waitForText(M.source.addSource)
             .pressKey(N)
             .waitForText(SchM.enableSchedule)
+            .pressKey(N)
+            .waitForText(SyncM.gate)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
