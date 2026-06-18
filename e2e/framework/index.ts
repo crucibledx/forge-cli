@@ -5,6 +5,7 @@ export {ARROW_DOWN, ARROW_UP, CTRL_C, ENTER, N, SPACE, Y} from './keys'
 export {
   runCommand,
   runConfigSession,
+  runConfigShow,
   runHealth,
   runInitSession,
   runScheduler,
@@ -15,6 +16,7 @@ export {
 } from './run'
 export type {CLIResult, CLISession, CliStep} from './spawn'
 export {spawnInteractive} from './spawn'
+export {SHOW_MESSAGES} from '@application/commands/config/subcommands/show'
 export {INIT_MESSAGES} from '@application/commands/init/messages'
 export {SOURCE_PROMPT_MESSAGES} from '@application/commands/shared/source.prompt'
 export {SYNC_PROMPT_MESSAGES} from '@application/commands/shared/sync.prompt'

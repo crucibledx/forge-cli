@@ -90,6 +90,10 @@ export async function runSourceSession(
   return done
 }
 
+export async function runConfigShow(cwd: string): Promise<CLIResult> {
+  return runCommand(cwd, 'config', ['show'])
+}
+
 export async function runScheduler(cwd: string, subcommand: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'scheduler', [subcommand, ...args])
 }

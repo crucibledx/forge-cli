@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.12] — 2026-06-18
+
+### Added
+
+- **`forge config show`** — new subcommand that prints the current configuration: project info, assistants (with enable/disable status), sources (with type-specific fields and advanced options), sync settings (with `(default)` markers), and schedule (with human-readable cron description).
+
+---
+
 ## [0.6.11] — 2026-06-18
 
 ### Changed
