@@ -72,6 +72,35 @@ describe('forge source list', () => {
     expect(result.output).toContain('synced file(s)')
   })
 
+  it('shows advanced source options in list', async () => {
+    const dir = getDir()
+    const yaml = [
+      'version: "1"',
+      'assistants:',
+      '  - id: cursor',
+      '    enabled: true',
+      'sources:',
+      '  - name: filtered',
+      '    type: local',
+      `    path: "${dir}"`,
+      '    layout: canonical',
+      '    include:',
+      '      - "skills/**"',
+      '    exclude:',
+      '      - "draft-*"',
+      '    map: team',
+      '',
+    ].join('\n')
+    await writeConfig(dir, yaml)
+
+    const result = await runSource(dir, 'list')
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toContain('layout:canonical')
+    expect(result.output).toContain('include:skills/**')
+    expect(result.output).toContain('exclude:draft-*')
+    expect(result.output).toContain('map:team')
+  })
+
   it('behaves like list when no subcommand given', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')

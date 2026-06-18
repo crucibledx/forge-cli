@@ -356,6 +356,24 @@ describe('forge init — e2e', () => {
     )
   })
 
+  describe('init --force overwrites existing config', () => {
+    it(
+      'proceeds through wizard when --force is set and config exists',
+      async () => {
+        const dir = getDir()
+        await Bun.write(join(crucibleDirPath(dir), CONFIG_FILE), 'version: "1"\nassistants: []\n')
+
+        await runInitSession(dir, (cli) => declineAll(cli), ['--force'])
+
+        const config = await readConfig(dir)
+        expect(config.version).toBeDefined()
+        // Config was overwritten (not aborted)
+        expect(config.project?.name).toBeDefined()
+      },
+      TIMEOUT_MS,
+    )
+  })
+
   describe('source configuration — advanced', () => {
     it(
       'writes custom branch when user enters one',

@@ -23,8 +23,8 @@ export const runInit: InitCommandAction = async (options) => {
   const projectRoot = io.resolveProjectRoot()
   prompts.intro(M.intro)
 
-  // 1. Abort immediately if config already exists — no overwrite in init
-  if (projectConfigExists(projectRoot)) {
+  // 1. Abort if config already exists — unless --force
+  if (projectConfigExists(projectRoot) && !options.force) {
     logger.info('init aborted: config already exists', {projectRoot})
     renderer.renderWarning(M.configExists)
     prompts.outro(M.outroCancelled)

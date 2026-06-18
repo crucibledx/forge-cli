@@ -19,6 +19,8 @@ export const STATUS_MESSAGES = {
       'Schedule is configured but scheduler is not installed. Run `forge scheduler install` or `forge sync` manually.',
     hintNoSchedule: 'Run `forge sync` to sync, or `forge scheduler` to set up auto-sync.',
     hintNoSources: 'Add a source with `forge config` first, then run `forge sync`.',
+    syncStrategy: (source: string, local: string) => `Sync: source=${source}, local=${local}`,
+    syncBackup: (on: boolean) => `Backup: ${on ? 'on' : 'off'}`,
   },
   output: {
     configFound: (path: string) => `Config: ${path}`,

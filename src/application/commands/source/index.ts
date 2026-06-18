@@ -1,6 +1,6 @@
 import {commandsRegistry} from '../registry'
 import type {CommandDefinition} from '../types'
-import {runSourceAdd, runSourceList, runSourceRemove} from './handler'
+import {runSourceAdd, runSourceEdit, runSourceList, runSourceRemove} from './handler'
 
 export const sourceCommand: CommandDefinition = {
   name: 'source',
@@ -19,6 +19,12 @@ export const sourceCommand: CommandDefinition = {
       description: 'Add a new source',
       options: [],
       action: runSourceAdd,
+    },
+    {
+      name: 'edit',
+      description: 'Edit an existing source configuration',
+      options: [],
+      action: runSourceEdit,
     },
     {
       name: 'remove',

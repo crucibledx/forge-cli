@@ -60,6 +60,12 @@ async function showConfigContext(config: ProjectConfig, projectRoot: string): Pr
     renderer.renderDim(M.context.noSources)
   }
 
+  const srcStrategy = config.sync?.source_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.source_conflict_strategy
+  const localStrategy = config.sync?.local_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.local_conflict_strategy
+  const backup = config.sync?.backup ?? SYNC_CONFIG_DEFAULTS.backup
+  renderer.renderDim(M.context.syncStrategy(srcStrategy, localStrategy))
+  renderer.renderDim(M.context.syncBackup(backup))
+
   const schedule = config.sync?.schedule
   const backend = getSchedulerBackend()
   const installed = await backend.isInstalled(projectRoot)

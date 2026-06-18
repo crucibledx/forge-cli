@@ -1,5 +1,5 @@
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {readFile, rm} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {parse as parseYaml} from 'yaml'
@@ -28,4 +28,9 @@ export const getProjectConfigPath: GetProjectConfigPathFunction = (projectRoot) 
 
 export const projectConfigExists: ProjectConfigExistsFunction = (projectRoot) => {
   return existsSync(getProjectConfigPath(projectRoot))
+}
+
+export async function removeCrucibleDir(projectRoot: string): Promise<void> {
+  const cruciblePath = join(projectRoot, CRUCIBLE_DIR)
+  await rm(cruciblePath, {recursive: true, force: true})
 }

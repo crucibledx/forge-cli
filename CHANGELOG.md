@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.13] — 2026-06-18
+
+### Added
+
+- **`forge source edit`** — new subcommand to edit an existing source configuration interactively, with pre-filled values via `configureSource(existing)`.
+- **`forge uninstall`** — new command that removes the `.crucible` directory, uninstalls the scheduler, and deletes all synced files (with confirmation prompt).
+- **`forge init --force`** — new `--force` flag to overwrite existing configuration during re-initialization.
+- **`forge source list`** — now displays advanced source options (layout, include, exclude, map) when configured.
+- **`forge status`** — now shows sync strategy settings (source/local conflict strategies, backup) in the config context display.
+- `removeCrucibleDir()` infrastructure function for safe `.crucible` directory removal.
+
+### Fixed
+
+- Fixed test isolation: uninstall handler test no longer mocks `node:fs/promises` globally (mocks at infrastructure boundary instead), which was causing flaky failures in git cache cleanup tests.
+
+---
+
 ## [0.6.12] — 2026-06-18
 
 ### Added

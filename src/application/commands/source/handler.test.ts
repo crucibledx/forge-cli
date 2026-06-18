@@ -84,7 +84,7 @@ mock.module('@infrastructure/source', () => ({
 
 // ─── Import after mocks ─────────────────────────────────────────────────────
 
-const {runSourceList, runSourceAdd, runSourceRemove} = await import('./handler')
+const {runSourceList, runSourceAdd, runSourceEdit, runSourceRemove} = await import('./handler')
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,25 @@ describe('runSourceAdd', () => {
 
     expect(writeProjectConfigMock).toHaveBeenCalled()
     expect(rendererCalls.some((c) => c.method === 'renderSuccess')).toBe(true)
+  })
+})
+
+describe('runSourceEdit', () => {
+  it('writes updated config after editing source', async () => {
+    selectMock.mockResolvedValueOnce('team-rules')
+    await runSourceEdit()
+
+    expect(selectMock).toHaveBeenCalled()
+    expect(writeProjectConfigMock).toHaveBeenCalled()
+    expect(rendererCalls.some((c) => c.method === 'renderSuccess')).toBe(true)
+  })
+
+  it('shows no-sources warning when sources are empty', async () => {
+    mockConfig = {version: '1', assistants: [], sources: []}
+    await runSourceEdit()
+
+    expect(writeProjectConfigMock).not.toHaveBeenCalled()
+    expect(rendererCalls.some((c) => c.method === 'renderWarning')).toBe(true)
   })
 })
 

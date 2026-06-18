@@ -138,7 +138,7 @@ describe('runInit handler', () => {
   it('writes config with no assistants when user selects none', async () => {
     promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     expect(writtenConfig).not.toBeNull()
     expect((writtenConfig as {assistants: unknown[]}).assistants).toEqual([])
   })
@@ -146,7 +146,7 @@ describe('runInit handler', () => {
   it('writes config with enabled assistant when user selects one', async () => {
     promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const assistants = (writtenConfig as {assistants: Array<{id: string; enabled: boolean}>}).assistants
     expect(assistants).toHaveLength(1)
     expect(assistants[0].id).toBe(cursor.id)
@@ -156,7 +156,7 @@ describe('runInit handler', () => {
   it('writes config with multiple assistants when user selects several', async () => {
     promptResponses = {[M.assistants.select]: [cursor.id, windsurf.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
     expect(assistants).toHaveLength(2)
     expect(assistants.map((a) => a.id)).toContain(cursor.id)
@@ -172,7 +172,7 @@ describe('runInit handler', () => {
       [M.sync.runNow]: false,
     }
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const cfg = writtenConfig as {sources: Array<{url: string; type: string}>}
     expect(cfg.sources).toHaveLength(1)
     expect(cfg.sources[0].url).toBe('git@github.com:org/repo.git')
@@ -188,7 +188,7 @@ describe('runInit handler', () => {
       [M.sync.runNow]: false,
     }
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const cfg = writtenConfig as {sources: Array<{path: string; type: string}>}
     expect(cfg.sources).toHaveLength(1)
     expect(cfg.sources[0].type).toBe('local')
@@ -208,7 +208,7 @@ describe('runInit handler', () => {
       [M.sync.runNow]: false,
     }
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const cfg = writtenConfig as {sources: Array<{name: string; type: string}>}
     expect(cfg.sources).toHaveLength(2)
     expect(cfg.sources[0].name).toBe('default')
@@ -224,7 +224,7 @@ describe('runInit handler', () => {
     ]
     promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const assistants = (writtenConfig as {assistants: Array<{id: string; enabled: boolean}>}).assistants
     expect(assistants.find((a) => a.id === cursor.id)?.enabled).toBe(true)
   })
@@ -236,7 +236,7 @@ describe('runInit handler', () => {
     ]
     promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
     expect(assistants.find((a) => a.id === cursor.id)).toBeUndefined()
   })
@@ -244,21 +244,21 @@ describe('runInit handler', () => {
   it('aborts without writing when config already exists', async () => {
     mockConfigExists = true
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     expect(writtenConfig).toBeNull()
   })
 
   it('does not scan when config already exists', async () => {
     mockConfigExists = true
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     expect(scanCalled).toBe(false)
   })
 
   it('renders warning when no assistants selected', async () => {
     promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     expect(rendererWarnings).toContain(M.assistants.noneSelected)
   })
 
@@ -269,7 +269,15 @@ describe('runInit handler', () => {
       [M.source.addSource]: false,
     }
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
+    expect(writtenConfig).not.toBeNull()
+  })
+
+  it('overwrites existing config when --force is set', async () => {
+    mockConfigExists = true
+    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+    const {runInit} = await import('./handler')
+    await runInit({verbose: false, force: true})
     expect(writtenConfig).not.toBeNull()
   })
 
@@ -277,7 +285,7 @@ describe('runInit handler', () => {
     mockProjectRoot = '/workspace/my-app'
     promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
-    await runInit({verbose: false})
+    await runInit({verbose: false, force: false})
     expect((writtenConfig as {project?: {name: string}}).project?.name).toBe('my-app')
   })
 })

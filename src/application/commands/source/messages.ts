@@ -16,6 +16,10 @@ export const SOURCE_COMMAND_MESSAGES = {
   add: {
     success: (name: string) => `Source "${name}" added.`,
   },
+  edit: {
+    which: 'Which source to edit?',
+    success: (name: string) => `Source "${name}" updated.`,
+  },
   remove: {
     which: 'Which source to remove?',
     confirm: (name: string) => `Remove source "${name}"?`,

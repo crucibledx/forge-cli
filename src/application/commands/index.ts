@@ -5,6 +5,7 @@ import './scheduler'
 import './source'
 import './status'
 import './sync'
+import './uninstall'
 
 export {commandsRegistry as commands} from './registry'
 export type * from './types'

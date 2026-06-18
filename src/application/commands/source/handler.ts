@@ -11,7 +11,7 @@ import {
   getFilesForSource,
   removeSourceFromState,
 } from '../shared/source.cleanup'
-import {promptNewSource} from '../shared/source.prompt'
+import {configureSource, promptNewSource} from '../shared/source.prompt'
 import {SOURCE_COMMAND_MESSAGES as M} from './messages'
 
 // ─── List ───────────────────────────────────────────────────────────────────
@@ -68,6 +68,42 @@ export async function runSourceAdd(): Promise<void> {
 
   logger.info('source added', {name: source.name, type: source.type})
   renderer.renderSuccess(M.add.success(source.name))
+}
+
+// ─── Edit ──────────────────────────────────────────────────────────────────
+
+export async function runSourceEdit(): Promise<void> {
+  const projectRoot = io.resolveProjectRoot()
+  const logger = createFileLogger()
+  const config = await loadProjectConfig(projectRoot)
+
+  if (!config) {
+    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
+    process.exit(1)
+  }
+
+  if (config.sources.length === 0) {
+    renderer.renderWarning(M.errors.noSources)
+    renderer.renderDim(M.errors.noSourcesHint)
+    return
+  }
+
+  const sourceName = await prompts.select({
+    message: M.edit.which,
+    options: config.sources.map((s) => ({value: s.name, label: s.name, hint: s.type})),
+  })
+
+  const idx = config.sources.findIndex((s) => s.name === sourceName)
+  const existing = config.sources[idx]
+  const updated = await configureSource(existing)
+  updated.name = existing.name
+
+  const sources = [...config.sources]
+  sources[idx] = updated
+  await writeProjectConfig(projectRoot, {...config, sources})
+
+  logger.info('source edited', {name: updated.name, type: updated.type})
+  renderer.renderSuccess(M.edit.success(updated.name))
 }
 
 // ─── Remove ─────────────────────────────────────────────────────────────────
@@ -135,7 +171,15 @@ export async function runSourceRemove(): Promise<void> {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getSourceDetail(source: Source): string {
-  if (source.type === 'git') return String(source.url ?? '')
-  if (source.type === 'local') return String(source.path ?? '')
-  return ''
+  const parts: string[] = []
+
+  if (source.type === 'git') parts.push(String(source.url ?? ''))
+  if (source.type === 'local') parts.push(String(source.path ?? ''))
+
+  if (source.layout) parts.push(`layout:${source.layout}`)
+  if (source.include?.length) parts.push(`include:${source.include.join(',')}`)
+  if (source.exclude?.length) parts.push(`exclude:${source.exclude.join(',')}`)
+  if (source.map) parts.push(`map:${source.map}`)
+
+  return parts.join('  ')
 }

@@ -33,8 +33,12 @@ export async function runCommand(
  * Runs `forge init` interactively, drives it via the `drive` callback,
  * then waits for the process to exit and returns the result.
  */
-export async function runInitSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
-  const cli = spawnInteractive(cwd, 'init')
+export async function runInitSession(
+  cwd: string,
+  drive: (cli: CLISession) => Promise<void>,
+  args: string[] = [],
+): Promise<CLIResult> {
+  const cli = spawnInteractive(cwd, 'init', args)
   const done = cli.waitForExit()
   await drive(cli)
   return done
@@ -96,4 +100,15 @@ export async function runConfigShow(cwd: string): Promise<CLIResult> {
 
 export async function runScheduler(cwd: string, subcommand: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'scheduler', [subcommand, ...args])
+}
+
+export async function runUninstallSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
+  const cli = spawnInteractive(cwd, 'uninstall')
+  const done = cli.waitForExit()
+  await drive(cli)
+  return done
+}
+
+export async function runInit(cwd: string, args: string[] = []): Promise<CLIResult> {
+  return runCommand(cwd, 'init', args)
 }
