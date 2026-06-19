@@ -121,3 +121,8 @@ export function createFileLogger(level: LogLevel = currentLogLevel): FileLogger 
 export function getLogDir(): string {
   return LOG_DIR
 }
+
+export function countLogFiles(): number {
+  if (!existsSync(LOG_DIR)) return 0
+  return readdirSync(LOG_DIR).filter((f) => f.endsWith('.jsonl')).length
+}

@@ -69,6 +69,8 @@ async function walk(
 
     const fullPath = join(currentDir, entry.name)
 
+    if (entry.isSymbolicLink()) continue
+
     if (entry.isDirectory()) {
       await walk(baseDir, fullPath, files, assistantDirs, false)
     } else if (entry.isFile()) {

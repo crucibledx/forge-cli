@@ -2,6 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 
 import {emptySyncState} from '@domain/sync/state'
 
+import {CommandError} from '../types'
 import {HEALTH_MESSAGES as M} from './messages'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
@@ -115,19 +116,9 @@ afterEach(() => {
 })
 
 describe('runHealth', () => {
-  it('exits with error when no config found', async () => {
+  it('throws CommandError when no config found', async () => {
     mockHasConfig = false
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    await runHealth({} as never)
-
-    expect(exitMock).toHaveBeenCalledWith(1)
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls).toHaveLength(1)
-
-    process.exit = origExit
+    await expect(runHealth({} as never)).rejects.toThrow(CommandError)
   })
 
   it('shows "never" when no report exists', async () => {

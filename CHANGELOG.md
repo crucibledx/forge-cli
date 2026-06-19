@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.14] — 2026-06-19
+
+### Fixed
+
+- **Path traversal guard** — `safeResolve()` in `mutations.ts` and `rollback.ts` prevents file operations outside the project root.
+- **Symlink skip** — `collectFiles()` now skips symbolic links to prevent following malicious symlinks to sensitive directories.
+- **XML escape in plist** — `buildPlist()` escapes label, projectRoot, and command arguments to prevent XML injection in launchd scheduler config.
+- **`health/handler.ts`** — replaced direct `node:fs` imports with `countLogFiles()` from infrastructure logger.
+
+### Changed
+
+- **`matchGlob` → `Bun.Glob`** — replaced prefix-based glob matching with real glob matching via `Bun.Glob`.
+- **Silent mode** — replaced `console.log = () => {}` mutation with `renderer.setSilent()` flag at the render layer.
+- **Dispatch maps** — replaced `switch` statements with `Record<string, Handler>` dispatch maps in `mutations.ts` and `rollback.ts`.
+- **`process.exit()` → `throw CommandError`** — all handler `process.exit(1)` calls replaced with `throw CommandError(message, suggestion)`, caught at the parser boundary. Improves testability and cleanup guarantees.
+- Updated `docs/how-to-add-assistant.md` to reflect current `destination: {project, global?}` structure.
+
+### Added
+
+- `CommandError` class in `application/commands/types.ts` for structured handler errors with optional suggestion.
+- `PathTraversalError` and `safeResolve()` exports from `@infrastructure/fs`.
+- `countLogFiles()` in `@infrastructure/logger`.
+- Security tests for path traversal protection (4 tests) and symlink skipping (2 tests).
+
+---
+
 ## [0.6.13] — 2026-06-18
 
 ### Added

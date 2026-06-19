@@ -1,5 +1,3 @@
-import {existsSync, readdirSync} from 'node:fs'
-
 import {formatTimeAgo} from '@domain/format'
 import {describeCron} from '@domain/scheduler'
 import {detectDrift} from '@domain/sync/drift'
@@ -7,11 +5,12 @@ import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState} from '@infrastructure/config'
 import {readDiskContents} from '@infrastructure/fs'
 import io from '@infrastructure/io'
-import {getLogDir} from '@infrastructure/logger'
+import {countLogFiles, getLogDir} from '@infrastructure/logger'
 import {createReportService} from '@infrastructure/report'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 import {getSourceLoader} from '@infrastructure/source'
 
+import {CommandError} from '../types'
 import {HEALTH_MESSAGES as M} from './messages'
 import type {HealthCommandAction} from './types'
 
@@ -20,9 +19,7 @@ export const runHealth: HealthCommandAction = async () => {
   const context = await io.buildContext(projectRoot)
 
   if (!context.projectConfig) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
-    return
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   const config = context.projectConfig
@@ -80,7 +77,7 @@ export const runHealth: HealthCommandAction = async () => {
 
   // Logs
   const logDir = getLogDir()
-  const logCount = existsSync(logDir) ? readdirSync(logDir).filter((f) => f.endsWith('.jsonl')).length : 0
+  const logCount = countLogFiles()
   renderer.renderDim(M.logs(logDir, logCount))
 
   // Reports

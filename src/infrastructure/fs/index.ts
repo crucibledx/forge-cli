@@ -1,5 +1,5 @@
 export type {AppliedMutation} from './mutations'
-export {applyMutations} from './mutations'
+export {applyMutations, PathTraversalError, safeResolve} from './mutations'
 export {collectFiles, readDiskContents, readFileContent} from './reader'
 export {rollbackMutations} from './rollback'
 export {scanForAssistants} from './scanner'

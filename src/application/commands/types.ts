@@ -1,5 +1,15 @@
 import type {Command, HookEvent} from 'commander'
 
+export class CommandError extends Error {
+  constructor(
+    message: string,
+    public readonly suggestion?: string,
+  ) {
+    super(message)
+    this.name = 'CommandError'
+  }
+}
+
 export interface CommandHook {
   event: HookEvent
   listener: (thisCommand: Command, actionCommand: Command) => void | Promise<void>

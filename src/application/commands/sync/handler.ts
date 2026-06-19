@@ -24,14 +24,12 @@ import {createFileLogger} from '@infrastructure/logger'
 import {createReportService} from '@infrastructure/report'
 import {loadSourceFiles} from '@infrastructure/source'
 
+import {CommandError} from '../types'
 import {SYNC_MESSAGES as M} from './messages'
 import type {SyncCommandAction, SyncOptions} from './types'
 
 export const runSync: SyncCommandAction = async (options) => {
-  const originalLog = console.log
-  if (options.silent) {
-    console.log = () => {}
-  }
+  if (options.silent) renderer.setSilent(true)
 
   const logger = createFileLogger()
 
@@ -43,9 +41,7 @@ export const runSync: SyncCommandAction = async (options) => {
       await reports.rotate()
     }
   } finally {
-    if (options.silent) {
-      console.log = originalLog
-    }
+    if (options.silent) renderer.setSilent(false)
     await logger.rotate()
     logger.flush()
   }
@@ -58,8 +54,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<S
 
   if (!context.projectConfig) {
     logger.error('sync aborted: no config found')
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   const config = context.projectConfig
@@ -96,8 +91,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<S
   } catch (err) {
     if (err instanceof SourceConflictError) {
       logger.error('sync aborted: source conflicts', {count: err.conflicts.length})
-      renderer.renderError(M.errors.sourceConflict(err.conflicts.length), err.message)
-      process.exit(1)
+      throw new CommandError(M.errors.sourceConflict(err.conflicts.length), err.message)
     }
     throw err
   }
@@ -113,8 +107,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<S
   } catch (err) {
     if (err instanceof LocalConflictError) {
       logger.error('sync aborted: local conflicts', {count: err.conflicts.length})
-      renderer.renderError(M.errors.localConflict(err.conflicts.length), err.message)
-      process.exit(1)
+      throw new CommandError(M.errors.localConflict(err.conflicts.length), err.message)
     }
     throw err
   }
@@ -150,13 +143,11 @@ function countByStatus(summaries: SyncFileSummary[], ...statuses: string[]): num
 
 export function validateConfig(config: ProjectConfig, configExists = false): void {
   if (config.sources.length === 0) {
-    renderer.renderError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
   }
 
   if (config.assistants?.every((a) => !a.enabled)) {
-    renderer.renderError(M.errors.noAssistants, M.errors.noAssistantsHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noAssistants, M.errors.noAssistantsHint)
   }
 }
 
@@ -343,11 +334,10 @@ export async function executePlan(
   const failed = applied.find((a) => !a.success)
 
   if (failed) {
-    renderer.renderError(M.errors.applyFailed(failed.error ?? 'Unknown error'))
     renderer.renderDim(M.progress.rollingBack)
     await rollbackMutations(projectRoot, applied)
     renderer.renderDim(M.progress.rollbackComplete)
-    process.exit(1)
+    throw new CommandError(M.errors.applyFailed(failed.error ?? 'Unknown error'))
   }
 
   const syncState = buildSyncState(resolved)

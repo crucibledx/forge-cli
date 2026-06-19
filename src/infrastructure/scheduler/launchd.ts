@@ -51,9 +51,13 @@ export function cronToPlistCalendar(cron: string): string {
   return entries.join('\n')
 }
 
+function escapeXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export function buildPlist(title: string, projectRoot: string, command: string, schedule: string): string {
   const commandParts = command.split(/\s+/)
-  const programArgs = commandParts.map((arg) => `    <string>${arg}</string>`).join('\n')
+  const programArgs = commandParts.map((arg) => `    <string>${escapeXml(arg)}</string>`).join('\n')
 
   const intervalSeconds = cronToStartInterval(schedule)
   const scheduleBlock = intervalSeconds
@@ -65,13 +69,13 @@ export function buildPlist(title: string, projectRoot: string, command: string, 
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>${title}</string>
+  <string>${escapeXml(title)}</string>
   <key>ProgramArguments</key>
   <array>
 ${programArgs}
   </array>
   <key>WorkingDirectory</key>
-  <string>${projectRoot}</string>
+  <string>${escapeXml(projectRoot)}</string>
 ${scheduleBlock}
   <key>StandardOutPath</key>
   <string>/dev/null</string>

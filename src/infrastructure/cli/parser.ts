@@ -1,6 +1,7 @@
 import {Command} from 'commander'
 
 import type {CommandDefinition} from '@application/commands/types'
+import {CommandError} from '@application/commands/types'
 
 import pkg from '../../../package.json'
 import * as renderer from './renderer'
@@ -38,7 +39,11 @@ export function createProgram(commands: CommandDefinition[]): Command {
         await action(options)
       } catch (err) {
         renderer.renderNewline()
-        renderer.renderError(err instanceof Error ? err.message : String(err))
+        if (err instanceof CommandError) {
+          renderer.renderError(err.message, err.suggestion)
+        } else {
+          renderer.renderError(err instanceof Error ? err.message : String(err))
+        }
         process.exit(1)
       }
     }

@@ -12,6 +12,7 @@ import {
   removeSourceFromState,
 } from '../shared/source.cleanup'
 import {configureSource, promptNewSource} from '../shared/source.prompt'
+import {CommandError} from '../types'
 import {SOURCE_COMMAND_MESSAGES as M} from './messages'
 
 // ─── List ───────────────────────────────────────────────────────────────────
@@ -21,8 +22,7 @@ export async function runSourceList(): Promise<void> {
   const config = await loadProjectConfig(projectRoot)
 
   if (!config) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   if (config.sources.length === 0) {
@@ -56,8 +56,7 @@ export async function runSourceAdd(): Promise<void> {
   const config = await loadProjectConfig(projectRoot)
 
   if (!config) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   const existingNames = config.sources.map((s) => s.name)
@@ -78,8 +77,7 @@ export async function runSourceEdit(): Promise<void> {
   const config = await loadProjectConfig(projectRoot)
 
   if (!config) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   if (config.sources.length === 0) {
@@ -114,8 +112,7 @@ export async function runSourceRemove(): Promise<void> {
   const config = await loadProjectConfig(projectRoot)
 
   if (!config) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   if (config.sources.length === 0) {

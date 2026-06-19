@@ -134,12 +134,14 @@ function resolveCanonical(
 }
 
 function matchGlob(filePath: string, glob: string): {matches: boolean; relativePath: string} {
-  // Simple prefix matching: "skills/**" matches "skills/anything"
-  const prefix = glob.replace('/**', '/')
-  if (filePath.startsWith(prefix)) {
-    return {matches: true, relativePath: filePath.slice(prefix.length)}
-  }
-  return {matches: false, relativePath: ''}
+  const matcher = new Bun.Glob(glob)
+  if (!matcher.match(filePath)) return {matches: false, relativePath: ''}
+
+  // Extract prefix directory from glob for relativePath calculation
+  const prefixEnd = glob.indexOf('*')
+  const prefix = prefixEnd > 0 ? glob.slice(0, prefixEnd) : ''
+  const relativePath = prefix && filePath.startsWith(prefix) ? filePath.slice(prefix.length) : filePath
+  return {matches: true, relativePath}
 }
 
 function resolveDestination(dest: TargetDestination): string {

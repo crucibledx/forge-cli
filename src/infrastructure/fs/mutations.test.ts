@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
-import {applyMutations} from './mutations'
+import {applyMutations, PathTraversalError, safeResolve} from './mutations'
 
 const getDir = useTmpDir('mutations')
 
@@ -103,5 +103,54 @@ describe('applyMutations', () => {
       expect(result[0].success).toBe(false)
       expect(result).toHaveLength(1)
     })
+  })
+
+  describe('path traversal protection', () => {
+    it('rejects ../escape paths in file_write', async () => {
+      const dir = getDir()
+      const result = await applyMutations(dir, [{type: 'file_write', path: '../../../etc/passwd', content: 'pwned'}])
+      expect(result[0].success).toBe(false)
+      expect(result[0].error).toContain('resolves outside project root')
+    })
+
+    it('rejects ../escape paths in file_delete', async () => {
+      const dir = getDir()
+      const result = await applyMutations(dir, [{type: 'file_delete', path: '../../escape'}])
+      expect(result[0].success).toBe(false)
+      expect(result[0].error).toContain('resolves outside project root')
+    })
+
+    it('rejects ../escape paths in dir_create', async () => {
+      const dir = getDir()
+      const result = await applyMutations(dir, [{type: 'dir_create', path: '../../../tmp/evil'}])
+      expect(result[0].success).toBe(false)
+      expect(result[0].error).toContain('resolves outside project root')
+    })
+
+    it('allows valid nested paths', async () => {
+      const dir = getDir()
+      const result = await applyMutations(dir, [{type: 'file_write', path: 'a/b/../b/file.md', content: 'ok'}])
+      expect(result[0].success).toBe(true)
+    })
+  })
+})
+
+describe('safeResolve', () => {
+  it('resolves relative paths inside project root', () => {
+    const result = safeResolve('/project', 'skills/ts.md')
+    expect(result).toBe('/project/skills/ts.md')
+  })
+
+  it('throws PathTraversalError for paths escaping root', () => {
+    expect(() => safeResolve('/project', '../etc/passwd')).toThrow(PathTraversalError)
+  })
+
+  it('throws for absolute paths outside root', () => {
+    expect(() => safeResolve('/project', '/etc/passwd')).toThrow(PathTraversalError)
+  })
+
+  it('allows absolute paths inside root', () => {
+    const result = safeResolve('/project', '/project/skills/ts.md')
+    expect(result).toBe('/project/skills/ts.md')
   })
 })

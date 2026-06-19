@@ -9,6 +9,7 @@ import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {resolveForgeCommand} from '../shared'
 import {promptSchedule} from '../shared/scheduler.prompt'
+import {CommandError} from '../types'
 import {SCHEDULER_MESSAGES as M} from './messages'
 
 export async function runSchedulerInstall(): Promise<void> {
@@ -17,8 +18,7 @@ export async function runSchedulerInstall(): Promise<void> {
   const context = await io.buildContext(projectRoot)
 
   if (!context.projectConfig) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   if (context.projectConfig.sources.length === 0) {
@@ -28,13 +28,11 @@ export async function runSchedulerInstall(): Promise<void> {
 
   const schedule = context.projectConfig.sync?.schedule
   if (!schedule) {
-    renderer.renderError(M.errors.noSchedule, M.errors.noScheduleHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noSchedule, M.errors.noScheduleHint)
   }
 
   if (!isValidCron(schedule)) {
-    renderer.renderError(M.errors.invalidCron(schedule))
-    process.exit(1)
+    throw new CommandError(M.errors.invalidCron(schedule))
   }
 
   const desc = describeCron(schedule)
@@ -45,8 +43,7 @@ export async function runSchedulerInstall(): Promise<void> {
   try {
     await backend.install(projectRoot, schedule, resolveForgeCommand())
   } catch (err) {
-    renderer.renderError(M.errors.installFailed(err instanceof Error ? err.message : String(err)))
-    process.exit(1)
+    throw new CommandError(M.errors.installFailed(err instanceof Error ? err.message : String(err)))
   }
 
   logger.info('scheduler installed', {schedule, cron: desc, projectRoot})
@@ -70,8 +67,7 @@ export async function runSchedulerUninstall(): Promise<void> {
     await backend.uninstall(projectRoot)
   } catch (err) {
     logger.error('scheduler uninstall failed', {error: err instanceof Error ? err.message : String(err)})
-    renderer.renderError(M.errors.uninstallFailed(err instanceof Error ? err.message : String(err)))
-    process.exit(1)
+    throw new CommandError(M.errors.uninstallFailed(err instanceof Error ? err.message : String(err)))
   }
 
   logger.info('scheduler uninstalled', {projectRoot})
@@ -178,8 +174,7 @@ export async function runSchedulerStatus(): Promise<void> {
   const context = await io.buildContext(projectRoot)
 
   if (!context.projectConfig) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   const backend = getSchedulerBackend()

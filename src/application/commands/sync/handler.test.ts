@@ -9,6 +9,7 @@ import type {SyncState} from '@domain/sync/state'
 import {emptySyncState} from '@domain/sync/state'
 import type {ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 
+import {CommandError} from '../types'
 import {SYNC_MESSAGES as M} from './messages'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ mock.module('@infrastructure/cli/renderer', () => ({
   renderHeader: track('renderHeader'),
   renderDetectionResults: track('renderDetectionResults'),
   renderOutputEntries: track('renderOutputEntries'),
+  setSilent: () => {},
 }))
 
 mock.module('@infrastructure/fs', () => ({
@@ -101,45 +103,30 @@ beforeEach(() => {
 // ── validateConfig ───────────────────────────────────────────────────────────
 
 describe('validateConfig', () => {
-  it('does not exit when config is valid', () => {
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    validateConfig({
-      version: '1',
-      assistants: [{id: 'cursor', enabled: true}],
-      sources: [{name: 'test', type: 'local'}],
-    })
-
-    expect(exitMock).not.toHaveBeenCalled()
-    process.exit = origExit
+  it('does not throw when config is valid', () => {
+    expect(() =>
+      validateConfig({
+        version: '1',
+        assistants: [{id: 'cursor', enabled: true}],
+        sources: [{name: 'test', type: 'local'}],
+      }),
+    ).not.toThrow()
   })
 
-  it('exits when sources are empty', () => {
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    validateConfig({version: '1', assistants: [{id: 'cursor', enabled: true}], sources: []})
-
-    expect(exitMock).toHaveBeenCalledWith(1)
-    process.exit = origExit
+  it('throws CommandError when sources are empty', () => {
+    expect(() => validateConfig({version: '1', assistants: [{id: 'cursor', enabled: true}], sources: []})).toThrow(
+      CommandError,
+    )
   })
 
-  it('exits when all assistants are disabled', () => {
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    validateConfig({
-      version: '1',
-      assistants: [{id: 'cursor', enabled: false}],
-      sources: [{name: 'test', type: 'local'}],
-    })
-
-    expect(exitMock).toHaveBeenCalledWith(1)
-    process.exit = origExit
+  it('throws CommandError when all assistants are disabled', () => {
+    expect(() =>
+      validateConfig({
+        version: '1',
+        assistants: [{id: 'cursor', enabled: false}],
+        sources: [{name: 'test', type: 'local'}],
+      }),
+    ).toThrow(CommandError)
   })
 })
 
@@ -390,18 +377,14 @@ describe('executePlan', () => {
     expect(successCalls).toHaveLength(1)
   })
 
-  it('triggers rollback on failure and exits', async () => {
+  it('triggers rollback on failure and throws CommandError', async () => {
     mockApplied = [{mutation: {type: 'file_write', path: 'a.md', content: '#'}, success: false, error: 'EACCES'}]
 
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    await executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context)
+    await expect(
+      executePlan('/fake', [{type: 'file_write', path: 'a.md', content: '#'}], resolved, context),
+    ).rejects.toThrow(CommandError)
 
     expect(rollbackCalled).toBe(true)
-    expect(exitMock).toHaveBeenCalledWith(1)
-    process.exit = origExit
   })
 
   it('skips config write when projectConfig is null', async () => {

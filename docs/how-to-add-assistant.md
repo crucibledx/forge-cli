@@ -23,7 +23,7 @@ Each assistant is a self-contained module in `src/domain/assistants/<name>/`.
 - **`detection.files`** — files whose presence signals the assistant is in use
 - **`targetMappings`** — array of `{ sourceGlob, destination, transforms? }`
     - `sourceGlob` — glob matching files from the source
-    - `destination` — target directory to place matched files
+    - `destination` — `{ project: string, global?: string }` target directories for matched files
     - `transforms` — optional array of `{ transformer, params }` steps (see `docs/how-to-add-transformer.md`)
 
 ## File structure reference
@@ -47,8 +47,8 @@ export const myAssistant: AssistantDefinition = {
         files: ['.my-assistant/config.json'],
     },
     targetMappings: [
-        {sourceGlob: 'rules/**', destination: '.my-assistant/rules/'},
-        {sourceGlob: 'skills/**', destination: '.my-assistant/skills/'},
+        {sourceGlob: 'rules/**', destination: {project: '.my-assistant/rules/', global: '~/.my-assistant/rules/'}},
+        {sourceGlob: 'skills/**', destination: {project: '.my-assistant/skills/'}},
     ],
 }
 

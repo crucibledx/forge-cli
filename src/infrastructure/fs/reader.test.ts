@@ -1,4 +1,4 @@
-import {mkdir, writeFile} from 'node:fs/promises'
+import {mkdir, symlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -62,5 +62,28 @@ describe('collectFiles', () => {
     const result = await collectFiles(dir)
     expect(result[0].relativePath).toBe('a/b/c/deep.txt')
     expect(result[0].content).toBe('deep')
+  })
+
+  it('skips symlinked files', async () => {
+    const dir = getDir()
+    await writeFile(join(dir, 'real.md'), 'real content', 'utf-8')
+    await symlink(join(dir, 'real.md'), join(dir, 'link.md'))
+
+    const result = await collectFiles(dir)
+    const paths = result.map((f) => f.relativePath)
+    expect(paths).toContain('real.md')
+    expect(paths).not.toContain('link.md')
+  })
+
+  it('skips symlinked directories', async () => {
+    const dir = getDir()
+    await mkdir(join(dir, 'real-dir'), {recursive: true})
+    await writeFile(join(dir, 'real-dir', 'file.md'), 'content', 'utf-8')
+    await symlink(join(dir, 'real-dir'), join(dir, 'linked-dir'))
+
+    const result = await collectFiles(dir)
+    const paths = result.map((f) => f.relativePath)
+    expect(paths).toContain('real-dir/file.md')
+    expect(paths).not.toContain('linked-dir/file.md')
   })
 })

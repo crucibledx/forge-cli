@@ -6,6 +6,7 @@ import {createFileLogger} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {deleteSourceFiles} from '../shared/source.cleanup'
+import {CommandError} from '../types'
 import {UNINSTALL_MESSAGES as M} from './messages'
 
 export async function runUninstall(): Promise<void> {
@@ -14,8 +15,7 @@ export async function runUninstall(): Promise<void> {
   const config = await loadProjectConfig(projectRoot)
 
   if (!config) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   prompts.intro(M.intro)

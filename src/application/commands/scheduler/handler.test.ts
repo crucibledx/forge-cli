@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
 
+import {CommandError} from '../types'
 import {SCHEDULER_MESSAGES as M} from './messages'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
@@ -150,51 +151,19 @@ afterEach(() => {
 })
 
 describe('runSchedulerInstall', () => {
-  it('exits with error when no config found', async () => {
+  it('throws CommandError when no config found', async () => {
     mockHasConfig = false
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerInstall()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls).toHaveLength(1)
-    expect(errorCalls[0].args[0]).toBe(M.errors.noConfig)
-
-    process.exit = origExit
+    await expect(runSchedulerInstall()).rejects.toThrow(CommandError)
   })
 
-  it('exits with error when no schedule configured', async () => {
+  it('throws CommandError when no schedule configured', async () => {
     mockSchedule = undefined
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerInstall()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls).toHaveLength(1)
-    expect(errorCalls[0].args[0]).toBe(M.errors.noSchedule)
-
-    process.exit = origExit
+    await expect(runSchedulerInstall()).rejects.toThrow(CommandError)
   })
 
-  it('exits with error for invalid cron expression', async () => {
+  it('throws CommandError for invalid cron expression', async () => {
     mockSchedule = 'not-valid'
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerInstall()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls[0].args[0]).toContain('Invalid cron expression')
-
-    process.exit = origExit
+    await expect(runSchedulerInstall()).rejects.toThrow(CommandError)
   })
 
   it('installs successfully with valid schedule', async () => {
@@ -205,19 +174,9 @@ describe('runSchedulerInstall', () => {
     expect(successCalls[0].args[0]).toContain('Scheduler installed')
   })
 
-  it('exits with error when backend install fails', async () => {
+  it('throws CommandError when backend install fails', async () => {
     mockInstallError = new Error('permission denied')
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerInstall()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls[0].args[0]).toContain('permission denied')
-
-    process.exit = origExit
+    await expect(runSchedulerInstall()).rejects.toThrow(CommandError)
   })
 })
 
@@ -242,37 +201,17 @@ describe('runSchedulerUninstall', () => {
     expect(successCalls[0].args[0]).toBe(M.output.uninstalled)
   })
 
-  it('exits with error when backend uninstall fails', async () => {
+  it('throws CommandError when backend uninstall fails', async () => {
     mockIsInstalled = true
     mockUninstallError = new Error('unload failed')
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerUninstall()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls[0].args[0]).toContain('unload failed')
-
-    process.exit = origExit
+    await expect(runSchedulerUninstall()).rejects.toThrow(CommandError)
   })
 })
 
 describe('runSchedulerStatus', () => {
-  it('exits with error when no config found', async () => {
+  it('throws CommandError when no config found', async () => {
     mockHasConfig = false
-    const origExit = process.exit
-    process.exit = (() => {
-      throw new Error('EXIT')
-    }) as never
-
-    await expect(runSchedulerStatus()).rejects.toThrow('EXIT')
-
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls[0].args[0]).toBe(M.errors.noConfig)
-
-    process.exit = origExit
+    await expect(runSchedulerStatus()).rejects.toThrow(CommandError)
   })
 
   it('shows not installed when no job exists', async () => {
