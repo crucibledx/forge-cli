@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.16] — 2026-06-22
+
+### Changed
+
+- **`status/handler.ts`** — replaced last `process.exit(1)` with `throw CommandError` for consistency with all other handlers.
+- **Removed `lodash-es` dependency** — replaced `groupBy` with native `Object.groupBy`, `escapeRegExp` with inline helper, `map` with native `.map()`. One fewer runtime dependency.
+
 ## [0.6.15] — 2026-06-22
 
 ### Added

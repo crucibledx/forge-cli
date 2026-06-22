@@ -5,6 +5,7 @@ import {DRIFT_STATUSES} from '@domain/sync/drift'
 import {emptySyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
 
+import {CommandError} from '../types'
 import {STATUS_MESSAGES as M} from './messages'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
@@ -185,20 +186,9 @@ describe('displayDrift', () => {
 })
 
 describe('runStatus', () => {
-  it('exits with error when no config found', async () => {
+  it('throws CommandError when no config found', async () => {
     mockHasConfig = false
-    const exitMock = mock(() => {})
-    const origExit = process.exit
-    process.exit = exitMock as never
-
-    await runStatus({} as never)
-
-    expect(exitMock).toHaveBeenCalledWith(1)
-    const errorCalls = rendererCalls.filter((c) => c.method === 'renderError')
-    expect(errorCalls).toHaveLength(1)
-    expect(errorCalls[0].args[0]).toBe(M.errors.noConfig)
-
-    process.exit = origExit
+    await expect(runStatus({} as never)).rejects.toThrow(CommandError)
   })
 
   it('warns when never synced', async () => {

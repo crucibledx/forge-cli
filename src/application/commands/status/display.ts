@@ -1,5 +1,3 @@
-import {groupBy} from 'lodash-es'
-
 import type {AssistantId} from '@domain/assistants'
 import {getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import {formatTimeAgo} from '@domain/format'
@@ -26,9 +24,10 @@ export function displayDrift(summary: DriftSummary): void {
     return
   }
 
-  const byAssistant = groupBy(summary.files, (f) => assistantIdForPath(f.targetPath))
+  const byAssistant = Object.groupBy(summary.files, (f) => assistantIdForPath(f.targetPath))
 
   for (const [assistantId, files] of Object.entries(byAssistant)) {
+    if (!files) continue
     const def = getAssistant(assistantId as AssistantId)
     renderer.render(`${def.name}:`)
     for (const file of files) {

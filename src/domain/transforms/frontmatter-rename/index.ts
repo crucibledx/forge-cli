@@ -1,7 +1,9 @@
-import {escapeRegExp} from 'lodash-es'
-
 import {transformersRegistry} from '../registry'
 import type {TransformerEntry} from '../types'
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 const NEWLINE = /[\r\n]/
 

@@ -3,7 +3,6 @@ import './copilot'
 import './windsurf'
 
 import {describe, expect, it} from 'bun:test'
-import {map} from 'lodash-es'
 
 import {claudeCode} from './claude-code'
 import {cursor} from './cursor'
@@ -16,7 +15,7 @@ describe('getAllAssistants', () => {
   })
 
   it('covers every registered id', () => {
-    const ids = map(getAllAssistants(), (a) => a.id)
+    const ids = getAllAssistants().map((a) => a.id)
     for (const id of getAssistantIds()) {
       expect(ids).toContain(id)
     }
@@ -43,7 +42,7 @@ describe('getAssistant', () => {
 
   it('returns claude-code with expected mappings', () => {
     const a = getAssistant(claudeCode.id)
-    const globs = map(a.targetMappings, (m) => m.sourceGlob)
+    const globs = a.targetMappings.map((m) => m.sourceGlob)
     expect(globs).toContain('skills/**')
     expect(globs).toContain('rules/**')
   })

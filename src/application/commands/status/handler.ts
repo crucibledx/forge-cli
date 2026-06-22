@@ -14,6 +14,7 @@ import {createFileLogger} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 import {loadSourceFiles} from '@infrastructure/source'
 
+import {CommandError} from '../types'
 import {displayDrift} from './display'
 import {STATUS_MESSAGES as M} from './messages'
 import type {StatusCommandAction} from './types'
@@ -24,9 +25,7 @@ export const runStatus: StatusCommandAction = async () => {
   const context = await io.buildContext(projectRoot)
 
   if (!context.projectConfig) {
-    renderer.renderError(M.errors.noConfig, M.errors.noConfigHint)
-    process.exit(1)
-    return
+    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
 
   const config = context.projectConfig

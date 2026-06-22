@@ -1,5 +1,3 @@
-import {groupBy} from 'lodash-es'
-
 import type {AssistantDefinition, AssistantId} from '@domain/assistants'
 import {getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
@@ -294,7 +292,7 @@ export function displayPlan(
   syncConfig: SyncConfig,
   dryRun: boolean,
 ): void {
-  const byAssistant = groupBy(summaries, (item) => item.assistantId)
+  const byAssistant = Object.groupBy(summaries, (item) => item.assistantId)
   const sourceNames = sources.map((s) => s.name).join(', ')
 
   if (dryRun) {
@@ -305,6 +303,7 @@ export function displayPlan(
   renderer.renderNewline()
 
   for (const [assistantId, files] of Object.entries(byAssistant)) {
+    if (!files) continue
     const def = assistantId === 'unknown' ? {name: 'Other'} : getAssistant(assistantId as AssistantId)
     renderer.render(`${def.name}:`)
     for (const file of files) {
