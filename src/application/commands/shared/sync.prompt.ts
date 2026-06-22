@@ -42,6 +42,7 @@ export async function promptSyncSettings(current?: Partial<SyncConfig>): Promise
       ...o,
       hint: o.value === defaults.source_conflict_strategy ? `${o.hint} (current)` : o.hint,
     })),
+    initialValue: defaults.source_conflict_strategy,
   })) as SourceConflictStrategy
 
   const localConflict = (await prompts.select({
@@ -50,6 +51,7 @@ export async function promptSyncSettings(current?: Partial<SyncConfig>): Promise
       ...o,
       hint: o.value === defaults.local_conflict_strategy ? `${o.hint} (current)` : o.hint,
     })),
+    initialValue: defaults.local_conflict_strategy,
   })) as LocalConflictStrategy
 
   const backup = await prompts.confirm({

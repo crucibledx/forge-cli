@@ -1,6 +1,6 @@
 {
   "name": "@crucibledx/forge-cli",
-  "version": "0.6.17",
+  "version": "0.6.18",
   "description": "AI development environment setup & config sync CLI",
   "license": "MIT",
   "type": "module",

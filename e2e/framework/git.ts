@@ -55,6 +55,15 @@ export async function addBranchToBareRepo(
   }
 
   await exec(workDir, ['git', 'add', '-A'])
-  await exec(workDir, ['git', '-c', 'user.name=test', '-c', 'user.email=test@test.com', 'commit', '-m', `add ${branch}`])
+  await exec(workDir, [
+    'git',
+    '-c',
+    'user.name=test',
+    '-c',
+    'user.email=test@test.com',
+    'commit',
+    '-m',
+    `add ${branch}`,
+  ])
   await exec(workDir, ['git', 'push', 'origin', branch])
 }

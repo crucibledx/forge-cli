@@ -13,8 +13,8 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
   const prev = existing as Partial<GitSourceConfig> | undefined
   const url = await prompts.text({
     message: GIT_SOURCE_MESSAGES.url.message,
-    placeholder: prev?.url ?? GIT_SOURCE_MESSAGES.url.placeholder,
-    defaultValue: prev?.url,
+    placeholder: GIT_SOURCE_MESSAGES.url.placeholder,
+    initialValue: prev?.url,
     validate: (val) => {
       if (!val?.trim()) return GIT_SOURCE_MESSAGES.url.required
       return undefined
@@ -22,13 +22,14 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
   })
   const branch = await prompts.text({
     message: GIT_SOURCE_MESSAGES.branch,
-    placeholder: prev?.branch ?? 'main',
-    defaultValue: prev?.branch ?? 'main',
+    placeholder: 'main',
+    initialValue: prev?.branch,
+    defaultValue: 'main',
   })
   const path = await prompts.text({
     message: GIT_SOURCE_MESSAGES.subdirectory.message,
-    placeholder: prev?.path ?? GIT_SOURCE_MESSAGES.subdirectory.placeholder,
-    defaultValue: prev?.path,
+    placeholder: GIT_SOURCE_MESSAGES.subdirectory.placeholder,
+    initialValue: prev?.path,
   })
 
   const source: GitSourceConfig = {

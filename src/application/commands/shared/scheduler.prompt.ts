@@ -18,8 +18,8 @@ export async function promptSchedule(currentSchedule?: string): Promise<string |
   while (true) {
     const expression = await prompts.text({
       message: currentSchedule ? M.enterCronEdit : M.enterCron,
-      placeholder: currentSchedule ?? M.cronPlaceholder,
-      defaultValue: currentSchedule,
+      placeholder: M.cronPlaceholder,
+      initialValue: currentSchedule,
       validate: (value) => {
         if (!value || value.trim() === '') return undefined
         if (!isValidCron(value)) return M.invalidCron

@@ -27,8 +27,8 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
   const prev = existing as Partial<LocalSourceConfig> | undefined
   const path = await prompts.text({
     message: LOCAL_SOURCE_MESSAGES.path.message,
-    placeholder: prev?.path ?? LOCAL_SOURCE_MESSAGES.path.placeholder,
-    defaultValue: prev?.path,
+    placeholder: LOCAL_SOURCE_MESSAGES.path.placeholder,
+    initialValue: prev?.path,
     validate: validateLocalPath,
   })
   return {

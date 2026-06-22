@@ -4,10 +4,12 @@ import pc from 'picocolors'
 export async function select(options: {
   message: string
   options: Array<{value: string; label?: string; hint?: string}>
+  initialValue?: string
 }): Promise<string> {
   const result = await clack.select({
     message: options.message,
     options: options.options as Array<{value: string; label?: string; hint?: string}>,
+    initialValue: options.initialValue,
   })
 
   if (clack.isCancel(result)) {
@@ -43,12 +45,14 @@ export async function text(options: {
   message: string
   placeholder?: string
   defaultValue?: string
+  initialValue?: string
   validate?: (value: string | undefined) => string | undefined
 }): Promise<string> {
   const result = await clack.text({
     message: options.message,
-    placeholder: options.placeholder,
+    placeholder: options.initialValue ? undefined : options.placeholder,
     defaultValue: options.defaultValue,
+    initialValue: options.initialValue,
     validate: options.validate,
   })
 

@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.18] — 2026-06-22
+
+### Fixed
+
+- **Source edit UX** — editing a source now pre-fills all fields with current values as editable text (`initialValue`) instead of showing them as dim placeholder text. Pressing Enter keeps the current value instead of triggering validation errors ("URL is required") or silently clearing fields.
+- **Source type pre-selection** — the source type select now pre-selects the current type when editing, so pressing Enter keeps it without needing to navigate.
+- **Advanced options visibility** — include/exclude patterns and map prefix now show current values as editable pre-filled text instead of generic placeholder hints, so users can see and modify existing values.
+
+### Changed
+
+- **`prompts.text()` auto-suppresses placeholder** when `initialValue` is set — callers pass both `placeholder` and `initialValue`, the wrapper handles the logic. Eliminates repeated conditional checks across all prompt call sites.
+- **Sync settings pre-selection** — source/local conflict strategy selects now pre-select the current value via `initialValue`.
+- **Scheduler prompt** — existing cron expression is now shown as editable pre-filled text instead of a dim placeholder.
+
+### Added
+
+- **E2E tests** — "keeps current path when pressing Enter on pre-filled local source" and "preserves advanced source options when pressing Enter through pre-filled fields".
+- **`BACKSPACE` key constant** in e2e framework for clearing pre-filled text fields.
+
 ## [0.6.17] — 2026-06-22
 
 ### Fixed

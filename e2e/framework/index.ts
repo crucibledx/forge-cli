@@ -1,7 +1,7 @@
 export {readConfig, readConfigRaw} from './config'
 export {CLI_ENTRY, TIMEOUT_MS} from './constants'
 export {addBranchToBareRepo, createBareRepo} from './git'
-export {ARROW_DOWN, ARROW_UP, CTRL_C, ENTER, N, SPACE, Y} from './keys'
+export {ARROW_DOWN, ARROW_UP, BACKSPACE, CTRL_C, ENTER, N, SPACE, Y} from './keys'
 export {
   runCommand,
   runConfigSession,

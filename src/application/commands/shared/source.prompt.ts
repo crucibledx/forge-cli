@@ -48,6 +48,7 @@ export async function configureSource(existing?: Source): Promise<Source> {
   const sourceType = await prompts.select({
     message: SOURCE_PROMPT_MESSAGES.selectType,
     options: getSourceLoaderOptions(),
+    initialValue: existing?.type,
   })
   const source = await getSourceLoader(sourceType).configure(existing)
   return promptSourceOptions(source, existing)
@@ -86,13 +87,14 @@ export async function promptSourceOptions(source: Source, existing?: Source): Pr
       ...o,
       hint: o.value === (existing?.layout ?? SOURCE_LAYOUT_OPTIONS.AUTO) ? `${o.hint} (current)` : o.hint,
     })),
+    initialValue: existing?.layout ?? SOURCE_LAYOUT_OPTIONS.AUTO,
   })) as SourceLayoutOption
   if (layout !== SOURCE_LAYOUT_OPTIONS.AUTO) source.layout = layout
 
   const includeRaw = await prompts.text({
     message: M.include.message,
     placeholder: M.include.placeholder,
-    defaultValue: existing?.include?.join(', '),
+    initialValue: existing?.include?.join(', '),
   })
   const include = parseCommaSeparated(includeRaw)
   if (include.length) source.include = include
@@ -100,7 +102,7 @@ export async function promptSourceOptions(source: Source, existing?: Source): Pr
   const excludeRaw = await prompts.text({
     message: M.exclude.message,
     placeholder: M.exclude.placeholder,
-    defaultValue: existing?.exclude?.join(', '),
+    initialValue: existing?.exclude?.join(', '),
   })
   const exclude = parseCommaSeparated(excludeRaw)
   if (exclude.length) source.exclude = exclude
@@ -108,7 +110,7 @@ export async function promptSourceOptions(source: Source, existing?: Source): Pr
   const mapRaw = await prompts.text({
     message: M.map.message,
     placeholder: M.map.placeholder,
-    defaultValue: existing?.map,
+    initialValue: existing?.map,
   })
   const map = mapRaw?.trim()
   if (map) source.map = map
