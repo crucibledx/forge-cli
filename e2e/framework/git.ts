@@ -35,3 +35,26 @@ export async function createBareRepo(baseDir: string, files: Record<string, stri
 
   return bareDir
 }
+
+/**
+ * Adds a new branch with different files to an existing bare repo.
+ */
+export async function addBranchToBareRepo(
+  baseDir: string,
+  barePath: string,
+  branch: string,
+  files: Record<string, string>,
+): Promise<void> {
+  const workDir = join(baseDir, `repo-work-${branch.replace(/\//g, '-')}`)
+
+  await exec(baseDir, ['git', 'clone', barePath, workDir])
+  await exec(workDir, ['git', 'checkout', '-b', branch])
+
+  for (const [path, content] of Object.entries(files)) {
+    await writeSourceFile(workDir, path, content)
+  }
+
+  await exec(workDir, ['git', 'add', '-A'])
+  await exec(workDir, ['git', '-c', 'user.name=test', '-c', 'user.email=test@test.com', 'commit', '-m', `add ${branch}`])
+  await exec(workDir, ['git', 'push', 'origin', branch])
+}

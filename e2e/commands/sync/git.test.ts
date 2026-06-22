@@ -8,7 +8,7 @@
 import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '@e2e/fixtures'
-import {createBareRepo, runSync, useTmpDir} from '@e2e/framework'
+import {addBranchToBareRepo, createBareRepo, runSync, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-git')
 
@@ -54,5 +54,30 @@ describe('forge sync — git source', () => {
     expect(exitCode).toBe(0)
 
     expect(await readTarget(dir, '.claude/skills/feature.md')).toBe('# Feature branch skill')
+  }, 15_000)
+
+  it('syncs two sources from same repo with different branches', async () => {
+    const dir = getDir()
+    const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
+    await addBranchToBareRepo(dir, repoPath, 'team-rules', {'skills/review.md': '# Review skill'})
+
+    const rawSources = [
+      '  - name: default',
+      '    type: git',
+      `    url: "${repoPath}"`,
+      '    branch: "main"',
+      '  - name: team',
+      '    type: git',
+      `    url: "${repoPath}"`,
+      '    branch: "team-rules"',
+    ].join('\n')
+
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], rawSources}))
+
+    const {exitCode} = await runSync(dir)
+    expect(exitCode).toBe(0)
+
+    expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY)
+    expect(await readTarget(dir, '.claude/skills/review.md')).toBe('# Review skill')
   }, 15_000)
 })

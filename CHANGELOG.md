@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.17] — 2026-06-22
+
+### Fixed
+
+- **Git cache key collision** — two sources pointing to the same repo URL but different branches now get separate cache directories. Previously, `--depth 1` (implies `--single-branch`) caused the second branch to fail with `pathspec did not match`.
+
+### Added
+
+- **E2E test** — `syncs two sources from same repo with different branches` covers the multi-branch regression.
+- **`addBranchToBareRepo` test helper** — pushes additional branches to existing bare repos for multi-branch e2e scenarios.
+
 ## [0.6.16] — 2026-06-22
 
 ### Changed

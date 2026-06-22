@@ -13,7 +13,7 @@ const CACHE_DIR = join(tmpdir(), 'forge-cache')
 export const load: SourceLoaderEntry['load'] = async (source) => {
   const logger = createFileLogger()
   const git = source as GitSourceConfig
-  const cacheKey = Buffer.from(git.url).toString('base64url')
+  const cacheKey = Buffer.from(`${git.url}#${git.branch}`).toString('base64url')
   const cacheDir = join(CACHE_DIR, cacheKey)
 
   let fresh: boolean
@@ -35,8 +35,8 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
   return {localPath, fresh}
 }
 
-export async function cleanupCache(url: string): Promise<void> {
-  const cacheKey = Buffer.from(url).toString('base64url')
+export async function cleanupCache(url: string, branch = 'main'): Promise<void> {
+  const cacheKey = Buffer.from(`${url}#${branch}`).toString('base64url')
   const cacheDir = join(CACHE_DIR, cacheKey)
   if (existsSync(cacheDir)) {
     await rm(cacheDir, {recursive: true, force: true})

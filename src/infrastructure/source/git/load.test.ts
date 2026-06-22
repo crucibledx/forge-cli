@@ -12,12 +12,12 @@ import {cleanupAllCaches, cleanupCache, GitError} from './load'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
 
-function cacheKeyFor(url: string): string {
-  return Buffer.from(url).toString('base64url')
+function cacheKeyFor(url: string, branch = 'main'): string {
+  return Buffer.from(`${url}#${branch}`).toString('base64url')
 }
 
-function cacheDirFor(url: string): string {
-  return join(CACHE_DIR, cacheKeyFor(url))
+function cacheDirFor(url: string, branch = 'main'): string {
+  return join(CACHE_DIR, cacheKeyFor(url, branch))
 }
 
 // ─── GitError ─────────────────────────────────────────────────────────────────
