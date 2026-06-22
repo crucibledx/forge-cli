@@ -2,7 +2,7 @@ import pc from 'picocolors'
 
 import {getAllAssistants} from '@domain/assistants'
 import type {ProjectConfig, Source} from '@domain/config/types'
-import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {SYNC_CONFIG_DEFAULTS, TELEMETRY_DEFAULTS} from '@domain/config/types'
 import {describeCron} from '@domain/scheduler'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig} from '@infrastructure/config'
@@ -20,6 +20,7 @@ export const SHOW_MESSAGES = {
   sources: 'Sources',
   sync: 'Sync Settings',
   schedule: 'Schedule',
+  telemetry: 'Telemetry',
   none: 'none',
   defaultLabel: '(default)',
 } as const
@@ -82,6 +83,7 @@ export async function runConfigShow(): Promise<void> {
   renderSourcesSection(config)
   renderSyncSection(config)
   renderScheduleSection(config)
+  renderTelemetrySection(config)
   console.log()
 }
 
@@ -142,4 +144,12 @@ function renderScheduleSection(config: ProjectConfig): void {
   }
   field('cron', config.sync.schedule)
   field('description', describeCron(config.sync.schedule))
+}
+
+function renderTelemetrySection(config: ProjectConfig): void {
+  section(SHOW_MESSAGES.telemetry)
+  const enabled = config.telemetry?.enabled ?? TELEMETRY_DEFAULTS.enabled
+  const backend = config.telemetry?.backend ?? TELEMETRY_DEFAULTS.backend
+  field('enabled', enabled ? 'yes' : 'no', enabled === TELEMETRY_DEFAULTS.enabled)
+  field('backend', backend, backend === TELEMETRY_DEFAULTS.backend)
 }

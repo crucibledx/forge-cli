@@ -5,6 +5,7 @@ import './scheduler'
 import './source'
 import './status'
 import './sync'
+import './telemetry'
 import './uninstall'
 
 export {commandsRegistry as commands} from './registry'

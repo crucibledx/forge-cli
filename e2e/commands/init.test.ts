@@ -67,6 +67,9 @@ function declineAll(cli: CLISession): CliStep {
       // decline sync settings
       .waitForText(SyncM.gate)
       .pressKey(N)
+      // decline telemetry
+      .waitForText(M.telemetry.enable)
+      .pressKey(N)
   )
 }
 
@@ -105,6 +108,9 @@ function addSource(cli: CLISession, runSync = N): CliStep {
       .pressKey(N)
       // decline sync settings
       .waitForText(SyncM.gate)
+      .pressKey(N)
+      // decline telemetry
+      .waitForText(M.telemetry.enable)
       .pressKey(N)
       // decline run sync command
       .waitForText(M.sync.runNow)
@@ -197,6 +203,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -225,6 +233,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -258,6 +268,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -312,6 +324,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -402,6 +416,8 @@ describe('forge init — e2e', () => {
             .pressKey(N)
             .waitForText(SyncM.gate)
             .pressKey(N)
+            .waitForText(M.telemetry.enable)
+            .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
         )
@@ -437,6 +453,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -476,6 +494,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N)
             .waitForText(M.sync.runNow)
             .pressKey(N),
@@ -520,6 +540,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -550,6 +572,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -573,6 +597,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -599,6 +625,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())
@@ -624,6 +652,8 @@ describe('forge init — e2e', () => {
             .waitForText(SchM.enableSchedule)
             .pressKey(N)
             .waitForText(SyncM.gate)
+            .pressKey(N)
+            .waitForText(M.telemetry.enable)
             .pressKey(N),
         )
         const config = await readConfig(getDir())

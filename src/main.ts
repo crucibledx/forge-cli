@@ -11,4 +11,4 @@ programOptions.forEach((opt) => program.option(opt.flags, opt.description, opt.d
 programHooks.forEach((hook) => program.hook(hook.event, hook.listener))
 
 await program.parseAsync()
-process.exit(0)
+process.exit(process.exitCode ?? 0)

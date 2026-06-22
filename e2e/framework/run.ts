@@ -112,3 +112,7 @@ export async function runUninstallSession(cwd: string, drive: (cli: CLISession) 
 export async function runInit(cwd: string, args: string[] = []): Promise<CLIResult> {
   return runCommand(cwd, 'init', args)
 }
+
+export async function runTelemetry(cwd: string, args: string[] = []): Promise<CLIResult> {
+  return runCommand(cwd, 'telemetry', args)
+}

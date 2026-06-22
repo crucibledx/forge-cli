@@ -80,7 +80,16 @@ export const runInit: InitCommandAction = async (options) => {
     syncSettings = await promptSyncSettings()
   }
 
-  // 7. Build and write config
+  // 7. Ask about telemetry
+  const wantsTelemetry = await prompts.confirm({
+    message: M.telemetry.enable,
+    initialValue: false,
+  })
+  if (wantsTelemetry) {
+    renderer.renderDim(M.telemetry.enabled)
+  }
+
+  // 8. Build and write config
   const syncBlock = {...(schedule ? {schedule} : {}), ...(syncSettings ?? {})}
   const config: ProjectConfig = {
     version: `${++configVersion}`,
@@ -90,6 +99,7 @@ export const runInit: InitCommandAction = async (options) => {
     assistants,
     sources,
     ...(Object.keys(syncBlock).length > 0 ? {sync: syncBlock} : {}),
+    ...(wantsTelemetry ? {telemetry: {enabled: true}} : {}),
   }
 
   const configPath = await writeProjectConfig(projectRoot, config)

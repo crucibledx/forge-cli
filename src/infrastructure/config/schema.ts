@@ -36,6 +36,13 @@ const syncConfigSchema = z
   })
   .optional()
 
+const telemetryConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    backend: z.string().optional(),
+  })
+  .optional()
+
 export const projectConfigSchema = z
   .object({
     version: z.string(),
@@ -49,6 +56,7 @@ export const projectConfigSchema = z
     source: sourceConfigSchema.optional(),
     sources: z.array(sourceConfigSchema).optional(),
     sync: syncConfigSchema,
+    telemetry: telemetryConfigSchema,
     lastSync: z.string().optional(),
   })
   .transform(({source, sources, ...rest}) => ({

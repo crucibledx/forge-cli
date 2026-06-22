@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.15] — 2026-06-22
+
+### Added
+
+- **Telemetry system** — opt-in anonymous usage tracking with local JSONL storage (`~/.crucible/forge/telemetry/`).
+- **`forge telemetry` command** — shows telemetry status, config resolution, event count, what's collected, and how to enable/disable.
+- **Telemetry config** — `telemetry.enabled` field in project and global config; project overrides global.
+- **Init telemetry prompt** — `forge init` asks whether to enable telemetry (defaults to no).
+- **Config edit telemetry section** — `forge config edit` includes a telemetry toggle.
+- **Config show telemetry section** — `forge config show` displays telemetry status.
+- **Telemetry hook** — `postAction` hook emits lightweight events for trackable commands (sync, init, config, status, health, scheduler).
+- **`forge telemetry reset`** — clears all stored telemetry events.
+- **Dynamic `success` tracking** — telemetry events record `success: false` when a command fails instead of hardcoded `true`.
+- **Pluggable backend interface** — `TelemetryBackend` ready for future remote backends (PostHog, OTLP, webhook).
+
+### Changed
+
+- **`wrapAction` error handling** — sets `process.exitCode = 1` instead of `process.exit(1)` so `postAction` hooks still fire on failure.
+
 ## [0.6.14] — 2026-06-19
 
 ### Fixed

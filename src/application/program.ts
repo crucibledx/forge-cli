@@ -1,5 +1,5 @@
 import type {CommandHook, CommandOption} from './commands/types'
-import {debugCommandHook, setGlobalHook, setLogLevelHook} from './hooks'
+import {debugCommandHook, setGlobalHook, setLogLevelHook, telemetryPostHook, telemetryPreHook} from './hooks'
 
 export const PROGRAM_MESSAGES = {
   globalOption: 'Operate on global config (~/.crucible/forge.config.yaml)',
@@ -11,4 +11,10 @@ export const programOptions: CommandOption[] = [
   {flags: '--log-level <level>', description: PROGRAM_MESSAGES.logLevelOption, defaultValue: 'info'},
 ]
 
-export const programHooks: CommandHook[] = [setGlobalHook, setLogLevelHook, debugCommandHook]
+export const programHooks: CommandHook[] = [
+  setGlobalHook,
+  setLogLevelHook,
+  debugCommandHook,
+  telemetryPreHook,
+  telemetryPostHook,
+]

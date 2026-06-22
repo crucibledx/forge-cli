@@ -23,6 +23,7 @@ import type {FileLogger} from '@infrastructure/logger'
 import {createFileLogger} from '@infrastructure/logger'
 import {createReportService} from '@infrastructure/report'
 import {loadSourceFiles} from '@infrastructure/source'
+import {setTelemetryContext} from '@infrastructure/telemetry'
 
 import {CommandError} from '../types'
 import {SYNC_MESSAGES as M} from './messages'
@@ -122,6 +123,7 @@ async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<S
   }
 
   await executePlan(projectRoot, mutations, resolved, context)
+  setTelemetryContext({file_count: mutations.length})
   logger.info('sync completed', {files: summaries.length, mutations: mutations.length})
 
   return buildSyncReport({

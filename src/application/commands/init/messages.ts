@@ -43,4 +43,9 @@ export const INIT_MESSAGES = {
   sync: {
     runNow: 'Run forge sync now?',
   },
+
+  telemetry: {
+    enable: 'Enable anonymous telemetry? (local only, no data sent)',
+    enabled: 'Telemetry enabled — run `forge telemetry` for details.',
+  },
 } as const

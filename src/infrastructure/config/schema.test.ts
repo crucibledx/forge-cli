@@ -183,6 +183,34 @@ describe('projectConfigSchema — sync block', () => {
   })
 })
 
+describe('telemetry config', () => {
+  it('accepts telemetry.enabled', () => {
+    const result = projectConfigSchema.parse({
+      version: '1',
+      assistants: [],
+      telemetry: {enabled: true},
+    })
+    expect(result.telemetry?.enabled).toBe(true)
+  })
+
+  it('accepts config without telemetry', () => {
+    const result = projectConfigSchema.parse({
+      version: '1',
+      assistants: [],
+    })
+    expect(result.telemetry).toBeUndefined()
+  })
+
+  it('accepts empty telemetry object', () => {
+    const result = projectConfigSchema.parse({
+      version: '1',
+      assistants: [],
+      telemetry: {},
+    })
+    expect(result.telemetry).toBeDefined()
+  })
+})
+
 describe('globalConfigSchema', () => {
   it('uses the same schema as projectConfigSchema', () => {
     const result = globalConfigSchema.parse({

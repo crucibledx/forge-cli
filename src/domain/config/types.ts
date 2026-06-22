@@ -45,6 +45,16 @@ export const SYNC_CONFIG_DEFAULTS: SyncConfig = {
   keep_local: true,
 }
 
+export interface TelemetryConfig {
+  enabled: boolean
+  backend: string
+}
+
+export const TELEMETRY_DEFAULTS: TelemetryConfig = {
+  enabled: false,
+  backend: 'local',
+}
+
 export interface ProjectConfig {
   version: string
   project?: {
@@ -54,5 +64,6 @@ export interface ProjectConfig {
   assistants: AssistantConfig[]
   sources: Source[]
   sync?: Partial<SyncConfig>
+  telemetry?: Partial<TelemetryConfig>
   lastSync?: string
 }

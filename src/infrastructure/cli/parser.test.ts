@@ -75,9 +75,8 @@ describe('createProgram', () => {
     expect(called).toBe(true)
   })
 
-  it('renders error and exits with code 1 when action throws', async () => {
+  it('renders error and sets exitCode 1 when action throws', async () => {
     const renderErrorSpy = spyOn(renderer, 'renderError').mockImplementation(() => {})
-    const exitSpy = spyOn(process, 'exit').mockImplementation((() => {}) as never)
 
     const program = createProgram([
       makeCmd({
@@ -90,15 +89,14 @@ describe('createProgram', () => {
     await program.parseAsync(['boom'], {from: 'user'})
 
     expect(renderErrorSpy).toHaveBeenCalledWith('kaboom')
-    expect(exitSpy).toHaveBeenCalledWith(1)
+    expect(process.exitCode).toBe(1)
 
     renderErrorSpy.mockRestore()
-    exitSpy.mockRestore()
+    process.exitCode = 0
   })
 
   it('renders stringified error when non-Error is thrown', async () => {
     const renderErrorSpy = spyOn(renderer, 'renderError').mockImplementation(() => {})
-    const exitSpy = spyOn(process, 'exit').mockImplementation((() => {}) as never)
 
     const program = createProgram([
       makeCmd({
@@ -111,9 +109,9 @@ describe('createProgram', () => {
     await program.parseAsync(['bomb'], {from: 'user'})
 
     expect(renderErrorSpy).toHaveBeenCalledWith('plain string error')
-    expect(exitSpy).toHaveBeenCalledWith(1)
+    expect(process.exitCode).toBe(1)
 
     renderErrorSpy.mockRestore()
-    exitSpy.mockRestore()
+    process.exitCode = 0
   })
 })

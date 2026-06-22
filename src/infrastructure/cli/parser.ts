@@ -2,6 +2,7 @@ import {Command} from 'commander'
 
 import type {CommandDefinition} from '@application/commands/types'
 import {CommandError} from '@application/commands/types'
+import {setTelemetryContext} from '@infrastructure/telemetry'
 
 import pkg from '../../../package.json'
 import * as renderer from './renderer'
@@ -38,13 +39,14 @@ export function createProgram(commands: CommandDefinition[]): Command {
       try {
         await action(options)
       } catch (err) {
+        setTelemetryContext({success: false})
         renderer.renderNewline()
         if (err instanceof CommandError) {
           renderer.renderError(err.message, err.suggestion)
         } else {
           renderer.renderError(err instanceof Error ? err.message : String(err))
         }
-        process.exit(1)
+        process.exitCode = 1
       }
     }
   }

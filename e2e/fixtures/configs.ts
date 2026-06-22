@@ -27,6 +27,11 @@ export interface SyncConfigOptions {
   schedule?: string
 }
 
+export interface TelemetryConfigOptions {
+  enabled?: boolean
+  backend?: string
+}
+
 export interface ConfigOptions {
   assistants: string[]
   localSource?: LocalSourceOptions
@@ -34,6 +39,7 @@ export interface ConfigOptions {
   gitSource?: GitSourceOptions
   rawSources?: string
   sync?: SyncConfigOptions
+  telemetry?: TelemetryConfigOptions
 }
 
 /**
@@ -83,6 +89,13 @@ export function buildConfigYaml(options: ConfigOptions): string {
     if (options.sync.keep_local !== undefined) syncLines.push(`  keep_local: ${options.sync.keep_local}`)
     if (options.sync.schedule) syncLines.push(`  schedule: "${options.sync.schedule}"`)
     parts.push(syncLines.join('\n'))
+  }
+
+  if (options.telemetry) {
+    const telLines = ['telemetry:']
+    if (options.telemetry.enabled !== undefined) telLines.push(`  enabled: ${options.telemetry.enabled}`)
+    if (options.telemetry.backend) telLines.push(`  backend: ${options.telemetry.backend}`)
+    parts.push(telLines.join('\n'))
   }
 
   return [...parts, ''].join('\n')
