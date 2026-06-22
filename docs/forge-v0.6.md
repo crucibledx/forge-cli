@@ -16,15 +16,15 @@
 
 Forge works. It syncs configs, detects drift, resolves conflicts, runs on a schedule. But it's not **operable**. A user can't tell if forge is healthy, a team lead can't measure its impact, and there's no support path when something breaks.
 
-Craft Conference 2026 validated demand from 8+ companies. Every one of them said some version of: *"show me when it's ready."* This milestone makes it ready.
+Every one of contacts said some version of: *"show me when it's ready."* This milestone makes it ready.
 
-Abby Bangser's walking skeleton framework (Craft 2026) defines the gap clearly:
+Abby Bangser's walking skeleton framework defines the gap clearly:
 
-| Phase              | Requirement                                                        | Forge Status  |
-|--------------------|--------------------------------------------------------------------|---------------|
+| Phase              | Requirement                                                        | Forge Status   |
+|--------------------|--------------------------------------------------------------------|----------------|
 | Build the frame    | Hello world, contract/API, DDD, accessible                         | ✅ Done        |
 | Start walking      | Test suites, operable framework, SLIs, delivery mechanism, support | ✅ Mostly done |
-| Finishing the look | Scaling, contributor model, marketplace, validation                | ⚠️ Partial    |
+| Finishing the look | Scaling, contributor model, marketplace, validation                | ⚠️ Partial     |
 
 v0.6 closes the "start walking" gap.
 
@@ -207,14 +207,14 @@ Deferred. For now, write telemetry events to `~/.crucible/forge/telemetry/` as J
 ### npm
 
 ```bash
-npm install -g @crucible/forge-cli
+npm install -g @crucibledx/forge-cli
 # or
-npx @crucible/forge-cli init
+npx @crucibledx/forge-cli init
 ```
 
 Package already configured in `package.json`. Needs:
 
-- npm account setup under `@crucible` scope
+- npm account setup under `@crucibledx` scope
 - `prepublishOnly` script that runs `bun build --compile`
 - Platform-specific binaries via `optionalDependencies` pattern (like `esbuild` does it)
 
@@ -236,7 +236,7 @@ Requires a `homebrew-tap` repo with formula pointing to GitHub release binaries.
 ### Install Script (curl)
 
 ```bash
-curl -fsSL https://crucible.dev/install.sh | sh
+curl -fsSL https://crucibledx.dev/install.sh | sh
 ```
 
 Fallback for users without Node.js or Homebrew.
@@ -260,7 +260,7 @@ Fallback for users without Node.js or Homebrew.
 
 - VitePress or Starlight (Astro) — simple, markdown-based, good DX
 - Hosted on GitHub Pages or Vercel
-- Domain: `crucible.dev` or `forgedev.tools` (TBD)
+- Domain: `crucibledx.dev`
 
 ### README Overhaul
 
@@ -340,7 +340,7 @@ health:
 
 - [x] `forge sync` produces structured logs (pino JSONL)
 - [x] `forge health` shows meaningful status in one screen
-- [ ] `npm install -g @crucible/forge-cli && forge init` works on a clean machine
+- [ ] `npm install -g @crucibledx/forge-cli && forge init` works on a clean machine
 - [x] README has quick start, badges placeholder, and feature list
 - [ ] At least one distribution method beyond npm (brew or curl script)
 - [x] LICENSE file exists in repo root (MIT)
@@ -348,4 +348,4 @@ health:
 
 ---
 
-*Generated: 2026-06-07, driven by Craft Conference 2026 market validation*
+*Generated: 2026-06-07, driven by market validation*

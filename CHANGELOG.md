@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@crucible/forge-cli` are documented here.
+All notable changes to `@crucibledx/forge-cli` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---

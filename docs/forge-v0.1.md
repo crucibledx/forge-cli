@@ -6,7 +6,7 @@
 >
 > **Scope:** Bootstrap (init AI environment) + Sync (fetch shared skills from **one** source).
 >
-> **Binary:** `forge` — installed via `@crucible/forge-cli` on npm.
+> **Binary:** `forge` — installed via `@crucibledx/forge-cli` on npm.
 >
 > **Later:** This CLI becomes the foundation. When forge core (plugin discovery) ships, the internals change but the
 > command stays `forge init`, `forge sync` — users notice nothing.
@@ -15,16 +15,15 @@
 
 ## Naming Convention
 
-| Layer                | Name                  | Example                                          |
-|----------------------|-----------------------|--------------------------------------------------|
-| **Brand**            | Crucible              | Like Anthropic                                   |
-| **Product**          | Forge                 | Like Claude — the AI dev environment CLI         |
-| **npm package**      | `@crucible/forge-cli` | `npm install -g @crucible/forge-cli`             |
-| **Binary**           | `forge`               | What users type in terminal                      |
-| **Config directory** | `.crucible/`          | Brand-level — shared by future Crucible products |
+| Layer                | Name                    | Example                                          |
+|----------------------|-------------------------|--------------------------------------------------|
+| **Brand**            | Crucible                | Like Anthropic                                   |
+| **Product**          | Forge                   | Like Claude — the AI dev environment CLI         |
+| **npm package**      | `@crucibledx/forge-cli` | `npm install -g @crucibledx/forge-cli`           |
+| **Binary**           | `forge`                 | What users type in terminal                      |
+| **Config directory** | `.crucible/`            | Brand-level — shared by future Crucible products |
 
-When forge core (plugin system) arrives, bootstrap becomes a built-in plugin. Users still type `forge init` — the
-migration is invisible.
+When forge core (plugin system) arrives, bootstrap becomes a built-in plugin. Users still type `forge init` — the migration is invisible.
 
 ---
 
@@ -37,8 +36,7 @@ Two commands, one binary, one config file:
 | `forge init` | Initialize AI assistant config in a new project (bootstrap)    |
 | `forge sync` | Fetch shared skills & workflows from **one** remote git source |
 
-Both share the same config, same binary, same install. One story: *"Set up and maintain your team's AI environment with
-one tool."*
+Both share the same config, same binary, same install. One story: *"Set up and maintain your team's AI environment with one tool."*
 
 ---
 
@@ -155,8 +153,7 @@ defaults:
 
 ## Plugin Protocol (Defined Now, Used Later)
 
-Defined now so the CLI's internal structure aligns with the future plugin system. Not implemented in v0.1 — the CLI
-reads config from disk directly. When forge core arrives, it sends this via stdin instead.
+Defined now so the CLI's internal structure aligns with the future plugin system. Not implemented in v0.1 — the CLI reads config from disk directly. When forge core arrives, it sends this via stdin instead.
 
 ### Request (core → plugin, via stdin)
 
@@ -195,10 +192,10 @@ interface PluginResponse {
     // Filesystem changes — core applies these
     // Plugin never writes files directly
     mutations: Array<
-        | { type: "file_write"; path: string; content: string }
-        | { type: "file_delete"; path: string }
-        | { type: "dir_create"; path: string }
-        | { type: "symlink_create"; path: string; target: string }
+        | {type: "file_write"; path: string; content: string}
+        | {type: "file_delete"; path: string}
+        | {type: "dir_create"; path: string}
+        | {type: "symlink_create"; path: string; target: string}
     >
 
     // Config changes to propose back
@@ -214,7 +211,7 @@ interface PluginResponse {
         id: string
         type: "select" | "multiselect" | "text" | "confirm"
         message: string
-        choices?: Array<{ value: string; label: string; hint?: string }>
+        choices?: Array<{value: string; label: string; hint?: string}>
         default?: unknown
     }>
 
@@ -231,8 +228,7 @@ interface PluginResponse {
 
 ## Internal Architecture (v0.1) — Domain-Driven Design
 
-Three layers with strict dependency direction: **domain ← application ← infrastructure**.
-Domain has zero I/O dependencies. Application orchestrates domain + infrastructure. Infrastructure handles all I/O.
+Three layers with strict dependency direction: **domain ← application ← infrastructure**. Domain has zero I/O dependencies. Application orchestrates domain + infrastructure. Infrastructure handles all I/O.
 
 ```
 forge-cli/
@@ -400,19 +396,19 @@ flowchart TD
     B --> C{Existing\n.crucible/forge.config.yaml?}
     C -- Yes --> D[Warn: config exists\nEdit manually or use forge config v0.2]
     D --> P2([Done — aborted])
-    C -- No --> E[Start fresh]
-    E --> G[Show detected assistants\nask which to keep/add]
-    G --> H[Collect assistant preferences]
-    H --> I{Add shared\nsource?}
-    I -- Yes --> IS[Select source type\ngit / local]
-    IS --> J[Configure source\nask type-specific questions]
-    I -- No --> K
-    J --> K[Generate config mutations\nfull .crucible/forge.config.yaml]
-    K --> L[Write config\nto disk]
-    L --> M{Run sync\nnow?}
-    M -- Yes --> N[Execute forge sync]
-    M -- No --> O[Print: run forge sync later]
-    N --> P([Done — AI environment ready])
+C -- No --> E[Start fresh]
+E --> G[Show detected assistants\nask which to keep/add]
+G --> H[Collect assistant preferences]
+H --> I{Add shared\nsource?}
+I -- Yes --> IS[Select source type\ngit / local]
+IS --> J[Configure source\nask type-specific questions]
+I -- No --> K
+J --> K[Generate config mutations\nfull .crucible/forge.config.yaml]
+K --> L[Write config\nto disk]
+L --> M{Run sync\nnow?}
+M -- Yes --> N[Execute forge sync]
+M -- No --> O[Print: run forge sync later]
+N --> P([Done — AI environment ready])
 O --> P
 
 style A fill: #1a1a2e, color: #e2e8f0
@@ -489,18 +485,15 @@ interface LocalSource {
 }
 ```
 
-Useful for personal override directories or monorepo-internal shared configs.
-No network required — files are read directly from the local filesystem.
+Useful for personal override directories or monorepo-internal shared configs. No network required — files are read directly from the local filesystem.
 
-`forge init` presents a source-type select populated from the `sourceLoaders` registry.
-Adding a new source type = new loader file + registration, no handler changes required.
+`forge init` presents a source-type select populated from the `sourceLoaders` registry. Adding a new source type = new loader file + registration, no handler changes required.
 
 ---
 
 ## Target Auto-Resolution
 
-If the user doesn't specify explicit target mappings, files are placed automatically based on enabled assistants.
-Paths are based on the [AI config research](../../../research/ai-config-research.md).
+If the user doesn't specify explicit target mappings, files are placed automatically based on enabled assistants. Paths are based on the [AI config research](../../../research/ai-config-research.md).
 
 ### Source repo structure (recommended)
 
@@ -559,22 +552,17 @@ const AUTO_TARGETS: Record<AssistantId, TargetMapping[]> = {
 
 ### Key research findings applied
 
-- **Skills** — highest cross-tool compatibility. All tools use the Agent Skills open standard (`SKILL.md` + YAML
-  frontmatter with `name`/`description`). Paths differ but format is identical.
+- **Skills** — highest cross-tool compatibility. All tools use the Agent Skills open standard (`SKILL.md` + YAML frontmatter with `name`/`description`). Paths differ but format is identical.
 - **Rules** — partial compatibility. Content (plain Markdown) is portable. YAML frontmatter keys differ:
-  `paths` (Claude Code, Cline), `globs` (Cursor, Windsurf), `applyTo` (Copilot). v0.1 syncs plain Markdown
-  (no frontmatter) for maximum compatibility. Frontmatter translation deferred to v0.2.
-- **Workflows** — compatible for Windsurf/Cursor/Claude Code/Cline (all plain Markdown, slash-command invoked).
-  Copilot has no native workflow equivalent.
+  `paths` (Claude Code, Cline), `globs` (Cursor, Windsurf), `applyTo` (Copilot). v0.1 syncs plain Markdown (no frontmatter) for maximum compatibility. Frontmatter translation deferred to v0.2.
+- **Workflows** — compatible for Windsurf/Cursor/Claude Code/Cline (all plain Markdown, slash-command invoked). Copilot has no native workflow equivalent.
 - **Cursor rules need `.mdc` extension** — a `transform` step renames `.md` → `.mdc` during sync.
 - **Copilot instructions need `.instructions.md` suffix** — same transform approach.
 
 ### Known limitations (v0.1)
 
-- **No frontmatter translation** — rules are synced as plain Markdown. Path-scoped rules require manual
-  frontmatter per tool. Translation layer (`paths` ↔ `globs` ↔ `applyTo`) is v0.2.
-- **Copilot single-file**: `.github/copilot-instructions.md` (the always-on file) is not auto-generated from
-  multiple rule files. Users who want this must create it manually or wait for v0.2 concatenation support.
+- **No frontmatter translation** — rules are synced as plain Markdown. Path-scoped rules require manual frontmatter per tool. Translation layer (`paths` ↔ `globs` ↔ `applyTo`) is v0.2.
+- **Copilot single-file**: `.github/copilot-instructions.md` (the always-on file) is not auto-generated from multiple rule files. Users who want this must create it manually or wait for v0.2 concatenation support.
 - **Transform steps** (`rename:.md→.mdc`) are simple filename transforms only. No content transformation in v0.1.
 
 ---
@@ -594,8 +582,7 @@ forge core → spawns this as subprocess → sends PluginRequest via stdin
            ← receives PluginResponse via stdout ← applies mutations
 ```
 
-The single change: `main.ts` checks for `--plugin-mode` flag and reads from stdin instead of disk. Command handlers,
-mutation logic, and wizard prompts don't change at all.
+The single change: `main.ts` checks for `--plugin-mode` flag and reads from stdin instead of disk. Command handlers, mutation logic, and wizard prompts don't change at all.
 
 The `io/standalone.ts` ↔ `io/plugin.ts` boundary is the entire migration path.
 
@@ -607,10 +594,10 @@ Single binary, no runtime required:
 
 ```bash
 # Install via npm (recommended)
-npm install -g @crucible/forge-cli
+npm install -g @crucibledx/forge-cli
 
 # Or via curl (for CI/CD)
-curl -fsSL https://get.crucible.dev/forge | sh
+curl -fsSL https://get.crucibledx.dev/forge | sh
 
 # Or via brew (macOS)
 brew install crucible/tap/forge
@@ -623,15 +610,11 @@ Built with `bun build --compile` — produces a native binary for macOS, Linux, 
 ## Open Questions for v0.1
 
 - [x] **Windsurf paths:** Confirmed via [research](../../../research/ai-config-research.md):
-  skills in `.windsurf/skills/<name>/SKILL.md`, rules in `.windsurf/rules/*.md`,
-  workflows in `.windsurf/workflows/*.md`
-- [x] **Copilot single-file:** v0.1 syncs rules as individual `.instructions.md` files into `.github/instructions/`.
-  The always-on `.github/copilot-instructions.md` concatenation is deferred to v0.2.
+  skills in `.windsurf/skills/<name>/SKILL.md`, rules in `.windsurf/rules/*.md`, workflows in `.windsurf/workflows/*.md`
+- [x] **Copilot single-file:** v0.1 syncs rules as individual `.instructions.md` files into `.github/instructions/`. The always-on `.github/copilot-instructions.md` concatenation is deferred to v0.2.
 - [x] **Config in `.gitignore`?** `.crucible/forge.config.yaml` should be committed (team shares it).
-  `.crucible/forge.config.local.yaml` for personal overrides (gitignored). Config promotion
-  (`local → project → global`) is in v0.2.
-- [x] **Overwrite in init?** `forge init` aborts if a config already exists — no overwrite.
-  Users edit YAML manually or wait for `forge config set` (v0.2). Keeps `init` safe to re-run.
+  `.crucible/forge.config.local.yaml` for personal overrides (gitignored). Config promotion (`local → project → global`) is in v0.2.
+- [x] **Overwrite in init?** `forge init` aborts if a config already exists — no overwrite. Users edit YAML manually or wait for `forge config set` (v0.2). Keeps `init` safe to re-run.
 - [x] **Source type extensibility:** `init` shows a source-type select populated from the
   `sourceLoaders` registry. New source types = new loader file, no handler changes needed.
 

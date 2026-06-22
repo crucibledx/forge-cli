@@ -1,5 +1,5 @@
 {
-  "name": "@crucible/forge-cli",
+  "name": "@crucibledx/forge-cli",
   "version": "0.6.16",
   "description": "AI development environment setup & config sync CLI",
   "license": "MIT",
