@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.19] — 2026-08-09
+
+### Added
+
+- **CI workflow** — GitHub Actions CI with formatting, linting, typecheck, and test jobs.
+- **Release workflow** — automated cross-platform binary builds, GitHub Release, npm publish, Homebrew tap and Scoop bucket updates.
+- **JUnit test reports** — CI publishes test results for easy failure inspection.
+- **Install script** — `scripts/install.sh` for standalone binary installation on macOS/Linux.
+- **npm entrypoint** — `bin/forge.mjs` for `npx`/`bunx` usage.
+- **Scoop support** — Windows users can install via `scoop install forge`.
+- **Multiple install methods** in README — Homebrew, Scoop, npm/bun, shell script, manual download.
+
+### Fixed
+
+- **Missing dependencies** — `lodash-es`, `strip-ansi`, `@types/lodash-es` added to `package.json` (previously resolved via workspace hoisting only).
+
+### Changed
+
+- **`package.json`** — added `files`, `repository`, `homepage`, `publishConfig`, `engines` fields for npm publishing.
+
 ## [0.6.18] — 2026-06-22
 
 ### Fixed

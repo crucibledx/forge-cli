@@ -37,9 +37,16 @@ jobs:
           bun-version: latest
       - run: bun install
       - name: Unit tests
-        run: bun run test:unit
+        run: mkdir -p results && bun test src/ --reporter=junit --reporter-outfile=results/unit.xml
       - name: E2E tests
-        run: bun run test:e2e
+        run: bun test e2e/ --reporter=junit --reporter-outfile=results/e2e.xml
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: results/*.xml
+          reporter: java-junit
 
   build:
     name: Build
