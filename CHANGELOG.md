@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.21] — 2026-08-09
+
+### Fixed
+
+- **`deleteSourceFiles` silently failed on Linux** — Bun's async `unlink` from `node:fs/promises` completes without error but doesn't delete files on Linux CI. Switched to sync `rmSync` from `node:fs`.
+
 ## [0.6.20] — 2026-08-09
 
 ### Fixed

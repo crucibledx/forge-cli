@@ -1,5 +1,4 @@
-import {existsSync} from 'node:fs'
-import {unlink} from 'node:fs/promises'
+import {existsSync, rmSync} from 'node:fs'
 import {join} from 'node:path'
 
 import type {SyncState} from '@domain/sync/state'
@@ -36,7 +35,7 @@ export async function deleteSourceFiles(
   for (const filePath of filePaths) {
     const absPath = join(projectRoot, filePath)
     try {
-      if (existsSync(absPath)) await unlink(absPath)
+      if (existsSync(absPath)) rmSync(absPath)
       cleaned++
     } catch {
       errors++
