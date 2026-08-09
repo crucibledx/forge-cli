@@ -1,5 +1,4 @@
-import {existsSync} from 'node:fs'
-import {mkdir, rm, writeFile} from 'node:fs/promises'
+import {mkdir, rm, stat, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -60,8 +59,8 @@ describe('deleteSourceFiles', () => {
 
       expect(result.cleaned).toBe(2)
       expect(result.errors).toBe(0)
-      expect(existsSync(join(tmpDir, '.claude', 'rules', 'a.md'))).toBe(false)
-      expect(existsSync(join(tmpDir, '.claude', 'rules', 'b.md'))).toBe(false)
+      expect(await stat(join(tmpDir, '.claude', 'rules', 'a.md')).catch(() => null)).toBeNull()
+      expect(await stat(join(tmpDir, '.claude', 'rules', 'b.md')).catch(() => null)).toBeNull()
     } finally {
       await rm(tmpDir, {recursive: true, force: true})
     }

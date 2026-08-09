@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   quality:
     name: Code Quality
@@ -37,16 +41,16 @@ jobs:
           bun-version: latest
       - run: bun install
       - name: Unit tests
-        run: mkdir -p results && bun test src/ --reporter=junit --reporter-outfile=results/unit.xml
+        run: mkdir -p results && bun test src/ --reporter=default --reporter=junit --reporter-outfile=results/unit.xml
       - name: E2E tests
-        run: bun test e2e/ --reporter=junit --reporter-outfile=results/e2e.xml
+        if: always()
+        run: bun test e2e/ --reporter=default --reporter=junit --reporter-outfile=results/e2e.xml
       - name: Test Report
-        uses: dorny/test-reporter@v1
+        uses: mikepenz/action-junit-report@v5
         if: always()
         with:
-          name: Test Results
-          path: results/*.xml
-          reporter: java-junit
+          report_paths: results/*.xml
+          include_passed: true
 
   build:
     name: Build

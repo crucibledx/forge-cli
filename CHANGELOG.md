@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.20] — 2026-08-09
+
+### Fixed
+
+- **Report service tests** — tests wrote to real `~/.crucible/forge/reports/` causing failures when history exceeded 50 entries. Now uses isolated temp dir via optional `reportDir` param on `createReportService`.
+- **Source cleanup test** — `existsSync` returned stale results after `unlink` on CI. Replaced with async `stat()`.
+- **CI test reporter** — switched from `dorny/test-reporter` to `mikepenz/action-junit-report@v5` which handles Bun's nested `<testsuite>` JUnit format. Added `checks: write` permission and dual reporter output.
+
 ## [0.6.19] — 2026-08-09
 
 ### Added

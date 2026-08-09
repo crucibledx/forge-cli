@@ -1,4 +1,8 @@
-import {beforeAll, describe, expect, it} from 'bun:test'
+import {rm} from 'node:fs/promises'
+import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+
+import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
 
 import type {SyncReport} from '@domain/sync/report'
 
@@ -19,10 +23,14 @@ function makeReport(overrides: Partial<SyncReport> = {}): SyncReport {
 
 describe('report service', () => {
   let service: ReturnType<typeof createReportService>
+  const testDir = join(tmpdir(), `forge-report-test-${Date.now()}`)
 
   beforeAll(() => {
-    // Use the real service — it writes to ~/.crucible/forge/reports/
-    service = createReportService()
+    service = createReportService(testDir)
+  })
+
+  afterAll(async () => {
+    await rm(testDir, {recursive: true, force: true})
   })
 
   it('writes and reads latest report', async () => {
@@ -70,6 +78,6 @@ describe('report service', () => {
 
   it('getReportDir returns a path', () => {
     const dir = service.getReportDir()
-    expect(dir).toContain('.crucible/forge/reports')
+    expect(dir).toContain('forge-report-test')
   })
 })
