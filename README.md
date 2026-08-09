@@ -4,7 +4,9 @@
 
 **One source of truth for every AI tool your team uses.**
 
+[![CI](https://github.com/crucibledx/forge-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/crucibledx/forge-cli/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.6.18-%23e84d00)](https://github.com/crucibledx/forge-cli/releases)
+[![npm](https://img.shields.io/npm/v/@crucibledx/forge-cli?color=%23cb3837)](https://www.npmjs.com/package/@crucibledx/forge-cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-%23a0aec0)](LICENSE)
 
 <picture>
@@ -27,9 +29,26 @@ Forge fixes that. Write your AI skills, rules, and workflows once. Sync them eve
 
 ## Install
 
+**Homebrew** (macOS / Linux)
+
 ```bash
-bun add -g @crucibledx/forge-cli    # or: npm install -g @crucibledx/forge-cli
+brew install crucibledx/tap/forge
 ```
+
+**npm / bun** (requires [Bun](https://bun.sh) runtime)
+
+```bash
+bun add -g @crucibledx/forge-cli
+# or: npm install -g @crucibledx/forge-cli
+```
+
+**Shell script** (macOS / Linux — downloads standalone binary)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/crucibledx/forge-cli/main/scripts/install.sh | sh
+```
+
+**Manual download** — grab the binary for your platform from [Releases](https://github.com/crucibledx/forge-cli/releases), extract, and add to your `PATH`.
 
 ## Quick Start
 

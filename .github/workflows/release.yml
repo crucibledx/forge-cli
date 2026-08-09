@@ -1,0 +1,271 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.6.18)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  REPO: crucibledx/forge-cli
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  # ── 1. Full CI gate ──────────────────────────────────────────────
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run format:check
+      - run: bun run lint
+      - run: bun run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run test
+
+  # ── 2. Cross-compile binaries for all platforms ──────────────────
+  build:
+    name: Build Binaries
+    needs: [ quality, test ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+
+      - name: Cross-compile all targets
+        run: |
+          targets=("linux-x64" "linux-arm64" "darwin-arm64" "darwin-x64" "windows-x64")
+          for target in "${targets[@]}"; do
+            ext=""
+            [[ "$target" == windows-* ]] && ext=".exe"
+            echo "→ Building forge-${target}${ext}"
+            bun build src/main.ts --compile --target="bun-${target}" --outfile "dist/forge-${target}${ext}"
+          done
+
+      - name: Package binaries
+        run: |
+          cd dist
+          for f in forge-*; do
+            if [[ "$f" == *.exe ]]; then
+              cp "$f" forge.exe
+              zip "${f%.exe}.zip" forge.exe
+              rm forge.exe
+            else
+              cp "$f" forge
+              chmod +x forge
+              tar czf "${f}.tar.gz" forge
+              rm forge
+            fi
+          done
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+          echo "── checksums ──"
+          cat checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          retention-days: 5
+
+  # ── 3. Publish to npm ────────────────────────────────────────────
+  publish-npm:
+    name: Publish to npm
+    needs: [ quality, test ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - run: bun install
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── 4. GitHub Release with binaries + release notes ──────────────
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          version="${TAG#v}"
+          awk "/^## \[${version}\]/{found=1; next} /^## \[/{if(found) exit} found{print}" CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG entry for v${version}, using tag message."
+            git tag -l --format='%(contents)' "${TAG}" > release-notes.md
+          fi
+
+          echo "── release notes ──"
+          cat release-notes.md
+
+      - name: Append install instructions
+        run: |
+          cat >> release-notes.md <<'EOF'
+
+          ---
+
+          ## Install
+
+          **npm / bun** (requires [Bun](https://bun.sh))
+          ```bash
+          bun add -g @crucibledx/forge-cli
+          # or: npm install -g @crucibledx/forge-cli
+          ```
+
+          **Homebrew** (macOS / Linux)
+          ```bash
+          brew install crucibledx/tap/forge
+          ```
+
+          **Shell script** (macOS / Linux)
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/crucibledx/forge-cli/main/scripts/install.sh | sh
+          ```
+
+          **Manual download**
+          Download the binary for your platform from the assets below, extract, and add to your `PATH`.
+
+          ### Checksums
+          See `checksums.txt` in the release assets for SHA-256 verification.
+          EOF
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          body_path: release-notes.md
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          fail_on_unmatched_files: true
+
+  # ── 5. Update Homebrew tap ───────────────────────────────────────
+  homebrew:
+    name: Update Homebrew Tap
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Compute SHA-256 hashes
+        id: sha
+        run: |
+          echo "darwin_arm64=$(sha256sum dist/forge-darwin-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_x64=$(sha256sum dist/forge-darwin-x64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_x64=$(sha256sum dist/forge-linux-x64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(sha256sum dist/forge-linux-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Homebrew formula
+        run: |
+          VERSION="${TAG#v}"
+          REPO="${{ env.REPO }}"
+
+          cat > forge.rb <<FORMULA
+          class Forge < Formula
+            desc "AI development environment setup & config sync CLI"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${REPO}/releases/download/v${VERSION}/forge-darwin-arm64.tar.gz"
+                sha256 "${{ steps.sha.outputs.darwin_arm64 }}"
+              else
+                url "https://github.com/${REPO}/releases/download/v${VERSION}/forge-darwin-x64.tar.gz"
+                sha256 "${{ steps.sha.outputs.darwin_x64 }}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/${REPO}/releases/download/v${VERSION}/forge-linux-arm64.tar.gz"
+                sha256 "${{ steps.sha.outputs.linux_arm64 }}"
+              else
+                url "https://github.com/${REPO}/releases/download/v${VERSION}/forge-linux-x64.tar.gz"
+                sha256 "${{ steps.sha.outputs.linux_x64 }}"
+              end
+            end
+
+            def install
+              bin.install "forge"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/forge --version")
+            end
+          end
+          FORMULA
+
+      - name: Push formula to Homebrew tap
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        with:
+          source_file: forge.rb
+          destination_repo: crucibledx/homebrew-tap
+          destination_folder: Formula
+          user_email: github-actions[bot]@users.noreply.github.com
+          user_name: github-actions[bot]
+          commit_message: 'forge ${{ env.TAG }}'
