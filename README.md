@@ -1,61 +1,51 @@
+<div align="center">
+
 # Forge CLI
 
-<!-- TODO: badges (version, tests, license, downloads) -->
+**One source of truth for every AI tool your team uses.**
+
+[![Version](https://img.shields.io/badge/version-0.6.18-%23e84d00)](https://github.com/crucibledx/forge-cli/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-%23a0aec0)](LICENSE)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/dark/01-set-and-forget.gif">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/light/01-set-and-forget.gif">
+  <img alt="Forge CLI — set and forget" src="https://github.com/crucibledx/assets/raw/main/forge/demos/light/01-set-and-forget.gif" width="720">
+</picture>
+
+</div>
+
+---
 
 Your team uses Claude Code, Cursor, Windsurf, Copilot, and Cline. Maybe all of them. Maybe different ones per repo.
 
-Each tool has its own config format, its own folder structure, its own way of doing things. So what happens? Someone writes a great deployment skill for Claude Code, and it lives in `.claude/skills/deploy.md`. The Cursor folks never see it. The Copilot people have their own version that's three weeks out of date.
+Someone writes a great deployment skill for Claude Code — it lives in `.claude/skills/deploy.md`. The Cursor team never sees it. Copilot has its own version, three weeks out of date.
 
-10 repos, 5 AI tools, 50 config files. Copy-paste. Drift. Nobody knows what's actually current.
+**10 repos × 5 AI tools = 50 config files.** Copy-paste. Drift. Nobody knows what's current.
 
-**Forge fixes that.**
-
-One shared source of skills, rules, and workflows. One command to sync them everywhere, in the right format, in the right place.
-
-```mermaid
-graph LR
-    S["Shared source<br/>(git or local)"] -->|forge sync| C[".claude/skills/"]
-    S -->|forge sync| Cu[".cursor/rules/"]
-    S -->|forge sync| W[".windsurf/rules/"]
-    S -->|forge sync| G[".github/instructions/"]
-    S -->|forge sync| Cl[".clinerules/"]
-```
+Forge fixes that. Write your AI skills, rules, and workflows once. Sync them everywhere — in the right format, in the right place.
 
 ## Install
 
 ```bash
-# bun (recommended)
-bun add -g @crucibledx/forge-cli
-
-# npm
-npm install -g @crucibledx/forge-cli
+bun add -g @crucibledx/forge-cli    # or: npm install -g @crucibledx/forge-cli
 ```
-
-Requires [Bun](https://bun.sh) v1.3+ or Node.js 20+.
 
 ## Quick Start
 
-Three commands. That's it.
-
 ```bash
-forge init    # detects your AI tools, picks a source
-forge sync    # pulls files, places them where each tool expects
-forge health  # shows what's synced, what drifted, what's broken
+forge init    # wizard detects your AI tools, configures a source
+forge sync    # pulls files, transforms & places them for each tool
+forge health  # dashboard: sync status, drift, source reachability
 ```
 
-Forge writes config to `.crucible/forge.config.yaml`. Commit it so the whole team stays in sync.
+That's it. Commit `.crucible/forge.config.yaml` so the whole team stays in sync.
 
 ## How It Works
 
-```mermaid
-graph TD
-    A["Write skills & rules once"] --> B["Store them in a git repo<br/>or local directory"]
-    B --> C["forge sync"]
-    C --> D["Each AI tool gets the files<br/>in its native format & path"]
-    D --> E["Auto-transforms where needed<br/>.md → .mdc for Cursor<br/>.md → .instructions.md for Copilot"]
-```
+![Platform Flow](https://github.com/crucibledx/assets/raw/main/platform/diagrams/platform-flow.svg)
 
-You define your shared configs in a structured source:
+Define shared AI configs in a source repo:
 
 ```
 my-source/
@@ -68,55 +58,62 @@ my-source/
     review.md
 ```
 
-Forge figures out the layout automatically and maps each file to the right target path for each assistant.
+Forge auto-detects the layout and maps each file to every assistant's native format:
 
-## Supported AI Tools
+| Assistant          | Target paths                                             | Auto-transform               |
+|--------------------|----------------------------------------------------------|------------------------------|
+| **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/` | —                            |
+| **Cursor**         | `.cursor/rules/`                                         | `.md` → `.mdc` + frontmatter |
+| **Windsurf**       | `.windsurf/rules/`, `.windsurf/workflows/`               | frontmatter injection        |
+| **GitHub Copilot** | `.github/skills/`, `.github/instructions/`               | `.md` → `.instructions.md`   |
+| **Cline**          | `.cline/skills/`, `.clinerules/`                         | —                            |
 
-| Tool               | Where files land                                                             |
-|--------------------|------------------------------------------------------------------------------|
-| **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/`                     |
-| **Cursor**         | `.cursor/rules/` (auto `.md` → `.mdc` transform)                             |
-| **Windsurf**       | `.windsurf/rules/`, `.windsurf/workflows/`                                   |
-| **GitHub Copilot** | `.github/skills/`, `.github/instructions/` (auto `.md` → `.instructions.md`) |
-| **Cline**          | `.cline/skills/`, `.clinerules/`, `.clinerules/workflows/`                   |
+Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new assistant is [one file](https://crucibledx.dev/forge/assistants).
 
-Forge auto-detects which tools are active in your project. If you don't use Windsurf, it won't touch `.windsurf/`.
+## See It in Action
 
-More tools coming. It's pluggable - adding a new assistant is one file.
+### Drift detection & easy updates
+
+> Check status, spot drift, add a second source, sync — no YAML editing, no guessing.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/dark/02-easy-updates.gif">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/light/02-easy-updates.gif">
+  <img alt="Forge CLI — easy updates" src="https://github.com/crucibledx/assets/raw/main/forge/demos/light/02-easy-updates.gif" width="720">
+</picture>
+
+### Power user: merge strategies & dry-run
+
+> Fine-grained source control, include/exclude filters, conflict resolution, dry-run preview, health dashboard.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/dark/03-power-user.gif">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/crucibledx/assets/raw/main/forge/demos/light/03-power-user.gif">
+  <img alt="Forge CLI — power user" src="https://github.com/crucibledx/assets/raw/main/forge/demos/light/03-power-user.gif" width="720">
+</picture>
 
 ## Commands
 
-| Command                     | What it does                                         |
-|-----------------------------|------------------------------------------------------|
-| `forge init`                | Interactive setup - detect tools, configure sources  |
-| `forge sync`                | Fetch from sources, place files for each tool        |
-| `forge sync --dry-run`      | Preview changes without writing anything             |
-| `forge status`              | Show drift between last sync and current filesystem  |
-| `forge health`              | Dashboard - sync status, drift, sources, recent logs |
-| `forge config`              | Edit project configuration interactively             |
-| `forge source list`         | Show configured sources with sync file counts        |
-| `forge source add`          | Add a new source interactively                       |
-| `forge source remove`       | Remove a source, optionally clean synced files       |
-| `forge scheduler install`   | Register an OS-level auto-sync task                  |
-| `forge scheduler uninstall` | Remove the scheduled sync task                       |
-| `forge scheduler status`    | Show next run time and scheduler status              |
+| Command                   | Description                                            |
+|---------------------------|--------------------------------------------------------|
+| `forge init`              | Interactive wizard — detect tools, configure sources   |
+| `forge sync`              | Fetch, transform, and place files for each assistant   |
+| `forge sync --dry-run`    | Preview all changes without writing                    |
+| `forge status`            | Show drift between last sync and filesystem            |
+| `forge health`            | SLI dashboard — sync frequency, drift, reachability    |
+| `forge config`            | Interactive config editor                              |
+| `forge source list`       | List sources with sync counts                          |
+| `forge source add`        | Add a source interactively                             |
+| `forge source remove`     | Remove a source + optional cleanup                     |
+| `forge source edit`       | Edit source with pre-filled values                     |
+| `forge scheduler install` | Register OS-level auto-sync (launchd/crontab/schtasks) |
+| `forge uninstall`         | Remove config, scheduler, and synced files             |
+
+Full reference → [crucibledx.dev/forge/commands](https://crucibledx.dev/forge/commands)
 
 ## Sources
 
-### Local directory
-
-Point to a folder on disk. Works great for monorepos or local development:
-
-```yaml
-sources:
-  - name: team-rules
-    type: local
-    path: ../shared-ai-configs
-```
-
-### Git repository
-
-Pull from any remote, SSH or HTTPS:
+### Git (recommended)
 
 ```yaml
 sources:
@@ -124,57 +121,49 @@ sources:
     type: git
     url: git@github.com:acme/ai-configs.git
     branch: main
+    subdirectory: skills     # optional: sync only a subfolder
+    include: [ "*.md" ]        # optional: glob filters
 ```
 
-### Source layouts
-
-Forge auto-detects how your source is organized:
-
-- **`canonical`** - flat files at root, distributed by name matching
-- **`skills`** - pre-structured with `skills/`, `rules/`, `workflows/` folders
-- **`hybrid`** - mix of both
-
-No config needed. Just organize your files and Forge figures it out.
-
-## Config
-
-Generated by `forge init` at `.crucible/forge.config.yaml`:
+### Local directory
 
 ```yaml
-version: "1"
-assistants:
-  - id: claude-code
-    enabled: true
-  - id: cursor
-    enabled: true
 sources:
   - name: team-rules
     type: local
     path: ../shared-ai-configs
-sync:
-  source_conflict_strategy: prefer_source
-  local_conflict_strategy: overwrite
-  backup: true
 ```
 
-Global config lives at `~/.crucible/forge.config.yaml` (use `--global` flag).
+### Source layouts
 
-## Auto-Sync
+Forge auto-detects how your source is organized — no configuration needed:
 
-Set up OS-level scheduling so syncs happen automatically. Launchd on macOS, systemd on Linux.
+- **Canonical** — `skills/`, `rules/`, `workflows/` folders, distributed and transformed per assistant
+- **Pre-structured** — contains `.claude/`, `.cursor/` dirs, copied as-is
+- **Hybrid** — mix of both, auto-detected by default
 
-```bash
-forge scheduler install    # registers a cron-style task
-forge scheduler status     # check next run time
-forge scheduler uninstall  # remove it
-```
+## Sync Engine
 
-Configure the schedule in your config:
+- **Multi-source** — parallel fetch via `Promise.allSettled`, failed sources don't block others
+- **SHA-256 change detection** — no unnecessary writes
+- **Conflict strategies** — `prefer_source`, `prefer_local`, or `error` for both source and local conflicts
+- **Backup** — `.bak` copies before overwrites
+- **Dry-run** — preview everything before writing
+- **Rollback** — on failure, already-written files are reverted. No partial state
+- **Auto-sync** — OS-level scheduling: launchd (macOS), crontab (Linux), Task Scheduler (Windows)
 
-```yaml
-sync:
-  schedule: "0 9 * * *"   # daily at 9am
-```
+## Best With a Skills Platform
+
+Forge pulls from any git repo. But for teams building shared AI resources at scale, pair it with the [Forge Skills Starter](https://github.com/crucibledx/forge-skills-starter) — a convention-over-configuration platform for designing, developing, testing, and delivering AI skills, rules, and
+workflows.
+
+![Platform Structure](https://github.com/crucibledx/assets/raw/main/platform/diagrams/platform-structure.svg)
+
+## Part of Crucible
+
+Forge is the distribution engine of the [Crucible](https://crucibledx.dev) platform — an ecosystem of focused tools for AI developer experience.
+
+![Crucible Ecosystem](https://github.com/crucibledx/assets/raw/main/crucible/diagrams/crucible-ecosystem.svg)
 
 ## Development
 
@@ -183,20 +172,10 @@ bun install               # install deps
 bun run dev -- <command>  # run locally
 bun run test              # unit + e2e tests
 bun run typecheck         # tsc --noEmit
-bun run format            # prettier
-bun run lint:fix          # eslint
-bun run build             # compile to single binary
+bun run build             # compile to dist/
 ```
 
-### Architecture
-
-DDD with three layers:
-
-- **`domain/`** - pure types, logic, schemas. No I/O.
-- **`application/`** - command handlers that orchestrate everything
-- **`infrastructure/`** - all I/O: filesystem, git, CLI, config parsing
-
-Adding a new assistant or source type is one file in the right folder. No changes to existing commands.
+DDD architecture: `domain/` (pure logic) → `application/` (commands) → `infrastructure/` (I/O). Adding a new assistant or source type = one file, zero changes to existing commands.
 
 ## License
 
