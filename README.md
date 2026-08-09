@@ -43,7 +43,10 @@ That's it. Commit `.crucible/forge.config.yaml` so the whole team stays in sync.
 
 ## How It Works
 
-![Platform Flow](https://github.com/crucibledx/assets/raw/main/platform/diagrams/platform-flow.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/platform/diagrams/dark/platform-flow.svg">
+  <img alt="Platform Flow" src="https://github.com/crucibledx/assets/raw/main/platform/diagrams/light/platform-flow.svg">
+</picture>
 
 Define shared AI configs in a source repo:
 
@@ -157,13 +160,19 @@ Forge auto-detects how your source is organized — no configuration needed:
 Forge pulls from any git repo. But for teams building shared AI resources at scale, pair it with the [Forge Skills Starter](https://github.com/crucibledx/forge-skills-starter) — a convention-over-configuration platform for designing, developing, testing, and delivering AI skills, rules, and
 workflows.
 
-![Platform Structure](https://github.com/crucibledx/assets/raw/main/platform/diagrams/platform-structure.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/platform/diagrams/dark/platform-structure.svg">
+  <img alt="Platform Structure" src="https://github.com/crucibledx/assets/raw/main/platform/diagrams/light/platform-structure.svg">
+</picture>
 
 ## Part of Crucible
 
 Forge is the distribution engine of the [Crucible](https://crucibledx.dev) platform — an ecosystem of focused tools for AI developer experience.
 
-![Crucible Ecosystem](https://github.com/crucibledx/assets/raw/main/crucible/diagrams/crucible-ecosystem.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/crucibledx/assets/raw/main/crucible/diagrams/dark/crucible-ecosystem.svg">
+  <img alt="Crucible Ecosystem" src="https://github.com/crucibledx/assets/raw/main/crucible/diagrams/light/crucible-ecosystem.svg">
+</picture>
 
 ## Development
 
