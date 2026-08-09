@@ -261,11 +261,68 @@ jobs:
       - name: Push formula to Homebrew tap
         uses: dmnemec/copy_file_to_another_repo_action@main
         env:
-          API_TOKEN_GITHUB: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          API_TOKEN_GITHUB: ${{ secrets.DIST_REPO_TOKEN }}
         with:
           source_file: forge.rb
           destination_repo: crucibledx/homebrew-tap
           destination_folder: Formula
+          user_email: github-actions[bot]@users.noreply.github.com
+          user_name: github-actions[bot]
+          commit_message: 'forge ${{ env.TAG }}'
+
+  # ── 6. Update Scoop bucket ──────────────────────────────────────
+  scoop:
+    name: Update Scoop Bucket
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Compute SHA-256 hash
+        id: sha
+        run: |
+          echo "windows_x64=$(sha256sum dist/forge-windows-x64.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Scoop manifest
+        run: |
+          VERSION="${TAG#v}"
+          REPO="${{ env.REPO }}"
+
+          cat > forge.json <<MANIFEST
+          {
+            "version": "${VERSION}",
+            "description": "One source of truth for every AI tool your team uses",
+            "homepage": "https://github.com/${REPO}",
+            "license": "MIT",
+            "architecture": {
+              "64bit": {
+                "url": "https://github.com/${REPO}/releases/download/v${VERSION}/forge-windows-x64.zip",
+                "hash": "${{ steps.sha.outputs.windows_x64 }}"
+              }
+            },
+            "bin": "forge.exe",
+            "checkver": "github",
+            "autoupdate": {
+              "architecture": {
+                "64bit": {
+                  "url": "https://github.com/${REPO}/releases/download/v\$version/forge-windows-x64.zip"
+                }
+              }
+            }
+          }
+          MANIFEST
+
+      - name: Push manifest to Scoop bucket
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.DIST_REPO_TOKEN }}
+        with:
+          source_file: forge.json
+          destination_repo: crucibledx/scoop-bucket
+          destination_folder: bucket
           user_email: github-actions[bot]@users.noreply.github.com
           user_name: github-actions[bot]
           commit_message: 'forge ${{ env.TAG }}'

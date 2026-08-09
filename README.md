@@ -35,6 +35,13 @@ Forge fixes that. Write your AI skills, rules, and workflows once. Sync them eve
 brew install crucibledx/tap/forge
 ```
 
+**Scoop** (Windows)
+
+```powershell
+scoop bucket add crucibledx https://github.com/crucibledx/scoop-bucket
+scoop install forge
+```
+
 **npm / bun** (requires [Bun](https://bun.sh) runtime)
 
 ```bash
