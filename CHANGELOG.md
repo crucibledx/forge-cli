@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.23] — 2026-08-09
+
+### Changed
+
+- **npm publishing** — switched from stored `NPM_TOKEN` secret to OIDC Trusted Publishing with `--provenance`. No secrets needed, plus supply chain attestation on npmjs.com.
+
 ## [0.6.22] — 2026-08-09
 
 ### Fixed

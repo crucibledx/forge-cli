@@ -5,7 +5,7 @@
 **One source of truth for every AI tool your team uses.**
 
 [![CI](https://github.com/crucibledx/forge-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/crucibledx/forge-cli/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.6.22-%23e84d00)](https://github.com/crucibledx/forge-cli/releases)
+[![Version](https://img.shields.io/badge/version-0.6.23-%23e84d00)](https://github.com/crucibledx/forge-cli/releases)
 [![npm](https://img.shields.io/npm/v/@crucibledx/forge-cli?color=%23cb3837)](https://www.npmjs.com/package/@crucibledx/forge-cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-%23a0aec0)](LICENSE)
 
