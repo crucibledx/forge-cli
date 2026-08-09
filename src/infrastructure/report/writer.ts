@@ -8,15 +8,8 @@ import type {SyncReport} from '@domain/sync/report'
 import type {ReportService} from './types'
 
 const REPORT_DIR = join(homedir(), '.crucible', 'forge', 'reports')
-const HISTORY_DIR = join(REPORT_DIR, 'history')
 const LATEST_FILE = 'latest.json'
 const DEFAULT_MAX_AGE_DAYS = 30
-
-function ensureDirs(): void {
-  if (!existsSync(HISTORY_DIR)) {
-    mkdirSync(HISTORY_DIR, {recursive: true})
-  }
-}
 
 function historyFilename(timestamp: string): string {
   return timestamp.replace(/[:.]/g, '-').replace('T', '-').replace('Z', '') + '.json'

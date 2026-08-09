@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.22] — 2026-08-09
+
+### Fixed
+
+- **File deletion on Bun** — `node:fs` `unlink`, `rmSync`, and `Bun.file().unlink()` all silently fail on Bun Linux. Switched to `rm()` from `node:fs/promises` with `{force: true}` which works reliably.
+- **Lint warnings** — removed unused `ensureDirs` function and `HISTORY_DIR` constant in report writer. Fixed import sort in `writer.test.ts`.
+
 ## [0.6.21] — 2026-08-09
 
 ### Fixed
