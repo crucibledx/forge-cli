@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.24] — 2026-08-13
+
+### Changed
+
+- **npm publishing** — use granular access token (`NPM_TOKEN` secret) for CI publishing. OIDC Trusted Publishing returned 404 on scoped packages.
+
 ## [0.6.23] — 2026-08-09
 
 ### Changed

@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 env:
   REPO: crucibledx/forge-cli
@@ -109,9 +108,6 @@ jobs:
     name: Publish to npm
     needs: [ quality, test ]
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,7 +121,9 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: bun install
       - name: Publish
-        run: npm publish --access public --provenance
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── 4. GitHub Release with binaries + release notes ──────────────
   github-release:
