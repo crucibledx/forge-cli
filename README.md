@@ -181,6 +181,33 @@ Forge auto-detects how your source is organized — no configuration needed:
 - **Rollback** — on failure, already-written files are reverted. No partial state
 - **Auto-sync** — OS-level scheduling: launchd (macOS), crontab (Linux), Task Scheduler (Windows)
 
+## What's Next: Context Compiler
+
+Forge today is a file copier with transforms. Next: a **context compiler** — think Vite, but for AI agents.
+
+| Vite concept        | Forge equivalent                                    |
+|---------------------|-----------------------------------------------------|
+| ES modules          | Canonical skill files (`.md` with frontmatter)      |
+| `import` statements | `depends:` frontmatter linking skills               |
+| Tree-shaking        | Remove skills irrelevant to project context         |
+| Code-splitting      | Priority-ordered chunks within agent context limits |
+| Build targets       | Per-agent output optimization                       |
+| HMR                 | Incremental re-compile on source change             |
+
+**Planned versions:**
+
+| Version | Feature                                                               |
+|---------|-----------------------------------------------------------------------|
+| v0.7    | Smithery/agentskills.io source adapter                                |
+| v0.8    | Skill frontmatter schema + parser                                     |
+| v0.9    | Skill graph + dependency resolution                                   |
+| v0.10   | Project context detection + tree-shaking                              |
+| v0.11   | Token budgeting + priority ordering                                   |
+| v0.12   | Per-agent emitters (compile targets)                                  |
+| v0.13   | Manifest generation → [Ember](https://crucibledx.dev/ember) telemetry |
+
+Each version ships independently with room for patch releases. See [compiler-roadmap.md](docs/compiler-roadmap.md) for details.
+
 ## Best With a Skills Platform
 
 Forge pulls from any git repo. But for teams building shared AI resources at scale, pair it with the [Forge Skills Starter](https://github.com/crucibledx/forge-skills-starter) — a convention-over-configuration platform for designing, developing, testing, and delivering AI skills, rules, and
