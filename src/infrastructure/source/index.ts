@@ -1,6 +1,8 @@
 import './git'
 import './local'
 
+import {stat} from 'node:fs/promises'
+
 import type {Source} from '@domain/config/types'
 import {applySourceFilters} from '@domain/sync/filter'
 import type {SourceFile} from '@domain/sync/types'
@@ -23,6 +25,7 @@ export function getSourceLoader(type: string): SourceLoaderEntry {
 export async function loadSourceFiles(source: Source): Promise<SourceFile[]> {
   const loader = getSourceLoader(source.type)
   const {localPath} = await loader.load(source)
+  if (!(await stat(localPath)).isDirectory()) throw new Error(`Source is not a directory: ${localPath}`)
   const files = await collectFiles(localPath)
   return applySourceFilters(files, source)
 }

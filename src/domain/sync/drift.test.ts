@@ -7,7 +7,7 @@ import {hashContent} from './state'
 function stateWith(files: Record<string, {content: string; sourceName: string}>): SyncState {
   const entries: SyncState['files'] = {}
   for (const [path, {content, sourceName}] of Object.entries(files)) {
-    entries[path] = {hash: hashContent(content), sourceName}
+    entries[path] = {hash: hashContent(content), sourceName, baseline: 'installed'}
   }
   return {lastSync: '2026-01-01T00:00:00.000Z', files: entries}
 }

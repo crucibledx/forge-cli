@@ -5,6 +5,9 @@ import {join} from 'node:path'
 
 import pino from 'pino'
 
+import {redact, redactData} from '@domain/redact'
+
+import {renderWarning} from '../cli/renderer'
 import type {FileLogger, LogEntry, LogLevel} from './types'
 import {LOG_LEVELS} from './types'
 
@@ -43,10 +46,31 @@ function parseLine(line: string): LogEntry | null {
 }
 
 export function createFileLogger(level: LogLevel = currentLogLevel): FileLogger {
+  try {
+    return createAvailableLogger(level)
+  } catch {
+    renderWarning('File logging unavailable; sync outcome is unaffected.')
+    const noop = () => {}
+    return {
+      error: noop,
+      warn: noop,
+      info: noop,
+      debug: noop,
+      trace: noop,
+      readRecent: async () => [],
+      rotate: async () => {},
+      getLogDir: () => LOG_DIR,
+      flush: noop,
+    }
+  }
+}
+
+function createAvailableLogger(level: LogLevel): FileLogger {
   ensureLogDir()
 
   const logPath = join(LOG_DIR, todayLogFile())
   const dest = pino.destination({dest: logPath, sync: true, mkdir: true})
+  dest.on('error', () => renderWarning('File logging unavailable; sync outcome is unaffected.'))
 
   const logger = pino(
     {
@@ -61,10 +85,11 @@ export function createFileLogger(level: LogLevel = currentLogLevel): FileLogger 
   )
 
   function write(lvl: pino.Level, msg: string, data?: Record<string, unknown>): void {
-    if (data) {
-      logger[lvl](data, msg)
-    } else {
-      logger[lvl](msg)
+    try {
+      if (data) logger[lvl](redactData(data), redact(msg))
+      else logger[lvl](redact(msg))
+    } catch {
+      renderWarning('File logging unavailable; sync outcome is unaffected.')
     }
   }
 

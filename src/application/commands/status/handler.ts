@@ -100,7 +100,7 @@ async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string
   if (config.sources.length === 0) return null
 
   try {
-    const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
+    const assistantDefs = config.assistants.filter((a) => a.enabled).map((a) => getAssistant(a.id))
     const allResolved = []
 
     for (const source of config.sources) {

@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFileSync, statSync} from 'node:fs'
 import {resolve} from 'node:path'
 
 import {createTestSandbox} from './test-sandbox'
@@ -18,14 +18,36 @@ export async function runTests(args: string[]): Promise<number> {
   if (Bun.version !== pin) throw new Error(`Tests require Bun ${pin}; found ${Bun.version}`)
   const sandbox = createTestSandbox()
   try {
-    const child = Bun.spawn([process.execPath, 'test', '--timeout', timeout, ...args], {
-      cwd: resolve(import.meta.dir, '..'),
-      env: sandbox.env,
-      stdin: 'ignore',
-      stdout: 'inherit',
-      stderr: 'inherit',
-    })
-    return await child.exited
+    const root = resolve(import.meta.dir, '..')
+    const files = [
+      ...new Set(
+        args.flatMap((path) => {
+          const full = resolve(root, path)
+          return statSync(full).isDirectory()
+            ? [...new Bun.Glob('**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}').scanSync({cwd: full, absolute: true})]
+            : [full]
+        }),
+      ),
+    ].sort()
+    if (!files.length) throw new Error('No test files matched the selected paths')
+    // Bun module mocks mutate cached exports across files, even after restore().
+    // Keep mock-heavy legacy files serial in fresh processes, not reordered to
+    // conceal pollution. The unmocked safety suite always uses real modules.
+    const mocked = files.filter((path) => /\bmock\.module\s*\(/.test(readFileSync(path, 'utf8')))
+    const clean = files.filter((path) => !mocked.includes(path))
+    const batches = [...(clean.length ? [clean] : []), ...mocked.map((file) => [file])]
+    let failed = false
+    for (const batch of batches) {
+      const child = Bun.spawn([process.execPath, 'test', '--timeout', timeout, ...batch], {
+        cwd: root,
+        env: sandbox.env,
+        stdin: 'ignore',
+        stdout: 'inherit',
+        stderr: 'inherit',
+      })
+      if ((await child.exited) !== 0) failed = true
+    }
+    return failed ? 1 : 0
   } finally {
     sandbox.dispose()
   }

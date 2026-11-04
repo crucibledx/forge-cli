@@ -1,6 +1,7 @@
 import type {Command} from 'commander'
 
 import {setGlobalMode} from '@domain/scope'
+import * as renderer from '@infrastructure/cli/renderer'
 import type {LogLevel} from '@infrastructure/logger'
 import {createFileLogger, LOG_LEVELS, setLogLevel} from '@infrastructure/logger'
 import {
@@ -42,6 +43,7 @@ export const setLogLevelHook: CommandHook = {
 export const debugCommandHook: CommandHook = {
   event: 'preAction',
   listener: (_thisCommand, actionCommand) => {
+    if (actionCommand.opts().silent) renderer.setSilent(true)
     const logger = createFileLogger()
     const name = resolveCommandName(actionCommand)
     logger.debug('command invoked', {cmd: name, options: actionCommand.opts()})
@@ -86,7 +88,8 @@ export const telemetryPostHook: CommandHook = {
         ...(ctx.file_count !== undefined ? {file_count: ctx.file_count} : {}),
       })
     } catch {
-      // Telemetry must never break the CLI
+      if (!actionCommand.opts().silent)
+        renderer.renderWarning('Local telemetry unavailable; command outcome is unaffected.')
     }
   },
 }

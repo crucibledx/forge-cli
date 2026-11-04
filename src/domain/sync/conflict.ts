@@ -49,15 +49,18 @@ export class LocalConflictError extends Error {
  */
 export function detectLocalConflict(
   targetPath: string,
-  localContent: string,
+  localContent: string | Uint8Array,
   remoteContent: string,
   syncState: SyncState,
 ): LocalConflict | null {
   const entry = syncState.files[targetPath]
   if (!entry) return null
-
   const localHash = hashContent(localContent)
   const remoteHash = hashContent(remoteContent)
+  if (localHash === remoteHash) return null
+  if (entry.baseline !== 'installed') {
+    return {targetPath, localHash, storedHash: entry.hash, remoteHash}
+  }
 
   if (localHash === entry.hash) return null
   if (remoteHash === entry.hash) return null
