@@ -82,7 +82,12 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
           const plan = await pending
           if (strategy === 'local-wins') expect(plan.summaries[0].status).toBe('skipped')
           else {
-            expect(plan.mutations).toContainEqual({type: 'file_write', path: `${path}.bak`, content: 'local'})
+            expect(plan.mutations).toContainEqual({
+              type: 'file_write',
+              path: `${path}.bak`,
+              content: 'local',
+              backup: true,
+            })
             expect(plan.summaries[0].status).toBe(desired.length ? 'update' : 'deleted')
           }
         }
@@ -150,6 +155,18 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
   it('rejects a source target colliding with a generated backup', async () => {
     await disk(path, 'old')
     await expect(buildPlan(dir(), [target(), target(`${path}.bak`)], state(), defaults)).rejects.toThrow('Competing')
+  })
+  it('cleans a tracked source .bak target, but never discovers untracked generated backups as stale', async () => {
+    const sourcePath = '.claude/rules/source.bak'
+    await disk(sourcePath, 'old')
+    await disk(`${path}.bak`, 'recovery bytes')
+    const tracked: SyncState = {
+      lastSync: '',
+      files: {[sourcePath]: {hash: hashContent('old'), sourceName: 'team', baseline: 'installed'}},
+    }
+    const plan = await buildPlan(dir(), [], tracked, defaults)
+    expect(plan.mutations).toEqual([{type: 'file_delete', path: sourcePath}])
+    expect(await readFile(join(dir(), `${path}.bak`), 'utf8')).toBe('recovery bytes')
   })
   it('classifies every registered assistant in both scopes and retains disabled/unknown/ambiguous stale ownership', async () => {
     for (const global of [false, true]) {
