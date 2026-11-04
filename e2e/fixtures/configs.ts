@@ -55,19 +55,23 @@ export function buildConfigYaml(options: ConfigOptions): string {
     sourcesBlock = options.localSources
       .map((s) => {
         const name = s.name ?? 'test-source'
-        return [`  - name: ${name}`, '    type: local', `    path: "${s.path}"`].join('\n')
+        return [`  - name: ${name}`, '    type: local', `    path: ${JSON.stringify(s.path)}`].join('\n')
       })
       .join('\n')
   } else if (options.localSource) {
     const name = options.localSource.name ?? 'test-source'
-    sourcesBlock = [`  - name: ${name}`, '    type: local', `    path: "${options.localSource.path}"`].join('\n')
+    sourcesBlock = [
+      `  - name: ${name}`,
+      '    type: local',
+      `    path: ${JSON.stringify(options.localSource.path)}`,
+    ].join('\n')
   } else if (options.gitSource) {
     const name = options.gitSource.name ?? 'team-rules'
     const branch = options.gitSource.branch ?? 'main'
     sourcesBlock = [
       `  - name: ${name}`,
       '    type: git',
-      `    url: "${options.gitSource.url}"`,
+      `    url: ${JSON.stringify(options.gitSource.url)}`,
       `    branch: "${branch}"`,
     ].join('\n')
   } else {

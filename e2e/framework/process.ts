@@ -48,6 +48,9 @@ export function createTranscript() {
     text() {
       return stripAnsi(raw)
     },
+    rawText() {
+      return raw
+    },
   }
 }
 
