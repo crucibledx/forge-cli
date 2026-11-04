@@ -2,6 +2,11 @@ import {expect, it} from 'bun:test'
 
 import {redact, redactData} from './redact'
 
+it('leaves a long invalid scheme candidate unchanged without rescanning every internal word boundary', () => {
+  const input = 'a-'.repeat(50000)
+  expect(redact(input)).toBe(input)
+})
+
 it.each(['http', 'https', 'ssh', 'ftp', 'ftps', 'git', 'git+ssh', 'CUSTOM.v1+transport'])(
   'redacts URI userinfo independently of Git transport: %s (C4, AC-15)',
   (scheme) => {
