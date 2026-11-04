@@ -26,7 +26,7 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile dist/forge && bun run clean",
-    "clean": "find . -maxdepth 1 -name '*.bun-build' -delete",
+    "clean": "bun run scripts/clean.ts",
     "test:unit": "bun run scripts/run-tests.ts -- src/",
     "test:e2e": "bun run scripts/run-tests.ts -- e2e/",
     "test:properties": "bun run scripts/run-tests.ts -- src/domain/sync/safety.property.test.ts",
@@ -34,7 +34,7 @@
     "test:agent": "bun run scripts/run-tests.ts -- e2e/contracts/existing-cli.test.ts",
     "test:security": "bun run scripts/run-tests.ts -- src/infrastructure/fs/confinement.test.ts src/infrastructure/fs/transaction.test.ts src/application/commands/sync/safety.test.ts src/application/commands/sync/transaction.test.ts src/application/commands/sync/outcome.test.ts e2e/contracts/security.test.ts scripts/security-audit.test.ts",
     "test:performance": "bun run scripts/run-tests.ts --timeout-ms 40000 -- e2e/contracts/performance.test.ts",
-    "test:platform": "bun run scripts/run-tests.ts -- src/infrastructure/fs/confinement.test.ts src/infrastructure/fs/transaction.test.ts src/application/commands/sync/safety.test.ts src/application/commands/sync/transaction.test.ts e2e/commands/sync/safety.test.ts e2e/contracts/platform.test.ts e2e/framework/contracts/pipe.test.ts",
+    "test:platform": "bun run scripts/run-tests.ts -- src/infrastructure/fs/confinement.test.ts src/infrastructure/fs/transaction.test.ts src/infrastructure/fs/windows-access.test.ts src/application/commands/sync/safety.test.ts src/application/commands/sync/transaction.test.ts e2e/commands/sync/safety.test.ts e2e/contracts/platform.test.ts e2e/framework/contracts/pipe.test.ts",
     "test:compiled": "bun run scripts/compiled-smoke.ts",
     "check:security-audit": "bun run scripts/security-audit.ts",
     "check:contracts": "bun run scripts/check-contracts.ts",

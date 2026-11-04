@@ -118,11 +118,6 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
         }),
       )
       const result = await sync()
-      if (process.platform === 'win32') {
-        expect(result.exitCode).toBe(1)
-        expect(result.stdout).toContain('Deletion refused')
-        return
-      }
       expect(result.exitCode).toBe(0)
       expect(existsSync(join(dir(), tracked))).toBe(false)
       expect(await readFile(join(dir(), '.claude/skills/untracked.md'), 'utf8')).toBe('untracked sentinel')

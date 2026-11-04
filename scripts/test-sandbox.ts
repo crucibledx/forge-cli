@@ -43,7 +43,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
   for (const path of [project, home, temp, bin]) mkdirSync(path, {mode: 0o700})
   const gitConfig = join(root, 'gitconfig')
   // Git fixtures import frozen history. Tests need no operator identity/config.
-  writeFileSync(gitConfig, '', {mode: 0o600})
+  writeFileSync(gitConfig, process.platform === 'win32' ? '[core]\nlongpaths = true\n' : '', {mode: 0o600})
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
   const fake = resolve(import.meta.dir, 'fixtures/fake-scheduler.ts')
   if (process.platform === 'win32') {

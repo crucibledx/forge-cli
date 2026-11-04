@@ -46,10 +46,11 @@ power-loss atomicity guarantee. Confinement rejects pre-existing escapes, not ho
 Existing POSIX permission bits are preserved; new metadata is private. Ownership, timestamps, extended attributes
 and alternate data streams are not preserved guarantees.
 
-Windows replacement uses access-preserving `ReplaceFileW` or refuses. Existing-target deletion currently refuses
-before mutation because DACL restoration is not implemented. Windows harness cleanup also still needs durable
-Job Object ownership after a leader exits. These are **acceptance blockers**, not approved deviations. Native
-tests must not convert safe refusal into proof that cleanup works. Restricted-access evidence is still required.
+Windows replacement uses access-preserving `ReplaceFileW` or refuses. Deletion snapshots the DACL and inheritance
+control for restoration; new metadata gets an owner/SYSTEM-only protected DACL. Harness processes use kill-on-close
+Job Objects, a gated trusted bootstrap and suspended target creation, independent of the leader PID.
+These paths still require **native Windows verification**, including restricted-access and leader-exits-first
+fixtures. Local macOS passes or safe refusal do not establish Windows acceptance.
 
 ## Validation and evidence
 

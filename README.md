@@ -188,8 +188,8 @@ assistants and untracked files are retained. Different existing backups and port
 block planning. State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
 edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
 This is not crash recovery or concurrent-writer safety, and ownership/xattrs/timestamps/alternate streams are not
-preservation guarantees. Windows stale deletion and durable descendant ownership remain acceptance blockers on this
-implementation branch. See [the safety ledger, limits and recovery guide](docs/safety-contract.md).
+preservation guarantees. Windows access preservation and durable descendant ownership still require native validation
+on this implementation branch. See [the safety ledger, limits and recovery guide](docs/safety-contract.md).
 
 ## Best With a Skills Platform
 

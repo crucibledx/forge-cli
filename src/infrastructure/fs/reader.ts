@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {readdir, readFile} from 'node:fs/promises'
-import {join, relative} from 'node:path'
+import {join, relative, sep} from 'node:path'
 
 import {getAllAssistants} from '@domain/assistants'
 import type {SyncState} from '@domain/sync/state'
@@ -85,7 +85,7 @@ async function walk(
       await walk(baseDir, fullPath, files, assistantDirs, false)
     } else if (entry.isFile()) {
       const content = await readFile(fullPath, 'utf-8')
-      const relativePath = relative(baseDir, fullPath)
+      const relativePath = relative(baseDir, fullPath).split(sep).join('/')
       files.push({relativePath, content})
     }
   }
