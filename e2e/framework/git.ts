@@ -2,14 +2,13 @@ import {join} from 'node:path'
 
 import {writeSourceFile} from '@e2e/fixtures/sources'
 
+import {runPipe} from './pipe'
 // ─── Git test utilities ──────────────────────────────────────────────────────
 
 async function exec(cwd: string, cmd: string[]): Promise<void> {
-  const proc = Bun.spawn(cmd, {cwd, stdout: 'pipe', stderr: 'pipe'})
-  const code = await proc.exited
-  if (code !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`Command failed: ${cmd.join(' ')}\n${stderr}`)
+  const result = await runPipe(cwd, cmd)
+  if (result.exitCode !== 0 || result.timedOut) {
+    throw new Error(`Command failed: ${cmd.join(' ')}\n${result.stderr}`)
   }
 }
 
@@ -30,7 +29,7 @@ export async function createBareRepo(baseDir: string, files: Record<string, stri
   }
 
   await exec(workDir, ['git', 'add', '-A'])
-  await exec(workDir, ['git', '-c', 'user.name=test', '-c', 'user.email=test@test.com', 'commit', '-m', 'init'])
+  await exec(workDir, ['git', 'commit', '-m', 'init'])
   await exec(workDir, ['git', 'push', 'origin', branch])
 
   return bareDir
@@ -55,15 +54,6 @@ export async function addBranchToBareRepo(
   }
 
   await exec(workDir, ['git', 'add', '-A'])
-  await exec(workDir, [
-    'git',
-    '-c',
-    'user.name=test',
-    '-c',
-    'user.email=test@test.com',
-    'commit',
-    '-m',
-    `add ${branch}`,
-  ])
+  await exec(workDir, ['git', 'commit', '-m', `add ${branch}`])
   await exec(workDir, ['git', 'push', 'origin', branch])
 }

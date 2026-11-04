@@ -1,8 +1,10 @@
-import {mkdir, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
 import {afterEach, beforeEach} from 'bun:test'
+
+import type {TestSandbox} from '../../scripts/test-sandbox'
+import {createTestSandbox} from '../../scripts/test-sandbox'
 
 // ─── Path constants (reused across unit + e2e tests) ─────────────────────────
 
@@ -35,16 +37,15 @@ export function configFilePath(root: string): string {
  *   const getDir = useTmpDir('config', import.meta.dir)
  */
 export function useTmpDir(prefix: string, base: string = tmpdir()): () => string {
-  let dir = ''
+  let sandbox: TestSandbox
 
   beforeEach(async () => {
-    dir = join(base, `__tmp_${prefix}_${Date.now()}__`)
-    await mkdir(dir, {recursive: true})
+    sandbox = createTestSandbox(`__tmp_${prefix}_`, base)
   })
 
   afterEach(async () => {
-    await rm(dir, {recursive: true, force: true})
+    sandbox?.dispose()
   })
 
-  return () => dir
+  return () => sandbox.project
 }

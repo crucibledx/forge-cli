@@ -18,6 +18,6 @@
       "@e2e/*": ["./e2e/*"]
     }
   },
-  "include": ["src/**/*.ts", "e2e/**/*.ts"],
+  "include": ["src/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

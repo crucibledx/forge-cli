@@ -1,6 +1,5 @@
-import stripAnsi from 'strip-ansi'
-
 import {CLI_ENTRY} from './constants'
+import {runPipe} from './pipe'
 import type {CLIResult, CLISession} from './spawn'
 import {spawnInteractive} from './spawn'
 
@@ -16,15 +15,16 @@ export async function runCommand(
   args: string[] = [],
   env: Record<string, string> = {},
 ): Promise<CLIResult> {
-  const proc = Bun.spawn(['bun', 'run', CLI_ENTRY, command, ...args], {
-    cwd,
-    env: {...process.env, HOME: cwd, ...env},
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const exitCode = await proc.exited
-  const output = stripAnsi(await new Response(proc.stdout).text())
-  return {output, exitCode}
+  return runPipe(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env})
+}
+
+async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
+  try {
+    await drive(cli)
+    return await cli.waitForExit()
+  } finally {
+    await cli.dispose()
+  }
 }
 
 // ─── Per-command session runners ─────────────────────────────────────────────
@@ -39,9 +39,7 @@ export async function runInitSession(
   args: string[] = [],
 ): Promise<CLIResult> {
   const cli = spawnInteractive(cwd, 'init', args)
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
+  return driveSession(cli, drive)
 }
 
 /**
@@ -50,9 +48,7 @@ export async function runInitSession(
  */
 export async function runConfigSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
   const cli = spawnInteractive(cwd, 'config')
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
+  return driveSession(cli, drive)
 }
 
 /**
@@ -89,9 +85,7 @@ export async function runSourceSession(
   drive: (cli: CLISession) => Promise<void>,
 ): Promise<CLIResult> {
   const cli = spawnInteractive(cwd, 'source', [subcommand])
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
+  return driveSession(cli, drive)
 }
 
 export async function runConfigShow(cwd: string): Promise<CLIResult> {
@@ -104,9 +98,7 @@ export async function runScheduler(cwd: string, subcommand: string, args: string
 
 export async function runUninstallSession(cwd: string, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
   const cli = spawnInteractive(cwd, 'uninstall')
-  const done = cli.waitForExit()
-  await drive(cli)
-  return done
+  return driveSession(cli, drive)
 }
 
 export async function runInit(cwd: string, args: string[] = []): Promise<CLIResult> {

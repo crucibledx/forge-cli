@@ -1,3 +1,4 @@
+export {testEnvironment} from '../../scripts/test-sandbox'
 export {readConfig, readConfigRaw} from './config'
 export {CLI_ENTRY, TIMEOUT_MS} from './constants'
 export {addBranchToBareRepo, createBareRepo} from './git'

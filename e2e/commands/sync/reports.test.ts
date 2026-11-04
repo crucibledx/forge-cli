@@ -12,7 +12,7 @@ import {describe, expect, it} from 'bun:test'
 
 import type {SyncReport} from '@domain/sync/report'
 import {buildConfigYaml, writeConfig, writeSourceTree} from '@e2e/fixtures'
-import {runSync, useTmpDir} from '@e2e/framework'
+import {runSync, testEnvironment, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-reports')
 
@@ -31,7 +31,7 @@ describe('sync reports', () => {
 
     await runSync(dir)
 
-    const latestPath = join(dir, '.crucible', 'forge', 'reports', 'latest.json')
+    const latestPath = join(testEnvironment(dir).HOME, '.crucible', 'forge', 'reports', 'latest.json')
     expect(existsSync(latestPath)).toBe(true)
 
     const report: SyncReport = JSON.parse(await readFile(latestPath, 'utf-8'))
@@ -58,7 +58,7 @@ describe('sync reports', () => {
 
     await runSync(dir)
 
-    const historyDir = join(dir, '.crucible', 'forge', 'reports', 'history')
+    const historyDir = join(testEnvironment(dir).HOME, '.crucible', 'forge', 'reports', 'history')
     expect(existsSync(historyDir)).toBe(true)
 
     const files = readdirSync(historyDir).filter((f) => f.endsWith('.json'))
@@ -80,7 +80,7 @@ describe('sync reports', () => {
     await runSync(dir)
     await runSync(dir)
 
-    const latestPath = join(dir, '.crucible', 'forge', 'reports', 'latest.json')
+    const latestPath = join(testEnvironment(dir).HOME, '.crucible', 'forge', 'reports', 'latest.json')
     const report: SyncReport = JSON.parse(await readFile(latestPath, 'utf-8'))
     expect(report.files.skipped).toBeGreaterThan(0)
     expect(report.files.synced).toBe(0)
@@ -100,7 +100,7 @@ describe('sync reports', () => {
 
     await runSync(dir, ['--dry-run'])
 
-    const latestPath = join(dir, '.crucible', 'forge', 'reports', 'latest.json')
+    const latestPath = join(testEnvironment(dir).HOME, '.crucible', 'forge', 'reports', 'latest.json')
     expect(existsSync(latestPath)).toBe(false)
   })
 })

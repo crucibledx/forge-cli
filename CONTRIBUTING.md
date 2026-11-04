@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) v1.1+
+- [Bun](https://bun.sh), exact version in `.bun-version` (currently 1.4.2)
 - Node.js 20+ (for some tooling)
 - Git
 
@@ -13,7 +13,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 ```bash
 git clone https://github.com/crucibledx/forge-cli.git
 cd forge-cli
-bun install
+bun install --frozen-lockfile
 ```
 
 ## Development
@@ -33,6 +33,12 @@ bun run test:e2e           # e2e tests only (e2e/)
 
 - Unit tests mock at the infrastructure boundary, never at the file level.
 - E2e tests use temp directories and spawn the real CLI.
+- Use the isolated launcher for focused tests:
+  `bun run scripts/run-tests.ts -- e2e/framework/contracts/`.
+  It sets disposable home/temp/cache roots before any test import and replaces scheduler commands with offline fakes.
+  Sessions have a 10-second total deadline and a 20-second runner budget. For a 30-second session, select
+  `--timeout-ms 40000` before `--`. PTY output is a transcript, not a terminal screen.
+- Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 
 ## Before You Submit
 

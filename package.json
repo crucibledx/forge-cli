@@ -27,17 +27,17 @@
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile dist/forge && bun run clean",
     "clean": "find . -maxdepth 1 -name '*.bun-build' -delete",
-    "test:unit": "bun test src/",
-    "test:e2e": "bun test e2e/",
-    "test": "bun test src/ e2e/",
-    "format": "prettier --write src/ e2e/",
-    "format:check": "prettier --check src/ e2e/",
-    "lint": "eslint src/ e2e/",
-    "lint:fix": "eslint src/ e2e/ --fix",
+    "test:unit": "bun run scripts/run-tests.ts -- src/",
+    "test:e2e": "bun run scripts/run-tests.ts -- e2e/",
+    "test": "bun run scripts/run-tests.ts -- src/ e2e/ scripts/",
+    "format": "prettier --write src/ e2e/ scripts/",
+    "format:check": "prettier --check src/ e2e/ scripts/",
+    "lint": "eslint src/ e2e/ scripts/",
+    "lint:fix": "eslint src/ e2e/ scripts/ --fix",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clack/prompts": "^1.3.0",
+    "@clack/prompts": "1.3.0",
     "lodash-es": "^4.17.21",
     "strip-ansi": "^7.1.0",
     "commander": "^14.0.3",
@@ -49,7 +49,7 @@
     "zod": "^4.4.3"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.4.2"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",
