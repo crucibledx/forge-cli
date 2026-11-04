@@ -9,6 +9,8 @@ export interface ProcessOptions {
   timeoutMs?: number
   env?: Record<string, string>
   secrets?: string[]
+  /** Inspect bounded fixture output before diagnostic redaction, never publish it. */
+  inspectRaw?: (stdout: string, stderr: string) => void
 }
 
 export async function runPipe(cwd: string, command: string[], options: ProcessOptions = {}): Promise<CLIResult> {
@@ -62,6 +64,7 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     await proc.exited
     // A descendant may hold pipes open; the total deadline still owns the drain.
     await drains
+    options.inspectRaw?.(stdout.rawText(), stderr.rawText())
     return {
       stdout: sanitize(stdout.rawText(), cwd, options.secrets),
       stderr: sanitize(stderr.rawText(), cwd, options.secrets),

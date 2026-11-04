@@ -1,4 +1,4 @@
-import {join} from 'node:path'
+import {join, sep} from 'node:path'
 
 import type {AssistantDefinition, TargetDestination, TargetMapping} from '../assistants/types'
 import {isGlobalMode} from '../scope'
@@ -87,7 +87,7 @@ function resolvePreStructured(
     if (!match) continue
 
     const relativePart = file.relativePath.slice(match.prefix.length)
-    const targetPath = join(match.dest, relativePart)
+    const targetPath = join(match.dest, relativePart).split(sep).join('/')
 
     resolved.push({
       sourcePath: file.relativePath,
@@ -117,7 +117,7 @@ function resolveCanonical(
         if (!match.matches) continue
 
         const {filename, content} = applyTransforms(match.relativePath, file.content, mapping)
-        const targetPath = join(dest, filename)
+        const targetPath = join(dest, filename).split(sep).join('/')
 
         resolved.push({
           sourcePath: file.relativePath,

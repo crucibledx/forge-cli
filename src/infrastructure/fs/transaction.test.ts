@@ -9,9 +9,9 @@ import type {FileOperation, TransactionIO} from './transaction'
 import {prepareTransaction, TransactionError, transactionIO} from './transaction'
 
 /** Fail once, optionally after the operation already changed disk. No production fault flags. */
-export function fault(method: keyof TransactionIO, nth: number, after = false): TransactionIO {
+export function fault(method: keyof TransactionIO, nth: number, after = false, io = transactionIO): TransactionIO {
   let calls = 0
-  return new Proxy(transactionIO, {
+  return new Proxy(io, {
     get(target, key) {
       const original = Reflect.get(target, key)
       if (key !== method) return original
@@ -70,6 +70,45 @@ describe('BR-06 compensated transaction (AC-10)', () => {
       expect(await snapshot(dir())).toEqual(before)
     },
   )
+  it.each([1, 2, 3].flatMap((nth) => [false, true].map((after) => ({nth, after}))))(
+    'compensates access-metadata application $nth after=$after (AC-10)',
+    async ({nth, after}) => {
+      const before = await fixture()
+      // POSIX has no DACL. Exercise the injected access boundary here; native
+      // Windows runs the same faults against actual captured descriptors.
+      const io =
+        process.platform === 'win32'
+          ? transactionIO
+          : {
+              ...transactionIO,
+              readAccessMetadata: async () => Buffer.from([0]),
+              writeAccessMetadata: async () => {},
+            }
+      await expect(
+        (async () =>
+          (await prepareTransaction(dir(), operations, fault('writeAccessMetadata', nth, after, io))).commit())(),
+      ).rejects.toThrow('Rollback complete')
+      expect(await snapshot(dir())).toEqual(before)
+    },
+  )
+  it.each([1, 2, 3, 4].flatMap((nth) => [false, true].map((after) => ({nth, after}))))(
+    'access snapshot failure $nth after=$after refuses before mutation (AC-10)',
+    async ({nth, after}) => {
+      const before = await fixture()
+      await expect(prepareTransaction(dir(), operations, fault('readAccessMetadata', nth, after))).rejects.toThrow()
+      expect(await snapshot(dir())).toEqual(before)
+    },
+  )
+  it('private access support failure is read-only preflight (AC-10)', async () => {
+    await expect(
+      prepareTransaction(
+        dir(),
+        [{path: 'metadata/state', content: 'private', private: true}],
+        fault('privateAccessMetadata', 1),
+      ),
+    ).rejects.toThrow()
+    expect(await snapshot(dir())).toEqual({})
+  })
   it('compensates a temporary file that throws after only a prefix was written', async () => {
     const before = await fixture()
     let failed = false

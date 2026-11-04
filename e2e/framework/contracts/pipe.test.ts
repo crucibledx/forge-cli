@@ -27,6 +27,20 @@ describe('BR-09 pipe contracts (AC-16)', () => {
     expect(result.stdout).toBe('A🌍é終B\n')
     expect(result.stderr).toBe(result.stdout)
   })
+  it('lets redaction tests inspect bounded raw fixture output before artifact sanitization', async () => {
+    let raw = ''
+    const result = await runPipe(
+      dir(),
+      [process.execPath, '-e', 'console.log("https://user:raw-sentinel@fixture.invalid")'],
+      {
+        inspectRaw: (stdout) => {
+          raw = stdout
+        },
+      },
+    )
+    expect(raw).toContain('raw-sentinel')
+    expect(result.stdout).not.toContain('raw-sentinel')
+  })
   it('preserves literal argv and closes target stdin, including the Windows job bootstrap', async () => {
     const values = ['', 'a b', 'literal"quote', 'C:\\space here\\', '$HOME', '`literal`', '🌍']
     const result = await runPipe(dir(), [process.execPath, fixture, 'argv', ...values])
