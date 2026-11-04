@@ -51,6 +51,8 @@ export const safetyLedger: SafetyRule[] = [
     ac_ids: ['AC-6', 'AC-7', 'AC-20'],
     tests: [
       'src/domain/sync/state-upgrade.test.ts',
+      'src/domain/sync/reconcile.test.ts',
+      'e2e/commands/sync/safety/state.test.ts',
       'e2e/commands/sync/safety/upgrade.test.ts',
       'src/domain/sync/safety.property.test.ts',
       'src/application/commands/sync/outcome.test.ts',
@@ -89,6 +91,7 @@ export const safetyLedger: SafetyRule[] = [
     tests: [
       'src/infrastructure/fs/confinement.test.ts',
       'e2e/commands/sync/safety/confinement.test.ts',
+      'e2e/commands/sync/safety/planning.test.ts',
       'e2e/commands/sync/safety.test.ts',
     ],
   },
@@ -101,6 +104,9 @@ export const safetyLedger: SafetyRule[] = [
     tests: [
       'src/application/commands/sync/outcome.test.ts',
       'e2e/commands/sync/safety/diagnostics.test.ts',
+      'src/domain/redact.test.ts',
+      'e2e/commands/sync/safety/repeat.test.ts',
+      'e2e/commands/sync/safety/silent.test.ts',
       'e2e/contracts/existing-cli.test.ts',
     ],
   },

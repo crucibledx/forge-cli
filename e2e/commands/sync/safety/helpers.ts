@@ -3,9 +3,11 @@ import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
 import {join, resolve} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
+import {syncFixture} from '@test-helpers/sync-fixture'
 import {stringify} from 'yaml'
 
 import type {ProjectConfig, Source} from '@domain/config/types'
+import type {SyncReport} from '@domain/sync/report'
 import {runPipe} from '@e2e/framework/pipe'
 
 const cli = resolve(import.meta.dir, '../../../../src/main.ts')
@@ -36,4 +38,27 @@ export async function readTree(root: string): Promise<string> {
     text += entry.isDirectory() ? await readTree(path) : await readFile(path, 'utf8')
   }
   return text
+}
+
+export async function handlerFixture(root: string) {
+  const {context, legacy} = await syncFixture(root)
+  const reports: SyncReport[] = []
+  return {
+    context,
+    legacy,
+    reports,
+    dependencies: {
+      io: {resolveProjectRoot: () => root, buildContext: async () => context},
+      loadSource: async () => [{relativePath: 'rules/a.md', content: 'after'}],
+      reports: {
+        writeReport: async (report: SyncReport) => {
+          reports.push(report)
+        },
+        rotate: async () => {},
+        readLatest: async () => null,
+        readHistory: async () => [],
+        getReportDir: () => root,
+      },
+    },
+  }
 }
