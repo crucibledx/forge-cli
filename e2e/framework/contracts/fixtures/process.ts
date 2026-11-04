@@ -47,7 +47,13 @@ if (mode === 'keys') {
       home: (await import('node:os')).homedir(),
     }),
   )
-} else if (mode === 'descendant') {
+} else if (mode === 'ansi') {
+  process.stdout.write('\x1b[?25lraw stdout\x1b[?25h')
+  process.stderr.write('\x1b[?2004hraw stderr\x1b[?2004l')
+} else if (mode === 'unicode-flood') {
+  process.stdout.write('🌍'.repeat(100000) + 'end\n')
+  process.stderr.write('終'.repeat(100000) + 'end\n')
+} else if (mode === 'descendant' || mode === 'leader-exits') {
   const child = Bun.spawn([process.execPath, '-e', "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"], {
     stdin: 'ignore',
     stdout: 'ignore',
@@ -56,6 +62,7 @@ if (mode === 'keys') {
   const pids = JSON.stringify({parent: process.pid, child: child.pid})
   if (Bun.argv[3]) writeFileSync(Bun.argv[3], pids)
   console.log(pids)
+  if (mode === 'leader-exits') process.exit(0)
   setInterval(() => {}, 1000)
 } else if (mode === 'eof') {
   console.log(`eof:${await Bun.stdin.text()}`)

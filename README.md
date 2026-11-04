@@ -173,13 +173,23 @@ Forge auto-detects how your source is organized — no configuration needed:
 
 ## Sync Engine
 
-- **Multi-source** — parallel fetch via `Promise.allSettled`, failed sources don't block others
+- **Multi-source** — collect every source outcome; any failed acquisition aborts the complete sync before protected writes
 - **SHA-256 change detection** — no unnecessary writes
 - **Conflict strategies** — `prefer_source`, `prefer_local`, or `error` for both source and local conflicts
 - **Backup** — `.bak` copies before overwrites
 - **Dry-run** — preview everything before writing
-- **Rollback** — on failure, already-written files are reverted. No partial state
+- **Rollback** — handled failures compensate targets and metadata; incomplete recovery names untrusted paths instead of claiming success
 - **Auto-sync** — OS-level scheduling: launchd (macOS), crontab (Linux), Task Scheduler (Windows)
+
+### Safety and migration
+
+Serialize sync invocations. Empty readable sources can clean tracked stale files with `keep_local:false`; disabled
+assistants and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
+block planning. State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
+edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
+This is not crash recovery or concurrent-writer safety, and ownership/xattrs/timestamps/alternate streams are not
+preservation guarantees. Windows stale deletion and durable descendant ownership remain acceptance blockers on this
+implementation branch. See [the safety ledger, limits and recovery guide](docs/safety-contract.md).
 
 ## Best With a Skills Platform
 

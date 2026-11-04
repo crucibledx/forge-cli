@@ -33,4 +33,41 @@ describe('BR-09 pipe contracts (AC-16)', () => {
     expect(signalled.exitCode).toBeNull()
     expect(signalled.signal).toBe('SIGTERM')
   })
+  it('keeps raw stream controls visible while output remains the stripped-stdout alias', async () => {
+    const result = await runPipe(dir(), [process.execPath, fixture, 'ansi'])
+    expect(result.stdout).toBe('\x1b[?25lraw stdout\x1b[?25h')
+    expect(result.stderr).toBe('\x1b[?2004hraw stderr\x1b[?2004l')
+    expect(result.output).toBe('raw stdout')
+  })
+  it('caps split multibyte diagnostic tails without replacement damage', async () => {
+    const result = await runPipe(dir(), [process.execPath, fixture, 'unicode-flood'])
+    for (const stream of [result.stdout, result.stderr]) {
+      expect(stream).not.toContain('\uFFFD')
+      expect(stream).toEndWith('end\n')
+      expect(Buffer.byteLength(stream)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+  })
+  it('owns a descendant even when the original leader has already exited (AC-18,26)', async () => {
+    const result = await runPipe(dir(), [process.execPath, fixture, 'leader-exits'])
+    const {child} = JSON.parse(result.stdout)
+    let alive = false
+    try {
+      process.kill(child, 0)
+      if (process.platform === 'win32') alive = true
+      else {
+        const status = Bun.spawnSync(['ps', '-o', 'stat=', '-p', String(child)], {stdout: 'pipe', stderr: 'pipe'})
+        alive = !new TextDecoder().decode(status.stdout).trim().startsWith('Z')
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    } finally {
+      if (alive)
+        try {
+          process.kill(child, 'SIGKILL')
+        } catch {
+          /* Test cleanup is not evidence that ownership worked. */
+        }
+    }
+    expect(alive).toBe(false)
+  })
 })

@@ -65,8 +65,8 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     // A descendant may hold pipes open; the total deadline still owns the drain.
     await drains
     return {
-      stdout: sanitize(stdout.text(), cwd, options.secrets),
-      stderr: sanitize(stderr.text(), cwd, options.secrets),
+      stdout: sanitize(stdout.rawText(), cwd, options.secrets),
+      stderr: sanitize(stderr.rawText(), cwd, options.secrets),
       output: sanitize(stdout.text(), cwd, options.secrets),
       exitCode: proc.signalCode ? null : proc.exitCode,
       signal: proc.signalCode ? String(proc.signalCode) : null,
