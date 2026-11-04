@@ -47,6 +47,7 @@ Draft PR #1 is unapproved roadmap input, not a compatibility standard.
 - Preserve quick feedback with reproducible installs, a small generated-test corpus, and measured CI costs.
 - Give reviewers and verifiers stable rule IDs and independently runnable checks.
 - Establish existing-command agent-DX evidence without pretending the wizard is a machine protocol.
+- Separate human DX, business rules, agent CLI, E2E, security and performance evidence behind one readiness decision.
 
 ## Non-goals
 
@@ -88,6 +89,9 @@ Refactor `src/application/commands/sync/handler.ts` so source acquisition produc
 outcomes; do not render-and-continue into a destructive plan. Resolve only enabled assistant definitions.
 Collect source diagnostics, then abort if any source failed. An all-empty but successful input must still reach
 planning so stale cleanup obeys BR-03; it must not take today's unconditional early-success return.
+For valid configuration, attempt every source and collect load/resolve successes and failures;
+success here means readable/resolved input, not committed files. Never stop diagnostics at the first source error.
+This runtime policy is separate from CI: independent validation lanes also finish and report before a failed gate.
 Any per-file planning error aborts before applying *any* mutation, including a backup.
 Validate source directories before scanning: local/Git roots and a configured Git subdirectory must exist and be
 directories. Missing paths, read failures, clone/fetch/branch failures and resolution errors are failures; a
@@ -123,7 +127,6 @@ an `installed` baseline. `status` must label unknown baselines rather than asser
 Reject malformed/unsupported state versions before mutation. Persist v2 only inside a successful transaction;
 rollback restores exact legacy bytes. Do not downgrade v2 back to the old CLI: document restoring a pre-upgrade
 backup or deliberately rebuilding state after preserving edits.
-For an installed or byte-identical target, store its installed upstream hash/source owner and trusted baseline.
 For `local-wins`, retain the previous entry unchanged; if there was no previous entry, do not invent one.
 For stale targets kept by `keep_local:true`, and disabled/removed/unknown assistants, retain previous entries.
 Remove an entry only when its tracked target is successfully deleted. Advance state/config `lastSync` together
@@ -256,40 +259,75 @@ in CI and release workflow jobs, and read the same pin with setup-bun. Align doc
 raise the declared minimum runtime only when the source launcher has actually passed on that minimum.
 Do not trigger releases, change tag behavior, or pin a floating `latest`.
 
-Keep Code Quality, Tests, and Build on every PR with no path-based skips. Add a `Safety contracts` job for ledger
-coverage, harness contracts, properties and existing-CLI checks; existing full unit/E2E suites remain required.
-Add `Platform safety` jobs on native macOS and Windows for non-PTY local sync, rollback, containment and isolated
-pipe smoke, plus binary `--help`/`--version`. Do not claim cross-compilation proves native execution.
-Linux retains all PTY tests. Native smoke need not run scheduler or every interactive journey.
-Expose one stable `Deterministic gate` aggregator that runs `always()` and fails if any required job is failed,
-cancelled, or skipped. Do not treat a missing artifact or timeout as a pass.
+#### Independent validation modules
 
-New scripts: `test:contracts`, `test:properties`, `test:platform`, and `check:contracts`.
-All `test*` scripts use `scripts/run-tests.ts` for pre-import process isolation and runner timeout configuration.
-Launcher interface: `bun run scripts/run-tests.ts [--timeout-ms 20000|40000] -- <test paths...>`;
-it spawns the pinned Bun with `test --timeout <ms>`, forwards its exit status and disposes its sandbox in `finally`.
-`test:contracts` runs `scripts/check-contracts.test.ts`, `e2e/framework/contracts/`, `e2e/commands/sync/safety/`,
-and `e2e/contracts/`; the Safety contracts job also runs `test:properties` and `check:contracts`.
-`test:platform` runs only platform-safe tests in `e2e/commands/sync/safety/` and `e2e/contracts/platform.test.ts`.
-`check:contracts` runs `scripts/check-contracts.ts`, validating unique BR/AC IDs, ledger-to-test mappings, existing
-paths, required workflow names, exact toolchain pin/frozen installs, and documented follow-up boundaries.
-Its own tests use deliberately broken miniature ledgers/workflows; it must reject them. Include `scripts/`
-in formatting/lint/typecheck coverage, and checker self-tests in `test` as well as `test:contracts`.
+Add a small checked-in registry `scripts/validation-lanes.ts`: stable lane ID, commands, required flag, timeout,
+fixture scope and AC/BR mappings. This is a table of modules, not a plugin framework. All rows below are required
+on every PR, with no path-based skips. Existing full suites stay intact; focused lanes may reuse their tests.
 
-Record per-job/test durations, runner OS/Bun version and flake results in `results/` artifacts (7-day retention).
-Attach sanitized failure transcripts with `if: always()`; artifact upload failure cannot erase test failure.
-On the implementation PR, record 10 consecutive no-retry passes of the new focused safety/harness lane, plus
-successful native CI runs. Record installation and deterministic critical-path times separately from queue and
-AI review. Targets: focused local lane <=10 seconds; Linux deterministic CI p95 <=120 seconds after 20 comparable
-runs. Until enough runs exist, report samples without claiming a p95; budget overruns require an explanation
-and optimization/follow-up, never deleting safety assertions or making the whole PR flaky on wall time.
+| Lane ID | Checks and command contract |
+| --- | --- |
+| quality | Existing `format:check`, `lint`, `typecheck`, including `scripts/`; separate steps preserve all diagnostics. |
+| business | `test:unit`, `test:properties`, `check:contracts`, and scripts' checker/readiness self-tests. |
+| e2e | Full `test:e2e`, including harness lifecycle/isolation and sync safety. |
+| human-dx | `test:human`: existing init/config/source/uninstall PTY journeys, invalid input, help, selection and cancellation-before-persistence; verify config/files, not just prompts. No screen-emulator claims. |
+| agent-cli | `test:agent`: `e2e/contracts/existing-cli.test.ts`, closed stdin, bounded exit, separate streams and safe outcomes for today's commands. |
+| security | `test:security`: confinement, ownership, rollback and credential-redaction scenarios; malicious local-source script sentinel must never execute; dependency audit below. |
+| performance | `test:performance`: fixed offline 10/1000-target fixtures, cold help and cold/warm sync, checked output/state and recorded timings; no new benchmark framework. |
+| native-macos / native-windows | Separate `test:platform` jobs for local sync/rollback/containment/ownership in both scopes, pipe smoke, access controls, and native compiled help/version. |
+| build | Existing Linux build and compiled help/version, independently of unit/E2E success. Cross-compilation is not native execution evidence. |
 
-Update `.factory/loop-contract.md` and `CONTRIBUTING.md` with exact commands and stable BR-ID review guidance.
-The existing reviewer reports a counterexample/missing check for domain findings; the independent read-only verifier
-records command, exit and evidence for every AC row. No AI verdict substitutes for the deterministic gate.
-Provide the exact recommended `Deterministic gate` required check and review-policy setup as owner instructions;
-verify settings read-only and report “not enforced” until actually configured. Do not claim an enabled workflow
-equals a protected branch.
+Run independent jobs in parallel with distinct process/home/cache/temp sandboxes; do not parallelize unsafe tests
+inside a process. No quality/unit failure may skip E2E/human/agent/security/performance/native/build diagnostics.
+Matrix jobs use `fail-fast:false`; independent checks within a lane use separate steps with recorded outcomes,
+not a short-circuit `&&` chain. Failed setup blocks only that job; dependent checks are explicitly blocked, never
+passed. Cancellation/superseding a commit cannot cancel only failing siblings and leave a green current-head gate.
+
+Each lane writes `results/<lane-id>.json`: schema_version `1`, head_sha, tested_sha, lane_id, status, per-check command/exit/
+duration/evidence, runner OS and Bun version. Status is pass/fail/blocked/cancelled; registry, not report input,
+defines required lanes. Publish one always-run summary listing every lane, successes and all failures, even when
+an artifact is missing. `Deterministic gate` runs `always()` after all jobs: only all required jobs successful
+with complete same-head evidence can pass. Missing, malformed, stale, skipped, cancelled or timed-out evidence fails.
+On PRs head_sha is `pull_request.head.sha`, not the synthetic merge SHA; tested_sha records the actual tested revision.
+
+Security runs `bun audit --json --audit-level=high` on the frozen lock, with a 60-second request deadline.
+High/critical advisories in runtime or development dependencies block readiness; no implicit ignore list.
+Unavailable/invalid advisory data or skipped unaudited packages are blocked, not a clean audit. This public-registry
+metadata request is the explicit network exception; deterministic security/other fixtures remain offline.
+Performance smoke has a 30-second per-invocation safety deadline; wrong outputs or timeout fail the lane.
+Startup/sync latency baselines are initially advisory, reported per OS/Bun/fixture, never claimed as proven
+regression thresholds. After >=20 comparable samples, publish p50/p95 and propose blocking thresholds for approval.
+
+New scripts: `test:contracts`, `test:properties`, `test:platform`, `test:human`, `test:agent`, `test:security`,
+`test:performance`, `check:contracts`, `check:readiness`. All test launchers isolate before imports.
+`scripts/run-tests.ts [--timeout-ms 20000|40000] -- <paths...>` spawns pinned `bun test --timeout <ms>`, forwards
+exit and disposes its sandbox in `finally`. `test:contracts` selects checker self-tests, `e2e/framework/contracts/`,
+`e2e/commands/sync/safety/` and `e2e/contracts/`; platform runs only native-safe safety tests plus platform.test.ts.
+`check:contracts` validates BR/AC IDs, existing mappings/paths, required lanes/workflow jobs, frozen exact toolchain
+and follow-up boundaries. Include scripts' self-tests in `test`; malformed fixture registries/workflows must fail.
+Retain `test` as the full suite. `check:readiness` consumes evidence without rerunning lanes; local aggregate runs
+also collect all outcomes without short-circuiting, and cannot claim native-platform results that were not run.
+
+#### Timing, evidence and final readiness
+
+Record per-job/test durations, OS/Bun version and flake results; always upload bounded sanitized artifacts for
+7 days, including failures. Upload failure cannot erase failure or satisfy required evidence.
+Record 10 consecutive no-retry focused safety/harness passes plus native CI runs on the implementation PR.
+Nazar's budget replaces the two-minute target: complete automated PR feedback normally 5–10 minutes, acceptable
+execution-path ceiling 15 minutes (parallel lanes <=10 minutes, gate/summary <=5). Measure through required
+evidence/summary; report queue and independent-review time separately. Timeout blocks, never skips a lane.
+Unbounded queue/owner/LLM review is not a fabricated SLA. Local checks target <=10 seconds without flaky assertions.
+
+`check:readiness` produces `results/readiness.json`: head_sha, per-AC evidence, lane results, spec deviations,
+independent code/security findings and verifier verdict, remaining risks, and ready-for-owner-review/not-ready/
+blocked. It must reject stale/incomplete evidence. Readiness requires the gate, every AC verified on that head,
+no unresolved blocking code/security findings, and no unapproved contract deviations; unavailable review or
+verification remains blocked. Use existing independent reviewers/verifier, not another general review agent.
+PR draft/non-draft is not a readiness verdict; never require a non-draft-only reviewer to unlock its own trigger.
+Include registry/aggregator/readiness negative fixtures in scripts' self-tests. No AI verdict overrides test failure.
+Update `.factory/loop-contract.md`, CONTRIBUTING and `docs/safety-contract.md` with this module map and readiness
+checklist. Provide owner setup for required `Deterministic gate` plus approved-review policy; inspect settings
+read-only and report “not enforced” until configured. No auto-merge/release or settings mutation.
 
 ## Rollout
 
@@ -297,7 +335,7 @@ equals a protected branch.
 2. Implementation slice A: lifecycle/isolation, pin/lock and harness self-tests. No production policy changes yet.
 3. Slice B, depending on A: fail-closed planning, ownership/state reconciliation, confined compensating transaction,
    focused regressions and properties. Run existing suites; update unsafe permissive expectations explicitly.
-4. Slice C, depending on B: native smoke, stable gates, baseline evidence and reviewer/verifier docs.
+4. Slice C, depending on B: modular native/human/agent/security/performance gates, evidence and readiness review.
    The mission is complete only when the final integrated branch satisfies every AC row.
 
 Implementation uses ordinary reviewable PRs linked to the same approved contract. Do not mark this issue done
@@ -307,18 +345,20 @@ clean tracked stale files, backup/alias collisions can block a plan, state v2 us
 access-metadata limits apply, silent mode has an emergency-recovery exception, and sync invocations must be serialized.
 No website changes or companion assets are required for this spec.
 
-Track, but do not implement under this contract, follow-up specs for (a) explicit noninteractive setup/source/config
-inputs plus versioned stdout/error schema, (b) a <=6-journey screen-aware driver pilot with cancellation/Unicode/
-resize and a <=30-second target, (c) shared-cache/concurrent-writer locking and crash recovery,
-(d) source/compiled/npm parity and startup/sync benchmarks, and (e) compiler-stage corpora with native-format/
-activation correctness. Mutation tests and real-agent task evaluations start advisory only after those foundations.
+Track, but do not implement under this contract, separate future CLI and MCP interface specs: shared application
+use cases/invariants, transport-specific CLI stdout/exit and MCP schemas/errors; neither transport replaces the other.
+Future modules attach to the registry only when their feature contracts are approved; no fake passing MCP lane.
+Other follow-ups: explicit noninteractive setup/source/config with versioned output/errors; <=6-journey
+screen-driver pilot (cancellation/Unicode/resize, <=30 seconds); concurrency/crash recovery; packaging parity/
+extended performance; compiler corpora with native activation correctness. Mutation/real-agent evaluations start advisory.
 Every approved compiler slice needs its own input/IR/output/diagnostic checks; this spec approves no draft compiler
 semantics or release schedule.
 
 ## Open questions
 
-No blocking unknown prevents a spec review. Approval explicitly selects whole-run failure over partial source
-success, last-installed state hashes, conflict-aware stale deletion, and compensation for handled I/O failures.
+No blocking unknown prevents a spec review. Nazar confirmed current-CLI-first hardening, separate future CLI/MCP
+interfaces, and 5–10/15-minute feedback. His all-results request applies to CI; runtime source outcomes are also
+collected, but partial mutation remains unapproved. The other sync-safety decisions remain proposals until merge.
 The exact Bun patch and native CI capabilities are validated during implementation, with unsupported environments
 reported as blocked rather than quietly skipped. A larger scope needs a separate spec, not silent expansion.
 
@@ -334,7 +374,7 @@ Test files must contain the named BR/scenario assertions; each must fail for its
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 | --- | --- | --- | --- |
 | AC-1 | Ledger covers BR-01..10 with examples/counterexamples, layers, AC IDs and existing test paths; validator rejects malformed contracts. | test | `bun run check:contracts` and `bun test scripts/check-contracts.test.ts` |
-| AC-2 | Local/Git missing or non-directory roots/subdirectories, read errors, Git clone/fetch/branch errors and resolution errors exit 1 without protected mutation, alone/all-failed and with a good changed source. | e2e | `bun test e2e/commands/sync/safety/source-failure.test.ts` |
+| AC-2 | All configured sources report acquisition/resolve outcomes despite errors; local/Git root/subdirectory/read/clone/fetch/branch/resolve failures exit 1 without protected mutation, alone/all-failed and with a good changed source; successes are not claimed installed. | e2e | `bun test e2e/commands/sync/safety/source-failure.test.ts` |
 | AC-3 | Readable empty/fully filtered sources succeed; keep_local false cleans eligible stale targets, true retains them. Removing a source cleans eligible targets while another remains; removing the final source fails without mutation. | e2e | `bun test e2e/commands/sync/safety/empty-source.test.ts` |
 | AC-4 | Every assistant, in project and global scopes on each native platform, uses scope-aware ownership; disabled/removed/unknown/ambiguous outputs and entries remain unchanged under both keep_local policies. | e2e | `bun test e2e/commands/sync/safety/assistant-scope.test.ts`; AC-26 native runs |
 | AC-5 | Stale cleanup preserves untracked sentinels; local-wins/error/remote-wins and backup true/false obey policy for edited stale targets and every existing legacy-unknown stale target, including bytes equal to its old hash. | e2e | `bun test e2e/commands/sync/safety/ownership.test.ts` |
@@ -357,7 +397,11 @@ Test files must contain the named BR/scenario assertions; each must fail for its
 | AC-22 | Existing wizard journeys still assert persisted configs/files, not just transcript text; no screen-emulator claims for stripped output. | e2e | `bun test e2e/commands/init.test.ts e2e/commands/config/ e2e/commands/source/` |
 | AC-23 | Silent valid/failed/preview sync uses the same exit/mutation policy with no visible output, except incomplete rollback always names unrestored paths on stderr, including simultaneous report-storage failure. | e2e | `bun test e2e/commands/sync/safety/silent.test.ts` |
 | AC-24 | A clean frozen install uses committed lock/exact Bun pin; inconsistent pin/workflow/lock settings fail validation; release jobs share it without release execution. | test | `bun install --frozen-lockfile && bun run check:contracts`; implementation PR records `bun --version` and clean git diff |
-| AC-25 | Existing quality/full tests/build plus focused contracts, checker self-tests and properties gate every PR; scripts get quality coverage; aggregator fails for failed/cancelled/skipped dependencies. | test | `bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build && bun run test:contracts && bun run test:properties && bun run check:contracts`; workflow fixtures test negative statuses |
+| AC-25 | All registered required modules gate every PR; unit/quality failure never skips other lanes; fail-fast is off; same-head aggregator rejects failed/blocked/cancelled/skipped/missing/stale/malformed outcomes. | test | `bun run test:contracts`; scripts' workflow/registry fixtures inject two independent lane failures and assert all success/failure results survive; CI artifact links prove separate unit/E2E jobs |
 | AC-26 | Native macOS and Windows execute local sync/rollback/containment/pipe smoke and compiled help/version without real scheduler access; Windows drive/UNC cases run natively. | e2e | `bun run test:platform` and native CI artifact links for both OSes, including built binary commands |
-| AC-27 | Always-uploaded artifacts retain required command/cwd/exit/signal/timeout/transcript/seed/OS/Bun/timing fields for 7 days, redacted and bounded, including failed fixtures; 10 focused runs pass without retry and budgets avoid invented p95. | test | `bun run test:contracts` ten times; `bun run check:contracts` verifies workflow retention/always-upload; PR links failed-fixture and native/CI artifacts and sample counts |
-| AC-28 | Review/verifier guidance, exact scripts, compatibility changes, serialized-sync limits and separate follow-ups are documented; enforcement status is truthful. | doc | `bun run check:contracts`; README, CONTRIBUTING.md, docs/safety-contract.md, .factory/loop-contract.md; PR supplies read-only branch-rule evidence or an explicit access blocker |
+| AC-27 | Sanitized bounded same-head artifacts retain required fields for 7 days even on failure; ten focused runs pass without retries; 5–10-minute target, 15-minute ceiling and lane deadlines are configured/reported without invented p95. | test | `bun run test:contracts` ten times; `bun run check:contracts` verifies retention, always-upload and timeouts; PR links failed-fixture/native/CI timing samples |
+| AC-28 | Module/readiness guidance, exact commands, safety limits, separate future CLI/MCP contracts and approval boundaries are documented; no fabricated MCP coverage or branch enforcement. | doc | `bun run check:contracts`; README, CONTRIBUTING.md, docs/safety-contract.md, .factory/loop-contract.md; PR includes read-only branch-rule evidence/access blocker |
+| AC-29 | Human DX asserts input/invalid retry/selection/help/cancel-before-persistence and saved outcomes; agent CLI checks closed stdin/streams/errors separately; both report independently when another lane fails. | e2e | `bun run test:human` and `bun run test:agent`; registry fixtures verify required lane coverage |
+| AC-30 | Security tests never execute source scripts or leak secrets; audited high/critical, unavailable/invalid or unaudited results block without hiding sibling successes. No audit modifies dependencies. | test | `bun run test:security`; security wrapper fixtures inject each audit outcome and assert status/evidence/unchanged lock |
+| AC-31 | Performance smoke checks 10/1000-target output/state, records cold/warm timings, fails incorrect output/30-second timeout, reports insufficient baselines advisory; no invented hard latency threshold. | test | `bun run test:performance`; benchmark wrapper fixtures exercise timeout/wrong output/missing baseline |
+| AC-32 | Readiness is tied to current head and every AC, independent code/security review and verifier; failing/missing/stale evidence, unresolved blockers or unapproved deviations cannot become ready. | test | `bun run check:readiness`; `bun test scripts/readiness.test.ts` tests each negative fixture, two simultaneous failures and a fully evidenced ready fixture |
