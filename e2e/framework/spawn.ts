@@ -66,7 +66,9 @@ export function spawnInteractive(
 
   const proc = Bun.spawn(['bun', 'run', CLI_ENTRY, command, ...args], {
     cwd,
-    env: {...process.env, HOME: cwd, ...env},
+    // A parent TERM=dumb (CI shells, agent sandboxes) would put node:readline into dumb mode inside the PTY,
+    // where Backspace and Ctrl+U are ignored and pre-filled prompt values cannot be edited.
+    env: {...process.env, TERM: 'xterm-256color', HOME: cwd, ...env},
     terminal: {
       cols: 80,
       rows: 24,
