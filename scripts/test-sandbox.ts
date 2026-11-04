@@ -42,17 +42,9 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
   const bin = join(root, 'bin')
   for (const path of [project, home, temp, bin]) mkdirSync(path, {mode: 0o700})
   const gitConfig = join(root, 'gitconfig')
-  // Preserve the configured identity, without inheriting includes, hooks or credentials.
-  const identity = ['user.name', 'user.email'].map((key) => {
-    const result = Bun.spawnSync(['git', 'config', '--get', key], {stdout: 'pipe', stderr: 'pipe'})
-    return result.exitCode === 0 ? new TextDecoder().decode(result.stdout).trim() : ''
-  })
-  const quote = (value: string) => JSON.stringify(value)
-  writeFileSync(
-    gitConfig,
-    identity.every(Boolean) ? `[user]\nname = ${quote(identity[0])}\nemail = ${quote(identity[1])}\n` : '',
-    {mode: 0o600},
-  )
+  // Git fixtures import frozen history. Tests need no operator identity/config.
+  writeFileSync(gitConfig, '', {mode: 0o600})
+  const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
   const fake = resolve(import.meta.dir, 'fixtures/fake-scheduler.ts')
   if (process.platform === 'win32') {
     const result = Bun.spawnSync(
@@ -67,7 +59,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
     for (const command of ['launchctl', 'crontab', 'schtasks']) {
       writeFileSync(
         join(bin, command),
-        `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(fake)} ${quote(command)} "$@"\n`,
+        `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(fake)} ${shellQuote(command)} "$@"\n`,
         {mode: 0o700},
       )
     }

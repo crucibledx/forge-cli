@@ -1,3 +1,4 @@
+import {isGlobalMode} from '../scope'
 import type {AssistantDefinition} from './types'
 
 export const assistantsRegistry: AssistantDefinition[] = []
@@ -23,5 +24,15 @@ export function getAssistantIds(): string[] {
  * registered targetMappings destinations.
  */
 export function resolveAssistantByPath(targetPath: string): AssistantDefinition | undefined {
-  return assistantsRegistry.find((a) => a.targetMappings.some((m) => targetPath.startsWith(m.destination.project)))
+  const normalize = (path: string) => path.replaceAll('\\', '/').normalize('NFC').toLowerCase().replace(/\/+$/, '')
+  const path = normalize(targetPath)
+  const owners = assistantsRegistry.filter((assistant) =>
+    assistant.targetMappings.some((mapping) => {
+      const destination = normalize(
+        isGlobalMode() ? (mapping.destination.global ?? mapping.destination.project) : mapping.destination.project,
+      )
+      return path.startsWith(`${destination}/`)
+    }),
+  )
+  return owners.length === 1 ? owners[0] : undefined
 }

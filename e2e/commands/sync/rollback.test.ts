@@ -9,6 +9,7 @@ import {existsSync} from 'node:fs'
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {snapshot} from '@test-helpers/snapshot'
 import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, writeConfig, writeSourceTree} from '@e2e/fixtures'
@@ -18,8 +19,8 @@ const getDir = useTmpDir('forge-sync-rollback')
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('forge sync — rollback', () => {
-  it('rolls back written files when a later mutation fails', async () => {
+describe('forge sync — preflight blocks unsafe apply', () => {
+  it('preserves all protected bytes when a later target has a non-directory ancestor', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
 
@@ -37,16 +38,18 @@ describe('forge sync — rollback', () => {
     await mkdir(join(dir, '.cursor'), {recursive: true})
     await writeFile(join(dir, '.cursor/skills'), 'blocker')
 
+    const before = await snapshot(dir)
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
-    expect(output).toContain('Rolling back')
+    expect(output).toContain('Planning failed')
+    expect(await snapshot(dir)).toEqual(before)
 
     // .claude/skills/deploy.md should be rolled back to original content
     const restored = await readFile(join(dir, '.claude/skills/deploy.md'), 'utf-8')
     expect(restored).toBe('# Original')
   })
 
-  it('removes new files that were created before failure', async () => {
+  it('never creates valid neighbors before a planning failure', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
 
@@ -57,11 +60,13 @@ describe('forge sync — rollback', () => {
     await mkdir(join(dir, '.cursor'), {recursive: true})
     await writeFile(join(dir, '.cursor/skills'), 'blocker')
 
+    const before = await snapshot(dir)
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
 
-    expect(output).toContain('Failed')
-    expect(output).toContain('Rollback complete')
+    expect(output).toContain('Planning failed')
+    expect(output).not.toContain('Rollback complete')
+    expect(await snapshot(dir)).toEqual(before)
 
     // claude-code file should have been rolled back (deleted since it was new)
     expect(existsSync(join(dir, '.claude/skills/deploy.md'))).toBe(false)

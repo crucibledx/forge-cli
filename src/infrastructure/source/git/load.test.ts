@@ -1,9 +1,11 @@
 import {existsSync} from 'node:fs'
-import {mkdir, writeFile} from 'node:fs/promises'
+import {mkdir, realpath, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
 import {afterEach, describe, expect, it, spyOn} from 'bun:test'
+
+import {hashContent} from '@domain/sync/state'
 
 import {gitLoader} from './index'
 import {cleanupAllCaches, cleanupCache, GitError} from './load'
@@ -13,7 +15,7 @@ import {cleanupAllCaches, cleanupCache, GitError} from './load'
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
 
 function cacheKeyFor(url: string, branch = 'main'): string {
-  return Buffer.from(`${url}#${branch}`).toString('base64url')
+  return hashContent(`${url}#${branch}`)
 }
 
 function cacheDirFor(url: string, branch = 'main'): string {
@@ -97,7 +99,7 @@ describe('load', () => {
     ).rejects.toBeInstanceOf(GitError)
   })
 
-  it('uses a different cache dir per url (base64url key)', async () => {
+  it('uses a distinct opaque cache key per url', async () => {
     const url1 = 'git@github.com:org/repo-a.git'
     const url2 = 'git@github.com:org/repo-b.git'
     expect(cacheKeyFor(url1)).not.toBe(cacheKeyFor(url2))
@@ -144,7 +146,7 @@ describe('load', () => {
 
     try {
       const result = await gitLoader.load({name: 'test', type: 'git', url, branch: 'main', path: 'packages/ai'})
-      expect(result.localPath).toBe(join(dir, 'packages/ai'))
+      expect(result.localPath).toBe(join(await realpath(dir), 'packages/ai'))
     } finally {
       spawnSpy.mockRestore()
       await cleanupCache(url)

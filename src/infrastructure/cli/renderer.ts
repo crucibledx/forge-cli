@@ -2,6 +2,7 @@ import pc from 'picocolors'
 
 import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
+import {redactData} from '@domain/redact'
 import type {DriftStatus} from '@domain/sync/drift'
 import {DRIFT_STATUSES} from '@domain/sync/drift'
 import type {SyncFileStatus} from '@domain/sync/types'
@@ -14,7 +15,7 @@ export function setSilent(value: boolean): void {
 }
 
 function log(...args: unknown[]): void {
-  if (!silent) console.log(...args)
+  if (!silent) console.log(...args.map(redactData))
 }
 
 export function renderHeader(title: string): void {
@@ -53,6 +54,7 @@ export function renderSyncFile(path: string, status: SyncFileStatus, dryRun: boo
 }
 
 const driftStatusRenderers: Record<string, (path: string) => void> = {
+  [DRIFT_STATUSES.LEGACY_UNKNOWN]: (path) => log(`  ${pc.yellow('?')}  ${path}  (legacy-unknown baseline)`),
   [DRIFT_STATUSES.IN_SYNC]: (path) => log(`  ${pc.green('✓')}  ${pc.dim(path)}  ${pc.dim('(in sync)')}`),
   [DRIFT_STATUSES.MODIFIED]: (path) => log(`  ${pc.yellow('✗')}  ${pc.yellow(path)}  ${pc.dim('(locally modified)')}`),
   [DRIFT_STATUSES.DELETED]: (path) => log(`  ${pc.red('-')}  ${pc.red(path)}  ${pc.dim('(deleted)')}`),

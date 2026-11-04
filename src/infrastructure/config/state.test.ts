@@ -4,6 +4,8 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
+import {hashContent} from '@domain/sync/state'
+
 import {getSyncStatePath, loadSyncState, writeSyncState} from './state'
 
 const getDir = useTmpDir('sync_state')
@@ -29,14 +31,15 @@ describe('loadSyncState', () => {
     const state = {
       lastSync: '2026-05-21T12:00:00.000Z',
       files: {
-        '.claude/skills/deploy.md': {hash: 'abc123', sourceName: 'team'},
+        '.claude/skills/deploy.md': {hash: hashContent('old'), sourceName: 'team'},
       },
     }
     await Bun.write(join(stateDir, 'sync-state.json'), JSON.stringify(state))
 
     const loaded = await loadSyncState(dir)
     expect(loaded.lastSync).toBe('2026-05-21T12:00:00.000Z')
-    expect(loaded.files['.claude/skills/deploy.md'].hash).toBe('abc123')
+    expect(loaded.files['.claude/skills/deploy.md'].hash).toBe(hashContent('old'))
+    expect(loaded.files['.claude/skills/deploy.md'].baseline).toBe('legacy-unknown')
     expect(loaded.files['.claude/skills/deploy.md'].sourceName).toBe('team')
   })
 })

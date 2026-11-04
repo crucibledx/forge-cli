@@ -5,6 +5,7 @@ import {hashContent} from './state'
 
 export const DRIFT_STATUSES = {
   IN_SYNC: 'in_sync',
+  LEGACY_UNKNOWN: 'legacy_unknown',
   MODIFIED: 'modified',
   DELETED: 'deleted',
   REMOTE_UPDATED: 'remote_updated',
@@ -35,7 +36,10 @@ export interface DriftSummary {
  * (or `null` if the file no longer exists). Returns a summary of all files
  * with their drift status.
  */
-export function detectDrift(syncState: SyncState, diskContents: Record<string, string | null>): DriftSummary {
+export function detectDrift(
+  syncState: SyncState,
+  diskContents: Record<string, string | Uint8Array | null>,
+): DriftSummary {
   const files: DriftEntry[] = []
 
   for (const [targetPath, entry] of Object.entries(syncState.files)) {
@@ -47,7 +51,12 @@ export function detectDrift(syncState: SyncState, diskContents: Record<string, s
     }
 
     const diskHash = hashContent(diskContent)
-    const status = diskHash === entry.hash ? DRIFT_STATUSES.IN_SYNC : DRIFT_STATUSES.MODIFIED
+    const status =
+      entry.baseline !== 'installed'
+        ? DRIFT_STATUSES.LEGACY_UNKNOWN
+        : diskHash === entry.hash
+          ? DRIFT_STATUSES.IN_SYNC
+          : DRIFT_STATUSES.MODIFIED
 
     files.push({targetPath, sourceName: entry.sourceName, status})
   }
@@ -61,7 +70,7 @@ export function detectDrift(syncState: SyncState, diskContents: Record<string, s
  */
 export function detectFullDrift(
   syncState: SyncState,
-  diskContents: Record<string, string | null>,
+  diskContents: Record<string, string | Uint8Array | null>,
   remoteContents: Record<string, string>,
 ): DriftSummary {
   const files: DriftEntry[] = []
@@ -85,6 +94,10 @@ export function detectFullDrift(
     }
 
     if (!stored) continue
+    if (stored.baseline !== 'installed') {
+      files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.LEGACY_UNKNOWN})
+      continue
+    }
 
     const diskHash = disk !== null && disk !== undefined ? hashContent(disk) : null
     const remoteHash = remote !== undefined ? hashContent(remote) : null

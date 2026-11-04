@@ -83,7 +83,7 @@ describe('forge sync — source conflicts', () => {
 
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
-    expect(output).toContain('conflicting sources')
+    expect(output).toContain('Source conflict')
   })
 
   it('error: no conflict when sources produce different paths', async () => {

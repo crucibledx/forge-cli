@@ -3,8 +3,11 @@ import {mkdir, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
+import {redact} from '@domain/redact'
+import {hashContent} from '@domain/sync/state'
 import {createFileLogger} from '@infrastructure/logger'
 
+import {createConfinement} from '../../fs/confinement'
 import type {SourceLoaderEntry} from '../types'
 import type {GitSourceConfig} from './types'
 
@@ -13,7 +16,7 @@ const CACHE_DIR = join(tmpdir(), 'forge-cache')
 export const load: SourceLoaderEntry['load'] = async (source) => {
   const logger = createFileLogger()
   const git = source as GitSourceConfig
-  const cacheKey = Buffer.from(`${git.url}#${git.branch}`).toString('base64url')
+  const cacheKey = hashContent(`${git.url}#${git.branch}`)
   const cacheDir = join(CACHE_DIR, cacheKey)
 
   let fresh: boolean
@@ -30,13 +33,14 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
     fresh = true
   }
 
-  const localPath = git.path ? join(cacheDir, git.path) : cacheDir
+  const localPath =
+    git.path && git.path !== '.' ? await (await createConfinement(cacheDir)).resolve(git.path) : cacheDir
   logger.debug('git source: loaded', {localPath, fresh})
   return {localPath, fresh}
 }
 
 export async function cleanupCache(url: string, branch = 'main'): Promise<void> {
-  const cacheKey = Buffer.from(`${url}#${branch}`).toString('base64url')
+  const cacheKey = hashContent(`${url}#${branch}`)
   const cacheDir = join(CACHE_DIR, cacheKey)
   if (existsSync(cacheDir)) {
     await rm(cacheDir, {recursive: true, force: true})
@@ -70,19 +74,20 @@ export async function runGit(
     }, options.timeoutMs)
   }
 
+  const streams = Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()])
   const exitCode = await proc.exited
   if (timer) clearTimeout(timer)
-  const stderr = await new Response(proc.stderr).text()
+  const [stdout, stderr] = await streams
 
   if (timedOut) {
     throw new GitError(`git ${args[0]} timed out after ${Math.round(options!.timeoutMs! / 1000)}s`)
   }
 
   if (exitCode !== 0) {
-    throw new GitError(`git ${args[0]} failed (exit ${exitCode}): ${stderr.trim()}`)
+    throw new GitError(redact(`git ${args[0]} failed (exit ${exitCode}): ${stderr.trim()}`))
   }
 
-  return await new Response(proc.stdout).text()
+  return stdout
 }
 
 export class GitError extends Error {

@@ -67,7 +67,7 @@ describe('forge sync — edge cases', () => {
     expect(output).toContain('No assistants')
   })
 
-  it('handles nonexistent source path gracefully', async () => {
+  it('fails closed for a nonexistent source path', async () => {
     const dir = getDir()
     await writeConfig(
       dir,
@@ -75,7 +75,7 @@ describe('forge sync — edge cases', () => {
     )
 
     const {exitCode} = await runSync(dir)
-    expect(exitCode).toBe(0)
+    expect(exitCode).toBe(1)
   })
 
   // ─── Special characters ──────────────────────────────────────────────────

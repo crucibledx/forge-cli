@@ -205,7 +205,7 @@ describe('runStatus', () => {
     mockSyncState = {
       lastSync: new Date().toISOString(),
       files: {
-        '.claude/skills/a.md': {hash: hashContent('original'), sourceName: 'team'},
+        '.claude/skills/a.md': {hash: hashContent('original'), sourceName: 'team', baseline: 'installed'},
       },
     }
     mockDiskContents = {'.claude/skills/a.md': 'modified'}
@@ -221,7 +221,7 @@ describe('runStatus', () => {
     mockSyncState = {
       lastSync: new Date().toISOString(),
       files: {
-        '.claude/skills/a.md': {hash: hashContent('same'), sourceName: 'team'},
+        '.claude/skills/a.md': {hash: hashContent('same'), sourceName: 'team', baseline: 'installed'},
       },
     }
     mockDiskContents = {'.claude/skills/a.md': 'same'}
