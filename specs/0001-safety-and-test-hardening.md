@@ -283,30 +283,32 @@ Matrix jobs use `fail-fast:false`; independent checks within a lane use separate
 not a short-circuit `&&` chain. Failed setup blocks only that job; dependent checks are explicitly blocked, never
 passed. Cancellation/superseding a commit cannot cancel only failing siblings and leave a green current-head gate.
 
-Each lane writes `results/<lane-id>.json`: schema_version `1`, head_sha, tested_sha, lane_id, status, per-check command/exit/
-duration/evidence, runner OS and Bun version. Status is pass/fail/blocked/cancelled; registry, not report input,
-defines required lanes. Publish one always-run summary listing every lane, successes and all failures, even when
-an artifact is missing. `Deterministic gate` runs `always()` after all jobs: only all required jobs successful
-with complete same-head evidence can pass. Missing, malformed, stale, skipped, cancelled or timed-out evidence fails.
-On PRs head_sha is `pull_request.head.sha`, not the synthetic merge SHA; tested_sha records the actual tested revision.
+Each lane writes `results/<lane-id>.json`: schema_version `1`, head_sha, tested_sha, run_id/attempt, lane_id, status,
+per-check command/exit/duration/evidence, OS/Bun. Status is pass/fail/blocked/cancelled; registry defines required lanes.
+Expected identity comes from trusted workflow metadata: PR head SHA, event's tested merge SHA and run ID/attempt.
+Pin all lane checkouts to that tested SHA; never derive expected identity from an uploaded report. Only matching
+lane evidence can combine; the same head with an old/different merge revision or run attempt must fail.
+One always-run summary lists every success/failure, even with missing artifacts. `Deterministic gate` runs
+`always()` after all jobs and passes only complete required successes; missing/malformed/stale/skipped/cancelled/
+timed-out evidence fails. Local evidence declares tested_sha=head_sha and cannot impersonate a merge-validation run.
 
 Security runs `bun audit --json --audit-level=high` on the frozen lock, with a 60-second request deadline.
 High/critical advisories in runtime or development dependencies block readiness; no implicit ignore list.
 Unavailable/invalid advisory data or skipped unaudited packages are blocked, not a clean audit. This public-registry
 metadata request is the explicit network exception; deterministic security/other fixtures remain offline.
 Performance smoke has a 30-second per-invocation safety deadline; wrong outputs or timeout fail the lane.
-Startup/sync latency baselines are initially advisory, reported per OS/Bun/fixture, never claimed as proven
-regression thresholds. After >=20 comparable samples, publish p50/p95 and propose blocking thresholds for approval.
+Latency samples are advisory per OS/Bun/fixture; ongoing baseline aggregation, p50/p95 publication and approved
+regression thresholds belong to the performance follow-up, not an unimplemented 20-sample trigger here.
 
 New scripts: `test:contracts`, `test:properties`, `test:platform`, `test:human`, `test:agent`, `test:security`,
-`test:performance`, `check:contracts`, `check:readiness`. All test launchers isolate before imports.
+`test:performance`, `check:contracts`, `check:lanes`, `collect:readiness`, `check:readiness`; isolate before imports.
 `scripts/run-tests.ts [--timeout-ms 20000|40000] -- <paths...>` spawns pinned `bun test --timeout <ms>`, forwards
 exit and disposes its sandbox in `finally`. `test:contracts` selects checker self-tests, `e2e/framework/contracts/`,
 `e2e/commands/sync/safety/` and `e2e/contracts/`; platform runs only native-safe safety tests plus platform.test.ts.
 `check:contracts` validates BR/AC IDs, existing mappings/paths, required lanes/workflow jobs, frozen exact toolchain
 and follow-up boundaries. Include scripts' self-tests in `test`; malformed fixture registries/workflows must fail.
-Retain `test` as the full suite. `check:readiness` consumes evidence without rerunning lanes; local aggregate runs
-also collect all outcomes without short-circuiting, and cannot claim native-platform results that were not run.
+Retain `test` as the full suite. `check:lanes` runs applicable modules without short-circuiting; foreign native
+modules are blocked, not simulated. `check:readiness` consumes evidence without rerunning lanes.
 
 #### Timing, evidence and final readiness
 
@@ -318,16 +320,16 @@ execution-path ceiling 15 minutes (parallel lanes <=10 minutes, gate/summary <=5
 evidence/summary; report queue and independent-review time separately. Timeout blocks, never skips a lane.
 Unbounded queue/owner/LLM review is not a fabricated SLA. Local checks target <=10 seconds without flaky assertions.
 
-`check:readiness` produces `results/readiness.json`: head_sha, per-AC evidence, lane results, spec deviations,
-independent code/security findings and verifier verdict, remaining risks, and ready-for-owner-review/not-ready/
-blocked. It must reject stale/incomplete evidence. Readiness requires the gate, every AC verified on that head,
-no unresolved blocking code/security findings, and no unapproved contract deviations; unavailable review or
-verification remains blocked. Use existing independent reviewers/verifier, not another general review agent.
-PR draft/non-draft is not a readiness verdict; never require a non-draft-only reviewer to unlock its own trigger.
-Include registry/aggregator/readiness negative fixtures in scripts' self-tests. No AI verdict overrides test failure.
-Update `.factory/loop-contract.md`, CONTRIBUTING and `docs/safety-contract.md` with this module map and readiness
-checklist. Provide owner setup for required `Deterministic gate` plus approved-review policy; inspect settings
-read-only and report “not enforced” until configured. No auto-merge/release or settings mutation.
+The proposed [readiness evidence amendment](../docs/quality-gate-readiness-contract.md) defines repository-local
+schemas, producer/adapter responsibilities, provenance, owner approvals, commands and exits. It requires its own
+amendment approval; the acceptance-contract section below remains byte-for-byte unchanged.
+Phase 1 verifies implementation checks and checker/CLI self-tests with synthetic bundles, then emits a completed
+independent attestation. Phase 2 aggregates the actual bundle; it never requires prior aggregation success or
+a verdict about its own output. Synthetic fixture verdicts are never actual PR readiness.
+Readiness needs every AC passing on the expected revision, all required lanes successful, independent code/security
+review without blockers, and no unapproved deviations. Missing/unavailable evidence blocks; no AI verdict overrides.
+PR draft/non-draft is not readiness; avoid non-draft-only review trigger cycles. Update repo loop/contributor/safety
+guidance and owner setup for required `Deterministic gate`/reviews; report unenforced rules truthfully. No auto-merge.
 
 ## Rollout
 
