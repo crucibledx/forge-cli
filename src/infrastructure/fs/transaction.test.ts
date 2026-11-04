@@ -54,9 +54,10 @@ describe('BR-06 compensated transaction (AC-10)', () => {
   )
   const boundaries = [
     ...replacements,
-    ...(['writeTemp', 'chmod', 'mkdir', 'unlink'] as const).flatMap((method) =>
-      [false, true].map((after) => ({method, nth: 1, after})),
+    ...(['writeTemp', 'chmod'] as const).flatMap((method) =>
+      [1, 2, 3, 4, 5].flatMap((nth) => [false, true].map((after) => ({method, nth, after}))),
     ),
+    ...(['mkdir', 'unlink'] as const).flatMap((method) => [false, true].map((after) => ({method, nth: 1, after}))),
     ...(['lstat', 'readFile'] as const).map((method) => ({method, nth: 1, after: false})),
   ]
   it.each(boundaries)(
@@ -74,6 +75,23 @@ describe('BR-06 compensated transaction (AC-10)', () => {
       expect(await snapshot(dir())).toEqual(before)
     },
   )
+  it('compensates a temporary file that throws after only a prefix was written', async () => {
+    const before = await fixture()
+    let failed = false
+    const fs = {
+      ...transactionIO,
+      writeTemp: async (path: string, bytes: Uint8Array) => {
+        if (!failed) {
+          failed = true
+          await writeFile(path, bytes.subarray(0, 2), {flag: 'wx', mode: 0o600})
+          throw new Error('partial temporary write')
+        }
+        await transactionIO.writeTemp(path, bytes)
+      },
+    }
+    await expect((async () => (await prepareTransaction(dir(), operations, fs)).commit())()).rejects.toThrow()
+    expect(await snapshot(dir())).toEqual(before)
+  })
   it('prepare/dry-run is read-only and commit preserves existing/new permission policy', async () => {
     const before = await fixture()
     const supported = operations.filter((operation) => process.platform !== 'win32' || operation.content !== null)

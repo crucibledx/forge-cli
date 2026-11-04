@@ -225,6 +225,7 @@ export async function buildPlan(
         type: MT.FILE_WRITE,
         path: backupPath,
         content: Buffer.from(text).equals(content) ? text : content,
+        backup: true,
       })
   }
   const policy = (path: string) => {
@@ -256,8 +257,8 @@ export async function buildPlan(
     for (const [path, entry] of Object.entries(state.files)) {
       if (desired.has(path)) continue
       const owner = resolveAssistantByPath(path)
-      if (!owner || !enabled.has(owner.id) || path.toLowerCase().endsWith('.bak')) {
-        warnings.push(`Retaining tracked path with disabled, unknown, ambiguous or recovery ownership: ${path}`)
+      if (!owner || !enabled.has(owner.id)) {
+        warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
         continue
       }
       try {
@@ -283,7 +284,7 @@ export async function buildPlan(
 function operationsFor(mutations: Mutation[], next: SyncState, context: IOContext): FileOperation[] {
   const operations: FileOperation[] = mutations.map((mutation) => {
     if (mutation.type === MT.FILE_WRITE)
-      return {path: mutation.path, content: mutation.content, backup: mutation.path.endsWith('.bak')}
+      return {path: mutation.path, content: mutation.content, backup: mutation.backup === true}
     if (mutation.type === MT.FILE_DELETE) return {path: mutation.path, content: null}
     throw new Error(`Unsupported sync operation: ${mutation.type}`)
   })
