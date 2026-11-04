@@ -1,7 +1,7 @@
 /** Presentation-only redaction. Never serialize upstream file contents as diagnostics. */
 export function redact(text: string): string {
   return text
-    .replace(/((?:https?|ssh):\/\/)[^\s/@]+@/gi, '$1[redacted]@')
+    .replace(/([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, '$1[redacted]@')
     .replace(/([?&#](?:access_token|token|password|secret|key|auth)=)[^&#\s"']+/gi, '$1[redacted]')
     .replace(/(Bearer\s+)[a-z\d._~+/-]+=*/gi, '$1[redacted]')
 }
