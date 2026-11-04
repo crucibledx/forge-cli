@@ -203,7 +203,7 @@ Forge is the distribution engine of the [Crucible](https://crucibledx.dev) platf
 ## Development
 
 ```bash
-bun install               # install deps
+bun install --frozen-lockfile # use exact Bun version from .bun-version
 bun run dev -- <command>  # run locally
 bun run test              # unit + e2e tests
 bun run typecheck         # tsc --noEmit

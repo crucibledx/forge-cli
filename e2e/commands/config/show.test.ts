@@ -46,7 +46,7 @@ describe('forge config show', () => {
       expect(result.exitCode).toBe(0)
       expect(result.output).toContain('test-source')
       expect(result.output).toContain('local')
-      expect(result.output).toContain(sourceDir)
+      expect(result.output).toContain('<project>/source')
     },
     TIMEOUT_MS,
   )

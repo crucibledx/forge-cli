@@ -22,8 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
       - name: Check formatting
         run: bun run format:check
       - name: Lint
@@ -38,19 +38,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
       - name: Unit tests
-        run: mkdir -p results && bun test src/ --reporter=default --reporter=junit --reporter-outfile=results/unit.xml
+        run: bun run test:unit
       - name: E2E tests
         if: always()
-        run: bun test e2e/ --reporter=default --reporter=junit --reporter-outfile=results/e2e.xml
-      - name: Test Report
-        uses: mikepenz/action-junit-report@v5
-        if: always()
-        with:
-          report_paths: results/*.xml
-          include_passed: true
+        run: bun run test:e2e
 
   build:
     name: Build
@@ -60,8 +54,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
       - name: Compile binary
         run: bun run build
       - name: Verify binary runs

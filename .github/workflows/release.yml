@@ -28,8 +28,8 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
       - run: bun run format:check
       - run: bun run lint
       - run: bun run typecheck
@@ -43,8 +43,8 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
       - run: bun run test
 
   # ── 2. Cross-compile binaries for all platforms ──────────────────
@@ -58,8 +58,8 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
 
       - name: Cross-compile all targets
         run: |
@@ -114,12 +114,12 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Publish
         run: npm publish --access public
         env:

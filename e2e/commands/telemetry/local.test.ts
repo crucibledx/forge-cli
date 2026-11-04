@@ -7,6 +7,7 @@
  */
 
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {rm} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -18,6 +19,7 @@ import {
   runHealth,
   runSync,
   runUninstallSession,
+  testEnvironment,
   TIMEOUT_MS,
   UNINSTALL_MESSAGES,
   useTmpDir,
@@ -29,7 +31,7 @@ const getDir = useTmpDir('forge-telemetry-local')
 const TELEMETRY_DIR_RELATIVE = join('.crucible', 'forge', 'telemetry')
 
 function readTelemetryEvents(homeDir: string): TelemetryEvent[] {
-  const telDir = join(homeDir, TELEMETRY_DIR_RELATIVE)
+  const telDir = join(testEnvironment(homeDir).HOME, TELEMETRY_DIR_RELATIVE)
   if (!existsSync(telDir)) return []
 
   const files = readdirSync(telDir)
@@ -231,10 +233,13 @@ describe('local telemetry backend', () => {
       const eventsBefore = readTelemetryEvents(dir)
       expect(eventsBefore.length).toBeGreaterThan(0)
 
-      // Uninstall removes .crucible/ (which contains telemetry dir under HOME)
-      await runUninstallSession(dir, (cli) =>
-        cli.waitForText('Continue?').pressKey(Y).waitForText(UNINSTALL_MESSAGES.done),
-      )
+      // Project and home are distinct. Remove telemetry during the command to
+      // retain the original deleted-storage regression without conflating them.
+      await runUninstallSession(dir, async (cli) => {
+        await cli.waitForText('Continue?')
+        await rm(join(testEnvironment(dir).HOME, TELEMETRY_DIR_RELATIVE), {recursive: true})
+        await cli.waitForText('Continue?', undefined, 0).pressKey(Y).waitForText(UNINSTALL_MESSAGES.done)
+      })
 
       // .crucible dir should be gone
       expect(existsSync(crucibleDirPath(dir))).toBe(false)
