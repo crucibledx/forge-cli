@@ -27,11 +27,24 @@ describe('BR-09 pipe contracts (AC-16)', () => {
     expect(result.stdout).toBe('A🌍é終B\n')
     expect(result.stderr).toBe(result.stdout)
   })
+  it('preserves literal argv and closes target stdin, including the Windows job bootstrap', async () => {
+    const values = ['', 'a b', 'literal"quote', 'C:\\space here\\', '$HOME', '`literal`', '🌍']
+    const result = await runPipe(dir(), [process.execPath, fixture, 'argv', ...values])
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(values)
+    expect((await runPipe(dir(), [process.execPath, fixture, 'eof'])).stdout).toBe('eof:\n')
+  })
   it('preserves nonzero exits and signals', async () => {
     expect((await runPipe(dir(), [process.execPath, fixture, 'early'])).exitCode).toBe(7)
     const signalled = await runPipe(dir(), [process.execPath, fixture, 'signal'])
-    expect(signalled.exitCode).toBeNull()
-    expect(signalled.signal).toBe('SIGTERM')
+    if (process.platform === 'win32') {
+      // Windows/Bun reports self-termination as an exit, not a POSIX signal.
+      expect(signalled.exitCode).toBe(1)
+      expect(signalled.signal).toBeNull()
+    } else {
+      expect(signalled.exitCode).toBeNull()
+      expect(signalled.signal).toBe('SIGTERM')
+    }
   })
   it('keeps raw stream controls visible while output remains the stripped-stdout alias', async () => {
     const result = await runPipe(dir(), [process.execPath, fixture, 'ansi'])

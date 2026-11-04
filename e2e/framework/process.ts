@@ -1,5 +1,6 @@
 import stripAnsi from 'strip-ansi'
 
+import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
 export const TAIL_BYTES = 256 * 1024
 export const activeProcesses = new Set<{dispose(): Promise<void>}>()
@@ -72,28 +73,52 @@ function groupAlive(pid: number): boolean {
 
 /** Process-group ownership on POSIX; an owned process tree on Windows. */
 export async function terminateTree(proc: OwnedProcess): Promise<void> {
-  if (process.platform !== 'win32') {
+  if (process.platform === 'win32') {
+    const job = windowsJobs.get(proc.pid)
+    if (!job) throw new Error('Windows process has no durable job ownership')
+    const end = performance.now() + 2000
     try {
-      process.kill(-proc.pid, 0)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-      await proc.exited
-      return
+      if (job.active()) {
+        if (proc.exitCode === null) proc.kill('SIGTERM')
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        job.terminate()
+      }
+      while (job.active()) {
+        if (performance.now() >= end) throw new Error('Owned Windows descendants survived cleanup budget')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          proc.exited,
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error('Windows leader failed to reap')),
+              Math.max(1, end - performance.now()),
+            )
+          }),
+        ])
+      } finally {
+        clearTimeout(timer)
+      }
+    } finally {
+      windowsJobs.delete(proc.pid)
+      job.close()
     }
+    return
+  }
+  try {
+    process.kill(-proc.pid, 0)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    await proc.exited
+    return
   }
   const signal = (force: boolean) => {
-    if (process.platform === 'win32') {
-      Bun.spawnSync(['taskkill', '/pid', String(proc.pid), '/T', ...(force ? ['/F'] : [])], {
-        stdout: 'ignore',
-        stderr: 'ignore',
-        timeout: 500,
-      })
-    } else {
-      try {
-        process.kill(-proc.pid, force ? 'SIGKILL' : 'SIGTERM')
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-      }
+    try {
+      process.kill(-proc.pid, force ? 'SIGKILL' : 'SIGTERM')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
     }
   }
   signal(false)
@@ -112,11 +137,9 @@ export async function terminateTree(proc: OwnedProcess): Promise<void> {
   } finally {
     clearTimeout(timer)
   }
-  if (process.platform !== 'win32') {
-    while (groupAlive(proc.pid)) {
-      if (performance.now() >= cleanupEnd) throw new Error('Owned descendants survived cleanup budget')
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
+  while (groupAlive(proc.pid)) {
+    if (performance.now() >= cleanupEnd) throw new Error('Owned descendants survived cleanup budget')
+    await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
 

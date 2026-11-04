@@ -2,6 +2,7 @@ import {chmod, lstat, mkdir, open, readFile, rename, rmdir, unlink} from 'node:f
 import {dirname, join, relative} from 'node:path'
 
 import {createConfinement} from './confinement'
+import {privateAccessMetadata, readAccessMetadata, writeAccessMetadata} from './windows-access'
 
 export interface FileOperation {
   path: string
@@ -46,6 +47,9 @@ export const transactionIO = {
   rmdir,
   unlink,
   replace,
+  readAccessMetadata,
+  writeAccessMetadata,
+  privateAccessMetadata,
   async writeTemp(path: string, bytes: Uint8Array): Promise<void> {
     const file = await open(path, 'wx', 0o600)
     try {
@@ -60,6 +64,7 @@ export type TransactionIO = typeof transactionIO
 interface Snapshot {
   bytes: Uint8Array | null
   mode: number
+  access: Uint8Array | null
 }
 
 export class TransactionError extends Error {
@@ -89,14 +94,18 @@ export async function prepareTransaction(root: string, operations: FileOperation
       const stat = await fs.lstat(path)
       if (!stat.isFile()) throw new Error(`Not a regular file: ${operation.path}`)
       if (process.platform === 'win32' && !(stat.mode & 0o222)) throw new Error(`Read-only file: ${operation.path}`)
-      if (process.platform === 'win32' && operation.content === null)
-        throw new Error(
-          `Deletion refused: this build cannot snapshot and restore the Windows DACL for ${operation.path}`,
-        )
-      snapshots.set(path, {bytes: await fs.readFile(path), mode: stat.mode & 0o7777})
+      snapshots.set(path, {
+        bytes: await fs.readFile(path),
+        mode: stat.mode & 0o7777,
+        access: await fs.readAccessMetadata(path),
+      })
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      snapshots.set(path, {bytes: null, mode: operation.private ? 0o600 : 0o666 & ~process.umask()})
+      snapshots.set(path, {
+        bytes: null,
+        mode: operation.private ? 0o600 : 0o666 & ~process.umask(),
+        access: operation.private ? await fs.privateAccessMetadata() : null,
+      })
     }
     if (operation.content === null) continue
     let parent = dirname(path)
@@ -138,6 +147,8 @@ export async function prepareTransaction(root: string, operations: FileOperation
     await boundary.resolve(temporary)
     await fs.writeTemp(temporary, bytes)
     await fs.chmod(temporary, mode)
+    const access = snapshots.get(path)!.access
+    if (access !== null) await fs.writeAccessMetadata(temporary, access)
     await fs.replace(temporary, path, existed)
     temporaries.delete(temporary)
     recoveryTemporaries.delete(temporary)
@@ -181,7 +192,7 @@ export async function prepareTransaction(root: string, operations: FileOperation
               await write(path, snapshot.bytes, snapshot.mode, present, true)
             }
           } catch {
-            unrestored.push(relative(boundary.root, path))
+            unrestored.push(relative(boundary.root, path).replaceAll('\\', '/'))
           }
         }
         // If restoration is incomplete, keep available recovery backups.
@@ -207,7 +218,7 @@ export async function prepareTransaction(root: string, operations: FileOperation
           try {
             await remove(path)
           } catch {
-            unrestored.push(relative(boundary.root, path))
+            unrestored.push(relative(boundary.root, path).replaceAll('\\', '/'))
           }
         }
         for (const dir of [...attemptedDirectories].reverse()) {
@@ -216,14 +227,14 @@ export async function prepareTransaction(root: string, operations: FileOperation
             await fs.rmdir(dir)
           } catch (err) {
             if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes((err as NodeJS.ErrnoException).code ?? '')) {
-              unrestored.push(relative(boundary.root, dir))
+              unrestored.push(relative(boundary.root, dir).replaceAll('\\', '/'))
             }
           }
         }
         throw new TransactionError(
           error,
           [...new Set(unrestored)],
-          [...recoveryTemporaries].map((path) => relative(boundary.root, path)),
+          [...recoveryTemporaries].map((path) => relative(boundary.root, path).replaceAll('\\', '/')),
         )
       }
     },

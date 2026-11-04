@@ -1,3 +1,5 @@
+import type {PipeProcess} from '../e2e/framework/owned-pipe'
+import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {createTranscript, terminateTree} from '../e2e/framework/process'
 import {redact} from '../src/domain/redact'
 import {createTestSandbox} from './test-sandbox'
@@ -18,7 +20,7 @@ export async function executeCheck(command: string[], cwd: string, timeoutMs: nu
   const stdout = createTranscript(),
     stderr = createTranscript()
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
-  let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined
+  let child: PipeProcess | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let timedOut = false
   let exit: number | null = null
@@ -38,24 +40,24 @@ export async function executeCheck(command: string[], cwd: string, timeoutMs: nu
     }
   }
   try {
-    child = Bun.spawn([command[0] === 'bun' ? process.execPath : command[0], ...command.slice(1)], {
+    child = await spawnOwnedPipe(
+      [command[0] === 'bun' ? process.execPath : command[0], ...command.slice(1)],
       cwd,
-      env: sandbox.env,
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      detached: process.platform !== 'win32',
-    })
+      sandbox.env,
+    )
     await Promise.race([
       Promise.all([drain(child.stdout, stdout), drain(child.stderr, stderr), child.exited]).then((results) => {
         exit = results[2]
       }),
       new Promise<void>((resolve) => {
-        timer = setTimeout(() => {
-          timedOut = true
-          reason = 'Command deadline exceeded'
-          resolve()
-        }, timeoutMs)
+        timer = setTimeout(
+          () => {
+            timedOut = true
+            reason = 'Command deadline exceeded'
+            resolve()
+          },
+          Math.max(1, timeoutMs - (performance.now() - start)),
+        )
       }),
     ])
   } catch (error) {

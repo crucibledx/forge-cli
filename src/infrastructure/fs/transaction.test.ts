@@ -64,14 +64,9 @@ describe('BR-06 compensated transaction (AC-10)', () => {
     'restores bytes/modes/existence/directories at $method $nth after=$after',
     async ({method, nth, after}) => {
       const before = await fixture()
-      if (process.platform === 'win32') {
-        // Until deletion access restoration is available, preflight must refuse.
-        await expect(prepareTransaction(dir(), operations)).rejects.toThrow('Deletion refused')
-      } else {
-        await expect(
-          (async () => (await prepareTransaction(dir(), operations, fault(method, nth, after))).commit())(),
-        ).rejects.toThrow()
-      }
+      await expect(
+        (async () => (await prepareTransaction(dir(), operations, fault(method, nth, after))).commit())(),
+      ).rejects.toThrow()
       expect(await snapshot(dir())).toEqual(before)
     },
   )
@@ -94,8 +89,7 @@ describe('BR-06 compensated transaction (AC-10)', () => {
   })
   it('prepare/dry-run is read-only and commit preserves existing/new permission policy', async () => {
     const before = await fixture()
-    const supported = operations.filter((operation) => process.platform !== 'win32' || operation.content !== null)
-    const prepared = await prepareTransaction(dir(), supported)
+    const prepared = await prepareTransaction(dir(), operations)
     expect(await snapshot(dir())).toEqual(before)
     await prepared.commit()
     expect(await readFile(join(dir(), 'a.md'), 'utf8')).toBe('after')

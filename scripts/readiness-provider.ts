@@ -5,7 +5,7 @@ import {z} from 'zod'
 import {artifactFiles} from './artifact-archive'
 import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
-import {contextSchema} from './evidence-schema'
+import {contextSchema, evidencePath} from './evidence-schema'
 import {artifactName} from './gate'
 import {githubJSON} from './github-evidence'
 import type {ReadinessProvider} from './readiness'
@@ -71,10 +71,14 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
     throw new Error('Provider artifact digest mismatch')
   return artifactFiles(bytes)
 }
-export function readinessProvider(root: string, evidenceRoot: string): ReadinessProvider {
+export function readinessProvider(
+  root: string,
+  evidenceRoot: string,
+  ports = {githubJSON, sessionProducer, archive},
+): ReadinessProvider {
   const sessions = new Map<string, ReturnType<typeof sessionProducer>>()
   const source = (uri: string) => {
-    if (!sessions.has(uri)) sessions.set(uri, sessionProducer(uri))
+    if (!sessions.has(uri)) sessions.set(uri, ports.sessionProducer(uri))
     return sessions.get(uri)!
   }
   const runs = new Map<
@@ -90,9 +94,12 @@ export function readinessProvider(root: string, evidenceRoot: string): Readiness
         (async () => {
           if (!/^\d+$/.test(context.run_id)) throw new Error('Local evidence has no authenticated native CI run')
           const [run, jobs, artifacts] = await Promise.all([
-            githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}`),
-            githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`),
-            githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),
+            ports.githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}`),
+            ports.githubJSON(
+              context,
+              `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`,
+            ),
+            ports.githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),
           ])
           const identity = z
             .object({id: z.number().int(), run_attempt: z.number().int(), head_sha: z.string(), path: z.string()})
@@ -152,10 +159,12 @@ export function readinessProvider(root: string, evidenceRoot: string): Readiness
           throw new Error('Evidence session attests a different revision')
         return
       }
-      const match = /^checks\/([a-z-]+)\/([a-z-]+)\.log$/.exec(ref)
-      if (!match) throw new Error('Evidence is not a selected-run lane artifact or authenticated producer')
-      const lane = laneById(match[1])
-      if (!lane.checks.some((check) => check.id.replaceAll(':', '-') === match[2]))
+      evidencePath.parse(ref)
+      const parts = ref.split('/')
+      if (parts.length !== 3 || parts[0] !== 'checks')
+        throw new Error('Evidence is not a selected-run lane artifact or authenticated producer')
+      const lane = laneById(parts[1])
+      if (!lane.checks.some((check) => `${check.id.replaceAll(':', '-')}.log` === parts[2]))
         throw new Error('Unknown check artifact')
       const {jobs, artifacts} = await selected(context)
       const job = jobs.filter((job) => job.name === lane.id),
@@ -176,7 +185,7 @@ export function readinessProvider(root: string, evidenceRoot: string): Readiness
       )
         throw new Error('Artifact run-attempt/job window mismatch')
       if (!archives.has(artifact[0].id))
-        archives.set(artifact[0].id, archive(context, artifact[0].id, artifact[0].digest))
+        archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
       const files = await archives.get(artifact[0].id)!
       const originalContext = files.get('context.json')
       if (
@@ -236,7 +245,7 @@ export function readinessProvider(root: string, evidenceRoot: string): Readiness
           updated_at: z.string().optional(),
           issue_url: z.string().optional(),
         })
-        .parse(await githubJSON(context, endpoint))
+        .parse(await ports.githubJSON(context, endpoint))
       if (original.issue_url && !original.issue_url.endsWith(`/issues/${context.pr_number}`))
         throw new Error('Approval comment belongs to another issue')
       const timestamp = original.submitted_at ?? original.created_at
