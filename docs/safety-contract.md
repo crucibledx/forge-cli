@@ -47,7 +47,9 @@ Existing POSIX permission bits are preserved; new metadata is private. Ownership
 and alternate data streams are not preserved guarantees.
 
 Windows replacement uses access-preserving `ReplaceFileW` or refuses. Deletion snapshots the DACL and inheritance
-control for restoration; new metadata gets an owner/SYSTEM-only protected DACL. Harness processes use kill-on-close
+control for restoration. Transaction temporaries atomically receive an owner/SYSTEM-only protected DACL before
+the first byte, including recovery writes that fail before metadata application. New Windows transaction outputs
+retain that private default; existing outputs restore their snapshotted DACL. Harness processes use kill-on-close
 Job Objects, a gated trusted bootstrap and suspended target creation, independent of the leader PID.
 These paths still require **native Windows verification**, including restricted-access and leader-exits-first
 fixtures. Local macOS passes or safe refusal do not establish Windows acceptance.
