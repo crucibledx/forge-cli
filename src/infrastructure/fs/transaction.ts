@@ -2,7 +2,14 @@ import {chmod, lstat, mkdir, open, readFile, rename, rmdir, unlink} from 'node:f
 import {dirname, join, relative} from 'node:path'
 
 import {createConfinement} from './confinement'
-import {privateAccessMetadata, readAccessMetadata, writeAccessMetadata} from './windows-access'
+import type {TemporaryFile} from './windows-access'
+import {
+  checkPrivateTemporarySupport,
+  openPrivateTemporary,
+  privateAccessMetadata,
+  readAccessMetadata,
+  writeAccessMetadata,
+} from './windows-access'
 
 export interface FileOperation {
   path: string
@@ -50,8 +57,12 @@ export const transactionIO = {
   readAccessMetadata,
   writeAccessMetadata,
   privateAccessMetadata,
+  checkPrivateTemporarySupport,
+  async openTemp(path: string): Promise<TemporaryFile> {
+    return process.platform === 'win32' ? openPrivateTemporary(path) : open(path, 'wx', 0o600)
+  },
   async writeTemp(path: string, bytes: Uint8Array): Promise<void> {
-    const file = await open(path, 'wx', 0o600)
+    const file = await this.openTemp(path)
     try {
       await file.writeFile(bytes)
     } finally {
@@ -85,6 +96,7 @@ export class TransactionError extends Error {
 /** Prepare is read-only. Commit is in operation order, with metadata last. */
 export async function prepareTransaction(root: string, operations: FileOperation[], fs = transactionIO) {
   const boundary = await createConfinement(root)
+  await fs.checkPrivateTemporarySupport()
   const snapshots = new Map<string, Snapshot>()
   const absentDirectories = new Set<string>()
   for (const operation of operations) {
