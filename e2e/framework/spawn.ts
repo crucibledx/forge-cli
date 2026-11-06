@@ -26,6 +26,8 @@ export interface CliStep extends Promise<void> {
 }
 
 export interface CLISession {
+  /** One absolute total deadline, shared with the convenience runner's driver. */
+  deadlineAt: number
   /** Bounded combined PTY transcript, not a terminal screen or separate streams. */
   getOutput(): string
   mark(): number
@@ -81,11 +83,15 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     },
   }
   activeProcesses.add(owner)
-  const deadline = setTimeout(() => {
-    timedOut = true
-    notify()
-    void owner.dispose().catch(() => {})
-  }, budget)
+  const deadlineAt = performance.now() + budget
+  const deadline = setTimeout(
+    () => {
+      timedOut = true
+      notify()
+      void owner.dispose().catch(() => {})
+    },
+    Math.max(0, deadlineAt - performance.now()),
+  )
   const exit = proc.exited.then(() => {
     exited = true
     transcript.finish()
@@ -159,6 +165,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   }
 
   return {
+    deadlineAt,
     getOutput,
     mark,
     waitForText: (text, timeoutMs, from) => step(wait(text, timeoutMs, from)),

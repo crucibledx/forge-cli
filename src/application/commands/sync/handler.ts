@@ -225,26 +225,25 @@ export async function buildPlan(
       errors.push(`${target.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  if (!config.keep_local) {
-    for (const [path, entry] of Object.entries(state.files)) {
-      if (desired.has(path)) continue
-      const owner = resolveAssistantByPath(path)
-      if (!owner || !enabled.has(owner.id)) {
-        warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
-        continue
+  for (const [path, entry] of Object.entries(state.files)) {
+    if (desired.has(path)) continue
+    const owner = resolveAssistantByPath(path)
+    if (!owner || !enabled.has(owner.id)) {
+      warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
+      continue
+    }
+    if (config.keep_local) continue
+    try {
+      const existing = await read(path)
+      const changed = existing !== null && (entry.baseline !== 'installed' || hashContent(existing) !== entry.hash)
+      const skip = changed && policy(path) === S.SKIPPED
+      if (!skip) {
+        if (changed && config.backup) await backup(path, existing!)
+        mutations.push({type: MT.FILE_DELETE, path})
       }
-      try {
-        const existing = await read(path)
-        const changed = existing !== null && (entry.baseline !== 'installed' || hashContent(existing) !== entry.hash)
-        const skip = changed && policy(path) === S.SKIPPED
-        if (!skip) {
-          if (changed && config.backup) await backup(path, existing!)
-          mutations.push({type: MT.FILE_DELETE, path})
-        }
-        summaries.push({targetPath: path, sourcePath: '', assistantId: owner.id, status: skip ? S.SKIPPED : S.DELETED})
-      } catch (error) {
-        errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
-      }
+      summaries.push({targetPath: path, sourcePath: '', assistantId: owner.id, status: skip ? S.SKIPPED : S.DELETED})
+    } catch (error) {
+      errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   // Recheck after generated backups exist: the first graph cannot detect .bak collisions.

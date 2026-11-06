@@ -1,8 +1,8 @@
 import {readFile, unlink} from 'node:fs/promises'
-import {basename, dirname, relative, resolve} from 'node:path'
+import {resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
-import {readEvidence, writeEvidence} from './evidence-io'
+import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
 import type {
   DeviationEvidence,
   EvidenceContext,
@@ -205,18 +205,7 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
         throw new Error('Usage: check:readiness -- --input <bundle> --output <report>')
       if (flag === '--output') output = resolve(value)
     }
-    if (input === output) throw new Error('Output cannot overwrite source attestations')
-    const sourceNames = [
-      'context.json',
-      'verifier.json',
-      'producers.json',
-      'deviations.json',
-      'gate.json',
-      ...requiredLaneIds.map((id) => `${id}.json`),
-    ]
-    const within = relative(dirname(input), output).replaceAll('\\', '/')
-    if (sourceNames.includes(basename(output)) || /^(reviews|checks|raw-reports)\//.test(within))
-      throw new Error('Output cannot overwrite source evidence')
+    protectEvidenceOutput(input, output)
     try {
       const previous = JSON.parse(await readFile(output, 'utf8'))
       if (

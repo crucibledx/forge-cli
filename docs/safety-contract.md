@@ -92,8 +92,15 @@ selected run/attempt, provider jobs and evidence before passing. Missing, stale,
 fails the gate. An upload failure cannot turn a lane green.
 Unavailable or malformed provider lookups still persist a blocked all-lane gate summary, retaining independently
 available metadata and known failures. Invalid context is recorded as unavailable, never invented.
+The interactive driver shares the child's absolute session deadline, including unrelated waits after child disposal.
+Collector/report destinations cannot replace reserved source evidence or existing non-bundle/non-report data.
+Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
+Unknown or ambiguous retained ownership warns even when keep_local is true.
+
 After a frozen-install failure, a dependency-free Bun entrypoint records the original context, blocked lane and
 unexecuted check logs before the always-run upload. It does not require packages that failed to install.
+The gate has its own dependency-free fallback: all ten rows remain blocked and its summary stays nonpassing.
+Unavailable context is null, and downloaded lane records are not promoted to authenticated results.
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/

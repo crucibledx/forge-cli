@@ -4,7 +4,34 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 6101759
+## Latest hosted review on 660d815
+
+The owner explicitly authorized continuing after each push until all current-revision checks, including the
+hosted reviewer, finish without unresolved actionable comments. The previous review completed with eight more
+findings. All eight were confirmed; source/dependency/acceptance boundaries remain unchanged.
+
+| Comment | Correction and regression |
+| --- | --- |
+|4496436540 | Query redaction treats an apostrophe as part of a credential, including unfinished raw-tail recognizer context. Six key/quoted-URL controls, truncated-tail/finalization controls and real-pipe diagnostics conceal the suffix. |
+|4496436553 | Reject a generated target retaining a literal POSIX backslash before the initial apply, rather than installing one spelling and persisting another. Canonical/pre-structured resolver controls plus two consecutive real CLI refusals preserve protected bytes. Native Windows separators remain normalized by its path implementation. |
+|4496436562 | Both output CLIs share reserved-source/evidence-directory guards, including case aliases. The collector rejects existing non-bundle data before provider access or source writes; a valid existing bundle reaches normal provider validation. Every required lane/sidecar remains byte-identical on destination refusal. |
+|4496436569 | A direct, dependency-free gate fallback emits ten blocked rows and a nonpassing summary after installation failure. Its summary builder is shared with normal gate context failures. Clean frozen-history fixtures with no installed packages cover available/unavailable context; workflow guards reject removing the fallback. It does not authenticate downloaded evidence or claim any lane passed. |
+|4496436587 | The driver and child share one absolute session deadline. The runner races unrelated driver promises against the remaining budget, cancels its timer and always disposes the child. Live-child and already-disposed-child controls settle before the outer watchdog, with no active processes left. |
+|4496436597 | Classify/warn for retained stale ownership before checking keep_local. Unknown/disabled/ambiguous entries remain conservative even with the default retention policy; both keep_local controls warn without mutating retained data. |
+|4496436612 | Move checkEvidencePath into a dependency-free authority consumed by ordinary writers/authenticators and installation-failure evidence. The no-packages fixture still executes successfully. |
+|4496436620 | Remove the invariant audit root parameter and unused export. The entrypoint uses validation-identity's repositoryRoot for the lock and subprocess. Existing advisory assessment controls remain unchanged. |
+
+Initial regression controls:69 passed/25 failed before corrections. The collector failures show its missing
+early destination protection, not a claim that an invalid fixture reached a live authenticated overwrite.
+The original log is retained; no blind retries or relaxed deadlines/acceptance changes.
+
+The independent verifier-m report on660d815 also reproduced these runtime/evidence counterexamples:25 phase-1
+rows passed and7 failed (AC-14,15,18,25,27,30,32), with a separate retain-and-warn BR-02 violation. Its two
+1208/0 full-suite runs and ten379/0 contract runs did not refute those counterexamples. The original report
+hash is `fefd0336a0780807313aa06401825fa9dd509d4c30b08ed17e9e2eb627edcf7e`.
+That verdict belongs to the old revision; confirmation of the corrections requires a new exact-revision pass.
+
+## Hosted review on 6101759
 
 The owner's Nov6 follow-up identified four new inline comments. All four were confirmed.
 Six pinned-tooling security controls first demonstrated acceptance of an unrelated workflow, mismatched/missing

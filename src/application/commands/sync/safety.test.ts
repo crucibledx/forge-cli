@@ -37,6 +37,20 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
     await writeFile(join(dir(), file), content)
   }
   afterEach(() => setGlobalMode(false))
+  it.each([false, true])('AC-4 warns about unmatched retained ownership with keep_local=%s', async (keep_local) => {
+    const path = 'unknown/retained.md'
+    await disk(path, 'retained')
+    const before = await snapshot(dir())
+    const plan = await buildPlan(
+      dir(),
+      [],
+      {lastSync: '', files: {[path]: {hash: hashContent('retained'), sourceName: 'old', baseline: 'installed'}}},
+      {...defaults, keep_local},
+    )
+    expect(plan.warnings.join('\n')).toContain(path)
+    expect(plan.mutations).toEqual([])
+    expect(await snapshot(dir())).toEqual(before)
+  })
   it('collects load and resolution failures plus successes before aborting either source type', async () => {
     const attempted: string[] = []
     const definitions = [

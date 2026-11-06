@@ -2,6 +2,7 @@
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {checkEvidencePath} from './validation-evidence'
 import {rawValidationContext, repositoryRoot} from './validation-identity'
 import {laneById} from './validation-lanes'
 
@@ -14,7 +15,7 @@ if (import.meta.main) {
   const reason = 'Toolchain/dependency installation failed; dependent check was not executed'
   const checks = []
   for (const check of lane.checks) {
-    const ref = `checks/${lane.id}/${check.id.replaceAll(':', '-')}.log`
+    const ref = checkEvidencePath(lane.id, check.id)
     await mkdir(join(directory, 'checks', lane.id), {recursive: true})
     await writeFile(join(directory, ref), JSON.stringify({command: check.command, exit_code: null, reason}) + '\n', {
       flag: 'wx',

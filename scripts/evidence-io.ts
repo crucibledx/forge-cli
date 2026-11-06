@@ -1,7 +1,24 @@
 import {mkdir, readFile, rename, unlink, writeFile} from 'node:fs/promises'
-import {dirname, resolve} from 'node:path'
+import {basename, dirname, relative, resolve} from 'node:path'
 
 import {createConfinement} from '../src/infrastructure/fs/confinement'
+import {requiredLaneIds} from './validation-lanes'
+
+/** Both output CLIs must protect the same original evidence before any writes or cleanup. */
+export function protectEvidenceOutput(input: string, output: string): void {
+  if (input === output) throw new Error('Output cannot overwrite source attestations')
+  const sourceNames = [
+    'context.json',
+    'verifier.json',
+    'producers.json',
+    'deviations.json',
+    'gate.json',
+    ...requiredLaneIds.map((id) => `${id}.json`),
+  ]
+  const within = relative(dirname(input), output).replaceAll('\\', '/').toLowerCase()
+  if (sourceNames.includes(basename(output).toLowerCase()) || /^(reviews|checks|raw-reports)\//.test(within))
+    throw new Error('Output cannot overwrite source evidence')
+}
 
 export async function writeEvidence(path: string, data: unknown): Promise<void> {
   await mkdir(dirname(path), {recursive: true, mode: 0o700})

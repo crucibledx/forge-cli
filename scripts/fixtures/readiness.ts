@@ -1,8 +1,8 @@
 import {readEvidence} from '../evidence-io'
 import type {ReadinessBundle} from '../evidence-schema'
 import type {ReadinessProvider} from '../readiness'
+import {checkEvidencePath} from '../validation-evidence'
 import {acceptanceIds, requiredLaneIds, validationLanes} from '../validation-lanes'
-import {checkEvidencePath} from '../validation-policy'
 
 export function readinessFixture(): ReadinessBundle {
   const head = 'a'.repeat(40),

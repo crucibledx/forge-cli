@@ -9,6 +9,22 @@ import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
 
 const dir = useTmpDir('redacted-tail')
+it.each(['redact', 'sanitize'])(
+  'AC-15,16,30 apostrophes cannot split a query credential during a raw-tail cut: %s',
+  async (kind) => {
+    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+    const value = "https://fixture.invalid?token=prefix'QUERY_APOSTROPHE_SUFFIX\n"
+    for (const cut of ['https://fixture.invalid?token=pre'.length, "https://fixture.invalid?token=prefix'".length]) {
+      const transcript = createTranscript(clean)
+      transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+      transcript.finish()
+      transcript.append(Buffer.from('after'))
+      expect(transcript.diagnostic()).not.toContain('QUERY_APOSTROPHE_SUFFIX')
+    }
+    const result = await runPipe(dir(), [process.execPath, '-e', `console.error(${JSON.stringify(value)});`])
+    expect(result.stderr).not.toContain('QUERY_APOSTROPHE_SUFFIX')
+  },
+)
 it('AC-15,16,18,30 adversarial marker repetition cannot stall the session deadline', async () => {
   const entry = join(import.meta.dir, '../../../src/domain/redact.ts')
   const result = await runPipe(dir(), [

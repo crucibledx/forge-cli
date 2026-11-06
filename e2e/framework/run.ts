@@ -26,11 +26,21 @@ export async function runCommand(
   return completed(await runPipe(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env}))
 }
 
-async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
+export async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    await drive(cli)
+    await Promise.race([
+      Promise.resolve().then(() => drive(cli)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Command deadline exceeded while driving session:\n${cli.getOutput()}`)),
+          Math.max(0, cli.deadlineAt - performance.now()),
+        )
+      }),
+    ])
     return completed(await cli.waitForExit())
   } finally {
+    clearTimeout(timer)
     await cli.dispose()
   }
 }

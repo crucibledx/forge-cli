@@ -43,7 +43,11 @@ export function resolveTargets(
     layoutOverride && layoutOverride !== SOURCE_LAYOUT_OPTIONS.AUTO
       ? (layoutOverride as SourceLayout)
       : detectSourceLayout(sourceFiles)
-  return resolvers[layout](sourceFiles, assistants, sourceName)
+  const resolved = resolvers[layout](sourceFiles, assistants, sourceName)
+  for (const target of resolved)
+    if (target.targetPath.includes('\\'))
+      throw new Error(`Backslash in source filename is not portable: ${target.sourcePath}; use real directories`)
+  return resolved
 }
 
 /**

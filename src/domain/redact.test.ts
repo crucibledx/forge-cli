@@ -2,6 +2,17 @@ import {expect, it} from 'bun:test'
 
 import {redact, redactData} from './redact'
 
+it.each(['token', 'access_token', 'password', 'secret', 'key', 'auth'])(
+  'AC-15 redacts apostrophes within query credentials: %s',
+  (key) => {
+    for (const quote of ['', "'"])
+      expect(redact(`${quote}https://fixture.invalid/repo?${key}=prefix'QUERY_SUFFIX${quote}`)).not.toContain(
+        'QUERY_SUFFIX',
+      )
+    expect(redact(`https://fixture.invalid?${key}=prefix'QUERY_SUFFIX&visible=yes`)).toEndWith('&visible=yes')
+  },
+)
+
 it('leaves a long invalid scheme candidate unchanged without rescanning every internal word boundary', () => {
   const input = 'a-'.repeat(50000)
   expect(redact(input)).toBe(input)

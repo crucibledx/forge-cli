@@ -4,6 +4,7 @@ import {resolve} from 'node:path'
 
 import {z} from 'zod'
 
+import {repositoryRoot} from './validation-identity'
 import type {CommandOutcome} from './validation-process'
 import {executeCheck} from './validation-process'
 
@@ -50,19 +51,19 @@ export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
     advisory_data: data,
   }
 }
-export async function audit(root: string) {
-  const lock = resolve(root, 'bun.lock')
+async function audit() {
+  const lock = resolve(repositoryRoot, 'bun.lock')
   const hash = async () =>
     createHash('sha256')
       .update(await readFile(lock))
       .digest('hex')
   const before = await hash()
-  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], root, 60000)
+  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], repositoryRoot, 60000)
   return assessAudit(result, before === (await hash()))
 }
 if (import.meta.main) {
   try {
-    const result = await audit(resolve(import.meta.dir, '..'))
+    const result = await audit()
     console.log(JSON.stringify(result))
     process.exitCode = result.exit_code
   } catch {
