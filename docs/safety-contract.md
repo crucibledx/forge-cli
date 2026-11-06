@@ -90,6 +90,8 @@ CI checks out the event's exact tested SHA. Independent checks continue after si
 is disabled. Seven-day bounded sanitized artifacts include failures; the always-run `Deterministic gate` checks
 selected run/attempt, provider jobs and evidence before passing. Missing, stale, skipped or cancelled evidence
 fails the gate. An upload failure cannot turn a lane green.
+After a frozen-install failure, a dependency-free Bun entrypoint records the original context, blocked lane and
+unexecuted check logs before the always-run upload. It does not require packages that failed to install.
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
@@ -117,6 +119,9 @@ requires `deviations.json` explicitly; a missing file is not evidence that no de
 The output bundle must be colocated with its context/check evidence. Relocated `--out` paths are rejected before
 provider access instead of emitting a bundle whose relative paths cannot resolve. Unauthenticated/stale/unavailable
 verifiers produce blocked AC results; an invalid row's evidence or exit status blocks that row, not verified siblings.
+Lane results likewise become blocked when policy/context/artifact authentication fails; invalid evidence cannot
+establish a known failure. Report outputs cannot replace source sidecars/checks or existing non-report files, including
+on the stale-report cleanup path. Canonical PR conversation-comment approval URLs are accepted and authenticated.
 
 **Local session files are supporting reports, never independent approval.** The production adapter rejects
 `factory-session://` producers, even with valid schemas and hashes. Its supported authenticated producer is a

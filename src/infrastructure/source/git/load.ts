@@ -12,11 +12,27 @@ import type {SourceLoaderEntry} from '../types'
 import type {GitSourceConfig} from './types'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
+const acquisitions = new Map<string, Promise<unknown>>()
+
+export const gitCacheKey = (source: GitSourceConfig) => hashContent(`${source.url}#${source.branch}`)
+
+/** Hold the shared checkout through enumeration, not merely through clone/fetch. */
+export async function withGitCache<T>(source: GitSourceConfig, acquire: () => Promise<T>): Promise<T> {
+  const key = gitCacheKey(source)
+  const previous = acquisitions.get(key) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(acquire)
+  acquisitions.set(key, current)
+  try {
+    return await current
+  } finally {
+    if (acquisitions.get(key) === current) acquisitions.delete(key)
+  }
+}
 
 export const load: SourceLoaderEntry['load'] = async (source) => {
   const logger = createFileLogger()
   const git = source as GitSourceConfig
-  const cacheKey = hashContent(`${git.url}#${git.branch}`)
+  const cacheKey = gitCacheKey(git)
   const cacheDir = join(CACHE_DIR, cacheKey)
 
   let fresh: boolean
@@ -40,7 +56,7 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
 }
 
 export async function cleanupCache(url: string, branch = 'main'): Promise<void> {
-  const cacheKey = hashContent(`${url}#${branch}`)
+  const cacheKey = gitCacheKey({name: '', type: 'git', url, branch})
   const cacheDir = join(CACHE_DIR, cacheKey)
   if (existsSync(cacheDir)) {
     await rm(cacheDir, {recursive: true, force: true})

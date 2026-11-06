@@ -1,5 +1,7 @@
 import './teardown'
 
+import stripAnsi from 'strip-ansi'
+
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {spawnOwnedPipe} from './owned-pipe'
 import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
@@ -17,8 +19,9 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
   const budget = sessionBudget(options.timeoutMs)
   const started = performance.now()
   const proc = await spawnOwnedPipe(command, cwd, testEnvironment(cwd, options.env))
-  const stdout = createTranscript()
-  const stderr = createTranscript()
+  const clean = (text: string) => sanitize(text, cwd, options.secrets)
+  const stdout = createTranscript(clean, options.secrets)
+  const stderr = createTranscript(clean, options.secrets)
   let timedOut = false
   let disposal: Promise<void> | undefined
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
@@ -66,9 +69,9 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     await drains
     options.inspectRaw?.(stdout.rawText(), stderr.rawText())
     return {
-      stdout: sanitize(stdout.rawText(), cwd, options.secrets),
-      stderr: sanitize(stderr.rawText(), cwd, options.secrets),
-      output: sanitize(stdout.text(), cwd, options.secrets),
+      stdout: stdout.diagnostic(),
+      stderr: stderr.diagnostic(),
+      output: stripAnsi(stdout.diagnostic()),
       exitCode: proc.signalCode ? null : proc.exitCode,
       signal: proc.signalCode ? String(proc.signalCode) : null,
       timedOut,

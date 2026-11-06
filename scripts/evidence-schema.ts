@@ -30,7 +30,7 @@ export const sourceUri = z
         !value.username &&
         !value.password &&
         !value.search &&
-        /^\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(?:actions\/runs\/\d+(?:\/attempts\/\d+)?(?:\/job\/\d+)?|issues\/\d+#issuecomment-\d+|pull\/\d+#(?:pullrequestreview-|discussion_r)\d+)$/.test(
+        /^\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(?:actions\/runs\/\d+(?:\/attempts\/\d+)?(?:\/job\/\d+)?|(?:issues|pull)\/\d+#issuecomment-\d+|pull\/\d+#(?:pullrequestreview-|discussion_r)\d+)$/.test(
           value.pathname + value.hash,
         )
       )

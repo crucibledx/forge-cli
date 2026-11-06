@@ -41,7 +41,6 @@ mock.module('@infrastructure/cli/renderer', () => ({
 mock.module('@infrastructure/fs', () => ({
   applyMutations: async () => [],
   collectFiles: async () => [],
-  readFileContent: async () => null,
   readDiskContents: async () => mockDiskContents,
   rollbackMutations: async () => {},
 }))

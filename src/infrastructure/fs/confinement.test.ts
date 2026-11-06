@@ -5,7 +5,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
 import {createConfinement} from './confinement'
-import {readFileContent} from './reader'
+import {createFileReader} from './reader'
 import {prepareTransaction, transactionIO} from './transaction'
 
 describe('BR-07 confinement (AC-12)', () => {
@@ -62,7 +62,8 @@ describe('BR-07 confinement (AC-12)', () => {
         join(dir(), 'link'),
         process.platform === 'win32' ? (kind === 'ancestor' ? 'junction' : 'file') : undefined,
       )
-      await expect(readFileContent(dir(), path)).rejects.toThrow()
+      const read = await createFileReader(dir())
+      await expect(read(path)).rejects.toThrow()
       for (const content of ['replace', null])
         await expect(prepareTransaction(dir(), [{path, content}])).rejects.toThrow()
       expect(await readFile(sentinel, 'utf8')).toBe('external sentinel')

@@ -6,19 +6,11 @@ import {z} from 'zod'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
-import {githubJSON} from './github-evidence'
+import {githubJSON, providerJob} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
 import {assessLane} from './validation-policy'
 
-const providerJob = z.object({
-  id: z.number().int().positive(),
-  name: z.string(),
-  status: z.string(),
-  conclusion: z.string().nullable(),
-  started_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-})
 const providerArtifact = z.object({
   id: z.number().int().positive(),
   name: z.string(),
@@ -88,7 +80,7 @@ export async function deterministicGate(
 }
 if (import.meta.main) {
   try {
-    const context = validationContext(repositoryRoot)
+    const context = validationContext()
     const [jobsRaw, artifactsRaw] = await Promise.all([
       githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`),
       githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),

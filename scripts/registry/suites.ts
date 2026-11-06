@@ -14,6 +14,8 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'e2e/framework/contracts/redaction-tail.test.ts',
+    'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
     'src/infrastructure/fs/transaction.test.ts',
     'src/infrastructure/fs/windows-access.test.ts',
@@ -28,6 +30,8 @@ export const testSuites = {
     'scripts/security-audit.test.ts',
   ],
   platform: [
+    'src/infrastructure/source/git/shared-cache.test.ts',
+    'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
     'src/infrastructure/fs/transaction.test.ts',
     'src/infrastructure/fs/windows-access.test.ts',

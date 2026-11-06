@@ -5,7 +5,9 @@ import {spawnInteractive} from './spawn'
 
 function completed(result: CLIResult): CLIResult {
   if (result.timedOut)
-    throw new Error(`Command deadline exceeded (exit ${result.exitCode}):\n${result.stdout}\n${result.stderr}`)
+    throw new Error(
+      `Command deadline exceeded (exit ${result.exitCode}):\n${result.stdout || result.output}\n${result.stderr}`,
+    )
   return result
 }
 

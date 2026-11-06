@@ -1,5 +1,3 @@
-import {resolve} from 'node:path'
-
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
@@ -12,7 +10,7 @@ it('AC-25 preserves two simultaneous failures, later successes and foreign-nativ
   let active = 0,
     maximum = 0
   const called: string[] = []
-  const context = validationContext(resolve(import.meta.dir, '..'))
+  const context = validationContext()
   const reports = await runLanes(
     dir(),
     dir(),

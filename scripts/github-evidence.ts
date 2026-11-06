@@ -3,6 +3,15 @@ import {z} from 'zod'
 import type {EvidenceContext} from './evidence-schema'
 import {gateSchema} from './evidence-schema'
 
+export const providerJob = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  status: z.string(),
+  conclusion: z.string().nullable(),
+  started_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+})
+
 /** Exact-revision evidence cannot authorize a newer PR head or changed base/merge. */
 export async function currentPullRequest(context: EvidenceContext, read = githubJSON) {
   const pr = z
@@ -25,14 +34,7 @@ export async function providerGate(context: EvidenceContext, read = githubJSON) 
   const response = z
     .object({
       total_count: z.number().int().max(100),
-      jobs: z.array(
-        z.object({
-          id: z.number().int().positive(),
-          name: z.string(),
-          status: z.string(),
-          conclusion: z.string().nullable(),
-        }),
-      ),
+      jobs: z.array(providerJob.pick({id: true, name: true, status: true, conclusion: true})),
     })
     .parse(await read(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`))
   const gates = response.jobs.filter((job) => job.name === 'Deterministic gate')

@@ -1,5 +1,7 @@
 import './teardown'
 
+import stripAnsi from 'strip-ansi'
+
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {CLI_ENTRY} from './constants'
 import {ENTER} from './keys'
@@ -35,7 +37,7 @@ export interface CLISession {
 export function spawnPty(cwd: string, command: string[], options: ProcessOptions = {}): CLISession {
   if (process.platform === 'win32') throw new Error('PTY journeys require a native POSIX runner')
   const budget = sessionBudget(options.timeoutMs)
-  const transcript = createTranscript()
+  const transcript = createTranscript((text) => sanitize(text, cwd, options.secrets), options.secrets)
   const listeners = new Set<() => void>()
   let cursor = 0
   let exited = false
@@ -61,7 +63,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     }),
   )
   const term = proc.terminal!
-  const getOutput = () => sanitize(transcript.text(), cwd, options.secrets)
+  const getOutput = () => stripAnsi(transcript.diagnostic())
   const mark = () => transcript.offset + transcript.text().length
   const owner = {
     dispose() {

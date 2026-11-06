@@ -30,17 +30,6 @@ export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
   return files
 }
 
-/**
- * Reads a single file relative to projectRoot. Returns content or null if missing.
- */
-export async function readFileContent(projectRoot: string, relativePath: string): Promise<string | null> {
-  return (await readFileBytes(projectRoot, relativePath))?.toString('utf8') ?? null
-}
-
-export async function readFileBytes(projectRoot: string, relativePath: string): Promise<Buffer | null> {
-  return (await createFileReader(projectRoot))(relativePath)
-}
-
 /** Canonicalize one selected boundary, then reuse it for every file in that plan. */
 export async function createFileReader(projectRoot: string) {
   const boundary = await createConfinement(projectRoot)
