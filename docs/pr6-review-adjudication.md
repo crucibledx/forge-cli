@@ -81,6 +81,14 @@ owner approval, contract amendment, merge or release are authorized by this foll
 
 ## Validation boundary
 
+The subsequent run `42249948977` verified the Windows fix:196/0, build/compiled checks successful, and all eight
+Linux lanes passed. macOS was canceled with no runner assignment (`runner_id:0`, no steps):
+“The job was not acquired by Runner of type hosted even after multiple attempts.” GitHub annotated ARM capacity
+constraints; the gate correctly failed for missing required evidence. The macOS job now selects the standard
+native `macos-15-intel` runner documented in [GitHub's hosted-runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+No tests or deadlines are removed, and runner-drift negative controls still reject non-native execution and
+accidental return to the capacity-constrained label. Original canceled-job evidence remains retained.
+
 The first corrected-head native CI run (`42246778781`) passed nine lanes but failed Windows:194 tests passed,
 two hooks timed out while recompiling the same fake scheduler. Those failures and original artifacts are retained,
 not retried into success. Compilation now occurs once per process, primed before test imports with isolated env/cwd

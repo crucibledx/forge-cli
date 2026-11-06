@@ -30,7 +30,7 @@ jobs:
           - {lane: agent-cli, os: ubuntu-latest}
           - {lane: security, os: ubuntu-latest}
           - {lane: performance, os: ubuntu-latest}
-          - {lane: native-macos, os: macos-latest}
+          - {lane: native-macos, os: macos-15-intel}
           - {lane: native-windows, os: windows-latest}
           - {lane: build, os: ubuntu-latest}
     steps:
