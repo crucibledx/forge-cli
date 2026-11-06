@@ -5,7 +5,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
 import {runPipe} from '../pipe'
-import {activeProcesses, disposeActiveProcesses} from '../process'
+import {activeProcesses, disposeActiveProcesses, TAIL_BYTES} from '../process'
 import {driveSession, runInitSession} from '../run'
 import {spawnPty} from '../spawn'
 
@@ -23,6 +23,55 @@ function dead(pid: number): boolean {
 
 describe('BR-09 lifecycle contracts (AC-18)', () => {
   const dir = useTmpDir('lifecycle')
+  it.each(['assertion', 'non-error', 'cleanup', 'large-output'])(
+    'AC-15,18,27,30 driver %s preserves private bounded failure context after cleanup',
+    async (kind) => {
+      const program = `process.stdout.write('Bearer AUTO_DRIVER_SECRET\\n' + 'é'.repeat(${kind === 'large-output' ? TAIL_BYTES : 0}) + '\\nlast-driver-marker\\n');setInterval(()=>{},1000)`
+      const cli = spawnPty(dir(), [process.execPath, '-e', program], {secrets: ['FIXTURE_SECRET']})
+      const session =
+        kind === 'cleanup'
+          ? {
+              ...cli,
+              dispose: async () => {
+                await cli.dispose()
+                throw new Error('cleanup detail')
+              },
+            }
+          : cli
+      let error: Error | undefined
+      try {
+        await driveSession(session, async (session) => {
+          await session.waitForText('last-driver-marker')
+          if (kind === 'non-error') throw 'primary driver assertion token=DRIVER_VALUE'
+          throw new TypeError('primary driver assertion FI\x1b[31mXTURE_SECRET\x1b[0m')
+        })
+      } catch (value) {
+        error = value as Error
+      }
+      expect(error).toBeInstanceOf(Error)
+      expect(error!.message).toContain('primary driver assertion')
+      expect(error!.message).toContain('last-driver-marker')
+      expect(error!.message).toContain('[redacted]')
+      if (kind === 'cleanup') expect(error!.message).toContain('cleanup detail')
+      if (kind !== 'non-error') expect(error!.name).toBe('TypeError')
+      const context = JSON.parse(error!.message.split('\nSession: ')[1].split('\nTranscript tail:')[0])
+      expect(context.command).toEqual(['<runtime>', '-e', '<inline program>'])
+      expect(context.cwd).toBe('.')
+      expect(context.timedOut).toBe(false)
+      expect(context.timeoutMs).toBe(10000)
+      for (const field of ['exit', 'signal', 'seed', 'replay']) expect(context).toHaveProperty(field)
+      for (const view of [error!.message, error!.stack!]) {
+        expect(view).toContain('primary driver assertion')
+        expect(view).toContain('last-driver-marker')
+        expect(view).toContain('\nSession: ')
+        expect(Buffer.byteLength(view)).toBeLessThanOrEqual(TAIL_BYTES)
+        for (const secret of ['FIXTURE_SECRET', 'AUTO_DRIVER_SECRET', 'DRIVER_VALUE', dir(), process.execPath])
+          expect(view).not.toContain(secret)
+      }
+      expect(error!.cause).toBeUndefined()
+      expect(activeProcesses.size).toBe(0)
+    },
+  )
   it.each(['live-child', 'disposed-child'])('bounds a driver awaiting an unrelated promise after %s', async (kind) => {
     const cli = spawnPty(dir(), [process.execPath, fixture, 'hang'], {timeoutMs: 80})
     const result = driveSession(cli, async (session) => {

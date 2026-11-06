@@ -29,6 +29,8 @@ export async function runCommand(
 
 export async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
   let timer: ReturnType<typeof setTimeout> | undefined
+  let result: CLIResult | undefined
+  const errors: unknown[] = []
   try {
     await Promise.race([
       Promise.resolve().then(() => drive(cli)),
@@ -39,11 +41,19 @@ export async function driveSession(cli: CLISession, drive: (cli: CLISession) => 
         )
       }),
     ])
-    return completed(await cli.waitForExit())
+    result = completed(await cli.waitForExit())
+  } catch (error) {
+    errors.push(error)
   } finally {
     clearTimeout(timer)
-    await cli.dispose()
+    try {
+      await cli.dispose()
+    } catch (error) {
+      errors.push(error)
+    }
   }
+  if (errors.length) throw cli.failure(errors)
+  return result!
 }
 
 // ─── Per-command session runners ─────────────────────────────────────────────

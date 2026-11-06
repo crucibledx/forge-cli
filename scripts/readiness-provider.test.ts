@@ -13,6 +13,11 @@ import {readinessProvider} from './readiness-provider'
 const dir = useTmpDir('provider-artifact')
 it.each([
   'e2e',
+  'paginated',
+  'paginated-missing',
+  'paginated-duplicate',
+  'paginated-unavailable',
+  'paginated-malformed',
   'failed-evidence',
   'blocked-evidence',
   'cancelled-evidence',
@@ -39,7 +44,9 @@ it.each([
   const bundle = readinessFixture(),
     context = bundle.context,
     original = structuredClone(context)
+  if (kind.startsWith('paginated')) context.run_attempt = original.run_attempt = 10
   const lane = bundle.lanes.find((lane) => lane.lane_id === 'e2e')!
+  lane.run_attempt = context.run_attempt
   if (['failed-evidence', 'cancelled-evidence', 'blocked-evidence', 'timed-out-evidence'].includes(kind)) {
     lane.status = kind === 'blocked-evidence' ? 'blocked' : 'fail'
     lane.checks[0].exit_code = kind === 'blocked-evidence' ? null : 1
@@ -100,23 +107,35 @@ it.each([
             },
           ],
         }
-      if (endpoint.endsWith('/artifacts?per_page=100'))
-        return {
-          total_count: 1,
-          artifacts: [
-            {
-              id: kind === 'zero-artifact' ? 0 : 2,
-              name: 'validation-123-1-e2e',
+      if (endpoint.includes('/artifacts?per_page=100')) {
+        if (kind.startsWith('paginated') && !endpoint.includes('&page='))
+          return {
+            total_count: kind === 'paginated-missing' ? 100 : kind === 'paginated-duplicate' ? 102 : 101,
+            artifacts: Array.from({length: 100}, (_, index) => ({
+              id: 1000 + index,
+              name: `validation-123-9-history-${index}`,
               expired: false,
-              created_at: '2026-11-04T12:00:30Z',
-              digest: `sha256:${'d'.repeat(64)}`,
-              workflow_run: {id: 123},
-            },
-          ],
+              created_at: '2026-11-04T11:00:00Z',
+            })),
+          }
+        if (kind === 'paginated-unavailable') throw new Error('Later artifact page unavailable')
+        if (kind === 'paginated-malformed') return {total_count: 101, artifacts: [{}]}
+        const artifact = {
+          id: kind === 'zero-artifact' ? 0 : 2,
+          name: `validation-123-${context.run_attempt}-e2e`,
+          expired: false,
+          created_at: '2026-11-04T12:00:30Z',
+          digest: `sha256:${'d'.repeat(64)}`,
+          workflow_run: {id: 123},
         }
+        return {
+          total_count: kind.startsWith('paginated') ? (kind === 'paginated-duplicate' ? 102 : 101) : 1,
+          artifacts: kind === 'paginated-duplicate' ? [artifact, {...artifact, id: 3}] : [artifact],
+        }
+      }
       return {
         id: 123,
-        run_attempt: 1,
+        run_attempt: context.run_attempt,
         head_sha: context.tested_sha,
         workflow_id:
           kind === 'missing-workflow-id'
@@ -129,7 +148,11 @@ it.each([
     },
   })
   const citing = kind === 'cross-lane' ? bundle.lanes.find((lane) => lane.lane_id === 'security')! : lane
-  if (['e2e', 'failed-evidence', 'blocked-evidence', 'cancelled-evidence', 'timed-out-evidence'].includes(kind))
+  if (
+    ['e2e', 'paginated', 'failed-evidence', 'blocked-evidence', 'cancelled-evidence', 'timed-out-evidence'].includes(
+      kind,
+    )
+  )
     await expect(provider.artifact(ref, context, citing)).resolves.toBeUndefined()
   else await expect(provider.artifact(ref, context, citing)).rejects.toThrow()
   if (kind.includes('workflow')) expect(archives).toBe(0)

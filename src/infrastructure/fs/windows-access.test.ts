@@ -2,11 +2,11 @@ import {chmod, mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
+import {accessMetadataFromSddl} from '@test-helpers/windows-access'
 import {expect, it} from 'bun:test'
 
 import {prepareTransaction, TransactionError, transactionIO} from './transaction'
 import {
-  accessMetadataFromSddl,
   descriptorFlags,
   openPrivateTemporary,
   privateAccessMetadata,

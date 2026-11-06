@@ -1,6 +1,36 @@
 import {expect, it} from 'bun:test'
 
 import {contractInputs, validateContracts} from './check-contracts'
+import {validationLanes} from './validation-lanes'
+
+it.each(validationLanes.flatMap((lane) => lane.checks.map((check) => [lane.id, check.id])))(
+  'AC-25 mandatory %s/%s cannot disappear from the execution registry',
+  (id, checkId) => {
+    const original = contractInputs()
+    const input = {...original, lanes: structuredClone(original.lanes)}
+    const lane = input.lanes.find((lane) => lane.id === id)!
+    lane.checks = lane.checks.filter((check) => check.id !== checkId)
+    expect(validateContracts(input)).toContain(`${id}: required ordered check contract changed`)
+  },
+)
+it.each(['id', 'command', 'duplicate', 'reorder', 'blocked-exits', 'test-blocked-exits'])(
+  'AC-25 complete command contracts reject %s drift',
+  (kind) => {
+    const original = contractInputs()
+    const input = {...original, lanes: structuredClone(original.lanes)}
+    const lane = input.lanes.find((lane) => lane.id === (kind === 'test-blocked-exits' ? 'business' : 'quality'))!
+    if (kind === 'id') lane.checks[0].id = 'lint'
+    if (kind === 'command') lane.checks[0].command = ['bun', 'run', 'lint']
+    if (kind === 'duplicate') lane.checks.push(structuredClone(lane.checks[0]))
+    if (kind === 'reorder') lane.checks.reverse()
+    if (kind === 'blocked-exits') lane.checks[2].blocked_exits = [2]
+    if (kind === 'test-blocked-exits') lane.checks[0].blocked_exits = []
+    expect(validateContracts(input)).toContain(`${lane.id}: required ordered check contract changed`)
+  },
+)
+it('AC-28 documentation inputs contain only the document actually validated', () => {
+  expect(contractInputs().docs.map((doc) => doc.path)).toEqual(['docs/safety-contract.md'])
+})
 
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])

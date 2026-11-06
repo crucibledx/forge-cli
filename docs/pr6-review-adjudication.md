@@ -4,7 +4,49 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on 8ca1e7c
+## Latest hosted and independent review on 8d79a72
+
+All checks completed before correction: CI42303981084 succeeded22:26:26Z and hosted
+review42303981852 succeeded22:30:21Z, posting five findings in review5807891602.
+Fresh paginated inventory covers101 threads on two pages:96 resolved,5 open.
+PR remains ready at the owner's instruction; this UI state is not authenticated readiness.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4498296377 | Retain sanitized bounded original error name/message/stack, command, relative cwd, observed exit/signal, timeout/budget, supplied seed/replay and transcript after driver cleanup. Keep primary and cleanup failures together without exposing a raw cause object. Four real PTY controls cover normal/non-Error failures, cleanup failure and oversized Unicode output, positive message/stack context, secret removal and byte bounds. |
+|4498296387 | Read only docs/safety-contract.md, the single documentation input the validator actually examines. |
+|4498296400 | Inline the fixed owner/SYSTEM SDDL in production privateAccessMetadata; arbitrary descriptor construction belongs to the Windows test helper. Native descriptor/transaction tests remain intact; next-revision Windows CI remains required. |
+|4498296409 | Validate all21 mandatory ordered command/id/blocked-exit contracts against independent frozen policy. Removing any required check or replacing/duplicating/reordering it cannot silently shorten the gate. |
+|4498296416 | Share complete bounded pagination between gate/provider, filter the requested run/attempt and reject incomplete/changed/duplicate pages. Later retained-attempt uploads work without weakening selected-job windows, expiration, digests, duplicate-name or revision checks. |
+
+Original unchanged-head controls reproduce0/4; the same controls after correction pass4/0.
+First focused correction137/4 is preserved: three incorrect uppercase marker expectations and
+one oversized-output control revealing unreliable lazy stack text. Explicit original name/message
+plus stack fixes the latter; corrected focused141/0. Added positive stack/context checks pass11/0.
+Complete format/lint/types/contracts, full1452/0 in18 isolated batches, build and compiled smoke0;
+default20s security264/0. The later assertion strengthening changes no production code.
+Full log SHA-256 `e77e7284eae0a04a351da2ab5a082d6115b6af20db08eb2cddbae70aa509c025`;
+security `f841d5daf0432d8ccb856e92a347f0f8e40cad971932600ef5c4e7a350d5b8ed`.
+No assertion/case, deadline, workflow, frozen acceptance, dependency, lock, pin or version is relaxed.
+
+Verifier-v completed2026-11-06T22:37:35.880118Z on8d79a72/mergea79dfc9:
+32 bounded support passes, own full1405/0 once and ten fresh559/0 contract runs without retries.
+New original11 CI ZIPs/21 check logs, native237/0 per OS, compiled smoke on all three OSes,
+default security253/0 and live audit0 were authenticated/executed.
+New OSC8 controls cover21 semantic cases/1597 actual UTF8 byte cuts,828 tail stage/view
+observations/12 surviving lone characters and27 invisible-eviction stages; existing135/0 and
+46k privacy corpus, lifecycle/compiler/clock/root controls were freshly rerun.
+The original26/9 external-oracle result and corrected10/0 remain distinct. Four disclosed tooling
+issues concern C1/PTY/canonical-path oracles, wrong-property replay path, removed-cwd comparison
+and shell-backtick corruption in report-source generation before execution; no successful test/CI retry.
+The new functional negatives override unqualified AC-18/25/27 support; the raw report is unchanged.
+Report SHA-256 `5f3e83130536e646336e525ec7b90bae204109ed0803691b62e96aadaa3c4d07`;
+rows `6aaa6857a6252e8715529b8849354735679701a4d4adfb3dc6c48e7e3d1e9942`;
+manifest `fe45c413fe3ae9ae9ecc84551d8259de36d45191be4c6955ccaf6d941d589b44`.
+Actual authenticated collect0/checkblocked2 still lacks genuine exact-revision code/security/
+distinct-verifier attestations. Static review-v found no further issue in its12-file scope,
+but does not override the hosted findings. Current correction needs fresh exact-revision checks.
+## Hosted and independent review on 8ca1e7c
 
 All current checks finished before this inventory. CI `42301213738` succeeded at22:06:46Z;
 hosted review `42301214684` completed at22:05:58Z, posting two maintenance findings

@@ -6,7 +6,14 @@ import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {contextSchema, evidencePath, laneSchema} from './evidence-schema'
 import {artifactName} from './gate'
-import {currentPullRequest, githubJSON, providerArtifact, providerJob, requiredCIWorkflow} from './github-evidence'
+import {
+  currentPullRequest,
+  githubJSON,
+  providerArtifact,
+  providerArtifacts,
+  providerJob,
+  requiredCIWorkflow,
+} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
@@ -83,7 +90,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
               context,
               `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`,
             ),
-            ports.githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),
+            providerArtifacts(context, ports.githubJSON),
             requiredCIWorkflow(context, ports.githubJSON),
           ])
           const identity = z
@@ -108,8 +115,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
             throw new Error('Provider workflow identity mismatch')
           return {
             jobs: z.object({total_count: z.number().max(100), jobs: z.array(jobSchema)}).parse(jobs).jobs,
-            artifacts: z.object({total_count: z.number().max(100), artifacts: z.array(artifactSchema)}).parse(artifacts)
-              .artifacts,
+            artifacts: z.array(artifactSchema).parse(artifacts),
           }
         })(),
       )

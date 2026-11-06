@@ -7,7 +7,8 @@ import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
 import {blockedGateSummary} from './gate-summary'
-import {githubJSON, providerArtifact, providerJob} from './github-evidence'
+import type {providerArtifact} from './github-evidence'
+import {githubJSON, providerArtifacts, providerJob} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
 import {assessLane} from './validation-policy'
@@ -86,9 +87,7 @@ export async function runGate(
     read(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`).then(
       (raw) => z.object({total_count: z.number().max(100), jobs: z.array(providerJob)}).parse(raw).jobs,
     ),
-    read(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`).then(
-      (raw) => z.object({total_count: z.number().max(100), artifacts: z.array(providerArtifact)}).parse(raw).artifacts,
-    ),
+    providerArtifacts(context, read),
   ])
   const result = await deterministicGate(
     context,

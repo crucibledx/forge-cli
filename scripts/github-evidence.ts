@@ -18,6 +18,38 @@ export const providerArtifact = z.object({
   created_at: z.string(),
 })
 
+/** Enumerate retained attempts before selecting this attempt's artifacts. */
+export async function providerArtifacts(context: EvidenceContext, read = githubJSON) {
+  const selected: z.infer<ReturnType<typeof providerArtifact.passthrough>>[] = []
+  const seen = new Set<number>()
+  let total: number | undefined
+  let listed = 0
+  for (let page = 1; page <= 100; page++) {
+    const response = z
+      .object({
+        total_count: z.number().int().min(0).max(10000),
+        artifacts: z.array(providerArtifact.passthrough()).max(100),
+      })
+      .parse(
+        await read(
+          context,
+          `/actions/runs/${context.run_id}/artifacts?per_page=100${page === 1 ? '' : `&page=${page}`}`,
+        ),
+      )
+    if (total !== undefined && response.total_count !== total) throw new Error('Provider artifact listing changed')
+    total = response.total_count
+    for (const artifact of response.artifacts) {
+      if (seen.has(artifact.id)) throw new Error('Duplicate provider artifact page entry')
+      seen.add(artifact.id)
+      if (artifact.name.startsWith(`validation-${context.run_id}-${context.run_attempt}-`)) selected.push(artifact)
+    }
+    listed += response.artifacts.length
+    if (listed === total) return selected
+    if (listed > total || response.artifacts.length !== 100) throw new Error('Incomplete provider artifact listing')
+  }
+  throw new Error('Provider artifact pagination limit exceeded')
+}
+
 /** The required workflow comes from repository policy, never the supplied bundle. */
 export async function requiredCIWorkflow(context: EvidenceContext, read = githubJSON) {
   const file = 'ci.yml'

@@ -16,6 +16,7 @@ export const testSuites = {
   security: [
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'e2e/framework/contracts/redaction-tail.test.ts',
+    'e2e/framework/contracts/lifecycle.test.ts',
     'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
     'src/infrastructure/fs/transaction.test.ts',
