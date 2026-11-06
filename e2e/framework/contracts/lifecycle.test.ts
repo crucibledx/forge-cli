@@ -34,7 +34,8 @@ describe('BR-09 lifecycle contracts (AC-18)', () => {
     expect(activeProcesses.size).toBe(0)
   })
   it('kills the leader and a SIGTERM-resistant descendant', async () => {
-    const result = await runPipe(dir(), [process.execPath, fixture, 'descendant'], {timeoutMs: 200})
+    const result = await runPipe(dir(), [process.execPath, fixture, 'descendant'], {timeoutMs: 2000})
+    expect(result.timedOut).toBe(true)
     const pids = JSON.parse(result.output)
     expect(dead(pids.parent)).toBe(true)
     expect(dead(pids.child)).toBe(true)
@@ -58,16 +59,18 @@ describe('BR-09 lifecycle contracts (AC-18)', () => {
     writeFileSync(
       nested,
       `
-import {it} from 'bun:test'
+import {it, beforeAll} from 'bun:test'
 import {spawnPty} from ${JSON.stringify(spawn)}
-it('intentional runner timeout', async () => {
+beforeAll(async () => {
  const cli = spawnPty(${JSON.stringify(dir())}, [process.execPath, ${JSON.stringify(fixture)}, 'descendant', ${JSON.stringify(pidFile)}])
  await cli.waitForText('parent')
+}, 5000)
+it('intentional runner timeout after fixture readiness', async () => {
  await new Promise(() => {})
 }, 200)
 `,
     )
-    const result = await runPipe(dir(), [process.execPath, 'test', nested], {timeoutMs: 5000})
+    const result = await runPipe(dir(), [process.execPath, 'test', nested], {timeoutMs: 10000})
     expect(result.exitCode).not.toBe(0)
     expect(result.timedOut).toBe(false)
     expect(existsSync(pidFile)).toBe(true)

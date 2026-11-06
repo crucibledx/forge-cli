@@ -1,6 +1,7 @@
 import {readFileSync, statSync} from 'node:fs'
 import {resolve} from 'node:path'
 
+import {type TestSuite, testSuites} from './registry/suites'
 import {createTestSandbox} from './test-sandbox'
 
 export async function runTests(args: string[]): Promise<number> {
@@ -11,6 +12,10 @@ export async function runTests(args: string[]): Promise<number> {
   }
   // `bun run file.ts -- ...` consumes the separator; direct execution retains it.
   if (args[0] === '--') args = args.slice(1)
+  if (args[0] === '--suite') {
+    if (args.length !== 2 || !Object.hasOwn(testSuites, args[1])) throw new Error('Unknown or malformed test suite')
+    args = [...testSuites[args[1] as TestSuite]]
+  }
   if (!['20000', '40000'].includes(timeout) || !args.length || args.some((arg) => arg.startsWith('-'))) {
     throw new Error('Usage: run-tests.ts [--timeout-ms 20000|40000] -- <paths...>')
   }

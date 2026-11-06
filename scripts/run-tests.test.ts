@@ -9,6 +9,15 @@ import type {createTestSandbox} from './test-sandbox'
 
 describe('isolated launcher regressions (BR-09,10)', () => {
   const dir = useTmpDir('launcher-contracts')
+  it('AC-25 suite selection uses the registry and still rejects unknown flags/suites', async () => {
+    const launcher = resolve(import.meta.dir, 'run-tests.ts')
+    for (const args of [['--suite', 'unknown'], ['--arbitrary'], ['--suite', 'unit', 'extra']]) {
+      expect((await runPipe(dir(), [process.execPath, launcher, ...args])).exitCode).toBe(2)
+    }
+    const valid = await runPipe(dir(), [process.execPath, launcher, '--suite', 'properties'])
+    expect(valid.exitCode).toBe(0)
+    expect(valid.stderr).toContain('6 pass')
+  })
   it('separates global module mocks from real safety modules, independent of file order', async () => {
     const suite = join(dir(), 'suite')
     mkdirSync(suite)

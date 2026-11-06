@@ -32,6 +32,7 @@ interface SessionRecord {
     content?: {type: string; text?: string; id?: string; name?: string; input?: {subagent_type?: string}}[]
   }
 }
+/** Supporting local transcript parser only. Writable logs do not authenticate independent approval. */
 export async function sessionProducer(uri: string, sessionRoot = join(homedir(), '.factory/sessions')) {
   const match = /^factory-session:\/\/([a-f0-9-]{36})\/([a-f0-9-]{36})$/.exec(uri)
   if (!match || match[1] === match[2]) throw new Error('Invalid independent session reference')

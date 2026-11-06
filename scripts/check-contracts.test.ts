@@ -37,3 +37,49 @@ it.each(['pin', 'minimum', 'lock', 'rule', 'path', 'lane', 'workflow', 'fail-fas
     expect(validateContracts(input).length).toBeGreaterThan(0)
   },
 )
+it.each([
+  'release-setup-removed',
+  'ci-setup-removed',
+  'release-job-removed',
+  'check-command',
+  'gate-command',
+  'ci-alias',
+])('AC-24,25 fails closed for %s even when the guarded step is removed', (kind) => {
+  const original = contractInputs()
+  const input = {
+    ...original,
+    ci: structuredClone(original.ci),
+    release: structuredClone(original.release),
+    package: structuredClone(original.package),
+  }
+  if (kind === 'release-setup-removed')
+    for (const job of Object.values(input.release.jobs) as {steps: {uses?: string; run?: string}[]}[]) {
+      job.steps = job.steps.filter((step) => !step.uses?.startsWith('oven-sh/setup-bun@'))
+      for (const step of job.steps) if (step.run === 'bun install --frozen-lockfile') step.run = 'bun install'
+    }
+  if (kind === 'ci-setup-removed')
+    input.ci.jobs.lanes.steps = input.ci.jobs.lanes.steps.filter(
+      (step: {uses?: string}) => !step.uses?.startsWith('oven-sh/setup-bun@'),
+    )
+  if (kind === 'release-job-removed') delete input.release.jobs.build
+  if (kind === 'check-command')
+    input.ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Independent check 1').run = 'echo passed'
+  if (kind === 'gate-command')
+    input.ci.jobs.gate.steps.find(
+      (step: {name?: string}) => step.name === 'All-results summary and fail-closed gate',
+    ).run = 'echo passed'
+  if (kind === 'ci-alias') input.package.scripts['ci:gate'] = 'echo passed'
+  expect(validateContracts(input).length).toBeGreaterThan(0)
+})
+it.each(['missing-suite-path', 'unmapped-suite-file', 'uncovered-native-ac', 'uncovered-security-ac'])(
+  'AC-25 rejects curated suite drift: %s',
+  (kind) => {
+    const original = contractInputs()
+    const input = {...original, suites: structuredClone(original.suites), lanes: structuredClone(original.lanes)}
+    if (kind === 'missing-suite-path') input.suites.security = ['does-not-exist.test.ts']
+    if (kind === 'unmapped-suite-file') input.suites.security = [...input.suites.security, 'e2e/commands/help.test.ts']
+    if (kind === 'uncovered-native-ac') input.lanes.find((lane) => lane.id === 'native-windows')!.ac_ids.push('AC-32')
+    if (kind === 'uncovered-security-ac') input.lanes.find((lane) => lane.id === 'security')!.ac_ids.push('AC-32')
+    expect(validateContracts(input).length).toBeGreaterThan(0)
+  },
+)

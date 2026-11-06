@@ -4,15 +4,14 @@ import {join} from 'node:path'
 
 import {parse as parseYaml} from 'yaml'
 
+import {CONFIG_PATH, CRUCIBLE_DIR} from '@domain/config/paths'
+
 import {createConfinement} from '../fs/confinement'
 import {projectConfigSchema} from './schema'
 import type {GetProjectConfigPathFunction, LoadProjectConfigFunction, ProjectConfigExistsFunction} from './types'
 
-const CRUCIBLE_DIR = '.crucible'
-const CONFIG_FILE = 'forge.config.yaml'
-
 export const loadProjectConfig: LoadProjectConfigFunction = async (projectRoot) => {
-  const configPath = await (await createConfinement(projectRoot)).resolve('.crucible/forge.config.yaml')
+  const configPath = await (await createConfinement(projectRoot)).resolve(CONFIG_PATH)
 
   if (!existsSync(configPath)) {
     return null
@@ -24,7 +23,7 @@ export const loadProjectConfig: LoadProjectConfigFunction = async (projectRoot) 
 }
 
 export const getProjectConfigPath: GetProjectConfigPathFunction = (projectRoot) => {
-  return join(projectRoot, CRUCIBLE_DIR, CONFIG_FILE)
+  return join(projectRoot, CONFIG_PATH)
 }
 
 export const projectConfigExists: ProjectConfigExistsFunction = (projectRoot) => {

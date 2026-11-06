@@ -35,6 +35,11 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   target/config/state snapshot or deliberately rebuild state. A hash is not a backup.
 - State/config timestamps advance together on successful apply, including no-op. Preview and pre-apply errors
   preserve them. When compensation is incomplete, metadata named in the emergency is **untrusted**.
+- Legacy Windows backslash keys normalize to slash-separated state keys in memory before planning/status.
+  Competing canonical keys fail rather than overwrite one another; case/NFC aliases still fail the full graph.
+- Newly generated backups are private, including under umask022. Reusing an existing identical backup does not
+  change its permissions. Status resolves upstream content for configured disabled assistants as well as enabled
+  ones; disabling an assistant does not imply that its source disappeared.
 - Silent mode suppresses normal presentation, not failure exits. Incomplete compensation always emits minimal
   recovery-required stderr, even if reports also fail. Preserve backups/recovery temporaries, restore targets,
   config and state from one known-good snapshot, then dry-run. Do not retry writes with untrusted metadata.
@@ -45,6 +50,9 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
 power-loss atomicity guarantee. Confinement rejects pre-existing escapes, not hostile concurrent directory swaps.
 Existing POSIX permission bits are preserved; new metadata is private. Ownership, timestamps, extended attributes
 and alternate data streams are not preserved guarantees.
+
+POSIX sessions use a separate durable process-group owner. IPC disconnect cleans its group even when the outer
+validation deadline SIGKILLs the test runner before its `finally` can run. Native Windows retains Job Object ownership.
 
 Windows replacement uses access-preserving `ReplaceFileW` or refuses. Deletion snapshots the DACL and inheritance
 control for restoration. Transaction temporaries atomically receive an owner/SYSTEM-only protected DACL before
@@ -63,6 +71,11 @@ Default session deadline is 10 seconds with a 20-second test budget; 30-second s
 
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
 native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.
+Suite membership lives in `scripts/registry/suites.ts`, not package-script argument lists. Unit files stay co-located
+with their layers; security and platform suites intentionally overlap them. `test:platform` means additional native
+OS checks, not all Linux validation: portable suites plus the independent Linux build already cover Linux.
+Contract guards reject missing curated paths, files with no declared lane AC label and unmapped declared AC labels.
+Labels only prevent attribution drift; executable assertions and independent review remain necessary.
 `bun run check:lanes -- --out results` runs at most two independent commands concurrently and collects all results.
 Foreign native modules are blocked, not emulated. Local evidence cannot substitute for PR merge validation.
 Exits: 1 for proven failure, 2 for otherwise incomplete evidence, 0 only for complete required successes.
@@ -88,6 +101,25 @@ Readiness is two-phase: independent exact-revision implementation checks and syn
 completed producer attestations, selected-run artifacts and one final aggregation second. No previous readiness
 report bootstraps its own success. The [approved supporting contract](quality-gate-readiness-contract.md) defines
 strict sidecars and provenance. Missing adapters/attestations remain blocked; prose saying “ready” is not evidence.
+
+Each check must cite its own `checks/<lane>/<check>.log`. The production provider validates its selected-run ZIP
+digest, original context and lane JSON, check bytes, successful job and citing lane. Producer reports cannot replace
+CI check logs, and one lane's log cannot stand in for another. Collection obtains the real selected gate job and
+requires `deviations.json` explicitly; a missing file is not evidence that no deviations exist.
+
+**Local session files are supporting reports, never independent approval.** The production adapter rejects
+`factory-session://` producers, even with valid schemas and hashes. Its supported authenticated producer is a
+provider-hosted `factory-droid[bot]` GitHub review on the selected PR and head. Its unique `forge-evidence-v1` block
+must contain `raw_report_markdown`, `reviews` and `verifier`, following the strict producer schema. Every record binds
+both head/tested SHAs, role, review ID, actor, exact review URI, raw-report SHA-256 and completion timestamp.
+The independently operated app must finalize that block with its own review ID/URI after creating the review;
+an implementer-posted copy or prose-only bot review is insufficient. Verification requires a different producer ID
+from code/security review. Readiness also checks the live PR head/base/merge rather than accepting stale evidence.
+
+This adapter does not make the existing review service emit such an attestation. If the existing independently
+operated review/verifier cannot provide it, readiness stays **blocked** and the PR stays draft. Do not manufacture
+a payload, post as the owner, reuse a local transcript as authentication, or change shared reviewer services/settings.
+The Nov5 readiness result for PR6 used the weaker local trust path and is withdrawn as sufficient approval.
 
 The owner must configure required `Deterministic gate` and independent reviews in branch rules after inspecting
 the actual check names. Agents do not change repository settings, merge, release or grant deviations. Report

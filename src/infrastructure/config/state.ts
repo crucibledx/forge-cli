@@ -3,8 +3,9 @@ import {dirname, join} from 'node:path'
 
 import {z} from 'zod'
 
+import {STATE_PATH} from '@domain/config/paths'
 import type {SyncState} from '@domain/sync/state'
-import {emptySyncState} from '@domain/sync/state'
+import {emptySyncState, SYNC_BASELINES} from '@domain/sync/state'
 
 import {createConfinement} from '../fs/confinement'
 
@@ -27,31 +28,32 @@ const currentSchema = z
   .object({
     ...stateFields,
     version: z.literal(2),
-    files: z.record(pathSchema, entrySchema.extend({baseline: z.enum(['installed', 'legacy-unknown'])}).strict()),
+    files: z.record(pathSchema, entrySchema.extend({baseline: z.enum(SYNC_BASELINES)}).strict()),
   })
   .strict()
 
 export function parseSyncState(input: unknown): SyncState {
-  if (input && typeof input === 'object' && 'version' in input) return currentSchema.parse(input)
-  const legacy = legacySchema.parse(input)
+  const current = input && typeof input === 'object' && 'version' in input
+  const parsed: SyncState = current ? currentSchema.parse(input) : legacySchema.parse(input)
+  const files: SyncState['files'] = {}
+  for (const [path, entry] of Object.entries(parsed.files)) {
+    const key = path.replaceAll('\\', '/')
+    if (Object.hasOwn(files, key)) throw new Error(`Competing tracked paths after separator normalization: ${key}`)
+    files[key] = {...entry, baseline: entry.baseline ?? SYNC_BASELINES.LEGACY_UNKNOWN}
+  }
   return {
     version: 2,
-    lastSync: legacy.lastSync,
-    files: Object.fromEntries(
-      Object.entries(legacy.files).map(([path, entry]) => [path, {...entry, baseline: 'legacy-unknown'}]),
-    ),
+    lastSync: parsed.lastSync,
+    files,
   }
 }
 
-const CRUCIBLE_DIR = '.crucible'
-const STATE_FILE = 'sync-state.json'
-
 export function getSyncStatePath(projectRoot: string): string {
-  return join(projectRoot, CRUCIBLE_DIR, STATE_FILE)
+  return join(projectRoot, STATE_PATH)
 }
 
 export async function loadSyncState(projectRoot: string): Promise<SyncState> {
-  const statePath = await (await createConfinement(projectRoot)).resolve('.crucible/sync-state.json')
+  const statePath = await (await createConfinement(projectRoot)).resolve(STATE_PATH)
   try {
     return parseSyncState(JSON.parse(await readFile(statePath, 'utf-8')))
   } catch (error) {

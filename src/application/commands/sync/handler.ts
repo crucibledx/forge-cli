@@ -1,15 +1,12 @@
-import {stringify as stringifyYaml} from 'yaml'
-
 import type {AssistantDefinition} from '@domain/assistants'
 import {getAllAssistants, getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
-import {redact, redactData} from '@domain/redact'
+import {redact} from '@domain/redact'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {CONFIG_PATH, STATE_PATH, validatePathGraph} from '@domain/sync/plan'
 import {reconcileState} from '@domain/sync/reconcile'
-import {buildSyncReport} from '@domain/sync/report'
 import {resolveTargets} from '@domain/sync/resolver'
 import type {SyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
@@ -17,21 +14,22 @@ import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadSyncState} from '@infrastructure/config/state'
-import {CONFIG_HEADER} from '@infrastructure/config/writer'
+import {serializeProjectConfig} from '@infrastructure/config/writer'
 import {createConfinement} from '@infrastructure/fs/confinement'
-import {readFileBytes} from '@infrastructure/fs/reader'
+import {createFileReader} from '@infrastructure/fs/reader'
 import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
 import {prepareTransaction, TransactionError, transactionIO} from '@infrastructure/fs/transaction'
 import type {IOContext, IOService} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
 import type {ReportService} from '@infrastructure/report'
-import {createReportService} from '@infrastructure/report'
 import {loadSourceFiles} from '@infrastructure/source'
 import {setTelemetryContext} from '@infrastructure/telemetry'
 
 import {CommandError} from '../types'
+import {SafetyError} from './errors'
 import {SYNC_MESSAGES as M} from './messages'
+import {persistOutcome} from './outcome'
 import type {SyncCommandAction, SyncOptions} from './types'
 
 interface SyncDependencies {
@@ -39,15 +37,6 @@ interface SyncDependencies {
   reports?: ReportService
   loadSource?: typeof loadSourceFiles
   transaction?: TransactionIO
-}
-
-class SafetyError extends CommandError {
-  constructor(
-    message: string,
-    readonly errorCount = 1,
-  ) {
-    super(redact(message), 'Correct the source/path or conflict policy, then run forge sync --dry-run before applying.')
-  }
 }
 
 export const runSync: SyncCommandAction = (options) => runSyncWithDependencies(options)
@@ -60,32 +49,16 @@ export async function runSyncWithDependencies(
   const started = Date.now()
   const logger = createFileLogger()
   let config: ProjectConfig | undefined
-  const persist = async (success: boolean, summaries: SyncFileSummary[], error?: unknown) => {
-    if (options.dryRun) return
-    const reports = dependencies.reports ?? createReportService()
-    const message = error instanceof Error ? error.message : error === undefined ? undefined : String(error)
-    const count = (...statuses: string[]) => summaries.filter((summary) => statuses.includes(summary.status)).length
-    const report = buildSyncReport({
-      startTime: started,
-      sources: config?.sources.map((source) => source.name) ?? [],
-      assistants: config?.assistants.filter((assistant) => assistant.enabled).map((assistant) => assistant.id) ?? [],
-      synced: success ? count(S.NEW, S.UPDATE, S.DELETED) : 0,
-      skipped: success ? count(S.NO_CHANGE) : 0,
-      conflicts: success ? count(S.SKIPPED) : 0,
-      errors: success ? 0 : error instanceof SafetyError ? Math.max(1, error.errorCount) : 1,
-      driftDetails: [],
+  const persist = (success: boolean, summaries: SyncFileSummary[], error?: unknown) =>
+    persistOutcome({
+      dryRun: Boolean(options.dryRun),
+      started,
+      config,
+      reports: dependencies.reports,
       success,
-      error: message === undefined ? undefined : redact(message),
+      summaries,
+      error,
     })
-    try {
-      await reports.writeReport(redactData(report))
-      await reports.rotate()
-    } catch {
-      renderer.renderWarning(
-        'Report storage unavailable; the sync outcome is unchanged. Preserve the primary diagnostic.',
-      )
-    }
-  }
   try {
     const service = dependencies.io ?? io
     const boundary = await createConfinement(service.resolveProjectRoot())
@@ -115,11 +88,8 @@ export async function runSyncWithDependencies(
     warnings.forEach(renderer.renderWarning)
     displayPlan(summaries, config.sources, syncConfig, options.dryRun)
     const next = reconcileState(state, resolved, summaries, new Date().toISOString())
-    const prepared = await prepareTransaction(
-      boundary.root,
-      operationsFor(mutations, next, context),
-      dependencies.transaction,
-    )
+    // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
+    const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
     if (options.dryRun) return
     await commitPrepared(prepared)
     const synced = summaries.filter(
@@ -202,10 +172,12 @@ export async function buildPlan(
   const warnings: string[] = []
   const errors: string[] = []
   const backups: string[] = []
+  const read = await createFileReader(root)
   const selected = targets.filter((target) => enabled.has(target.assistantId))
   const paths = selected.map((target) => target.targetPath)
   const desired = new Set(paths)
   const graph = [...paths, ...Object.keys(state.files).filter((path) => !desired.has(path)), STATE_PATH, CONFIG_PATH]
+  // Validate desired/state/metadata aliases before planning can read any candidate.
   validatePathGraph(graph)
   const active = selected.filter((target) => {
     const owner = resolveAssistantByPath(target.targetPath)
@@ -216,7 +188,7 @@ export async function buildPlan(
   const backup = async (path: string, content: Buffer) => {
     const backupPath = `${path}.bak`
     backups.push(backupPath)
-    const existing = await readFileBytes(root, backupPath)
+    const existing = await read(backupPath)
     if (existing !== null && !existing.equals(content))
       throw new Error(`Different backup already exists: ${backupPath}; preserve or move it before retrying`)
     const text = content.toString('utf8')
@@ -234,7 +206,7 @@ export async function buildPlan(
   }
   for (const target of active) {
     try {
-      const existing = await readFileBytes(root, target.targetPath)
+      const existing = await read(target.targetPath)
       const equal = existing !== null && existing.equals(Buffer.from(target.content))
       let status: SyncFileSummary['status'] = existing === null ? S.NEW : equal ? S.NO_CHANGE : S.UPDATE
       if (existing !== null && !equal) {
@@ -262,7 +234,7 @@ export async function buildPlan(
         continue
       }
       try {
-        const existing = await readFileBytes(root, path)
+        const existing = await read(path)
         const changed = existing !== null && (entry.baseline !== 'installed' || hashContent(existing) !== entry.hash)
         const skip = changed && policy(path) === S.SKIPPED
         if (!skip) {
@@ -275,6 +247,7 @@ export async function buildPlan(
       }
     }
   }
+  // Recheck after generated backups exist: the first graph cannot detect .bak collisions.
   validatePathGraph([...graph, ...backups])
   if (errors.length)
     throw new SafetyError(`Planning failed; no protected data changed:\n${errors.join('\n')}`, errors.length)
@@ -284,21 +257,27 @@ export async function buildPlan(
 function operationsFor(mutations: Mutation[], next: SyncState, context: IOContext): FileOperation[] {
   const operations: FileOperation[] = mutations.map((mutation) => {
     if (mutation.type === MT.FILE_WRITE)
-      return {path: mutation.path, content: mutation.content, backup: mutation.backup === true}
+      return {
+        path: mutation.path,
+        content: mutation.content,
+        backup: mutation.backup === true,
+        private: mutation.backup === true,
+      }
     if (mutation.type === MT.FILE_DELETE) return {path: mutation.path, content: null}
     throw new Error(`Unsupported sync operation: ${mutation.type}`)
   })
+  // Commit targets/backups, then state, then config; compensation must reverse this metadata boundary.
   operations.push({path: STATE_PATH, content: JSON.stringify(next, null, 2) + '\n', private: true})
   if (context.projectConfig)
     operations.push({
       path: CONFIG_PATH,
-      content: CONFIG_HEADER + stringifyYaml({...context.projectConfig, lastSync: next.lastSync}, {lineWidth: 120}),
+      content: serializeProjectConfig({...context.projectConfig, lastSync: next.lastSync}),
       private: true,
     })
   return operations
 }
 
-async function commitPrepared(prepared: Awaited<ReturnType<typeof prepareTransaction>>): Promise<void> {
+export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepareTransaction>>): Promise<void> {
   try {
     await prepared.commit()
   } catch (error) {
@@ -314,15 +293,14 @@ async function commitPrepared(prepared: Awaited<ReturnType<typeof prepareTransac
   }
 }
 
-export async function executePlan(
+export function prepareSync(
   root: string,
   mutations: Mutation[],
   next: SyncState,
   context: IOContext,
   fs = transactionIO,
-): Promise<void> {
-  const prepared = await prepareTransaction(root, operationsFor(mutations, next, context), fs)
-  await commitPrepared(prepared)
+) {
+  return prepareTransaction(root, operationsFor(mutations, next, context), fs)
 }
 
 export function displayPlan(

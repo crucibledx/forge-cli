@@ -3,13 +3,13 @@ import {resolve} from 'node:path'
 
 import {z} from 'zod'
 
-import {assessLane} from './check-lanes'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
 import {githubJSON} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
+import {assessLane} from './validation-policy'
 
 const providerJob = z.object({
   id: z.number().int().positive(),

@@ -4,6 +4,7 @@ import {testEnvironment} from '../../scripts/test-sandbox'
 import {CLI_ENTRY} from './constants'
 import {ENTER} from './keys'
 import type {ProcessOptions} from './pipe'
+import {posixOwnership} from './posix-owner'
 import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
 
 export interface CLIResult {
@@ -42,19 +43,23 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   let timedOut = false
   let disposal: Promise<void> | undefined
   const notify = () => listeners.forEach((listener) => listener())
-  const proc = Bun.spawn(command, {
-    cwd,
-    env: testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env}),
-    detached: true,
-    terminal: {
-      cols: 80,
-      rows: 24,
-      data(_terminal, bytes) {
-        transcript.append(bytes)
-        notify()
+  const ownership = posixOwnership(command)
+  const proc = ownership.wrap(
+    Bun.spawn(ownership.command, {
+      cwd,
+      env: testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env}),
+      detached: true,
+      ipc: ownership.ipc,
+      terminal: {
+        cols: 80,
+        rows: 24,
+        data(_terminal, bytes) {
+          transcript.append(bytes)
+          notify()
+        },
       },
-    },
-  })
+    }),
+  )
   const term = proc.terminal!
   const getOutput = () => sanitize(transcript.text(), cwd, options.secrets)
   const mark = () => transcript.offset + transcript.text().length

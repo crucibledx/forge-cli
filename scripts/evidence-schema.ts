@@ -30,7 +30,7 @@ export const sourceUri = z
         !value.username &&
         !value.password &&
         !value.search &&
-        /^\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(?:actions\/runs\/\d+(?:\/attempts\/\d+)?(?:\/job\/\d+)?|issues\/\d+#issuecomment-\d+|pull\/\d+#(?:pullrequestreview|discussion_r)\d+)$/.test(
+        /^\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(?:actions\/runs\/\d+(?:\/attempts\/\d+)?(?:\/job\/\d+)?|issues\/\d+#issuecomment-\d+|pull\/\d+#(?:pullrequestreview-|discussion_r)\d+)$/.test(
           value.pathname + value.hash,
         )
       )
@@ -104,7 +104,7 @@ export type LaneEvidence = z.infer<typeof laneSchema>
 export const provenanceSchema = z
   .object({
     producer_role: z.enum(['code', 'security', 'verifier']),
-    actor: id,
+    actor: z.union([id, z.literal('factory-droid[bot]')]),
     source_uri: sourceUri,
     report_sha256: digest,
     completed_at: z.iso.datetime(),

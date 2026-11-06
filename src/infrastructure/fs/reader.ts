@@ -38,12 +38,20 @@ export async function readFileContent(projectRoot: string, relativePath: string)
 }
 
 export async function readFileBytes(projectRoot: string, relativePath: string): Promise<Buffer | null> {
-  const fullPath = await (await createConfinement(projectRoot)).resolve(relativePath)
-  try {
-    return await readFile(fullPath)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-    throw error
+  return (await createFileReader(projectRoot))(relativePath)
+}
+
+/** Canonicalize one selected boundary, then reuse it for every file in that plan. */
+export async function createFileReader(projectRoot: string) {
+  const boundary = await createConfinement(projectRoot)
+  return async (relativePath: string): Promise<Buffer | null> => {
+    const fullPath = await boundary.resolve(relativePath)
+    try {
+      return await readFile(fullPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
   }
 }
 
@@ -56,8 +64,9 @@ export async function readDiskContents(
   syncState: SyncState,
 ): Promise<Record<string, string | Uint8Array | null>> {
   const result: Record<string, string | Uint8Array | null> = {}
+  const read = await createFileReader(projectRoot)
   for (const targetPath of Object.keys(syncState.files)) {
-    result[targetPath] = await readFileBytes(projectRoot, targetPath)
+    result[targetPath] = await read(targetPath)
   }
   return result
 }
