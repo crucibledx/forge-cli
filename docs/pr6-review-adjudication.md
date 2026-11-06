@@ -4,6 +4,22 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Latest hosted review on 6101759
+
+The owner's Nov6 follow-up identified four new inline comments. All four were confirmed.
+Six pinned-tooling security controls first demonstrated acceptance of an unrelated workflow, mismatched/missing
+workflow IDs, unavailable/incorrect workflow metadata and a mismatched workflow reference.
+
+| Comment | Correction and regression |
+| --- | --- |
+|4496254749 | Select only the independently specified `ci.yml` workflow: resolve its provider ID/canonical path, match both against the selected run and require the exact PR-merge workflow reference. Fabricated sibling-workflow archives are rejected before archive acquisition. |
+|4496254757 | Gate lookups settle independently; unavailable/malformed jobs or artifacts still produce an on-disk all-lane summary. Available provider IDs and known failed jobs survive sibling lookup failure. The actual entrypoint also persists ten blocked rows with null context when context verification fails; it never fabricates identity. |
+|4496254761 | Removed the unconsumed test-suite re-export from validation-lanes. Both production readers continue importing the registry authority directly. |
+|4496254778 | Removed the unconsumed portablePath re-export. The plan's local import and metadata exports remain intact. |
+
+The gate still exits unsuccessfully on provider/context failure. The blocked summary makes failure evidence
+uploadable; it is not a passing lane/gate or permission to merge. Frozen acceptance/dependencies remain unchanged.
+
 ## Follow-up hosted review 5804417415
 
 The owner requested resolution of the 12 findings on f86d115. All 12 were confirmed and corrected with pinned tooling.

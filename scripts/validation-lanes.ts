@@ -13,7 +13,6 @@ export interface ValidationLane {
 }
 const run = (id: string): ValidationCheck => ({id, command: ['bun', 'run', id]})
 const LANE_BUDGET_MS = 10 * 60 * 1000
-export {testSuites} from './registry/suites'
 export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'quality',

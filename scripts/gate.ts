@@ -72,29 +72,71 @@ export async function deterministicGate(
     lanes: rows,
   }
 }
+
+/** Keep independent provider responses even when a sibling lookup is unavailable. */
+export async function runGate(
+  context: EvidenceContext,
+  incoming: string,
+  pin: string,
+  output: string,
+  read = githubJSON,
+) {
+  const [jobs, artifacts] = await Promise.allSettled([
+    read(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`).then(
+      (raw) => z.object({total_count: z.number().max(100), jobs: z.array(providerJob)}).parse(raw).jobs,
+    ),
+    read(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`).then(
+      (raw) => z.object({total_count: z.number().max(100), artifacts: z.array(providerArtifact)}).parse(raw).artifacts,
+    ),
+  ])
+  const result = await deterministicGate(
+    context,
+    incoming,
+    pin,
+    jobs.status === 'fulfilled' ? jobs.value : [],
+    artifacts.status === 'fulfilled' ? artifacts.value : [],
+  )
+  const summary = {
+    ...result,
+    provider_errors: [
+      ...(jobs.status === 'rejected' ? ['Provider jobs unavailable or invalid'] : []),
+      ...(artifacts.status === 'rejected' ? ['Provider artifacts unavailable or invalid'] : []),
+    ],
+  }
+  await writeEvidence(output, summary)
+  return summary
+}
 if (import.meta.main) {
   try {
     const context = validationContext()
-    const [jobsRaw, artifactsRaw] = await Promise.all([
-      githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`),
-      githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),
-    ])
-    const jobs = z.object({total_count: z.number().max(100), jobs: z.array(providerJob)}).parse(jobsRaw).jobs
-    const artifacts = z
-      .object({total_count: z.number().max(100), artifacts: z.array(providerArtifact)})
-      .parse(artifactsRaw).artifacts
-    const result = await deterministicGate(
+    const result = await runGate(
       context,
       resolve(repositoryRoot, 'results/incoming'),
       (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim(),
-      jobs,
-      artifacts,
+      resolve(repositoryRoot, 'results/gate-summary.json'),
     )
-    await writeEvidence(resolve(repositoryRoot, 'results/gate-summary.json'), result)
     for (const lane of result.lanes)
       console.log(`${lane.lane_id}: ${lane.status}${lane.reason ? ` (${lane.reason})` : ''}`)
     process.exitCode = result.conclusion === 'success' ? 0 : 1
   } catch {
+    try {
+      await writeEvidence(resolve(repositoryRoot, 'results/gate-summary.json'), {
+        schema_version: 1,
+        context: null,
+        conclusion: 'failure',
+        provider_errors: ['Provider/context unavailable'],
+        lanes: validationLanes.map((lane) => ({
+          lane_id: lane.id,
+          status: 'blocked',
+          reason: 'Provider/context unavailable',
+          evidence: null,
+          provider_job_id: null,
+          artifact_id: null,
+        })),
+      })
+    } catch {
+      console.error('Blocked gate summary could not be persisted')
+    }
     for (const lane of validationLanes) console.error(`${lane.id}: blocked, provider/context unavailable`)
     process.exitCode = 1
   }

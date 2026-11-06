@@ -7,7 +7,7 @@ import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {contextSchema, evidencePath, laneSchema} from './evidence-schema'
 import {artifactName} from './gate'
-import {currentPullRequest, githubJSON, providerArtifact, providerJob} from './github-evidence'
+import {currentPullRequest, githubJSON, providerArtifact, providerJob, requiredCIWorkflow} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead} from './validation-context'
@@ -83,22 +83,33 @@ export function readinessProvider(
         key,
         (async () => {
           if (!/^\d+$/.test(context.run_id)) throw new Error('Local evidence has no authenticated native CI run')
-          const [run, jobs, artifacts] = await Promise.all([
+          const [run, jobs, artifacts, workflow] = await Promise.all([
             ports.githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}`),
             ports.githubJSON(
               context,
               `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`,
             ),
             ports.githubJSON(context, `/actions/runs/${context.run_id}/artifacts?per_page=100`),
+            requiredCIWorkflow(context, ports.githubJSON),
           ])
           const identity = z
-            .object({id: z.number().int(), run_attempt: z.number().int(), head_sha: z.string(), path: z.string()})
+            .object({
+              id: z.number().int().positive(),
+              run_attempt: z.number().int().positive(),
+              head_sha: z.string(),
+              path: z.string(),
+              workflow_id: z.number().int().positive(),
+            })
             .parse(run)
           if (
             String(identity.id) !== context.run_id ||
             identity.run_attempt !== context.run_attempt ||
+            identity.workflow_id !== workflow.id ||
+            identity.path !== workflow.path ||
             ![context.head_sha, context.tested_sha].includes(identity.head_sha) ||
-            !context.workflow_ref?.startsWith(`${context.repository}/${identity.path}@`)
+            (context.kind === 'pr'
+              ? context.workflow_ref !== `${context.repository}/${workflow.path}@refs/pull/${context.pr_number}/merge`
+              : !context.workflow_ref?.startsWith(`${context.repository}/${workflow.path}@`))
           )
             throw new Error('Provider workflow identity mismatch')
           return {
