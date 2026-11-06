@@ -7,6 +7,7 @@ import {expect, it} from 'bun:test'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {terminateTree} from '../e2e/framework/process'
 import {createTestSandbox} from './test-sandbox'
+import {repositoryRoot} from './validation-identity'
 import {executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
@@ -14,7 +15,7 @@ const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminat
 it('AC-25 setup failure returns a blocked diagnostic without spawning a command', async () => {
   let spawns = 0
   let setupBudget: number | undefined
-  const result = await executeCheck(['unused'], dir(), 17, {
+  const result = await executeCheck(['unused'], 17, {
     ...ports,
     createSandbox: (_prefix, _base, timeout) => {
       setupBudget = timeout
@@ -36,7 +37,6 @@ it.each(['tree', 'sandbox'] as const)(
     for (const code of [0, 1, 2]) {
       const result = await executeCheck(
         [process.execPath, '-e', `process.stderr.write('original diagnostic');process.exit(${code})`],
-        dir(),
         5000,
         {
           ...ports,
@@ -63,7 +63,7 @@ it.each(['tree', 'sandbox'] as const)(
   },
 )
 it.each([0, 1])('AC-25 diagnostic drain failure cannot pass or erase proven exit%s', async (code) => {
-  const result = await executeCheck(['injected-process'], dir(), 5000, {
+  const result = await executeCheck(['injected-process'], 5000, {
     ...ports,
     spawn: async () =>
       ({
@@ -85,7 +85,7 @@ it.each([0, 1])('AC-25 diagnostic drain failure cannot pass or erase proven exit
   expect(result.reason).toContain('fixture diagnostic drain failure')
 })
 it('AC-25 a proven failure survives a later pipe deadline', async () => {
-  const result = await executeCheck(['injected-process'], dir(), 50, {
+  const result = await executeCheck(['injected-process'], 50, {
     ...ports,
     spawn: async () =>
       ({
@@ -109,7 +109,6 @@ it('AC-25 a proven failure survives a later pipe deadline', async () => {
 it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure diagnostics', async () => {
   const result = await executeCheck(
     [process.execPath, '-e', "process.stdout.write('out');process.stderr.write('err');setInterval(()=>{},1000)"],
-    dir(),
     2000,
   )
   expect(result.timed_out).toBe(true)
@@ -117,6 +116,21 @@ it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure 
   expect(result.stdout).toBe('out')
   expect(result.stderr).toBe('err')
   expect(result.duration_ms).toBeLessThan(5000)
+})
+it('AC-25 validation execution and HEAD lookup use the checkout authority, not caller working directories', async () => {
+  const git = Bun.spawnSync(['git', '-C', repositoryRoot, 'rev-parse', 'HEAD'], {stdout: 'pipe', stderr: 'pipe'})
+  expect(git.exitCode).toBe(0)
+  const result = await executeCheck(
+    [
+      process.execPath,
+      '-e',
+      `import {actualHead} from ${JSON.stringify(join(import.meta.dir, 'validation-identity.ts'))};
+process.stdout.write(process.cwd());process.chdir(${JSON.stringify(dir())});process.stderr.write(actualHead());`,
+    ],
+    5000,
+  )
+  expect(result).toMatchObject({exit_code: 0, timed_out: false, stdout: '<repository>'})
+  expect(result.stderr).toBe(new TextDecoder().decode(git.stdout).trim())
 })
 it.each(['pipe', 'pty'])(
   'AC-18,19,25 outer deadline reaps detached %s descendants after hard-killing their runner',
@@ -145,7 +159,7 @@ it('runner dies before its own cleanup and ten-second session deadline', async (
       return value.exitCode !== 0 || new TextDecoder().decode(value.stdout).trim().startsWith('Z')
     }
     try {
-      const result = await executeCheck([process.execPath, 'test', nested], root, 2000)
+      const result = await executeCheck([process.execPath, 'test', nested], 2000)
       expect(result.timed_out).toBe(true)
       expect(result.exit_code).toBeNull()
       expect(existsSync(pidsPath)).toBe(true)

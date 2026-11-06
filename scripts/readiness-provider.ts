@@ -117,8 +117,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
   }
   const provider: ReadinessProvider = {
     async context(context) {
-      if (actualHead(repositoryRoot) !== context.tested_sha)
-        throw new Error('Bundle does not match the actual tested checkout')
+      if (actualHead() !== context.tested_sha) throw new Error('Bundle does not match the actual tested checkout')
       const clean = Bun.spawnSync(['git', '-C', repositoryRoot, 'diff', '--quiet', 'HEAD', '--'], {
         stdout: 'pipe',
         stderr: 'pipe',

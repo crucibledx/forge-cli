@@ -61,13 +61,25 @@ export interface RedactionSpan {
   end: number
 }
 
+function mergeSpans(spans: readonly RedactionSpan[], length: number): RedactionSpan[] {
+  const sorted = spans
+    .map(({start, end}) => ({start: Math.max(0, start), end: Math.min(length, end)}))
+    .filter(({start, end}) => start < end)
+    .sort((a, b) => a.start - b.start || a.end - b.end)
+  const merged: RedactionSpan[] = []
+  for (const span of sorted) {
+    const previous = merged.at(-1)
+    if (previous && span.start <= previous.end) previous.end = Math.max(previous.end, span.end)
+    else merged.push(span)
+  }
+  return merged
+}
+
 /** Recognize every span against unchanged input, then mask their union. */
 export function redactionSpans(text: string, options: RedactionOptions = {}): RedactionSpan[] {
   const spans: RedactionSpan[] = []
   const add = (start: number, end: number) => {
-    start = Math.max(0, start)
-    end = Math.min(text.length, end)
-    if (start < end) spans.push({start, end})
+    spans.push({start, end})
   }
   for (const span of options.spans ?? []) add(span.start, span.end)
   for (const credentialPrefix of ['', ...(options.credentialPrefixes ?? [])]) {
@@ -98,23 +110,20 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       if (secretPrefix.endsWith(secret.slice(0, size)) && secret.slice(size).startsWith(text)) add(0, text.length)
     }
   }
-  spans.sort((a, b) => a.start - b.start || a.end - b.end)
-  const merged: RedactionSpan[] = []
-  for (const span of spans) {
-    const previous = merged.at(-1)
-    if (previous && span.start <= previous.end) previous.end = Math.max(previous.end, span.end)
-    else merged.push({...span})
-  }
-  return merged
+  return mergeSpans(spans, text.length)
 }
-export function redact(text: string, options: RedactionOptions = {}): string {
+export function maskRedactionSpans(text: string, spans: readonly RedactionSpan[]) {
+  const merged = mergeSpans(spans, text.length)
   let result = '',
     cursor = 0
-  for (const span of redactionSpans(text, options)) {
+  for (const span of merged) {
     result += text.slice(cursor, span.start) + '[redacted]'
     cursor = span.end
   }
-  return result + text.slice(cursor)
+  return {text: result + text.slice(cursor), spans: merged}
+}
+export function redact(text: string, options: RedactionOptions = {}): string {
+  return maskRedactionSpans(text, redactionSpans(text, options)).text
 }
 /** Finite syntax-only contexts for concurrent recognizers. Never publish these. */
 export function redactionContext(discarded: string): string[] {

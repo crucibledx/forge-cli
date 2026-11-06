@@ -77,7 +77,6 @@ it('AC-25 actual pinned compiler diagnostics retain exit2 and fail the aggregate
               '--project',
               join(dir(), 'tsconfig.json'),
             ],
-            dir(),
             10000,
           )
         : {exit_code: 0, duration_ms: 1, timed_out: false, stdout: '', stderr: ''},

@@ -6,6 +6,7 @@ import {createTranscript, drainTranscript, terminateTree} from '../e2e/framework
 import {redact} from '../src/domain/redact'
 import type {TestSandbox} from './test-sandbox'
 import {createTestSandbox} from './test-sandbox'
+import {repositoryRoot} from './validation-identity'
 
 export interface CommandOutcome {
   exit_code: number | null
@@ -19,7 +20,6 @@ export interface CommandOutcome {
 /** Bounded diagnostics, closed stdin, isolated HOME/cache and owned process group. */
 export async function executeCheck(
   command: string[],
-  cwd: string,
   timeoutMs: number,
   ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree},
 ): Promise<CommandOutcome> {
@@ -46,7 +46,7 @@ export async function executeCheck(
     }
     child = await ports.spawn(
       [command[0] === 'bun' ? process.execPath : command[0], ...command.slice(1)],
-      cwd,
+      repositoryRoot,
       sandbox.env,
     )
     await Promise.race([
@@ -88,7 +88,7 @@ export async function executeCheck(
     }
   }
   const clean = (value: string) => {
-    const text = redact(stripAnsi(value)).replaceAll(cwd, '<repository>')
+    const text = redact(stripAnsi(value)).replaceAll(repositoryRoot, '<repository>')
     return sandbox ? text.replaceAll(sandbox.root, '<sandbox>') : text
   }
   return {

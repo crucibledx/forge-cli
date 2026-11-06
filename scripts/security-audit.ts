@@ -56,7 +56,7 @@ async function audit() {
   const lock = resolve(repositoryRoot, 'bun.lock')
   const hash = async () => hashContent(await readFile(lock))
   const before = await hash()
-  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], repositoryRoot, 60000)
+  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], 60000)
   return assessAudit(result, before === (await hash()))
 }
 if (import.meta.main) {
