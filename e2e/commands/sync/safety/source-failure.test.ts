@@ -1,4 +1,4 @@
-import {chmod, mkdir, rename, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, readFile, rename, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {protectedBytes} from '@test-helpers/sync-fixture'
@@ -14,6 +14,20 @@ import {testEnvironment} from '../../../../scripts/test-sandbox'
 import {command, config} from './helpers'
 
 const dir = useTmpDir('source-failure-matrix')
+it.each(['.', './', '.\\', '././'])('AC-2,8 Git root selector %s succeeds in actual preview and sync', async (path) => {
+  const root = dir()
+  const url = await createBareRepo(root, {'skills/deploy.md': SKILL_DEPLOY})
+  await config(root, [{name: 'root', type: 'git', url, branch: 'main', path}])
+  const before = await protectedBytes(root)
+  const preview = await command(root, ['sync', '--dry-run'])
+  expect(preview.exitCode).toBe(0)
+  expect(preview.stdout).toContain('Acquired "root"')
+  expect(await protectedBytes(root)).toEqual(before)
+  const applied = await command(root)
+  expect(applied.exitCode).toBe(0)
+  expect(applied.stdout).toContain('Acquired "root"')
+  expect(await readFile(join(root, '.claude/skills/deploy.md'), 'utf8')).toBe(SKILL_DEPLOY)
+})
 for (const kind of [
   'local-missing',
   'local-file',

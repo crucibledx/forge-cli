@@ -4,7 +4,41 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review and CI failure on 41f6cee
+## Latest hosted review on 26ac169
+
+All current checks finished before this inventory. CI `42294603204` passed at21:16:44Z,
+including the corrected default-budget security lane235/0 and deterministic gate. Hosted review
+`42294604236` completed at21:20:02Z, posting three findings (review5807141571).
+Inventory: **89 threads, 3 open**. One functional regression and two maintenance findings were confirmed.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4497713825 | Accept equivalent dot-directory Git root selectors, including trailing/repeated forward or backward separators and repeated dot components. Do not normalize away parent traversal; actual subdirectories still use unchanged confinement. Seven real cold/warm acquisition cases, six traversal/outside refusals, and four real CLI preview/apply cases cover success, protected-byte preservation and actual installed content. |
+|4497713839 | Remove the unconsumed confinement barrel exports and make the internally used custom error private. Keep createConfinement and every direct production/test consumer unchanged. This is API maintenance, not a newly reproduced safety failure. |
+|4497713863 | Derive partial query markers from the existing six-key registry. Keep separate Bearer/assignment-only markers and all existing literal/encoded/boundary/positive-output controls. This is shared-authority maintenance, not a newly reproduced leak. |
+
+Original new selector controls reproduced **37 pass/9 fail**, including three actual CLI preview failures.
+Corrected focused checks pass **183/0 in two isolated batches**. Final format, lint, types, contracts,
+full tests (**1375/0 in18 isolated batches**), build and compiled smoke all exit0.
+The seven cold/warm selectors cover both separator spellings on every OS; actual native CI is still required
+for Windows claims. No frozen acceptance text, workflow, deadline, dependency, lock or toolchain pin changed.
+
+Independent static review-s completed2026-11-06T21:14:20Z with no substantiated blocking/should-fix/nit
+findings in the preceding15-file correction scope plus relevant dependencies, with no dynamic tests executed.
+Parent-preserved return SHA-256 `1da7c2c7301ccdda96e33271d5b18489db87f68f20af6ab230842667f0d4593e`.
+
+Verifier-s completed2026-11-06T21:26:42.085256Z on26ac169/merge33ecd67 with32 implementation-check support
+passes in its executed scope, own1358/0 full suite and ten525/0 contract runs without retries.
+It directly exercised three actual historical-mark PTYs, completed negative-review parser/readiness controls,
+permission placement and outside-cwd launcher/compiled smoke. It authenticated eleven new original ZIPs,
+21 per-check logs, actual native224/0 per OS and compiled smoke on all three OSes. Security235/0 used
+the unchanged20s budget, with the slowest matrix case2645.45ms; all cuts/assertions remain covered.
+Actual phase2 remained blocked/exit2 for missing genuine code/security/verifier role attestations.
+The new Git selector counterexamples override an unqualified AC-2/8 claim despite those bounded passes;
+the original report is preserved, not rewritten or transferred to the next revision.
+Report SHA-256 `004cb3e527f1a9232d25da6c7059796b3ad506d6d15d8128a1609583cbc21828`.
+
+## Hosted review and CI failure on 41f6cee
 
 All checks completed before this inventory. CI `42292191041` failed at20:59:02Z: nine lanes passed,
 but security and the deterministic gate failed. Hosted review `42292192425` completed successfully
@@ -25,6 +59,14 @@ blocking/should-fix/nit findings and executed no tests; its scope does not overr
 Parent-preserved return SHA-256 `3fcc36e111e80f2aa527df37296b54419a725515a17d835c96e596472b244a48`.
 Independent verifier-r's executed results remain separate; no previous report, resolved thread or ready UI
 can override the selected run's failed security/gate outcomes.
+
+Its recovered final report completed2026-11-06T21:09:23.105541Z with30 phase1 passes and AC-18/30 failures
+for actual security runner-budget blockerVR-1. Actual phase2 was not-ready/exit1, preserving known security/gate
+failure precedence alongside missing genuine producer roles. Its own1330/0 full suite, ten497/0 contract runs
+and authenticated native224/0 per OS did not erase that failure. The subsequent parent cursor/provider negatives
+also bound its AC-17/32 support. Original classification11/1 fixture-selection error and separate corrected15/0
+matrix remain separate, not relabeled12/0.
+Report SHA-256 `f1a33fd18832b8e230aa9d2049d3356ebda4ff4fc2f8e019a70d21644308df98`.
 
 ## Hosted and independent review on a8f1853
 

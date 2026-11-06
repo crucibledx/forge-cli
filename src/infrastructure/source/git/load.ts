@@ -49,8 +49,9 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
     fresh = true
   }
 
-  const localPath =
-    git.path && git.path !== '.' ? await (await createConfinement(cacheDir)).resolve(git.path) : cacheDir
+  // Only dot-directory components select the root; never normalize away parent traversal.
+  const rootSelected = !git.path || /^\.(?:[/\\]+\.)*[/\\]*$/.test(git.path)
+  const localPath = rootSelected ? cacheDir : await (await createConfinement(cacheDir)).resolve(git.path!)
   logger.debug('git source: loaded', {localPath, fresh})
   return {localPath, fresh}
 }
