@@ -68,6 +68,9 @@ Use exact Bun `.bun-version` and `bun install --frozen-lockfile`. Full tests rem
 the disposable launcher. Focused: `bun run scripts/run-tests.ts -- <paths...>`. Never run raw `bun test`.
 Default session deadline is 10 seconds with a 20-second test budget; 30-second sessions need
 `--timeout-ms 40000` before `--`. PTY text is a transcript, not a reconstructed screen.
+Full/checker/platform entrypoints allow40 seconds for the30-second native compiler probe, without extending
+ordinary session deadlines. Windows primes one isolated compilation before test imports; fixtures receive separate
+byte copies, so disposing or altering one backend cannot affect another.
 
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
 native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.

@@ -15,6 +15,7 @@ const runtimeKeys = [
   'LC_ALL',
 ]
 const replayKeys = ['FC_SEED', 'FC_PATH']
+let windowsScheduler: Buffer | undefined
 
 export function allowlistedEnvironment(): Record<string, string> {
   const env: Record<string, string> = {}
@@ -75,13 +76,23 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
     NO_COLOR: '1',
   }
   if (process.platform === 'win32') {
-    const result = Bun.spawnSync(
-      [process.execPath, 'build', fake, '--compile', '--outfile', join(bin, 'schtasks.exe')],
-      {cwd: project, env, stdout: 'pipe', stderr: 'pipe'},
-    )
-    if (result.exitCode !== 0) {
-      rmSync(root, {recursive: true, force: true})
-      throw new Error('Cannot build isolated scheduler backend')
+    const executable = join(bin, 'schtasks.exe')
+    if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
+    else {
+      // Compile once with isolated env/cwd. Cache bytes, never a mutable shared
+      // file/hardlink: disposing or modifying one fixture cannot affect another.
+      const result = Bun.spawnSync([process.execPath, 'build', fake, '--compile', '--outfile', executable], {
+        cwd: project,
+        env,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 30000,
+      })
+      if (result.exitCode !== 0) {
+        rmSync(root, {recursive: true, force: true})
+        throw new Error('Cannot build isolated scheduler backend')
+      }
+      windowsScheduler = readFileSync(executable)
     }
   }
   writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
