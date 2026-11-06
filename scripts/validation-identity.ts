@@ -4,15 +4,14 @@ import {resolve} from 'node:path'
 import type {EvidenceContext} from './evidence-schema'
 import {requiredLaneIds} from './validation-lanes'
 
-export function actualHead(root: string): string {
-  const result = Bun.spawnSync(['git', '-C', root, 'rev-parse', 'HEAD'], {stdout: 'pipe', stderr: 'pipe'})
+export function actualHead(): string {
+  const result = Bun.spawnSync(['git', '-C', repositoryRoot, 'rev-parse', 'HEAD'], {stdout: 'pipe', stderr: 'pipe'})
   if (result.exitCode !== 0) throw new Error('Cannot determine immutable tested revision')
   return new TextDecoder().decode(result.stdout).trim()
 }
 /** Expected identity is from the checkout/event, never an uploaded lane. */
 export function rawValidationContext(): EvidenceContext {
-  const root = repositoryRoot
-  const tested = actualHead(root)
+  const tested = actualHead()
   if (process.env.GITHUB_ACTIONS === 'true') {
     const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH!, 'utf8'))
     if (event.repository?.full_name !== process.env.GITHUB_REPOSITORY || tested !== process.env.GITHUB_SHA)

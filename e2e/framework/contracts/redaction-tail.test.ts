@@ -18,19 +18,24 @@ it.each([
   ['https://user:\u001b[31mFIXTURE_SECRET\u001b[0m@fixture.invalid', []],
   ['https://fixture.invalid?%74oken=\u001b[31mFIXTURE_SECRET\u001b[0m', []],
   ['FI\u001b]0;format\u0007XTURE_SECRET', ['FIXTURE_SECRET']],
+  ['\u001b]8;;https://fixture.invalid/?token=FIXTURE_SECRET\u001b\\FIXTURE_SECRET\u001b]8;;\u001b\\', []],
+  ['\u001b]8;;https://fixture.invalid/?token=FIXTURE_SECRET\u0007FIXTURE_SECRET\u001b]8;;\u0007', []],
+  ['\u009d8;;https://fixture.invalid/?token=FIXTURE_SECRET\u009cFIXTURE_SECRET\u009d8;;\u009c', []],
 ] as const)('AC-15,16,30 formatted credentials stay private at every chunk boundary: %s', (value, known) => {
   const secrets = [...known]
-  for (let cut = 0; cut <= value.length; cut++) {
+  const bytes = Buffer.from(value)
+  for (let cut = 0; cut <= bytes.length; cut++) {
     const transcript = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
-    transcript.append(Buffer.from('visible-before\n' + value.slice(0, cut)))
-    transcript.append(Buffer.from(value.slice(cut) + '\nvisible-after'))
+    transcript.append(Buffer.concat([Buffer.from('visible-before\n'), bytes.subarray(0, cut)]))
+    transcript.append(Buffer.concat([bytes.subarray(cut), Buffer.from('\nvisible-after')]))
     transcript.finish()
-    const output = stripAnsi(transcript.diagnostic())
-    expect(output).not.toContain('FIXTURE_SECRET')
-    expect(output).toContain('visible-before')
-    expect(output).toContain('visible-after')
+    for (const output of [stripAnsi(transcript.diagnostic()), transcript.visibleDiagnostic()]) {
+      expect(output).not.toContain('FIXTURE_SECRET')
+      expect(output).toContain('visible-before')
+      expect(output).toContain('visible-after')
+    }
     const bounded = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
-    bounded.append(Buffer.from(value + '\n' + 'x'.repeat(TAIL_BYTES + cut - value.length - 1)))
+    bounded.append(Buffer.from(value + '\n' + 'x'.repeat(TAIL_BYTES + cut - bytes.length - 1)))
     const assertBounded = () => {
       const surviving = Array.from({length: 'FIXTURE_SECRET'.length}, (_, i) => 'FIXTURE_SECRET'.slice(i)).find(
         (suffix) => bounded.text().includes(suffix),
@@ -48,6 +53,65 @@ it.each([
     bounded.append(Buffer.from('after'))
     assertBounded()
     expect(bounded.visibleDiagnostic()).toEndWith('after')
+  }
+})
+it('AC-15,16,30 raw-only privacy survives multiple invisible evictions and finalization', () => {
+  const transcript = createTranscript()
+  transcript.append(
+    Buffer.from('\u001b]8;;https://fixture.invalid/?token=FIXTURE_SECRET\u001b\\FIXTURE_SECRET\u001b]8;;\u001b\\\n'),
+  )
+  for (let i = 0; i < 3; i++) {
+    transcript.append(Buffer.from('\u001b]0;' + 'x'.repeat(TAIL_BYTES + 64) + '\u0007'))
+    transcript.finish()
+    transcript.append(Buffer.from('visible-after\n'))
+    expect(transcript.text()).toContain('FIXTURE_SECRET')
+    for (const diagnostic of [stripAnsi(transcript.diagnostic()), transcript.visibleDiagnostic()]) {
+      expect(diagnostic).not.toContain('FIXTURE_SECRET')
+      expect(Buffer.byteLength(diagnostic)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+    expect(transcript.visibleDiagnostic()).toContain('visible-after')
+  }
+})
+it.each(['https://fixture.invalid/docs', 'https://fixture.invalid/?token=NONLABEL_SECRET&visible=yes'])(
+  'AC-15,16,30 non-sensitive hyperlink labels remain visible: %s',
+  (url) => {
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(`\u001b]8;;${url}\u001b\\ordinary-label\u001b]8;;\u001b\\`))
+    transcript.finish()
+    expect(transcript.text()).toBe('ordinary-label')
+    expect(transcript.visibleDiagnostic()).toBe('ordinary-label')
+    expect(transcript.diagnostic()).toContain('\u001b]8;;')
+    expect(transcript.diagnostic()).not.toContain('NONLABEL_SECRET')
+  },
+)
+it.each(['pipe', 'pty', 'validation'] as const)('AC-15,16,30 actual %s OSC8 labels remain private', async (kind) => {
+  if (kind === 'pty' && process.platform === 'win32') return
+  const value =
+    'visible-before\n\u001b]8;;https://fixture.invalid/?token=FIXTURE_SECRET\u001b\\FIXTURE_SECRET\u001b]8;;\u001b\\\nvisible-after'
+  const command = [
+    process.execPath,
+    '-e',
+    `await Bun.write(Bun.stdout, ${JSON.stringify(value)}); await Bun.write(Bun.stderr, ${JSON.stringify(value)})`,
+  ]
+  const outputs: string[] = []
+  if (kind === 'validation') {
+    const result = await executeCheck(command, 10000)
+    expect(result).toMatchObject({exit_code: 0, timed_out: false})
+    outputs.push(result.stdout, result.stderr)
+  } else {
+    const result = kind === 'pipe' ? await runPipe(dir(), command) : await spawnPty(dir(), command).waitForExit()
+    expect(result).toMatchObject({exitCode: 0, timedOut: false})
+    outputs.push(result.output)
+    if (kind === 'pipe') outputs.push(result.stdout, result.stderr)
+    else {
+      expect(result.stdout).toBe('')
+      expect(result.stderr).toBe('')
+    }
+  }
+  for (const output of outputs) {
+    expect(stripAnsi(output)).not.toContain('FIXTURE_SECRET')
+    expect(stripAnsi(output)).toContain('visible-before')
+    expect(stripAnsi(output)).toContain('visible-after')
   }
 })
 it.each(['pipe', 'pty'] as const)(
@@ -82,7 +146,6 @@ it('AC-15,16,30 validation diagnostics also hide ANSI-formatted automatic creden
       '-e',
       `await Bun.write(Bun.stdout, ${JSON.stringify(value)});await Bun.write(Bun.stderr, ${JSON.stringify(value)})`,
     ],
-    dir(),
     10000,
   )
   expect(result).toMatchObject({exit_code: 0, timed_out: false})
@@ -148,7 +211,7 @@ it.each(['redact', 'sanitize'])(
     const program = `const value = ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + cut - value.length}); await Bun.write(Bun.stdout, value); await Bun.write(Bun.stderr, value)`
     const result =
       kind === 'redact'
-        ? await executeCheck([process.execPath, '-e', program], dir(), 10000)
+        ? await executeCheck([process.execPath, '-e', program], 10000)
         : await runPipe(dir(), [process.execPath, '-e', program])
     expect(result).toMatchObject(kind === 'redact' ? {exit_code: 0, timed_out: false} : {exitCode: 0, timedOut: false})
     for (const output of [result.stdout, result.stderr]) {
@@ -177,7 +240,7 @@ it.each(['redact', 'sanitize'])(
     }
     const program = `const value = ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + prefix.length - value.length}); await Bun.write(Bun.stdout, value); await Bun.write(Bun.stderr, value)`
     const command = [process.execPath, '-e', program]
-    const result = kind === 'redact' ? await executeCheck(command, dir(), 10000) : await runPipe(dir(), command)
+    const result = kind === 'redact' ? await executeCheck(command, 10000) : await runPipe(dir(), command)
     expect(result).toMatchObject(kind === 'redact' ? {exit_code: 0, timed_out: false} : {exitCode: 0, timedOut: false})
     for (const output of [result.stdout, result.stderr]) {
       expect(output.includes(credential)).toBe(false)
@@ -198,7 +261,7 @@ it.each(['redact', 'sanitize'])(
     expect(transcript.diagnostic().includes('ACTUAL_CREDENTIAL')).toBe(false)
     const program = `await Bun.write(Bun.stdout, ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + prefix.length - value.length}))`
     const command = [process.execPath, '-e', program]
-    const result = kind === 'redact' ? await executeCheck(command, dir(), 10000) : await runPipe(dir(), command)
+    const result = kind === 'redact' ? await executeCheck(command, 10000) : await runPipe(dir(), command)
     expect(result.stdout.includes('ACTUAL_CREDENTIAL')).toBe(false)
   },
 )
@@ -369,7 +432,7 @@ it.each(['userinfo', 'query'])('AC-15,30 real pipe and validation artifacts sani
     `process.stdout.write(${JSON.stringify(value)});process.stdout.write("x".repeat(${TAIL_BYTES + cut - value.length}));`,
   ]
   const pipe = await runPipe(dir(), command)
-  const check = await executeCheck(command, dir(), 10000)
+  const check = await executeCheck(command, 10000)
   expect(pipe.exitCode).toBe(0)
   expect(check.exit_code).toBe(0)
   expect(pipe.stdout.includes('fixture-password')).toBe(false)

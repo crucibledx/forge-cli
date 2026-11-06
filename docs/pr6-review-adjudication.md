@@ -4,7 +4,45 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 4e27e98
+## Latest hosted and independent review on 8ca1e7c
+
+All current checks finished before this inventory. CI `42301213738` succeeded at22:06:46Z;
+hosted review `42301214684` completed at22:05:58Z, posting two maintenance findings
+(review5807662766). Inventory: **96 threads, 2 open**. Separately, independent static review-u
+reported a blocking OSC8 disclosure, reproduced by the parent on the unchanged head.
+
+| Finding | Correction and regression |
+| --- | --- |
+| review-u P1 | Project unchanged raw-recognized ranges into visible diagnostics as well as visible-recognized ranges into raw diagnostics. Use one shared span union/renderer. Each view retains bounded, clipped privacy ranges until its own bytes are evicted, even if invisible formatting evicts the source view first. Private assertion text/cursors remain unredacted and independent. |
+|4498116409 | Remove invariant actualHead checkout input; both production callers use the shared repositoryRoot internally. |
+|4498116415 | Remove invariant executeCheck working-directory input; subprocess execution and repository-path scrubbing use shared repositoryRoot. Preserve varying commands, deadlines and injected lifecycle ports. Update all production/fixture callers; absolute fixture program/project paths retain actual compiler and outer-runner failure controls. |
+
+The original OSC8 control reproduced **0 pass/1 fail**: public visible diagnostics disclosed the label
+while raw diagnostics hid it. The initial correction's focused run passed81 cases but failed one new
+test that incorrectly expected separate PTY stdout; PTYs intentionally expose only combined output.
+That test now asserts empty separate fields and positive/private combined output. The original log remains.
+Corrected combined controls pass174/0 before strengthening the same matrix to every UTF8 byte cut.
+The unchanged-default20s security suite passes253/0, including those strengthened byte cuts.
+
+Nine additional privacy cases cover OSC8 ST/BEL/C1 spellings, every streamed/raw-tail byte boundary,
+surviving suffixes including the final character, finalization/later append, three invisible buffer evictions,
+positive ordinary labels, actual separate pipes/validation streams and combined PTY output.
+One additional real subprocess checks fixed execution cwd and HEAD identity after changing the child's cwd.
+Final format/lint/types/contracts, full tests (**1405/0 in18 isolated batches**), build and compiled smoke
+all exit0. Both separately captured compiled commands report correct output/exit0. Full log SHA-256
+`e53ca820e5708d8cb61d301e46e0bc989c12ad5d15cbfa68d283c749d231cd9d`;
+default20s security log `787389027125da351cd071c08103d54e0cdd2cf29009904e1fd7c181f4dbf6c7`.
+No case/assertion was removed or weakened. Session/test/job deadlines, workflow, frozen acceptance,
+dependencies, lock and pin are unchanged.
+
+Static review-u completed2026-11-06T22:06:06Z with this P1 and no additional substantiated
+should-fix/nit findings in its complete21-file scope plus dependencies. Read-only commands exit0;
+no dynamic tests/probes or file writes. Its report did not claim parent execution as independent evidence.
+Parent-preserved return SHA-256 `96c601460ea1dff3480fcd7a2dd1d770b03c4ca67d38cb4b9bfe6f4291361a1a`.
+This counterexample overrides unqualified AC-15/16/30 support from existing green tests.
+Verifier-u's report remains separate and bound to the preceding revision, not approval of its correction.
+
+## Hosted review on 4e27e98
 
 All current checks finished before this inventory. CI `42297469940` succeeded at21:37:46Z.
 Hosted review `42297470921` completed at21:42:05Z, posting five findings (review5807420589).

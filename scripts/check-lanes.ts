@@ -43,7 +43,7 @@ async function runCheck(
   if (!blocked && budget > 0) {
     const start = performance.now()
     try {
-      result = await executor(check.command, repositoryRoot, budget)
+      result = await executor(check.command, budget)
     } catch (error) {
       result.duration_ms = performance.now() - start
       result.reason = `Validator setup/execution unavailable: ${String(error)}`

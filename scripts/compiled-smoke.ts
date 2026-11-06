@@ -9,7 +9,6 @@ if (import.meta.main) {
   for (const flag of ['--help', '--version']) {
     const result = await executeCheck(
       [resolve(repositoryRoot, process.platform === 'win32' ? 'dist/forge.exe' : 'dist/forge'), flag],
-      repositoryRoot,
       30000,
     )
     const correct =
