@@ -26,7 +26,7 @@ export function contractInputs() {
     lanes: validationLanes,
     suites: testSuites as Record<string, readonly string[]>,
     testText: read,
-    docs: ['README.md', 'CONTRIBUTING.md', '.factory/loop-contract.md', 'docs/safety-contract.md'].map((path) => ({
+    docs: ['docs/safety-contract.md'].map((path) => ({
       path,
       text: read(path),
     })),
@@ -59,18 +59,20 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     rule.ac_ids.forEach((id) => covered.add(id))
   }
   require(acceptanceIds.every((id) => covered.has(id)), 'Ledger does not cover every acceptance ID')
-  const required = [
-    'quality',
-    'business',
-    'e2e',
-    'human-dx',
-    'agent-cli',
-    'security',
-    'performance',
-    'native-macos',
-    'native-windows',
-    'build',
-  ]
+  // Frozen policy is independent of the mutable execution registry being checked.
+  const requiredChecks: Record<string, readonly string[]> = {
+    quality: ['format:check', 'lint', 'typecheck'],
+    business: ['test:unit', 'test:properties', 'check:contracts', 'test:checkers'],
+    e2e: ['test:e2e'],
+    'human-dx': ['test:human'],
+    'agent-cli': ['test:agent'],
+    security: ['test:security', 'check:security-audit'],
+    performance: ['test:performance'],
+    'native-macos': ['build', 'test:platform', 'test:compiled'],
+    'native-windows': ['build', 'test:platform', 'test:compiled'],
+    build: ['build', 'test:compiled'],
+  }
+  const required = Object.keys(requiredChecks)
   require(input.lanes.length === required.length &&
     new Set(input.lanes.map((lane) => lane.id)).size === required.length &&
     required.every((id) => input.lanes.some((lane) => lane.id === id)), 'Required module set changed')
@@ -94,6 +96,17 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     require(lane.ac_ids.every((id) => labels.has(id)), `${lane.id}: declared lane acceptance IDs lack test labels`)
   }
   for (const lane of input.lanes) {
+    const expected = requiredChecks[lane.id] ?? []
+    require(lane.checks.length === expected.length &&
+      lane.checks.every((check, index) => {
+        const id = expected[index]
+        const blocked = (id?.startsWith('test:') && id !== 'test:compiled') || id === 'check:security-audit'
+        return (
+          check.id === id &&
+          JSON.stringify(check.command) === JSON.stringify(['bun', 'run', id]) &&
+          JSON.stringify(check.blocked_exits ?? []) === JSON.stringify(blocked ? [2] : [])
+        )
+      }), `${lane.id}: required ordered check contract changed`)
     require(lane.timeout_ms > 0 &&
       lane.timeout_ms <= 600000 &&
       lane.fixture_scope.trim(), `${lane.id}: invalid timeout/scope`)

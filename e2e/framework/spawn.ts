@@ -1,11 +1,20 @@
 import './teardown'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
+import {repositoryRoot} from '../../scripts/validation-identity'
 import {CLI_ENTRY} from './constants'
 import {ENTER} from './keys'
 import type {ProcessOptions} from './pipe'
 import {posixOwnership} from './posix-owner'
-import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
+import {
+  activeProcesses,
+  createTranscript,
+  diagnosticTail,
+  sanitize,
+  sessionBudget,
+  TAIL_BYTES,
+  terminateTree,
+} from './process'
 
 export interface CLIResult {
   stdout: string
@@ -28,6 +37,7 @@ export interface CLISession {
   deadlineAt: number
   /** Bounded combined PTY transcript, not a terminal screen or separate streams. */
   getOutput(): string
+  failure(errors: readonly unknown[]): Error
   mark(): number
   waitForText(text: string, timeoutMs?: number, mark?: number): CliStep
   waitForExit(): Promise<CLIResult>
@@ -64,6 +74,52 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   )
   const term = proc.terminal!
   const getOutput = () => transcript.visibleDiagnostic()
+  const failure = (errors: readonly unknown[]) => {
+    const safe = (text: string) => {
+      const view = createTranscript(
+        (value) =>
+          sanitize(value, cwd, options.secrets)
+            .replaceAll(repositoryRoot, '<repository>')
+            .replaceAll(process.execPath, '<runtime>'),
+        options.secrets,
+      )
+      view.append(Buffer.from(text))
+      view.finish()
+      return view.visibleDiagnostic()
+    }
+    const details = diagnosticTail(
+      safe(
+        errors
+          .map((error) =>
+            error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error),
+          )
+          .join('\n'),
+      ),
+      TAIL_BYTES / 8,
+    )
+    const context = diagnosticTail(
+      JSON.stringify({
+        command: command.map((part, index) =>
+          index && ['-e', '--eval', '-p', '--print'].includes(command[index - 1]) ? '<inline program>' : safe(part),
+        ),
+        cwd: '.',
+        exit: proc.signalCode ? null : proc.exitCode,
+        signal: proc.signalCode ? String(proc.signalCode) : null,
+        timedOut,
+        timeoutMs: budget,
+        seed: process.env.FC_SEED === undefined ? null : safe(process.env.FC_SEED),
+        replay: process.env.FC_PATH === undefined ? null : safe(process.env.FC_PATH),
+      }),
+      TAIL_BYTES / 8,
+    )
+    // Preserve the original stack as sanitized text, not an unredacted cause object.
+    const error = new Error(
+      `${details}\nSession: ${context}\nTranscript tail:\n${diagnosticTail(getOutput(), TAIL_BYTES / 2)}`,
+    )
+    if (errors[0] instanceof Error) error.name = diagnosticTail(safe(errors[0].name), 64)
+    error.stack = safe(error.stack ?? error.message)
+    return error
+  }
   const mark = () => transcript.offset + transcript.text().length
   const owner = {
     dispose() {
@@ -165,6 +221,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   return {
     deadlineAt,
     getOutput,
+    failure,
     mark,
     waitForText: (text, timeoutMs, from) => step(wait(text, timeoutMs, from)),
     dispose: owner.dispose,

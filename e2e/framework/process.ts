@@ -16,6 +16,12 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
   return redact(text, {secrets, assignments: true}).replaceAll(cwd, '<project>')
 }
+export function diagnosticTail(text: string, maximum = TAIL_BYTES): string {
+  const bytes = Buffer.from(text)
+  let start = Math.max(0, bytes.length - maximum)
+  while ((bytes[start] & 0xc0) === 0x80) start++
+  return bytes.subarray(start).toString()
+}
 function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''
   let offset = 0
@@ -23,17 +29,11 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let secretPrefix = ''
   let diagnostic = ''
   let protectedSpans: RedactionSpan[] = []
-  const tail = (text: string) => {
-    const bytes = Buffer.from(text)
-    let start = Math.max(0, bytes.length - TAIL_BYTES)
-    while ((bytes[start] & 0xc0) === 0x80) start++
-    return bytes.subarray(start).toString()
-  }
   const options = () => ({credentialPrefixes: contexts, secretPrefix, secrets, assignments: true})
   function add(text: string, spans: RedactionSpan[]): void {
     raw += text
     const masked = maskRedactionSpans(raw, spans)
-    diagnostic = tail(clean(masked.text))
+    diagnostic = diagnosticTail(clean(masked.text))
     const previousOffset = offset
     const bytes = Buffer.from(raw)
     if (bytes.length > TAIL_BYTES) {

@@ -18,6 +18,12 @@ async function fixture(kind: string) {
   const bundle = readinessFixture(),
     jobs = [],
     artifacts = []
+  if (kind === 'attempt10') {
+    bundle.context.run_attempt = 10
+    bundle.lanes.forEach((lane) => {
+      lane.run_attempt = 10
+    })
+  }
   for (const [index, definition] of validationLanes.entries()) {
     const folder = join(dir(), artifactName(bundle.context, definition.id))
     await mkdir(join(folder, 'checks', definition.id), {recursive: true})
@@ -56,6 +62,92 @@ async function fixture(kind: string) {
   }
   return {bundle, jobs, artifacts}
 }
+it.each([99, 100, 199])('AC-25,27 complete attempt10 remains valid after %s historical uploads', async (count) => {
+  const {bundle, jobs, artifacts} = await fixture('attempt10')
+  const all = [
+    ...Array.from({length: count}, (_, index) => ({
+      id: 1000 + index,
+      name: `validation-123-9-old-${index}`,
+      expired: false,
+      created_at: '2026-11-04T09:00:00Z',
+    })),
+    ...artifacts,
+  ]
+  let pages = 0
+  const result = await runGate(
+    bundle.context,
+    dir(),
+    Bun.version,
+    join(dir(), 'summary.json'),
+    async (_context, endpoint) => {
+      if (endpoint.includes('/jobs?')) return {total_count: jobs.length, jobs}
+      const page = Number(new URL('https://fixture.invalid' + endpoint).searchParams.get('page') ?? 1)
+      pages++
+      return {total_count: all.length, artifacts: all.slice((page - 1) * 100, page * 100)}
+    },
+  )
+  expect(pages).toBe(Math.ceil(all.length / 100))
+  expect(result.provider_errors).toEqual([])
+  expect(result.conclusion).toBe('success')
+  expect(result.lanes.every((lane) => lane.status === 'pass')).toBe(true)
+})
+it.each([
+  'short-page',
+  'changed-total',
+  'repeat-page',
+  'later-unavailable',
+  'excess-count',
+  'wrong-attempt',
+  'duplicate-current',
+])('AC-25,27 pagination remains fail-closed and retains siblings for %s', async (kind) => {
+  const {bundle, jobs, artifacts} = await fixture('attempt10')
+  const all = [
+    ...Array.from({length: 100}, (_, index) => ({
+      id: 1000 + index,
+      name: `validation-123-9-old-${index}`,
+      expired: false,
+      created_at: '2026-11-04T09:00:00Z',
+    })),
+    ...artifacts.map((artifact) =>
+      kind === 'wrong-attempt' ? {...artifact, name: artifact.name.replace('-10-', '-9-')} : artifact,
+    ),
+    ...(kind === 'duplicate-current' ? [{...artifacts[0], id: 9000}] : []),
+  ]
+  if (kind === 'later-unavailable') jobs[0].conclusion = 'failure'
+  let pages = 0
+  const result = await runGate(
+    bundle.context,
+    dir(),
+    Bun.version,
+    join(dir(), 'summary.json'),
+    async (_context, endpoint) => {
+      if (endpoint.includes('/jobs?')) return {total_count: jobs.length, jobs}
+      const page = Number(new URL('https://fixture.invalid' + endpoint).searchParams.get('page') ?? 1)
+      pages++
+      if (kind === 'later-unavailable' && page > 1) throw new Error('later page unavailable')
+      return {
+        total_count: kind === 'excess-count' ? 10001 : all.length + (kind === 'changed-total' && page > 1 ? 1 : 0),
+        artifacts:
+          kind === 'short-page'
+            ? all.slice(0, 99)
+            : kind === 'repeat-page'
+              ? all.slice(0, 100)
+              : all.slice((page - 1) * 100, page * 100),
+      }
+    },
+  )
+  expect(pages).toBeLessThanOrEqual(2)
+  expect(result.conclusion).toBe('failure')
+  expect(result.lanes).toHaveLength(10)
+  if (kind === 'duplicate-current') {
+    expect(result.provider_errors).toEqual([])
+    expect(result.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(9)
+  } else if (kind === 'wrong-attempt') {
+    expect(result.provider_errors).toEqual([])
+    expect(result.lanes.every((lane) => lane.status === 'blocked')).toBe(true)
+  } else expect(result.provider_errors).toContain('Provider artifacts unavailable or invalid')
+  if (kind === 'later-unavailable') expect(result.lanes[0].status).toBe('fail')
+})
 it.each([
   'complete',
   'two-failures',

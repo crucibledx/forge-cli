@@ -16,6 +16,7 @@ function session(result: CLIResult): CLISession {
   return {
     deadlineAt: performance.now() + 10000,
     getOutput: () => result.output,
+    failure: (errors) => new Error(errors.map(String).join('\n') + '\n' + result.output),
     mark: () => 0,
     waitForText: () => {
       throw new Error('Unexpected fixture prompt wait')

@@ -54,7 +54,8 @@ export async function readAccessMetadata(path: string): Promise<Uint8Array | nul
   }
 }
 
-export async function accessMetadataFromSddl(value: string): Promise<Uint8Array | null> {
+/** New metadata is owner/SYSTEM-only instead of inheriting a broad project DACL. */
+export async function privateAccessMetadata(): Promise<Uint8Array | null> {
   if (process.platform !== 'win32') return null
   const {dlopen, ptr, toArrayBuffer} = await import('bun:ffi')
   const security = dlopen('advapi32.dll', {
@@ -63,7 +64,7 @@ export async function accessMetadataFromSddl(value: string): Promise<Uint8Array 
   const kernel = dlopen('kernel32.dll', {LocalFree: {args: ['ptr'], returns: 'ptr'}})
   let allocated = 0
   try {
-    const sddl = wide(value),
+    const sddl = wide('D:P(A;;FA;;;OW)(A;;FA;;;SY)'),
       pointer = Buffer.alloc(8),
       size = Buffer.alloc(4)
     if (!security.symbols.ConvertStringSecurityDescriptorToSecurityDescriptorW(ptr(sddl), 1, ptr(pointer), ptr(size)))
@@ -80,9 +81,6 @@ export async function accessMetadataFromSddl(value: string): Promise<Uint8Array 
     kernel.close()
   }
 }
-
-/** New metadata is owner/SYSTEM-only instead of inheriting a broad project DACL. */
-export const privateAccessMetadata = () => accessMetadataFromSddl('D:P(A;;FA;;;OW)(A;;FA;;;SY)')
 
 async function temporaryAPI() {
   const {dlopen} = await import('bun:ffi')
