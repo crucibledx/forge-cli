@@ -6,7 +6,14 @@ import {describe, expect, it} from 'bun:test'
 
 import {claudeCode} from './claude-code'
 import {cursor} from './cursor'
-import {getAllAssistants, getAssistant, getAssistantIds} from './registry'
+import {getAllAssistants, getAssistant, getAssistantIds, resolveAssistantByPath} from './registry'
+
+it.each(['.CLAUDE\\SKILLS\\a.md', '.claude//skills///a.md'])(
+  'AC-4,9 ownership uses the same portable folding as collision checks: %s',
+  (path) => {
+    expect(resolveAssistantByPath(path)?.id).toBe(claudeCode.id)
+  },
+)
 
 describe('getAllAssistants', () => {
   it('returns all 5 assistants', () => {

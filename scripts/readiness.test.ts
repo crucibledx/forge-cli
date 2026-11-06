@@ -38,6 +38,9 @@ it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches own
   const result = await runPipe(dir(), [process.execPath, entry, '--input', input, '--output', output])
   expect(result.exitCode).toBe(0)
   expect(JSON.parse(await readFile(output, 'utf8')).verdict).toBe('ready-for-owner-review')
+  expect(
+    JSON.parse(await readFile(output, 'utf8')).ac_results.every((row: {result: string}) => row.result === 'pass'),
+  ).toBe(true)
   const before = await readFile(input)
   expect((await runPipe(dir(), [process.execPath, entry, '--input', input, '--output', output])).exitCode).toBe(0)
   expect(await readFile(input)).toEqual(before)
@@ -154,3 +157,52 @@ it('AC-32 missing deviations is not affirmative evidence of no deviations', asyn
   await writeEvidence(join(dir(), 'deviations.json'), [])
   expect((await collectReadiness(readinessFixture().context, dir())).deviations).toEqual([])
 })
+it.each(['producer', 'head', 'tested', 'unavailable', 'same-producer', 'context', 'row-evidence', 'row-exit'])(
+  'AC-32 never publishes unauthenticated acceptance passes: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const verifier = bundle.verifier!
+    if (kind === 'producer') {
+      const original = provider.producer
+      provider.producer = async (record, context) => {
+        if ('phase' in record) throw new Error('Verifier authentication failed')
+        await original(record, context)
+      }
+    }
+    if (kind === 'head') verifier.head_sha = 'f'.repeat(40)
+    if (kind === 'tested') verifier.tested_sha = 'f'.repeat(40)
+    if (kind === 'unavailable') verifier.completion = 'unavailable'
+    if (kind === 'same-producer') {
+      verifier.provenance.producer_id = bundle.reviews[0].provenance.producer_id
+      verifier.provenance.actor = bundle.reviews[0].provenance.actor
+    }
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Checkout authentication failed')
+      }
+    if (kind === 'row-evidence') verifier.rows[0].evidence = ['fixtures/missing.log']
+    if (kind === 'row-exit') verifier.rows[0].exit_code = 1
+    if (['unavailable', 'same-producer', 'row-evidence', 'row-exit'].includes(kind))
+      provider.producer = fixtureProvider(dir(), bundle).producer
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.ac_results[0].result).toBe('blocked')
+    expect(report.ac_results.filter((row) => row.result === 'pass')).toHaveLength(kind.startsWith('row-') ? 31 : 0)
+  },
+)
+it.each(['authenticated', 'unverified'])(
+  'AC-32 only a trusted verifier establishes a known failure: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    bundle.verifier!.rows[0].result = 'fail'
+    bundle.verifier!.rows[0].exit_code = 1
+    const original = fixtureProvider(dir(), bundle).producer
+    provider.producer = async (record, context) => {
+      if (kind === 'unverified' && 'phase' in record) throw new Error('Verifier authentication failed')
+      await original(record, context)
+    }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.ac_results[0].result).toBe(kind === 'authenticated' ? 'fail' : 'blocked')
+    expect(report.exit_code).toBe(kind === 'authenticated' ? 1 : 2)
+  },
+)

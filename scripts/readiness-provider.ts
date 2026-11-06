@@ -181,7 +181,7 @@ export function readinessProvider(
       if (
         job.length !== 1 ||
         job[0].status !== 'completed' ||
-        job[0].conclusion !== 'success' ||
+        !['success', 'failure', 'cancelled', 'timed_out'].includes(job[0].conclusion ?? '') ||
         artifact.length !== 1 ||
         artifact[0].expired ||
         artifact[0].workflow_run.id !== Number(context.run_id)
@@ -197,14 +197,13 @@ export function readinessProvider(
       if (!archives.has(artifact[0].id))
         archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
       const files = await archives.get(artifact[0].id)!
-      if (citingLane) {
-        const originalLane = files.get(`${lane.id}.json`)
-        if (
-          !originalLane ||
-          JSON.stringify(laneSchema.parse(JSON.parse(originalLane.toString()))) !== JSON.stringify(citingLane)
-        )
-          throw new Error('Lane verdict differs from the authenticated provider artifact')
-      }
+      const originalLaneBytes = files.get(`${lane.id}.json`)
+      if (!originalLaneBytes) throw new Error('Authenticated lane verdict missing')
+      const originalLane = laneSchema.parse(JSON.parse(originalLaneBytes.toString()))
+      if (originalLane.lane_id !== lane.id || (job[0].conclusion !== 'success' && originalLane.status === 'pass'))
+        throw new Error('Provider job cannot authenticate a passing lane verdict')
+      if (citingLane && JSON.stringify(originalLane) !== JSON.stringify(citingLane))
+        throw new Error('Lane verdict differs from the authenticated provider artifact')
       const originalContext = files.get('context.json')
       if (
         !originalContext ||
@@ -247,7 +246,7 @@ export function readinessProvider(
       if (context.kind !== 'pr' || uri.origin !== 'https://github.com' || !uri.pathname.startsWith(prefix))
         throw new Error('Approval is not on the selected PR')
       const comment = /^#issuecomment-(\d+)$/.exec(uri.hash),
-        review = /^#pullrequestreview(\d+)$/.exec(uri.hash)
+        review = /^#pullrequestreview-(\d+)$/.exec(uri.hash)
       if (
         !(comment && uri.pathname === `${prefix}issues/${context.pr_number}`) &&
         !(review && uri.pathname === `${prefix}pull/${context.pr_number}`)

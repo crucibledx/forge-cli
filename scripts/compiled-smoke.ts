@@ -1,5 +1,6 @@
 import {resolve} from 'node:path'
 
+import pkg from '../package.json'
 import {executeCheck} from './validation-process'
 
 if (import.meta.main) {
@@ -15,7 +16,7 @@ if (import.meta.main) {
       !result.timed_out &&
       result.exit_code === 0 &&
       !result.stderr &&
-      (flag === '--help' ? result.stdout.includes('Usage:') : result.stdout.trim() === '0.6.24')
+      (flag === '--help' ? result.stdout.includes('Usage:') : result.stdout.trim() === pkg.version)
     console.log(JSON.stringify({command: `compiled forge ${flag}`, ...result, correct}))
     if (!correct) failed = true
   }

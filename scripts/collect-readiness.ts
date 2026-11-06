@@ -25,6 +25,8 @@ if (import.meta.main) {
       else output = resolve(value)
     }
     if (contextPath === output) throw new Error('Output cannot overwrite source context')
+    if (dirname(contextPath) !== dirname(output))
+      throw new Error('Output bundle must be colocated with context and relative check evidence')
     const context = contextSchema.parse(JSON.parse(await readFile(contextPath, 'utf8'))),
       directory = dirname(contextPath)
     const provider = readinessProvider(repositoryRoot, directory)
