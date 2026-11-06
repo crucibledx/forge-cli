@@ -4,7 +4,7 @@ import stripAnsi from 'strip-ansi'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {spawnOwnedPipe} from './owned-pipe'
-import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
+import {activeProcesses, createTranscript, drainTranscript, sanitize, sessionBudget, terminateTree} from './process'
 import type {CLIResult} from './spawn'
 
 export interface ProcessOptions {
@@ -25,22 +25,11 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
   let timedOut = false
   let disposal: Promise<void> | undefined
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
-  const drain = async (stream: ReadableStream<Uint8Array>, tail: ReturnType<typeof createTranscript>) => {
-    const reader = stream.getReader()
-    readers.push(reader)
-    try {
-      while (true) {
-        const {done, value} = await reader.read()
-        if (done) break
-        tail.append(value)
-      }
-      tail.finish()
-    } finally {
-      reader.releaseLock()
-    }
-  }
   // Start both reads before waiting for exit, including on nonzero exits.
-  const drains = Promise.all([drain(proc.stdout, stdout), drain(proc.stderr, stderr)])
+  const drains = Promise.all([
+    drainTranscript(proc.stdout, stdout, readers),
+    drainTranscript(proc.stderr, stderr, readers),
+  ])
   void drains.catch(() => {})
   const owner = {
     dispose() {

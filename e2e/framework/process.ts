@@ -72,6 +72,25 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
   }
 }
 
+export async function drainTranscript(
+  stream: ReadableStream<Uint8Array>,
+  tail: ReturnType<typeof createTranscript>,
+  readers: ReadableStreamDefaultReader<Uint8Array>[],
+): Promise<void> {
+  const reader = stream.getReader()
+  readers.push(reader)
+  try {
+    while (true) {
+      const {done, value} = await reader.read()
+      if (done) break
+      tail.append(value)
+    }
+    tail.finish()
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode' | 'signalCode'>
 
 function groupAlive(pid: number): boolean {

@@ -11,6 +11,12 @@ export const providerJob = z.object({
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
 })
+export const providerArtifact = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  expired: z.boolean(),
+  created_at: z.string(),
+})
 
 /** Exact-revision evidence cannot authorize a newer PR head or changed base/merge. */
 export async function currentPullRequest(context: EvidenceContext, read = githubJSON) {

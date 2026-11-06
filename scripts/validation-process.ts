@@ -2,7 +2,7 @@ import stripAnsi from 'strip-ansi'
 
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {createTranscript, terminateTree} from '../e2e/framework/process'
+import {createTranscript, drainTranscript, terminateTree} from '../e2e/framework/process'
 import {redact} from '../src/domain/redact'
 import {createTestSandbox} from './test-sandbox'
 
@@ -27,20 +27,6 @@ export async function executeCheck(command: string[], cwd: string, timeoutMs: nu
   let timedOut = false
   let exit: number | null = null
   let reason: string | undefined
-  const drain = async (stream: ReadableStream<Uint8Array>, tail: ReturnType<typeof createTranscript>) => {
-    const reader = stream.getReader()
-    readers.push(reader)
-    try {
-      while (true) {
-        const {done, value} = await reader.read()
-        if (done) break
-        tail.append(value)
-      }
-      tail.finish()
-    } finally {
-      reader.releaseLock()
-    }
-  }
   try {
     child = await spawnOwnedPipe(
       [command[0] === 'bun' ? process.execPath : command[0], ...command.slice(1)],
@@ -48,7 +34,11 @@ export async function executeCheck(command: string[], cwd: string, timeoutMs: nu
       sandbox.env,
     )
     await Promise.race([
-      Promise.all([drain(child.stdout, stdout), drain(child.stderr, stderr), child.exited]).then((results) => {
+      Promise.all([
+        drainTranscript(child.stdout, stdout, readers),
+        drainTranscript(child.stderr, stderr, readers),
+        child.exited,
+      ]).then((results) => {
         exit = results[2]
       }),
       new Promise<void>((resolve) => {

@@ -7,7 +7,7 @@ import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {contextSchema, evidencePath, laneSchema} from './evidence-schema'
 import {artifactName} from './gate'
-import {currentPullRequest, githubJSON, providerJob} from './github-evidence'
+import {currentPullRequest, githubJSON, providerArtifact, providerJob} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead} from './validation-context'
@@ -15,11 +15,7 @@ import {laneById} from './validation-lanes'
 import {checkEvidencePath} from './validation-policy'
 
 const jobSchema = providerJob
-const artifactSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  expired: z.boolean(),
-  created_at: z.string(),
+const artifactSchema = providerArtifact.extend({
   digest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   workflow_run: z.object({id: z.number().int()}),
 })

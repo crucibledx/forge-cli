@@ -16,7 +16,7 @@ export const safetyLedger: SafetyRule[] = [
     tests: [
       'src/application/commands/sync/safety.test.ts',
       'e2e/commands/sync/safety/source-failure.test.ts',
-      'e2e/commands/sync/safety/source-resolution.test.ts',
+      'src/application/commands/sync/source-resolution.test.ts',
     ],
   },
   {
