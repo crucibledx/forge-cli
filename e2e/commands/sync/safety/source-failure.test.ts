@@ -1,6 +1,7 @@
 import {chmod, mkdir, rename, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
@@ -10,7 +11,7 @@ import {SKILL_DEPLOY} from '@e2e/fixtures'
 import {createBareRepo} from '@e2e/framework/git'
 
 import {testEnvironment} from '../../../../scripts/test-sandbox'
-import {command, config, protectedBytes} from './helpers'
+import {command, config} from './helpers'
 
 const dir = useTmpDir('source-failure-matrix')
 for (const kind of [

@@ -1,9 +1,10 @@
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
-import {aggregateExit, assessLane, runLanes} from './check-lanes'
+import {runLanes} from './check-lanes'
 import {validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
+import {aggregateExit, assessLane} from './validation-policy'
 
 const dir = useTmpDir('lane-fixtures')
 it('AC-25 preserves two simultaneous failures, later successes and foreign-native blockers, maximum two active commands', async () => {

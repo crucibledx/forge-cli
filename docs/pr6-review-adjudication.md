@@ -4,7 +4,29 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 90bedd5
+## Latest hosted review on 27b558d
+
+All current CI checks, including the hosted reviewer, completed before this new inventory: CI `42282508408`
+and review `42282509717` succeeded, but the review posted six additional findings. The loop continues.
+
+| Comment | Correction and regression |
+| --- | --- |
+|4496932073 | Keep credential syntax and the longest explicit-secret suffix as independent bounded recognizer state. Mask explicit continuations before applying credential context, and scrub whole explicit secrets before general redaction can split them. Query/userinfo/Bearer/assignment overlap, both secret orders, arbitrary continuation bytes, finalization/later chunks and actual-pipe controls preserve secrecy. |
+|4496932091 | Parse valid advisory JSON before treating stderr warnings as incompleteness. Known high/critical advisories remain fail/exit1 and retain the warning; warnings without known blocking advisories still block/exit2. Four severity/exit combinations assert failure precedence and retained diagnostics. |
+|4496932101 | Replace pipe/spawn file-level mocks with injected process-boundary functions on the existing compatibility runners. Both zero-exit/deadline and retained-PTY-transcript controls still execute, without cached-module mutation. |
+|4496932106 | Co-locate injected assistant/scope, stale ownership, state, silent and related planning matrices beside the sync handler. Shared fixtures live in test-helpers. Preserve real CLI state/silent/planning cases and the original frozen-command paths; add actual CLI ownership/scope counterparts rather than hiding injection behind E2E wrappers. Update ledger and security/native/contract suite membership. No acceptance text changes. |
+|4496932117 | Derive SafetyLayer and ValidationPlatform from registry-local const objects, preserving all existing values and lane semantics. |
+|4496932123 | Remove test-only policy re-exports; checker tests import policy helpers directly and retain runLanes from its implementation. |
+
+Original regression controls reproduced **28 pass/9 fail**. After correction, the combined placement/behavior
+checks pass **137/0**, with additional real-pipe controls included in final validation.
+Verifier-o's original assessment on `27b558d` was 32 phase1 support passes, with its own 1242/0 full suite,
+ten 425/0 contract runs and authenticated native 204/0 per OS. Those results did not cover the newly reproduced
+overlapping-context and audit-warning counterexamples, so they do not override these findings or approve this patch.
+Its report hash is `6cd9df0452065503eff57c99fdfa712743a0e29a7dfb159491fac20e14337be7`.
+Actual phase2 remained blocked by missing genuine structured hosted producer attestations.
+
+## Hosted review on 90bedd5
 
 All checks on `90bedd5` completed, including hosted review `42278123829`. It posted seven additional findings.
 The authorized loop continued rather than treating a successful reviewer check as a no-findings verdict.

@@ -9,6 +9,63 @@ import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
 
 const dir = useTmpDir('redacted-tail')
+it.each(['https://fixture.invalid?token=', 'https://user:', 'Bearer '])(
+  'AC-15,16,30 real pipe preserves credential context with overlapping fixture secrets: %s',
+  async (prefix) => {
+    const value = prefix + 'beginsACTUAL_CREDENTIAL' + (prefix === 'https://user:' ? '@fixture.invalid' : '') + '\n'
+    const cut = prefix.length + 'begins'.length
+    const program = `await Bun.write(Bun.stdout, ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + cut - value.length}))`
+    const result = await runPipe(dir(), [process.execPath, '-e', program], {secrets: ['something']})
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).not.toContain('ACTUAL_CREDENTIAL')
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(TAIL_BYTES)
+  },
+)
+it.each(['query', 'userinfo', 'bearer', 'assignment'])(
+  'AC-15,16,30 explicit-secret prefixes cannot replace concurrent %s credential context',
+  (kind) => {
+    const secrets = ['something']
+    const prefix =
+      kind === 'query'
+        ? 'https://fixture.invalid?token='
+        : kind === 'userinfo'
+          ? 'https://user:'
+          : kind === 'bearer'
+            ? 'Bearer '
+            : 'password='
+    const value = prefix + 'beginsACTUAL_CREDENTIAL' + (kind === 'userinfo' ? '@fixture.invalid' : '') + '\n'
+    const cut = prefix.length + 'begins'.length
+    const transcript = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
+    transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+    expect(transcript.diagnostic()).not.toContain('ACTUAL_CREDENTIAL')
+    transcript.finish()
+    expect(transcript.diagnostic()).not.toContain('ACTUAL_CREDENTIAL')
+    transcript.append(Buffer.from('after'))
+    expect(transcript.diagnostic()).not.toContain('ACTUAL_CREDENTIAL')
+  },
+)
+it.each([
+  ['something', 'beginsMORE'],
+  ['beginsMORE', 'something'],
+])('AC-15,30 overlapping explicit secret prefixes retain the longest suffix independently: %j', (first, second) => {
+  const secrets = [first, second]
+  const value = 'beginsMORE\n',
+    cut = 'begins'.length
+  const transcript = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
+  transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+  transcript.finish()
+  expect(transcript.diagnostic()).not.toContain('MORE')
+})
+it('AC-15,30 arbitrary explicit-secret continuations stay hidden alongside Bearer syntax', () => {
+  const secrets = ['s!EXPLICIT_SUFFIX'],
+    prefix = 'Bearer begins'
+  const value = prefix + '!EXPLICIT_SUFFIX\n'
+  const transcript = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
+  transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + prefix.length - value.length)))
+  expect(transcript.diagnostic()).not.toContain('EXPLICIT_SUFFIX')
+  transcript.finish()
+  expect(transcript.diagnostic()).not.toContain('EXPLICIT_SUFFIX')
+})
 it.each(['redact', 'sanitize'])(
   'AC-15,16,30 apostrophes cannot split a query credential during a raw-tail cut: %s',
   async (kind) => {

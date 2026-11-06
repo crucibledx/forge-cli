@@ -1,14 +1,13 @@
 import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
-import {syncFixture} from '@test-helpers/sync-fixture'
+import {protectedBytes, syncFixture} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterEach, expect, it} from 'bun:test'
 import {stringify} from 'yaml'
 
 import type {SyncReport} from '@domain/sync/report'
 
-import {protectedBytes} from '../../../../e2e/commands/sync/safety/helpers'
 import {runSyncWithDependencies} from './handler'
 
 const dir = useTmpDir('resolution-failure')

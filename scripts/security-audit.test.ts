@@ -3,6 +3,28 @@ import {expect, it} from 'bun:test'
 import {assessAudit} from './security-audit'
 
 const clean = {exit_code: 0, duration_ms: 1, timed_out: false, stdout: '{}', stderr: ''}
+it.each(['high', 'critical'].flatMap((severity) => [0, 1].map((exit_code) => ({severity, exit_code}))))(
+  'AC-30 known $severity advisory keeps failure precedence with warnings and exit $exit_code',
+  ({severity, exit_code}) => {
+    const stdout = JSON.stringify({
+      'dev-only': [
+        {
+          id: 1,
+          url: 'https://github.com/advisories/GHSA-abcd-1234-5678',
+          title: 'test',
+          severity,
+          vulnerable_versions: '*',
+          cwe: [],
+          cvss: {score: 9, vectorString: null},
+        },
+      ],
+    })
+    const report = assessAudit({...clean, stdout, exit_code, stderr: 'Skipped unaudited package'}, true)
+    expect(report.status).toBe('fail')
+    expect(report.exit_code).toBe(1)
+    expect(report).toHaveProperty('diagnostic', 'Skipped unaudited package')
+  },
+)
 it('AC-30 accepts an explicit complete empty advisory result without changing dependency policy', () => {
   expect(assessAudit(clean, true).status).toBe('pass')
 })

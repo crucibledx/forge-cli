@@ -2,12 +2,13 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {syncFixture, trackedPath} from '@test-helpers/sync-fixture'
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {hashContent} from '@domain/sync/state'
 
-import {command, config, protectedBytes} from './helpers'
+import {command, config} from './helpers'
 
 const dir = useTmpDir('legacy-upgrade')
 it('BR-04 legacy desired-hash entries remain unknown in status/preview and exact bytes survive conflict failure (AC-6)', async () => {

@@ -22,11 +22,7 @@ export function redact(text: string): string {
 }
 
 /** Bounded recognizer context when a diagnostic tail discards an unfinished credential. Never publish this. */
-export function redactionContext(discarded: string, secrets: string[] = []): string {
-  for (const secret of secrets) {
-    for (let size = Math.min(secret.length - 1, discarded.length); size > 0; size--)
-      if (discarded.endsWith(secret.slice(0, size))) return secret.slice(0, size)
-  }
+export function redactionContext(discarded: string): string {
   // Only the final matching marker can have an unfinished value. Searching all
   // overlapping suffixes makes repeated markers quadratic during stream drains.
   if (unfinishedQuery.test(lastMarkerSuffix(discarded, queryStart))) return '?token='

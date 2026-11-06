@@ -2,12 +2,13 @@ import {constants} from 'node:fs'
 import {access, chmod, mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {prepareTransaction} from '@infrastructure/fs/transaction'
 
-import {command, config, protectedBytes} from './helpers'
+import {command, config} from './helpers'
 
 const dir = useTmpDir('preview-permissions')
 it.each(['replace', 'delete', 'create'])('AC-8,10 preflight refuses unwritable POSIX parents: %s', async (kind) => {
