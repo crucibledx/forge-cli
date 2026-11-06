@@ -1,14 +1,14 @@
 import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {stringify} from 'yaml'
 
 import type {ProjectConfig, Source} from '@domain/config/types'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
-const cli = resolve(import.meta.dir, '../../../../src/main.ts')
-export const command = (root: string, args = ['sync']) => runPipe(root, [process.execPath, cli, ...args])
+export const command = (root: string, args = ['sync']) => runPipe(root, [process.execPath, CLI_ENTRY, ...args])
 export async function config(root: string, sources: Source[], sync: Partial<ProjectConfig['sync']> = {}) {
   await mkdir(join(root, '.crucible'), {recursive: true})
   await writeFile(

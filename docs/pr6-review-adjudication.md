@@ -4,7 +4,34 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 27b558d
+## Latest hosted and independent review on b904e16
+
+All checks on `b904e16` completed: CI `42285520399` and hosted review `42285521142` succeeded.
+The completed reviewer posted four findings. Separate static review-p found a P1 composition leak;
+verifier-p independently failed AC-15/30 with real-pipe counterexamples, despite green repository tests.
+
+| Finding | Correction and regression |
+| --- | --- |
+| Independent P1 / verifier VP-1 | Recognize credential and explicit-secret spans against unchanged text and mask their union. Do not insert replacement markers before another recognizer runs. Pure nested/overlapping-secret and order controls plus every raw-cut boundary cover marker/value overlap, finish/later appends and complete Bearer/URI/assignment credentials. |
+| Verifier VP-2 | Preserve the longest partial syntax marker, including a complete Bearer marker awaiting whitespace. A short matching suffix of another marker cannot replace it. Every-boundary assignment/Bearer controls exercise the previously missed cuts. |
+|4497140734 | Carry concurrent finite syntax-only URI/query/Bearer/assignment contexts. An embedded assignment cannot discard live userinfo recognition. Apply every context to unchanged raw bytes before merging spans. Both transcript finalization and actual pipe/validation-artifact probes hide the suffix after an embedded ampersand. |
+|4497140741 | Detect an absent tracked disk file before the unknown-baseline branch when upstream remains present. Pure explicit/omitted legacy-baseline checks agree with local-only drift; an actual status CLI check covers legacy state and an available upstream. Present legacy bytes remain unknown. |
+|4497140748 | Give the enclosing three-invocation benchmark 120 seconds for three unchanged 30-second child deadlines plus setup/verification/cleanup. Latency remains advisory; no child/session deadline is increased. |
+|4497140762 | Reuse CLI_ENTRY in helpers/performance and remaining E2E callers. Keep their execution/stream semantics unchanged. The touched benchmark phase type also follows the documented const-derived convention. |
+
+Parent original P1 controls reproduced **26 pass/3 fail**, then expanded cut controls exposed two additional
+marker-boundary failures before correction. Legacy deletion controls reproduced **15 pass/2 fail**.
+After correction, combined focused controls pass **82/0** before the additional pure span-union checks.
+
+Verifier-p completed `2026-11-06T20:18:00.021008Z` on `b904e16` with **30 phase1 pass, AC-15/30 fail**.
+Its own full suite was 1294/0; ten 477/0 contract runs and authenticated native 224/0 per OS do not refute
+its independent failing privacy probes. It retained 1170 composition observations (104 leaks), 1362 nested-secret
+observations (44 leaks), and 240 assignment observations (16 leaks), plus real pipes leaking both channels.
+Report SHA-256: `5d33986564d71002f4fdb709099f0bae17b4a61911e165b1697e0096324bfa7f`.
+These failures remain historical evidence for that exact revision, not a current-patch verdict.
+Actual phase2 remained blocked without genuine structured hosted producer attestations.
+
+## Hosted review on 27b558d
 
 All current CI checks, including the hosted reviewer, completed before this new inventory: CI `42282508408`
 and review `42282509717` succeeded, but the review posted six additional findings. The loop continues.

@@ -1,29 +1,29 @@
 import {readFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {hashContent} from '@domain/sync/state'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
+
+const PERFORMANCE_PHASES = {COLD_HELP: 'cold-help', COLD_SYNC: 'cold-sync', WARM_SYNC: 'warm-sync'} as const
+type PerformancePhase = (typeof PERFORMANCE_PHASES)[keyof typeof PERFORMANCE_PHASES]
 
 export const performanceBaseline = 'insufficient, advisory only'
 export async function performancePhase(
   root: string,
-  phase: 'cold-help' | 'cold-sync' | 'warm-sync',
+  phase: PerformancePhase,
   skills: Record<string, string>,
   run = runPipe,
 ): Promise<number> {
   const start = performance.now()
   const result = await run(
     root,
-    [
-      process.execPath,
-      resolve(import.meta.dir, '../../src/main.ts'),
-      ...(phase === 'cold-help' ? ['--help'] : ['sync']),
-    ],
+    [process.execPath, CLI_ENTRY, ...(phase === PERFORMANCE_PHASES.COLD_HELP ? ['--help'] : ['sync'])],
     {timeoutMs: 30000},
   )
   if (result.timedOut) throw new Error('Performance invocation exceeded its 30-second deadline')
   if (result.exitCode !== 0 || result.stderr) throw new Error('Performance invocation failed')
-  if (phase === 'cold-help') {
+  if (phase === PERFORMANCE_PHASES.COLD_HELP) {
     if (!result.stdout.includes('Usage:')) throw new Error('Incorrect help output')
   } else {
     const state = JSON.parse(await readFile(join(root, '.crucible/sync-state.json'), 'utf8'))

@@ -1,14 +1,15 @@
 import {existsSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {spawnPty} from '@e2e/framework/spawn'
 
 const dir = useTmpDir('human-help')
 it('human help exits without prompting or persisting config (AC-29)', async () => {
-  const session = spawnPty(dir(), [process.execPath, resolve(import.meta.dir, '../../src/main.ts'), '--help'])
+  const session = spawnPty(dir(), [process.execPath, CLI_ENTRY, '--help'])
   try {
     await session.waitForText('Usage:')
     const result = await session.waitForExit()

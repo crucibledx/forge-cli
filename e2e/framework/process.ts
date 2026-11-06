@@ -13,21 +13,15 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 }
 
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
-  // Domain redaction owns URI credentials; harness scrubbing additionally covers
-  // disposable paths, explicit fixture secrets and loose assignment-shaped text.
-  for (const secret of secrets.filter(Boolean)) text = text.replaceAll(secret, '[redacted]')
-  return redact(text)
-    .replace(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi, '$1[redacted]')
-    .replaceAll(cwd, '<project>')
+  return redact(text, {secrets, assignments: true}).replaceAll(cwd, '<project>')
 }
-
 export function createTranscript(clean: (text: string) => string = (text) => text, secrets: string[] = []) {
   const decoder = new TextDecoder()
   const plainText = createAnsiText()
   let raw = ''
   let plain = ''
   let offset = 0
-  let context = ''
+  let contexts: string[] = []
   let secretPrefix = ''
   let diagnostic = ''
   const tail = (text: string) => {
@@ -41,25 +35,24 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     plain = tail(visible)
     offset += visible.length - plain.length
     raw += text
-    // Redact with the original recognizer context BEFORE discarding bytes.
-    // Explicit-secret recognition and credential syntax advance independently.
-    // Mask a known continuation before adding synthetic credential context.
-    let hidden = 0
-    for (const secret of secrets) {
-      for (let size = Math.min(secret.length - 1, secretPrefix.length); size > 0; size--) {
-        if (!secretPrefix.endsWith(secret.slice(0, size))) continue
-        const rest = secret.slice(size)
-        if (raw.startsWith(rest)) hidden = Math.max(hidden, rest.length)
-        else if (rest.startsWith(raw)) hidden = Math.max(hidden, raw.length)
-      }
-    }
-    diagnostic = tail(clean(context + (hidden ? '[redacted]' + raw.slice(hidden) : raw)))
+    // Credential and explicit-secret views recognize unchanged raw bytes. Neither
+    // masking operation can interrupt the other's syntax or exposed suffix.
+    diagnostic = tail(
+      clean(
+        redact(raw, {
+          credentialPrefixes: contexts,
+          secretPrefix,
+          secrets,
+          assignments: true,
+        }),
+      ),
+    )
     const bytes = Buffer.from(raw)
     if (bytes.length > TAIL_BYTES) {
       let start = bytes.length - TAIL_BYTES
       while ((bytes[start] & 0xc0) === 0x80) start++
       const discarded = bytes.subarray(0, start).toString()
-      context = redactionContext(context + discarded)
+      contexts = [...new Set([...contexts, ''].flatMap((prefix) => redactionContext(prefix + discarded)))]
       const prefix = secretPrefix + discarded
       secretPrefix = ''
       for (const secret of secrets) {

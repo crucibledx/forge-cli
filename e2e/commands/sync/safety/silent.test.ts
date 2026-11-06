@@ -1,10 +1,11 @@
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {protectedBytes, syncFixture, trackedPath} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
 import {testEnvironment} from '../../../../scripts/test-sandbox'
@@ -26,13 +27,7 @@ it.each([false, true].flatMap((failed) => [false, true].map((dryRun) => ({failed
     let raw: {stdout: string; stderr: string} | undefined
     const result = await runPipe(
       root,
-      [
-        process.execPath,
-        resolve(import.meta.dir, '../../../../src/main.ts'),
-        'sync',
-        '--silent',
-        ...(dryRun ? ['--dry-run'] : []),
-      ],
+      [process.execPath, CLI_ENTRY, 'sync', '--silent', ...(dryRun ? ['--dry-run'] : [])],
       {
         inspectRaw: (stdout, stderr) => {
           raw = {stdout, stderr}

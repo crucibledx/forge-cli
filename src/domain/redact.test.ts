@@ -2,6 +2,23 @@ import {expect, it} from 'bun:test'
 
 import {redact, redactData} from './redact'
 
+it.each([
+  ['Bearer prefixKNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX', 'KNOWNSECRET'],
+  ['https://fixture.invalid?token=ACTUAL_CREDENTIAL_SUFFIX', 'token'],
+  ['https://user:KNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX@fixture.invalid', 'KNOWNSECRET'],
+])('AC-15 independent explicit-secret spans cannot interrupt credentials: %s', (value, secret) => {
+  expect(redact(value, {secrets: [secret]})).not.toContain('ACTUAL_CREDENTIAL_SUFFIX')
+})
+it.each([
+  ['PREFIX', 'PREFIX.VISIBLE_SUFFIX'],
+  ['PREFIX.VISIBLE_SUFFIX', 'PREFIX'],
+])('AC-15 nested explicit secrets mask their union regardless of order: %s', (first, second) => {
+  expect(redact('before PREFIX.VISIBLE_SUFFIX after', {secrets: [first, second]})).toBe('before [redacted] after')
+})
+it('AC-15 overlapping explicit-secret occurrences form one protected span', () => {
+  expect(redact('before ababa after', {secrets: ['aba', 'bab']})).toBe('before [redacted] after')
+})
+
 it.each(['token', 'access_token', 'password', 'secret', 'key', 'auth'])(
   'AC-15 redacts apostrophes within query credentials: %s',
   (key) => {
