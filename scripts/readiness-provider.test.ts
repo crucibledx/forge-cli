@@ -7,7 +7,7 @@ import {expect, it} from 'bun:test'
 import type {DeviationEvidence} from './evidence-schema'
 import {sourceUri} from './evidence-schema'
 import {readinessFixture} from './fixtures/readiness'
-import {providerJob} from './github-evidence'
+import {providerArtifact, providerJob} from './github-evidence'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('provider-artifact')
@@ -21,6 +21,7 @@ it.each([
   'timed-out-pass',
   'unknown-job',
   'running-job',
+  'zero-artifact',
   'stale-tested',
   'mixed-attempt',
   'missing',
@@ -79,7 +80,7 @@ it.each([
           total_count: 1,
           artifacts: [
             {
-              id: 2,
+              id: kind === 'zero-artifact' ? 0 : 2,
               name: 'validation-123-1-e2e',
               expired: false,
               created_at: '2026-11-04T12:00:30Z',
@@ -162,4 +163,9 @@ it('AC-25 shared provider jobs reject non-positive IDs consistently', () => {
   const job = {id: 1, name: 'quality', status: 'completed', conclusion: 'success', started_at: null, completed_at: null}
   expect(providerJob.safeParse(job).success).toBe(true)
   for (const id of [0, -1, 1.5]) expect(providerJob.safeParse({...job, id}).success).toBe(false)
+})
+it('AC-25 shared provider artifacts reject non-positive IDs consistently', () => {
+  const artifact = {id: 1, name: 'quality', expired: false, created_at: '2026-11-04T12:00:00Z'}
+  expect(providerArtifact.safeParse(artifact).success).toBe(true)
+  for (const id of [0, -1, 1.5]) expect(providerArtifact.safeParse({...artifact, id}).success).toBe(false)
 })

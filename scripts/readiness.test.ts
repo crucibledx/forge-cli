@@ -1,5 +1,5 @@
 import {existsSync} from 'node:fs'
-import {mkdir, readFile, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -8,7 +8,7 @@ import {expect, it} from 'bun:test'
 import {runPipe} from '../e2e/framework/pipe'
 import {writeEvidence} from './evidence-io'
 import {fixtureProvider, readinessFixture} from './fixtures/readiness'
-import {collectReadiness, readiness, readinessCLI} from './readiness'
+import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './readiness'
 
 const dir = useTmpDir('readiness')
 async function fixture() {
@@ -57,6 +57,64 @@ it('AC-32 two failures dominate missing evidence while all sibling successes rem
   expect(report.lane_results.filter((lane) => lane.status === 'fail')).toHaveLength(2)
   expect(report.lane_results.filter((lane) => lane.status === 'pass')).toHaveLength(8)
   expect(report.reasons.some((reason) => reason.subject === 'security' && reason.kind === 'blocked')).toBe(true)
+})
+it('AC-32 repeated input flags select one shared evidence root and bundle', async () => {
+  const {bundle, provider} = await fixture()
+  const old = join(dir(), 'old/bundle.json'),
+    current = join(dir(), 'current/bundle.json'),
+    output = join(dir(), 'report.json')
+  await writeEvidence(old, {invalid: 'old bundle must not be selected'})
+  await writeEvidence(current, bundle)
+  const args = ['--', '--input', old, '--input', current, '--output', output]
+  expect(readinessInputPath(args, dir())).toBe(current)
+  expect(readinessInputPath(['--input', '--input', '--output', output], dir())).toBe(join(process.cwd(), '--input'))
+  expect(await readinessCLI(args, provider, dir())).toBe(0)
+  expect(JSON.parse(await Bun.file(output).text()).verdict).toBe('ready-for-owner-review')
+})
+it.each([
+  'gate-auth',
+  'gate-revision',
+  'gate-context',
+  'review-auth',
+  'review-revision',
+  'review-unavailable',
+  'review-context',
+  'trusted-gate',
+  'trusted-review',
+])('AC-32 only an authenticated gate/review establishes a known failure: %s', async (kind) => {
+  const {bundle, provider} = await fixture()
+  if (kind.includes('gate')) bundle.gate.conclusion = 'failure'
+  else
+    bundle.reviews[0].findings.push({
+      id: 'known',
+      severity: 'blocking',
+      status: 'open',
+      evidence: ['fixtures/check.log'],
+    })
+  const trusted = fixtureProvider(dir(), bundle)
+  provider.gate = trusted.gate
+  provider.producer = trusted.producer
+  if (kind === 'gate-auth')
+    provider.gate = async () => {
+      throw new Error('Gate authentication unavailable')
+    }
+  if (kind === 'review-auth')
+    provider.producer = async () => {
+      throw new Error('Producer authentication unavailable')
+    }
+  if (kind.endsWith('context'))
+    provider.context = async () => {
+      throw new Error('Context unavailable')
+    }
+  if (kind === 'gate-revision') bundle.gate.tested_sha = 'f'.repeat(40)
+  if (kind === 'review-revision') bundle.reviews[0].tested_sha = 'f'.repeat(40)
+  if (kind === 'review-unavailable') {
+    bundle.reviews[0].completion = 'unavailable'
+    provider.producer = fixtureProvider(dir(), bundle).producer
+  }
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(report.exit_code).toBe(kind.startsWith('trusted') ? 1 : 2)
+  expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(kind.startsWith('trusted'))
 })
 it.each([
   'stale-tested',
@@ -231,6 +289,38 @@ it.each(['stale-pass', 'stale-fail', 'expired-pass', 'unverified-fail', 'context
     expect(report.exit_code).toBe(2)
     expect(report.lane_results[0].status).toBe('blocked')
     expect(report.lane_results.filter((row) => row.status === 'pass')).toHaveLength(kind === 'context' ? 0 : 9)
+  },
+)
+it.each(['authenticated', 'missing-failure-log', 'stale', 'context'])(
+  'AC-25,32 preserves a proven check failure despite an unavailable sibling: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const lane = bundle.lanes.find((item) => item.lane_id === 'quality')!
+    const failed = lane.checks.find((check) => check.id === 'format:check')!
+    const unavailable = lane.checks.find((check) => check.id === 'lint')!
+    lane.status = 'fail'
+    failed.exit_code = 1
+    bundle.gate.conclusion = 'cancelled'
+    provider.gate = fixtureProvider(dir(), bundle).gate
+    await unlink(join(dir(), unavailable.evidence[0]))
+    if (kind === 'missing-failure-log') await unlink(join(dir(), failed.evidence[0]))
+    if (kind === 'stale') lane.tested_sha = 'f'.repeat(40)
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Checkout authentication unavailable')
+      }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(kind === 'authenticated' ? 1 : 2)
+    expect(report.lane_results.find((item) => item.lane_id === lane.lane_id)!.status).toBe('blocked')
+    expect(
+      report.reasons.some((reason) => reason.subject === `${lane.lane_id}/${failed.id}` && reason.kind === 'failure'),
+    ).toBe(kind === 'authenticated')
+    expect(
+      report.reasons.some(
+        (reason) => reason.subject === `${lane.lane_id}/${unavailable.id}` && reason.kind === 'blocked',
+      ),
+    ).toBe(true)
+    expect(report.lane_results.filter((item) => item.status === 'pass')).toHaveLength(kind === 'context' ? 0 : 9)
   },
 )
 it.each(['verifier.json', 'reviews/code.json', 'checks/quality/lint.log', 'custom-source.json', 'context.json'])(

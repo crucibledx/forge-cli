@@ -28,6 +28,43 @@ The initial typecheck caught optional provider identity fields and the first exp
 context precedence and an unfinished URI test setup. Those were corrected before the green focused/full runs.
 No acceptance/dependency/bundle/version changes or draft toggles were made.
 
+### Independent review of adf46c1
+
+The bounded independent review on tested merge `3b9b3ac18471d67b0e455543b31ad0493dfd5974`
+completed at `2026-11-06T18:18:19Z`. It found two actionable regressions. Both were reproduced with four
+failing controls before correction, retaining the original failure log:
+
+- Preserve the query delimiter and partial credential name when tail truncation cuts through a query key.
+  Domain/harness tests cover every name boundary for all six supported keys, case variants, all three
+  delimiters, finalization and later chunks. Real pipe/validation results cover query and userinfo cuts.
+- Authenticate check failures individually. A missing sibling log still blocks the lane but cannot suppress
+  a different check's authenticated failure. Missing failure logs, stale lane identity and invalid context
+  still produce blocked evidence, not a proven failure; verified lane siblings remain visible.
+
+The reviewer ran format/lint/typecheck/contracts and read-only reproduction probes, not a passing test suite.
+Its delegated focused-test/report writes were denied by the confirmation boundary. The returned report is
+retained by the parent as supporting evidence, not authenticated approval of this follow-up revision.
+
+### Hosted review 5804937450 on adf46c1
+
+The hosted review completed with six further inline findings while the independent follow-up was running.
+All six were confirmed and handled in this same bounded follow-up:
+
+| Comment | Correction and regression |
+| --- | --- |
+|4496055068 | Query/assignment context inspects only the final matching marker, avoiding overlapping suffix rescans. The original pinned Bun 1.4.2 probe took 7,653.9 ms for 40,000 repeated query markers. A subprocess control exercises both marker types under the ordinary session deadline, without a new performance threshold. |
+|4496055088 | Only authenticated current-context/revision, completed review/gate failures establish known failures. Stale, unavailable and unauthenticated failure claims remain blocked. Nine controls retain genuine failures and reject untrusted claims. |
+|4496055098 | The wrapper and CLI use one flag/value-pair input selector, including repeated inputs, optional `--` and flag-like path values. The provider evidence root and parsed bundle cannot select different inputs. |
+|4496055130 | Gate and readiness share positive-ID artifact metadata; readiness extends only digest/workflow fields. Shared schema and real provider controls reject zero/non-integral/negative artifact IDs. |
+|4496055136 | Pipe and validation runners use one transcript drain helper, retaining concurrent reads, reader registration/finalization and lock release. Existing flood/UTF-8/lifecycle tests exercise both callers. |
+|4496055146 | Injected source-resolution handler cases now live beside application sync tests. Their ledger path is updated; real subprocess cases stay in E2E. No frozen contract text changed. |
+
+CI run `42268746524` passed all ten lanes and the deterministic gate on adf46c1/tested merge 3b9b3ac.
+Both native suites passed 202 tests. The independent verifier completed at `2026-11-06T18:24:03Z`,
+with 1,174/0 full tests and ten consecutive contract runs. Its 32 phase-1 support passes did not detect
+the additional reviewer counterexamples and do not approve this changed revision or phase-2 readiness.
+Original native/verifier artifacts remain retained separately; no old result is transferred forward.
+
 ## Earlier hosted review5804051755
 
 All nine inline findings on7df422f were confirmed and corrected. The hosted reviewer used Bun1.2.11 without

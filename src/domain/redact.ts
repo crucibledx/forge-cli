@@ -1,9 +1,23 @@
+const queryKeys = ['access_token', 'token', 'password', 'secret', 'key', 'auth']
+const queryMarker = `[?&#](?:${queryKeys.join('|')})=`
+const queryValue = new RegExp(`(${queryMarker})[^&#\\s"']+`, 'gi')
+const unfinishedQuery = new RegExp(`${queryMarker}[^&#\\s"']*$`, 'i')
+const queryStart = new RegExp(queryMarker, 'gi')
+const assignmentStart = /(?:token|password|secret|authorization)[=:]/gi
+
+function lastMarkerSuffix(text: string, marker: RegExp): string {
+  marker.lastIndex = 0
+  let start = -1
+  for (let match = marker.exec(text); match; match = marker.exec(text)) start = match.index
+  return start < 0 ? '' : text.slice(start)
+}
+
 /** Presentation-only redaction. Never serialize upstream file contents as diagnostics. */
 export function redact(text: string): string {
   // Start only at a scheme boundary, avoiding repeated scans of long invalid tokens.
   return text
     .replace(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, '$1[redacted]@')
-    .replace(/([?&#](?:access_token|token|password|secret|key|auth)=)[^&#\s"']+/gi, '$1[redacted]')
+    .replace(queryValue, '$1[redacted]')
     .replace(/(Bearer\s+)[a-z\d._~+/-]+=*/gi, '$1[redacted]')
 }
 
@@ -13,9 +27,15 @@ export function redactionContext(discarded: string, secrets: string[] = []): str
     for (let size = Math.min(secret.length - 1, discarded.length); size > 0; size--)
       if (discarded.endsWith(secret.slice(0, size))) return secret.slice(0, size)
   }
-  if (/[?&#](?:access_token|token|password|secret|key|auth)=[^&#\s"']*$/i.test(discarded)) return '?token='
+  // Only the final matching marker can have an unfinished value. Searching all
+  // overlapping suffixes makes repeated markers quadratic during stream drains.
+  if (unfinishedQuery.test(lastMarkerSuffix(discarded, queryStart))) return '?token='
+  // A partial name still needs its query delimiter after the original URL is gone.
+  const queryName = /[?&#]([a-z_]*)$/i.exec(discarded)
+  if (queryName && queryKeys.some((key) => key.startsWith(queryName[1].toLowerCase()))) return queryName[0]
   if (/Bearer\s+[a-z\d._~+/-]*=*$/i.test(discarded)) return 'Bearer '
-  if (/(?:token|password|secret|authorization)[=:]\s*[^\s&]*$/i.test(discarded)) return 'secret='
+  if (/^(?:token|password|secret|authorization)[=:]\s*[^\s&]*$/i.test(lastMarkerSuffix(discarded, assignmentStart)))
+    return 'secret='
   if (/(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/]*$/i.test(discarded)) return 'https://'
   // Carry syntax, never an arbitrary discarded raw tail that could revive a
   // credential fragment. This also bridges a cut inside "Bear" / "er value".

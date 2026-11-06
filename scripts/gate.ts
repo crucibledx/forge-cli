@@ -6,17 +6,11 @@ import {z} from 'zod'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
-import {githubJSON, providerJob} from './github-evidence'
+import {githubJSON, providerArtifact, providerJob} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
 import {assessLane} from './validation-policy'
 
-const providerArtifact = z.object({
-  id: z.number().int().positive(),
-  name: z.string(),
-  expired: z.boolean(),
-  created_at: z.string(),
-})
 export const artifactName = (context: EvidenceContext, lane: string) =>
   `validation-${context.run_id}-${context.run_attempt}-${lane}`
 export async function deterministicGate(

@@ -7,9 +7,9 @@ import {afterEach, expect, it} from 'bun:test'
 import {stringify} from 'yaml'
 
 import type {SyncReport} from '@domain/sync/report'
-import {runSyncWithDependencies} from '@application/commands/sync/handler'
 
-import {protectedBytes} from './helpers'
+import {protectedBytes} from '../../../../e2e/commands/sync/safety/helpers'
+import {runSyncWithDependencies} from './handler'
 
 const dir = useTmpDir('resolution-failure')
 afterEach(() => {

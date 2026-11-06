@@ -53,18 +53,21 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       laneResults.push({lane_id: id, status: 'blocked'})
       continue
     }
-    let valid = await authenticate(id, async () => {
+    const policyValid = await authenticate(id, async () => {
       assessLane(lane, context, pin)
     })
-    valid = contextValid && valid
+    const laneValid = contextValid && policyValid
+    let valid = laneValid
     for (const check of lane.checks) {
+      let checkValid = laneValid
       for (const ref of check.evidence) {
         const authenticated = await authenticate(`${id}/${check.id}`, () => provider.artifact(ref, context, lane))
-        valid = authenticated && valid
+        checkValid = authenticated && checkValid
       }
+      // Missing sibling logs block the lane, not a different check's proven failure.
+      if (checkValid && failedExit(check.exit_code)) add('failure', `${id}/${check.id}`, 'Required check failed')
+      valid = checkValid && valid
     }
-    if (valid && (lane.status === 'fail' || lane.checks.some((check) => failedExit(check.exit_code))))
-      add('failure', id, 'Required check failed')
     const status = valid ? lane.status : 'blocked'
     if (status !== 'pass') add('blocked', id, `Lane ${status}`)
     laneResults.push({lane_id: id, status, checks: lane.checks})
@@ -74,10 +77,11 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     bundle.gate.run_id === context.run_id &&
     bundle.gate.run_attempt === context.run_attempt
   ) {
-    if (bundle.gate.conclusion === 'failure') add('failure', 'Deterministic gate', 'Provider gate failed')
+    const gateValid = await authenticate('Deterministic gate', () => provider.gate(bundle.gate, context))
+    if (contextValid && gateValid && bundle.gate.conclusion === 'failure')
+      add('failure', 'Deterministic gate', 'Provider gate failed')
     else if (bundle.gate.conclusion !== 'success')
       add('blocked', 'Deterministic gate', `Provider gate ${bundle.gate.conclusion}`)
-    await authenticate('Deterministic gate', () => provider.gate(bundle.gate, context))
   } else add('blocked', 'Deterministic gate', 'Gate run/attempt mismatch')
   for (const role of ['code', 'security'] as const) {
     const review = bundle.reviews.find((record) => record.role === role)
@@ -86,13 +90,14 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       continue
     }
     const valid =
+      contextValid &&
       identity(review, role) &&
       review.provenance.producer_role === role &&
       (await authenticate(role, () => provider.producer(review, context)))
     if (!valid) add('blocked', role, 'Unverified producer/revision')
     if (review.completion !== 'complete') add('blocked', role, 'Independent review unavailable')
     for (const finding of review.findings) {
-      if (finding.severity === 'blocking' && finding.status !== 'resolved')
+      if (valid && review.completion === 'complete' && finding.severity === 'blocking' && finding.status !== 'resolved')
         add('failure', `${role}/${finding.id}`, 'Open blocking finding')
       if (
         finding.severity === 'blocking' &&
@@ -180,10 +185,17 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     exit_code: verdict === 'ready-for-owner-review' ? 0 : verdict === 'not-ready' ? 1 : 2,
   }
 }
+/** Select from flag/value pairs exactly as the strict CLI parser does. */
+export function readinessInputPath(args: string[], root: string): string {
+  let input = resolve(root, 'results/readiness-input.json')
+  for (let index = args[0] === '--' ? 1 : 0; index < args.length; index += 2)
+    if (args[index] === '--input' && args[index + 1]) input = resolve(args[index + 1])
+  return input
+}
 export async function readinessCLI(args: string[], provider: ReadinessProvider, root: string): Promise<number> {
   if (args[0] === '--') args = args.slice(1)
-  let input = resolve(root, 'results/readiness-input.json'),
-    output = resolve(root, 'results/readiness.json')
+  const input = readinessInputPath(args, root)
+  let output = resolve(root, 'results/readiness.json')
   let cleanupAllowed = false
   try {
     while (args.length) {
@@ -191,8 +203,7 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
         value = args.shift()
       if (!value || !['--input', '--output'].includes(flag!))
         throw new Error('Usage: check:readiness -- --input <bundle> --output <report>')
-      if (flag === '--input') input = resolve(value)
-      else output = resolve(value)
+      if (flag === '--output') output = resolve(value)
     }
     if (input === output) throw new Error('Output cannot overwrite source attestations')
     const sourceNames = [

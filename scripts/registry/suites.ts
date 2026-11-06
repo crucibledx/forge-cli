@@ -48,6 +48,7 @@ export const testSuites = {
   ],
   performance: ['e2e/contracts/performance.test.ts', 'e2e/contracts/performance-wrapper.test.ts'],
   contracts: [
+    'src/application/commands/sync/source-resolution.test.ts',
     'scripts/',
     'e2e/framework/contracts/',
     'e2e/commands/sync/safety.test.ts',
