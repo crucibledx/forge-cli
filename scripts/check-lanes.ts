@@ -11,7 +11,7 @@ import type {ValidationCheck, ValidationLane} from './validation-lanes'
 import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, laneById, validationLanes} from './validation-lanes'
 import {aggregateExit, assessLane, blockedExit, failedExit} from './validation-policy'
 import type {CommandOutcome} from './validation-process'
-import {executeCheck} from './validation-process'
+import {commandMetadata, executeCheck} from './validation-process'
 
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
@@ -32,6 +32,7 @@ async function runCheck(
   let result: CommandOutcome =
     blocked || budget <= 0
       ? {
+          ...commandMetadata(),
           exit_code: null,
           duration_ms: 0,
           timed_out: false,
@@ -39,7 +40,7 @@ async function runCheck(
           stderr: '',
           reason: blocked ?? 'Lane deadline exhausted',
         }
-      : {exit_code: null, duration_ms: 0, timed_out: false, stdout: '', stderr: ''}
+      : {...commandMetadata(), exit_code: null, duration_ms: 0, timed_out: false, stdout: '', stderr: ''}
   if (!blocked && budget > 0) {
     const start = performance.now()
     try {

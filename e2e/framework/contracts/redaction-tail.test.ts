@@ -8,9 +8,108 @@ import {executeCheck} from '../../../scripts/validation-process'
 import {redact} from '../../../src/domain/redact'
 import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
+import {driveSession} from '../run'
 import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
+const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each([
+  `https://user:${liveSecret}`,
+  `https://us\x1b[31mer:${liveSecret}\x1b[0m`,
+  `ht\x1b[31mtps://user:${liveSecret}\x1b[0m`,
+  `https://user:Qv7_\x9b31mPRIVATE_λ_SECRET\x9b0m`,
+  `\x1b]8;;https://fixture.invalid/docs\x1b\\https://user:${liveSecret}\x1b]8;;\x1b\\`,
+])('AC-15,16,27,30 unfinished userinfo stays private in every live byte-prefix: %s', (value) => {
+  const bytes = Buffer.from(value)
+  const assertLive = (transcript: ReturnType<typeof createTranscript>) => {
+    const privatePrefix = Array.from({length: liveSecret.length}, (_, index) =>
+      liveSecret.slice(0, liveSecret.length - index),
+    ).find((prefix) => transcript.text().includes(prefix))
+    for (const output of [stripAnsi(transcript.diagnostic()), transcript.visibleDiagnostic()]) {
+      if (privatePrefix) expect(output).not.toContain(privatePrefix)
+      expect(output).toContain('visible-before')
+      expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+  }
+  for (let cut = 0; cut <= bytes.length; cut++) {
+    const transcript = createTranscript()
+    transcript.append(Buffer.concat([Buffer.from('visible-before\n'), bytes.subarray(0, cut)]))
+    assertLive(transcript)
+    transcript.append(bytes.subarray(cut))
+    assertLive(transcript)
+    transcript.append(Buffer.from('@fixture.invalid\nordinary-after'))
+    transcript.finish()
+    assertLive(transcript)
+    expect(transcript.visibleDiagnostic()).toContain('ordinary-after')
+    const stopped = createTranscript()
+    stopped.append(Buffer.concat([Buffer.from('visible-before\n'), bytes.subarray(0, cut)]))
+    stopped.finish()
+    assertLive(stopped)
+  }
+})
+it('AC-15,16,27,30 unfinished userinfo retains its syntax after every secret-only eviction', () => {
+  const transcript = createTranscript()
+  transcript.append(Buffer.from('https://user:' + 'Z'.repeat(TAIL_BYTES + 32)))
+  for (let round = 0; round < 3; round++) {
+    transcript.append(Buffer.from('Z'.repeat(TAIL_BYTES + 16)))
+    transcript.finish()
+    expect(transcript.text()).toContain('Z')
+    for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) expect(output).not.toContain('Z')
+  }
+  transcript.append(Buffer.from('Z@fixture.invalid\nordinary-after'))
+  expect(transcript.visibleDiagnostic()).not.toContain('Z')
+  expect(transcript.visibleDiagnostic()).toContain('ordinary-after')
+})
+it.each(['https://fixture.invalid/docs', 'https://fixture.invalid:8080/docs', 'http://[::1]:8080/docs'])(
+  'AC-15,16,30 complete non-credential URLs retain ordinary text: %s',
+  (value) => {
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(value))
+    transcript.finish()
+    expect(transcript.visibleDiagnostic()).toBe(value)
+  },
+)
+it.each(['pipe', 'pty', 'validation'] as const)(
+  'AC-15,16,27,30 actual %s failure before userinfo completion remains private',
+  async (kind) => {
+    if (kind === 'pty' && process.platform === 'win32') return
+    const value = 'visible-before\nhttps://user:' + liveSecret
+    const command = [
+      process.execPath,
+      '-e',
+      `process.stdout.write(${JSON.stringify(value)});process.stderr.write(${JSON.stringify(value)});setInterval(()=>{},1000)`,
+    ]
+    let views: string[]
+    if (kind === 'pty') {
+      const cli = spawnPty(dir(), command)
+      let failure: Error | undefined
+      try {
+        await driveSession(cli, async (session) => {
+          await session.waitForText(liveSecret)
+          expect(session.getOutput()).not.toContain(liveSecret)
+          throw new Error('driver assertion')
+        })
+      } catch (error) {
+        failure = error as Error
+      }
+      expect(failure?.message).toContain('driver assertion')
+      views = [failure!.message, failure!.stack!]
+    } else {
+      const result =
+        kind === 'pipe' ? await runPipe(dir(), command, {timeoutMs: 500}) : await executeCheck(command, 500)
+      expect(
+        kind === 'pipe'
+          ? (result as Awaited<ReturnType<typeof runPipe>>).timedOut
+          : (result as Awaited<ReturnType<typeof executeCheck>>).timed_out,
+      ).toBe(true)
+      views = [result.stdout, result.stderr]
+    }
+    for (const output of views) {
+      expect(output).not.toContain(liveSecret)
+      expect(output).toContain('visible-before')
+    }
+  },
+)
 it.each([
   ['FI\u001b[31mXTURE_SECRET\u001b[0m', ['FIXTURE_SECRET']],
   ['Bearer \u001b[31mFIXTURE_SECRET\u001b[0m', []],

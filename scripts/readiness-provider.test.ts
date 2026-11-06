@@ -7,12 +7,54 @@ import {expect, it} from 'bun:test'
 import type {DeviationEvidence} from './evidence-schema'
 import {sourceUri} from './evidence-schema'
 import {readinessFixture} from './fixtures/readiness'
-import {providerArtifact, providerJob} from './github-evidence'
+import {providerArtifact, providerArtifactInJobWindow, providerJob} from './github-evidence'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('provider-artifact')
+const windowJob = {
+  id: 1,
+  name: 'e2e',
+  status: 'completed',
+  conclusion: 'success',
+  started_at: '2026-11-04T12:00:00Z',
+  completed_at: '2026-11-04T12:01:00Z',
+}
+const windowArtifact = {id: 2, name: 'e2e', expired: false, created_at: '2026-11-04T12:00:30Z'}
+it.each([
+  'not-an-ISO-date',
+  'NaN',
+  'Infinity',
+  '',
+  '2026-02-30T12:00:00Z',
+  '2026-13-01T12:00:00Z',
+  '2026-11-04',
+  '2026-11-04T12:00:30',
+  '2026-11-04T24:00:00Z',
+])('AC-25,27,32 window provenance rejects malformed artifact/start/end timestamp: %s', (value) => {
+  expect(providerArtifactInJobWindow({...windowArtifact, created_at: value}, windowJob)).toBe(false)
+  expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, started_at: value})).toBe(false)
+  expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, completed_at: value})).toBe(false)
+})
+it.each(['2026-11-04T12:00:00Z', '2026-11-04T12:01:00Z', '2026-11-04T13:00:30.123+01:00'])(
+  'AC-25,27,32 finite ordered window accepts valid endpoint/offset timestamp: %s',
+  (value) => {
+    expect(providerArtifactInJobWindow({...windowArtifact, created_at: value}, windowJob)).toBe(true)
+    expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, started_at: null})).toBe(false)
+    expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, completed_at: null})).toBe(false)
+    expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, completed_at: '2026-11-04T11:00:00Z'})).toBe(
+      false,
+    )
+    expect(providerArtifactInJobWindow({...windowArtifact, created_at: '2026-11-04T12:01:00.001Z'}, windowJob)).toBe(
+      false,
+    )
+  },
+)
 it.each([
   'e2e',
+  'invalid-artifact-time',
+  'invalid-job-start',
+  'invalid-job-end',
+  'reversed-job-window',
   'paginated',
   'paginated-missing',
   'paginated-duplicate',
@@ -102,8 +144,13 @@ it.each([
                     : ['failed-job', 'failed-evidence', 'blocked-evidence'].includes(kind)
                       ? 'failure'
                       : 'success',
-              started_at: '2026-11-04T12:00:00Z',
-              completed_at: '2026-11-04T12:01:00Z',
+              started_at:
+                kind === 'invalid-job-start'
+                  ? 'not-an-ISO-date'
+                  : kind === 'reversed-job-window'
+                    ? '2026-11-04T12:02:00Z'
+                    : '2026-11-04T12:00:00Z',
+              completed_at: kind === 'invalid-job-end' ? 'not-an-ISO-date' : '2026-11-04T12:01:00Z',
             },
           ],
         }
@@ -124,7 +171,7 @@ it.each([
           id: kind === 'zero-artifact' ? 0 : 2,
           name: `validation-123-${context.run_attempt}-e2e`,
           expired: false,
-          created_at: '2026-11-04T12:00:30Z',
+          created_at: kind === 'invalid-artifact-time' ? 'not-an-ISO-date' : '2026-11-04T12:00:30Z',
           digest: `sha256:${'d'.repeat(64)}`,
           workflow_run: {id: 123},
         }
@@ -156,6 +203,7 @@ it.each([
     await expect(provider.artifact(ref, context, citing)).resolves.toBeUndefined()
   else await expect(provider.artifact(ref, context, citing)).rejects.toThrow()
   if (kind.includes('workflow')) expect(archives).toBe(0)
+  if (kind.startsWith('invalid-') || kind === 'reversed-job-window') expect(archives).toBe(0)
   await expect(provider.artifact(bundle.reviews[0].provenance.source_uri, context, lane)).rejects.toThrow(
     'cannot substitute',
   )

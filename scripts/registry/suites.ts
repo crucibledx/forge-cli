@@ -32,6 +32,7 @@ export const testSuites = {
     'src/application/commands/sync/planning.test.ts',
     'e2e/contracts/security.test.ts',
     'scripts/security-audit.test.ts',
+    'scripts/validation-process.test.ts',
   ],
   platform: [
     'src/infrastructure/fs/transaction-permissions.test.ts',

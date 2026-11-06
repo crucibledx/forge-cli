@@ -18,6 +18,20 @@ export const providerArtifact = z.object({
   created_at: z.string(),
 })
 
+const providerTimestamp = z.iso.datetime({offset: true})
+/** Validate temporal provenance per selected row, preserving unrelated job outcomes. */
+export function providerArtifactInJobWindow(
+  artifact: z.infer<typeof providerArtifact>,
+  job: z.infer<typeof providerJob>,
+): boolean {
+  const dates = [artifact.created_at, job.started_at, job.completed_at].map((value) => {
+    const parsed = providerTimestamp.safeParse(value)
+    return parsed.success ? Date.parse(parsed.data) : Number.NaN
+  })
+  const [created, started, completed] = dates
+  return dates.every(Number.isFinite) && started <= created && created <= completed
+}
+
 /** Enumerate retained attempts before selecting this attempt's artifacts. */
 export async function providerArtifacts(context: EvidenceContext, read = githubJSON) {
   const selected: z.infer<ReturnType<typeof providerArtifact.passthrough>>[] = []

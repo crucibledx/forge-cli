@@ -8,7 +8,7 @@ import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
 import {blockedGateSummary} from './gate-summary'
 import type {providerArtifact} from './github-evidence'
-import {githubJSON, providerArtifacts, providerJob} from './github-evidence'
+import {githubJSON, providerArtifactInJobWindow, providerArtifacts, providerJob} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
 import {assessLane} from './validation-policy'
@@ -34,12 +34,7 @@ export async function deterministicGate(
         throw new Error(`Required provider job ${job[0]?.conclusion ?? 'missing/incomplete'}`)
       if (artifact.length !== 1 || artifact[0].expired)
         throw new Error('Missing/duplicate/expired selected-run artifact')
-      if (
-        !job[0].started_at ||
-        !job[0].completed_at ||
-        Date.parse(artifact[0].created_at) < Date.parse(job[0].started_at) ||
-        Date.parse(artifact[0].created_at) > Date.parse(job[0].completed_at)
-      )
+      if (!providerArtifactInJobWindow(artifact[0], job[0]))
         throw new Error('Artifact is not from the selected job execution window')
       const folder = resolve(incoming, artifactName(context, definition.id))
       const raw = JSON.parse(await readEvidence(folder, `${definition.id}.json`))

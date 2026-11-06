@@ -2,7 +2,17 @@ import {expect, it} from 'bun:test'
 
 import {assessAudit} from './security-audit'
 
-const clean = {exit_code: 0, duration_ms: 1, timed_out: false, stdout: '{}', stderr: ''}
+const clean = {
+  signal: null,
+  cwd: '.',
+  seed: null,
+  replay: null,
+  exit_code: 0,
+  duration_ms: 1,
+  timed_out: false,
+  stdout: '{}',
+  stderr: '',
+}
 it.each(['high', 'critical'].flatMap((severity) => [0, 1].map((exit_code) => ({severity, exit_code}))))(
   'AC-30 known $severity advisory keeps failure precedence with warnings and exit $exit_code',
   ({severity, exit_code}) => {

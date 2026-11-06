@@ -9,9 +9,54 @@ import {laneSchema} from './evidence-schema'
 import {validationContext} from './validation-context'
 import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, PLATFORMS, validationLanes} from './validation-lanes'
 import {aggregateExit, assessLane} from './validation-policy'
-import {executeCheck} from './validation-process'
+import {commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('lane-fixtures')
+it('AC-18,25,27 retained lane logs contain actual runner signal, relative cwd and selected replay', async () => {
+  if (process.platform === 'win32') return
+  const saved = {seed: process.env.FC_SEED, replay: process.env.FC_PATH}
+  process.env.FC_SEED = '123'
+  process.env.FC_PATH = '0:1'
+  try {
+    const reports = await runLanes(
+      dir(),
+      validationContext(),
+      async (command) =>
+        command.at(-1) === 'lint'
+          ? executeCheck(
+              [
+                process.execPath,
+                '-e',
+                "process.stderr.write('runner terminated');process.kill(process.pid, 'SIGTERM')",
+              ],
+              5000,
+            )
+          : {...commandMetadata(), exit_code: 0, duration_ms: 1, timed_out: false, stdout: '', stderr: ''},
+      'linux',
+    )
+    expect(aggregateExit(reports)).toBe(1)
+    const quality = reports.find((lane) => lane.lane_id === 'quality')!
+    const lint = quality.checks.find((check) => check.id === 'lint')!
+    const retained = JSON.parse(await readFile(join(dir(), lint.evidence[0]), 'utf8'))
+    expect(retained).toMatchObject({
+      signal: 'SIGTERM',
+      cwd: '.',
+      seed: '123',
+      replay: '0:1',
+      timed_out: false,
+      stderr: 'runner terminated',
+    })
+    expect(retained.command).toEqual(['bun', 'run', 'lint'])
+    const foreign = reports.find((lane) => lane.lane_id === 'native-windows')!
+    const blocked = JSON.parse(await readFile(join(dir(), foreign.checks[0].evidence[0]), 'utf8'))
+    expect(blocked).toMatchObject({signal: null, cwd: '.', seed: '123', replay: '0:1', exit_code: null})
+  } finally {
+    if (saved.seed === undefined) delete process.env.FC_SEED
+    else process.env.FC_SEED = saved.seed
+    if (saved.replay === undefined) delete process.env.FC_PATH
+    else process.env.FC_PATH = saved.replay
+  }
+})
 it('AC-25,27 CI checks share elapsed setup/check time and leave cleanup/evidence headroom', () => {
   const lane = validationLanes[0],
     start = 1800000000000
@@ -39,6 +84,7 @@ it('AC-25 thrown setup outcomes retain all sibling logs and proven failure prece
     async (command) => {
       if (command.at(-1) === 'format:check') throw new Error('fixture scheduler setup failure')
       return {
+        ...commandMetadata(),
         exit_code: command.at(-1) === 'typecheck' ? 2 : 0,
         duration_ms: 1,
         timed_out: false,
@@ -79,7 +125,7 @@ it('AC-25 actual pinned compiler diagnostics retain exit2 and fail the aggregate
             ],
             10000,
           )
-        : {exit_code: 0, duration_ms: 1, timed_out: false, stdout: '', stderr: ''},
+        : {...commandMetadata(), exit_code: 0, duration_ms: 1, timed_out: false, stdout: '', stderr: ''},
     'linux',
   )
   const quality = reports.find((lane) => lane.lane_id === 'quality')!
@@ -100,6 +146,7 @@ it.each(['typecheck', 'check:security-audit', 'test:e2e'])(
       dir(),
       context,
       async (command) => ({
+        ...commandMetadata(),
         exit_code: command.at(-1) === selected ? 2 : 0,
         duration_ms: 1,
         timed_out: false,
@@ -132,6 +179,7 @@ it('AC-25 preserves two simultaneous failures, later successes and foreign-nativ
       await Promise.resolve()
       active--
       return {
+        ...commandMetadata(),
         exit_code: ['format:check', 'test:unit'].includes(command.at(-1)!) ? 1 : 0,
         duration_ms: 1,
         timed_out: false,
