@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-import {acceptanceIds, requiredLaneIds} from './validation-lanes'
+import {acceptanceIds, PLATFORMS, requiredLaneIds} from './validation-lanes'
 
 export const sha = z.string().regex(/^[a-f0-9]{40}$/)
 export const digest = z.string().regex(/^[a-f0-9]{64}$/)
@@ -91,7 +91,7 @@ export const laneSchema = z
     run_attempt: z.number().int().positive(),
     lane_id: z.string().refine((value) => requiredLaneIds.includes(value)),
     status: z.enum(['pass', 'fail', 'blocked', 'cancelled']),
-    runner_os: z.enum(['linux', 'darwin', 'win32']),
+    runner_os: z.enum(PLATFORMS),
     bun_version: z.string().regex(/^\d+\.\d+\.\d+$/),
     duration_ms: z.number().nonnegative().finite(),
     checks: z

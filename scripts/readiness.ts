@@ -12,7 +12,7 @@ import type {
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
-import {acceptanceIds, requiredLaneIds} from './validation-lanes'
+import {acceptanceIds, laneById, requiredLaneIds} from './validation-lanes'
 import {assessLane, failedExit} from './validation-policy'
 
 export interface ReadinessProvider {
@@ -67,7 +67,14 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
         checkValid = authenticated && checkValid
       }
       // Missing sibling logs block the lane, not a different check's proven failure.
-      if (checkValid && failedExit(check.exit_code)) add('failure', `${id}/${check.id}`, 'Required check failed')
+      if (
+        checkValid &&
+        failedExit(
+          check.exit_code,
+          laneById(id).checks.find((expected) => expected.id === check.id)!,
+        )
+      )
+        add('failure', `${id}/${check.id}`, 'Required check failed')
       valid = checkValid && valid
     }
     const status = valid ? lane.status : 'blocked'

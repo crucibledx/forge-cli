@@ -4,7 +4,7 @@ import {resolve} from 'node:path'
 import {parse} from 'yaml'
 
 import {testSuites} from './registry/suites'
-import {safetyLedger} from './safety-ledger'
+import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
 import {repositoryRoot} from './validation-context'
 import {acceptanceIds, businessRuleIds, validationLanes} from './validation-lanes'
 
@@ -44,7 +44,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     ), 'Ledger must cover BR-01..10 exactly once')
   const covered = new Set<string>()
   for (const rule of input.ledger) {
-    require(['domain', 'application', 'infrastructure', 'harness'].includes(rule.layer) &&
+    require(Object.values(SAFETY_LAYERS).includes(rule.layer) &&
       rule.example.trim() &&
       rule.counterexample.trim(), `${rule.id}: missing layer/example/counterexample`)
     require(rule.tests.length && rule.tests.every(input.exists), `${rule.id}: test mapping does not exist`)

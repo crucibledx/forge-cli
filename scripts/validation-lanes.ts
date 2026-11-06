@@ -1,8 +1,9 @@
-const PLATFORMS = {MACOS: 'darwin', WINDOWS: 'win32', LINUX: 'linux'} as const
+export const PLATFORMS = {MACOS: 'darwin', WINDOWS: 'win32', LINUX: 'linux'} as const
 type ValidationPlatform = (typeof PLATFORMS)[keyof typeof PLATFORMS]
 export interface ValidationCheck {
   id: string
   command: string[]
+  blocked_exits?: readonly number[]
 }
 export interface ValidationLane {
   id: string
@@ -13,7 +14,11 @@ export interface ValidationLane {
   br_ids: string[]
   checks: ValidationCheck[]
 }
-const run = (id: string): ValidationCheck => ({id, command: ['bun', 'run', id]})
+const run = (id: string, blocked_exits: readonly number[] = []): ValidationCheck => ({
+  id,
+  command: ['bun', 'run', id],
+  blocked_exits,
+})
 const LANE_BUDGET_MS = 10 * 60 * 1000
 export const validationLanes: readonly ValidationLane[] = [
   {
@@ -22,7 +27,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'repository, no runtime fixtures',
     ac_ids: ['AC-24'],
     br_ids: ['BR-10'],
-    checks: ['format:check', 'lint', 'typecheck'].map(run),
+    checks: ['format:check', 'lint', 'typecheck'].map((id) => run(id)),
   },
   {
     id: 'business',
@@ -45,7 +50,7 @@ export const validationLanes: readonly ValidationLane[] = [
       'AC-32',
     ],
     br_ids: ['BR-01', 'BR-02', 'BR-03', 'BR-04', 'BR-06', 'BR-07', 'BR-10'],
-    checks: ['test:unit', 'test:properties', 'check:contracts', 'test:checkers'].map(run),
+    checks: [run('test:unit', [2]), run('test:properties', [2]), run('check:contracts'), run('test:checkers', [2])],
   },
   {
     id: 'e2e',
@@ -68,7 +73,7 @@ export const validationLanes: readonly ValidationLane[] = [
       'AC-23',
     ],
     br_ids: ['BR-01', 'BR-02', 'BR-03', 'BR-04', 'BR-05', 'BR-06', 'BR-07', 'BR-08', 'BR-09', 'BR-10'],
-    checks: [run('test:e2e')],
+    checks: [run('test:e2e', [2])],
   },
   {
     id: 'human-dx',
@@ -76,7 +81,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'real POSIX PTYs, disposable persisted configuration',
     ac_ids: ['AC-22', 'AC-29'],
     br_ids: ['BR-09', 'BR-10'],
-    checks: [run('test:human')],
+    checks: [run('test:human', [2])],
   },
   {
     id: 'agent-cli',
@@ -84,7 +89,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'closed stdin, separate pipes, local configuration',
     ac_ids: ['AC-21', 'AC-23', 'AC-29'],
     br_ids: ['BR-05', 'BR-08', 'BR-09', 'BR-10'],
-    checks: [run('test:agent')],
+    checks: [run('test:agent', [2])],
   },
   {
     id: 'security',
@@ -92,7 +97,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'offline attack sentinels; public advisory metadata is the only network exception',
     ac_ids: ['AC-9', 'AC-10', 'AC-11', 'AC-12', 'AC-13', 'AC-15', 'AC-23', 'AC-30'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-08', 'BR-10'],
-    checks: [run('test:security'), run('check:security-audit')],
+    checks: [run('test:security', [2]), run('check:security-audit', [2])],
   },
   {
     id: 'performance',
@@ -100,7 +105,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'fixed offline 10/1000-target fixtures; advisory latency',
     ac_ids: ['AC-31'],
     br_ids: ['BR-08', 'BR-09', 'BR-10'],
-    checks: [run('test:performance')],
+    checks: [run('test:performance', [2])],
   },
   {
     id: 'native-macos',
@@ -109,7 +114,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'native macOS project/global roots and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-09', 'BR-10'],
-    checks: [run('build'), run('test:platform'), run('test:compiled')],
+    checks: [run('build'), run('test:platform', [2]), run('test:compiled')],
   },
   {
     id: 'native-windows',
@@ -118,7 +123,7 @@ export const validationLanes: readonly ValidationLane[] = [
     fixture_scope: 'native Windows project/global roots, access controls, Job Objects and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-09', 'BR-10'],
-    checks: [run('build'), run('test:platform'), run('test:compiled')],
+    checks: [run('build'), run('test:platform', [2]), run('test:compiled')],
   },
   {
     id: 'build',

@@ -9,6 +9,95 @@ import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
 
 const dir = useTmpDir('redacted-tail')
+function expectPrivateTail(
+  transcript: ReturnType<typeof createTranscript>,
+  value: string,
+  credential: string,
+  cut: number,
+) {
+  const surviving = credential.slice(Math.max(0, cut - value.indexOf(credential)))
+  if (surviving) expect({cut, leaked: transcript.diagnostic().includes(surviving)}).toEqual({cut, leaked: false})
+  expect({cut, visible: transcript.diagnostic().includes('x'.repeat(64))}).toEqual({cut, visible: true})
+  expect(Buffer.byteLength(transcript.diagnostic())).toBeLessThanOrEqual(TAIL_BYTES)
+}
+it.each(['Bearer ', 'password=', 'https://fixture.invalid?token=', 'https://fixture.invalid?%74oken='])(
+  'AC-15,16,30 completed credentials do not hide the next ordinary line: %s',
+  (prefix) => {
+    const value = prefix + 'COMPLETED_CREDENTIAL\n'
+    for (const cut of [value.length - 1, value.length]) {
+      const transcript = createTranscript((text) => sanitize(text, dir()))
+      transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+      transcript.finish()
+      expectPrivateTail(transcript, value, 'COMPLETED_CREDENTIAL', cut)
+      transcript.append(Buffer.from('after'))
+      expectPrivateTail(transcript, value, 'COMPLETED_CREDENTIAL', cut)
+      expect(transcript.diagnostic().endsWith('after')).toBe(true)
+    }
+  },
+)
+it.each(['redact', 'sanitize'])(
+  'AC-15,16,30 percent-encoded query names remain private across every raw cut: %s',
+  async (kind) => {
+    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+    const credential = 'ENCODED_QUERY_SENTINEL'
+    for (const key of ['access_token', 'token', 'password', 'secret', 'key', 'auth']) {
+      for (const spelling of [key, key.toUpperCase()]) {
+        const encoded = [...spelling].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')
+        const value = `https://fixture.invalid?${encoded}=${credential}\n`
+        for (let cut = 1; cut < value.length; cut++) {
+          const transcript = createTranscript(clean)
+          transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+          expectPrivateTail(transcript, value, credential, cut)
+          transcript.finish()
+          expectPrivateTail(transcript, value, credential, cut)
+          transcript.append(Buffer.from('after'))
+          expectPrivateTail(transcript, value, credential, cut)
+          expect(transcript.diagnostic().endsWith('after')).toBe(true)
+        }
+      }
+    }
+    const value = 'https://fixture.invalid?%74oken=' + credential + '&visible=yes\n'
+    const cut = 'https://fixture.invalid?%7'.length
+    const program = `const value = ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + cut - value.length}); await Bun.write(Bun.stdout, value); await Bun.write(Bun.stderr, value)`
+    const result =
+      kind === 'redact'
+        ? await executeCheck([process.execPath, '-e', program], dir(), 10000)
+        : await runPipe(dir(), [process.execPath, '-e', program])
+    expect(result).toMatchObject(kind === 'redact' ? {exit_code: 0, timed_out: false} : {exitCode: 0, timedOut: false})
+    for (const output of [result.stdout, result.stderr]) {
+      expect(output.includes(credential)).toBe(false)
+      expect(output.includes('&visible=yes')).toBe(true)
+    }
+  },
+)
+it.each(['redact', 'sanitize'])(
+  'AC-15,16,30 URI scheme continuation survives concurrent Bearer context at every raw cut: %s',
+  async (kind) => {
+    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+    const prefix = 'Bearer custom123'
+    const credential = 'VISIBLE_SECRET'
+    const value = prefix + `456://user:${credential}@fixture.invalid\n`
+    for (let cut = 1; cut < value.length; cut++) {
+      const transcript = createTranscript(clean)
+      const assertHidden = () => expectPrivateTail(transcript, value, credential, cut)
+      transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+      assertHidden()
+      transcript.finish()
+      assertHidden()
+      transcript.append(Buffer.from('after'))
+      assertHidden()
+      expect(transcript.diagnostic().endsWith('after')).toBe(true)
+    }
+    const program = `const value = ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + prefix.length - value.length}); await Bun.write(Bun.stdout, value); await Bun.write(Bun.stderr, value)`
+    const command = [process.execPath, '-e', program]
+    const result = kind === 'redact' ? await executeCheck(command, dir(), 10000) : await runPipe(dir(), command)
+    expect(result).toMatchObject(kind === 'redact' ? {exit_code: 0, timed_out: false} : {exitCode: 0, timedOut: false})
+    for (const output of [result.stdout, result.stderr]) {
+      expect(output.includes(credential)).toBe(false)
+      expect(output.endsWith('x'.repeat(64))).toBe(true)
+    }
+  },
+)
 it.each(['redact', 'sanitize'])(
   'AC-15,16,30 userinfo context survives embedded assignment/query delimiters: %s',
   async (kind) => {
@@ -35,8 +124,8 @@ it.each([
   expect(sanitize(value, dir(), [secret])).not.toContain('ACTUAL_CREDENTIAL_SUFFIX')
   for (let cut = 1; cut < value.length; cut++) {
     const transcript = createTranscript((text) => sanitize(text, dir(), [secret]), [secret])
-    const assertHidden = () =>
-      expect({cut, leaked: transcript.diagnostic().includes('ACTUAL_CREDENTIAL_SUFFIX')}).toEqual({cut, leaked: false})
+    const credential = 'ACTUAL_CREDENTIAL_SUFFIX'
+    const assertHidden = () => expectPrivateTail(transcript, value, credential, cut)
     const payload = value + '\n'
     transcript.append(Buffer.from(payload + 'x'.repeat(TAIL_BYTES + cut - payload.length)))
     assertHidden()
@@ -44,6 +133,7 @@ it.each([
     assertHidden()
     transcript.append(Buffer.from('after'))
     assertHidden()
+    expect(transcript.diagnostic().endsWith('after')).toBe(true)
   }
 })
 it.each(['https://fixture.invalid?token=', 'https://user:', 'Bearer '])(
