@@ -114,7 +114,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
         const offset = transcript.offset
         const index = transcript.text().indexOf(text, Math.max(0, from - offset))
         if (index >= 0) {
-          cursor = offset + index + text.length
+          cursor = Math.max(cursor, offset + index + text.length)
           finish()
         } else if (exited || closed || timedOut) {
           finish(

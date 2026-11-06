@@ -24,7 +24,7 @@ export async function providerProducer(uri: string, context: EvidenceContext, re
       user: z.object({login: z.literal('factory-droid[bot]'), type: z.literal('Bot')}),
       commit_id: z.string(),
       submitted_at: z.string(),
-      state: z.enum(['APPROVED', 'COMMENTED']),
+      state: z.enum(['APPROVED', 'COMMENTED', 'CHANGES_REQUESTED']),
       html_url: z.string(),
       body: z.string().max(256 * 1024),
     })

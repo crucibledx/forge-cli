@@ -88,6 +88,7 @@ export const safetyLedger: SafetyRule[] = [
     ac_ids: ['AC-10', 'AC-11'],
     tests: [
       'src/infrastructure/fs/transaction.test.ts',
+      'src/infrastructure/fs/transaction-permissions.test.ts',
       'src/infrastructure/fs/windows-access.test.ts',
       'src/application/commands/sync/transaction.test.ts',
     ],

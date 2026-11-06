@@ -84,6 +84,7 @@ await Bun.write(Bun.stdout, Buffer.alloc(${TAIL_BYTES - 4}, 120))
     await cli.waitForText('first')
     await cli.waitForText('first', undefined, start)
     await cli.waitForExit()
+    await expect(cli.waitForText('second', 200)).rejects.toThrow('exited/closed')
   })
   it('early exit rejects an unmet wait, and write failures are awaited', async () => {
     const cli = spawnPty(dir(), [process.execPath, fixture, 'early'])

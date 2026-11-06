@@ -35,27 +35,31 @@ it.each(['Bearer ', 'password=', 'https://fixture.invalid?token=', 'https://fixt
     }
   },
 )
+// Each complete spelling/view keeps its own unchanged runner budget.
+it.each(
+  ['access_token', 'token', 'password', 'secret', 'key', 'auth'].flatMap((key) =>
+    [key, key.toUpperCase()].flatMap((spelling) => ['redact', 'sanitize'].map((kind) => ({spelling, kind}))),
+  ),
+)('AC-15,16,30 percent-encoded query names remain private across every raw cut: %j', ({kind, spelling}) => {
+  const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+  const credential = 'ENCODED_QUERY_SENTINEL'
+  const encoded = [...spelling].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')
+  const value = `https://fixture.invalid?${encoded}=${credential}\n`
+  for (let cut = 1; cut < value.length; cut++) {
+    const transcript = createTranscript(clean)
+    transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+    expectPrivateTail(transcript, value, credential, cut)
+    transcript.finish()
+    expectPrivateTail(transcript, value, credential, cut)
+    transcript.append(Buffer.from('after'))
+    expectPrivateTail(transcript, value, credential, cut)
+    expect(transcript.diagnostic().endsWith('after')).toBe(true)
+  }
+})
 it.each(['redact', 'sanitize'])(
-  'AC-15,16,30 percent-encoded query names remain private across every raw cut: %s',
+  'AC-15,16,30 actual streams preserve percent-encoded query masking and visible parameters: %s',
   async (kind) => {
-    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
     const credential = 'ENCODED_QUERY_SENTINEL'
-    for (const key of ['access_token', 'token', 'password', 'secret', 'key', 'auth']) {
-      for (const spelling of [key, key.toUpperCase()]) {
-        const encoded = [...spelling].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')
-        const value = `https://fixture.invalid?${encoded}=${credential}\n`
-        for (let cut = 1; cut < value.length; cut++) {
-          const transcript = createTranscript(clean)
-          transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
-          expectPrivateTail(transcript, value, credential, cut)
-          transcript.finish()
-          expectPrivateTail(transcript, value, credential, cut)
-          transcript.append(Buffer.from('after'))
-          expectPrivateTail(transcript, value, credential, cut)
-          expect(transcript.diagnostic().endsWith('after')).toBe(true)
-        }
-      }
-    }
     const value = 'https://fixture.invalid?%74oken=' + credential + '&visible=yes\n'
     const cut = 'https://fixture.invalid?%7'.length
     const program = `const value = ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + cut - value.length}); await Bun.write(Bun.stdout, value); await Bun.write(Bun.stderr, value)`

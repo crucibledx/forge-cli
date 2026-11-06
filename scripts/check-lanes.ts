@@ -16,7 +16,6 @@ import {executeCheck} from './validation-process'
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
 async function runCheck(
-  root: string,
   out: string,
   lane: ValidationLane,
   check: ValidationCheck,
@@ -34,7 +33,7 @@ async function runCheck(
           stderr: '',
           reason: blocked ?? 'Lane deadline exhausted',
         }
-      : await executor(check.command, root, budget)
+      : await executor(check.command, repositoryRoot, budget)
   const evidence = logPath(lane.id, check.id)
   await mkdir(resolve(out, 'checks', lane.id), {recursive: true, mode: 0o700})
   await writeFile(resolve(out, evidence), redact(JSON.stringify({command: check.command, ...result})) + '\n', {
@@ -85,7 +84,6 @@ function laneResult(
   })
 }
 export async function runLanes(
-  root: string,
   out: string,
   context: EvidenceContext,
   executor = executeCheck,
@@ -106,7 +104,7 @@ export async function runLanes(
             : undefined
         for (const check of lane.checks)
           checks.push(
-            await runCheck(root, out, lane, check, lane.timeout_ms - (performance.now() - start), executor, blocked),
+            await runCheck(out, lane, check, lane.timeout_ms - (performance.now() - start), executor, blocked),
           )
         const report = laneResult(context, lane, checks, performance.now() - start, platform)
         await writeEvidence(resolve(out, `${lane.id}.json`), report)
@@ -132,7 +130,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
   }
   const context = validationContext()
   if (!selected) {
-    const reports = await runLanes(repositoryRoot, out, context)
+    const reports = await runLanes(out, context)
     console.log(JSON.stringify(reports.map(({lane_id, status}) => ({lane_id, status}))))
     return aggregateExit(reports)
   }
@@ -150,9 +148,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
         if (JSON.stringify(partial.context) !== JSON.stringify(context)) throw new Error('Stale check identity')
         checks.push(partial.check)
       } catch {
-        checks.push(
-          await runCheck(repositoryRoot, out, lane, check, 0, executeCheck, 'Missing/invalid independent check result'),
-        )
+        checks.push(await runCheck(out, lane, check, 0, executeCheck, 'Missing/invalid independent check result'))
       }
     }
     const report = assessLane(
@@ -174,7 +170,6 @@ export async function lanesCLI(args: string[]): Promise<number> {
   const check = lane.checks[index]
   if (!check) return 0
   const result = await runCheck(
-    repositoryRoot,
     out,
     lane,
     check,
