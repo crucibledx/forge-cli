@@ -1,3 +1,5 @@
+import stripAnsi from 'strip-ansi'
+
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {createTranscript, terminateTree} from '../e2e/framework/process'
@@ -17,8 +19,8 @@ export interface CommandOutcome {
 export async function executeCheck(command: string[], cwd: string, timeoutMs: number): Promise<CommandOutcome> {
   const start = performance.now()
   const sandbox = createTestSandbox('forge-validation-')
-  const stdout = createTranscript(),
-    stderr = createTranscript()
+  const stdout = createTranscript(redact),
+    stderr = createTranscript(redact)
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
   let child: PipeProcess | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -78,8 +80,8 @@ export async function executeCheck(command: string[], cwd: string, timeoutMs: nu
     exit_code: timedOut ? null : exit,
     duration_ms: performance.now() - start,
     timed_out: timedOut,
-    stdout: clean(stdout.text()),
-    stderr: clean(stderr.text()),
+    stdout: clean(stripAnsi(stdout.diagnostic())),
+    stderr: clean(stripAnsi(stderr.diagnostic())),
     ...(reason ? {reason: clean(reason)} : {}),
   }
 }

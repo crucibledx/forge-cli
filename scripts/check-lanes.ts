@@ -124,7 +124,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
     else if (flag === '--assemble') assemble = true
     else throw new Error(`Unknown lane argument: ${flag}`)
   }
-  const context = validationContext(repositoryRoot)
+  const context = validationContext()
   if (!selected) {
     const reports = await runLanes(repositoryRoot, out, context)
     console.log(JSON.stringify(reports.map(({lane_id, status}) => ({lane_id, status}))))

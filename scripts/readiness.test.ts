@@ -120,7 +120,7 @@ it('AC-32 malformed/missing AC records and output failures exit 2, remove stale 
     output = join(dir(), 'report.json')
   bundle.verifier!.rows.pop()
   await writeEvidence(input, bundle)
-  await writeEvidence(output, {verdict: 'ready-for-owner-review'})
+  await writeEvidence(output, {schema_version: 1, verdict: 'ready-for-owner-review', ac_results: [], lane_results: []})
   expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
   expect(existsSync(output)).toBe(false)
   await writeEvidence(input, readinessFixture())
@@ -204,5 +204,49 @@ it.each(['authenticated', 'unverified'])(
     const report = await readiness(bundle, Bun.version, provider)
     expect(report.ac_results[0].result).toBe(kind === 'authenticated' ? 'fail' : 'blocked')
     expect(report.exit_code).toBe(kind === 'authenticated' ? 1 : 2)
+  },
+)
+it.each(['stale-pass', 'stale-fail', 'expired-pass', 'unverified-fail', 'context'])(
+  'AC-25,32 normalizes untrusted lane verdicts without suppressing siblings: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const lane = bundle.lanes[0]
+    if (kind.endsWith('fail')) {
+      lane.status = 'fail'
+      lane.checks[0].exit_code = 1
+    }
+    if (kind.startsWith('stale')) lane.tested_sha = 'f'.repeat(40)
+    if (kind === 'expired-pass' || kind === 'unverified-fail') {
+      const original = provider.artifact
+      provider.artifact = async (ref, context, citing) => {
+        if (citing?.lane_id === lane.lane_id) throw new Error('Artifact expired or unauthenticated')
+        await original(ref, context, citing)
+      }
+    }
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Context unavailable')
+      }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.lane_results[0].status).toBe('blocked')
+    expect(report.lane_results.filter((row) => row.status === 'pass')).toHaveLength(kind === 'context' ? 0 : 9)
+  },
+)
+it.each(['verifier.json', 'reviews/code.json', 'checks/quality/lint.log', 'custom-source.json', 'context.json'])(
+  'AC-32 protects source evidence from output writes AND stale cleanup: %s',
+  async (file) => {
+    const {bundle, provider} = await fixture()
+    const input = join(dir(), 'bundle.json'),
+      output = join(dir(), file)
+    await mkdir(join(output, '..'), {recursive: true})
+    const original = JSON.stringify(bundle.verifier)
+    await writeFile(output, original)
+    await writeEvidence(input, bundle)
+    expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
+    expect(await Bun.file(output).text()).toBe(original)
+    await writeFile(input, 'invalid input')
+    expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
+    expect(await Bun.file(output).text()).toBe(original)
   },
 )

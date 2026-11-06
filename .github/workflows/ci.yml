@@ -57,6 +57,9 @@ jobs:
       - name: Assemble lane evidence
         if: always() && steps.install.outcome == 'success'
         run: bun run ci:lane -- --lane "${{ matrix.lane }}" --assemble
+      - name: Preserve installation-failure evidence
+        if: always() && steps.install.outcome != 'success'
+        run: bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,4 +1,5 @@
-import {chmod, lstat, mkdir, open, readFile, rename, rmdir, unlink} from 'node:fs/promises'
+import {constants} from 'node:fs'
+import {access, chmod, lstat, mkdir, open, readFile, rename, rmdir, unlink} from 'node:fs/promises'
 import {dirname, join, relative} from 'node:path'
 
 import {createConfinement} from './confinement'
@@ -47,6 +48,7 @@ async function replace(temp: string, path: string, existed: boolean): Promise<vo
 }
 
 export const transactionIO = {
+  access,
   lstat,
   readFile,
   chmod,
@@ -119,15 +121,17 @@ export async function prepareTransaction(root: string, operations: FileOperation
         access: operation.private ? await fs.privateAccessMetadata() : null,
       })
     }
-    if (operation.content === null) continue
+    if (operation.content === null && snapshots.get(path)!.bytes === null) continue
     let parent = dirname(path)
-    while (parent !== boundary.root) {
+    while (true) {
       try {
         const stat = await fs.lstat(parent)
         if (!stat.isDirectory()) throw new Error(`Not a directory: ${relative(boundary.root, parent)}`)
+        if (process.platform !== 'win32') await fs.access(parent, constants.W_OK | constants.X_OK)
         break
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        if (parent === boundary.root) throw error
         absentDirectories.add(parent)
       }
       parent = dirname(parent)

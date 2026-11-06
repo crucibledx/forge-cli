@@ -4,7 +4,31 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## New hosted review5804051755
+## Follow-up hosted review 5804417415
+
+The owner requested resolution of the 12 findings on f86d115. All 12 were confirmed and corrected with pinned tooling.
+These are code/comment dispositions, not independently authenticated approval or permission to merge.
+
+| Comment | Correction and regression |
+| --- | --- |
+|4495646365 | Git acquisitions sharing the exact cache key serialize through file enumeration; independent cache keys remain parallel. Real frozen-history cold/warm subdirectory loads both succeed, and a failed acquisition does not suppress its queued sibling. |
+|4495646374 | Read-only POSIX preparation checks write/search access on the existing parent or nearest existing ancestor, for replacement, deletion and nested creation. Real CLI preview/apply both fail without protected mutations. Windows retains native read-only/access-preserving safeguards. |
+|4495646383 | Removed orphan single-file reader wrappers/barrel export and obsolete mock. Confinement tests exercise the production cached-boundary reader directly. |
+|4495646389 | Moved malformed/legacy parser assertions to infrastructure/config tests. Domain upgrade/reconciliation/drift tests use domain fixtures with no infrastructure import. |
+|4495646395 | Schema/provider accept canonical `/pull/N#issuecomment-ID` and supported `/issues/N#issuecomment-ID`; review-fragment approvals remain supported. Existing owner/hash/revision/timestamp rejection controls remain. |
+|4495646409 | Lane policy/context and every artifact authentication determine normalized results. Stale/expired/unverified verdicts become blocked and cannot establish known failures; authenticated failures and verified siblings remain visible. |
+|4495646418 | Report destinations cannot identify sidecars/check logs or overwrite existing non-report data. Cleanup is allowed only after output safety validation. Valid/malformed input controls preserve all source bytes. |
+|4495646424 | Frozen-install failures emit original blocked check/lane/context artifacts via a dependency-free Bun entrypoint, not the package runner. A clean frozen-history checkout with no installed packages executes it; workflow removal is rejected by contract guards. |
+|4495646434 | Diagnostics sanitize before tail truncation and carry bounded credential recognizer context across discarded bytes. Raw inspection remains separate. Completed URI, split/continued credential, explicit secret and real pipe/validation regressions cover the boundary. |
+|4495646439 | Compatibility timeout errors include the PTY combined transcript when stdout is empty; existing zero-exit deadline test plus PTY-only diagnostic control exercise the real completion path. |
+|4495646472 | Removed fixed validationContext root parameter/call-site overrides. Dependency-free event/checkout identity is shared with setup-failure capture; schema validation remains in the normal wrapper. |
+|4495646478 | Gate/readiness use one positive-ID provider-job schema; gate selection derives its smaller projection from the same authority. Non-positive/non-integral IDs fail. |
+
+The initial typecheck caught optional provider identity fields and the first expanded redaction tests exposed query
+context precedence and an unfinished URI test setup. Those were corrected before the green focused/full runs.
+No acceptance/dependency/bundle/version changes or draft toggles were made.
+
+## Earlier hosted review5804051755
 
 All nine inline findings on7df422f were confirmed and corrected. The hosted reviewer used Bun1.2.11 without
 dependencies, so its static findings were reproduced using the pinned1.4.2 launcher, not assumed tested.

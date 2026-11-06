@@ -5,7 +5,9 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import type {DeviationEvidence} from './evidence-schema'
+import {sourceUri} from './evidence-schema'
 import {readinessFixture} from './fixtures/readiness'
+import {providerJob} from './github-evidence'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('provider-artifact')
@@ -99,49 +101,65 @@ it.each([
   for (const invalid of ['checks/e2e/not-a-check.log', 'checks/../test-e2e.log', 'checks/unknown/test-e2e.log'])
     await expect(provider.artifact(invalid, context)).rejects.toThrow()
 })
-it.each(['exact', 'wrong-owner', 'wrong-revision', 'wrong-fragment', 'wrong-hash', 'wrong-timestamp'])(
-  'AC-32 authenticates the actual owner review approval URI: %s',
-  async (kind) => {
-    const context = readinessFixture().context
-    const record: DeviationEvidence = {
-      schema_version: 1,
-      id: 'D1',
-      description: 'synthetic approval only',
-      ac_ids: ['AC-26'],
-      contract_diff_sha256: 'd'.repeat(64),
-      head_sha: context.head_sha,
-      tested_sha: context.tested_sha,
-      approval: {
-        decision: 'approved',
-        actor: 'NazarUsik',
-        source_uri: `https://github.com/${context.repository}/pull/99#pullrequestreview${kind === 'wrong-fragment' ? '' : '-'}777`,
-        approved_at: '2026-11-04T12:00:00Z',
-      },
-    }
-    let calls = 0
-    const provider = readinessProvider(dir(), dir(), {
-      archive: async () => new Map(),
-      githubJSON: async (_context, endpoint) => {
-        calls++
-        expect(endpoint).toBe('/pulls/99/reviews/777')
-        return {
-          user: {login: kind === 'wrong-owner' ? 'not-owner' : 'NazarUsik'},
-          submitted_at: kind === 'wrong-timestamp' ? '2026-11-03T12:00:00Z' : record.approval.approved_at,
-          body:
-            '```forge-deviation-v1\n' +
-            JSON.stringify({
-              decision: 'approved',
-              id: record.id,
-              contract_diff_sha256: kind === 'wrong-hash' ? 'e'.repeat(64) : record.contract_diff_sha256,
-              head_sha: context.head_sha,
-              tested_sha: kind === 'wrong-revision' ? 'f'.repeat(40) : context.tested_sha,
-            }) +
-            '\n```',
-        }
-      },
-    })
-    if (kind === 'exact') await expect(provider.deviation(record, context)).resolves.toBeUndefined()
-    else await expect(provider.deviation(record, context)).rejects.toThrow()
-    expect(calls).toBe(kind === 'wrong-fragment' ? 0 : 1)
-  },
-)
+it.each([
+  'exact',
+  'pr-comment',
+  'issue-comment',
+  'wrong-owner',
+  'wrong-revision',
+  'wrong-fragment',
+  'wrong-hash',
+  'wrong-timestamp',
+])('AC-32 authenticates the actual owner review approval URI: %s', async (kind) => {
+  const context = readinessFixture().context
+  const record: DeviationEvidence = {
+    schema_version: 1,
+    id: 'D1',
+    description: 'synthetic approval only',
+    ac_ids: ['AC-26'],
+    contract_diff_sha256: 'd'.repeat(64),
+    head_sha: context.head_sha,
+    tested_sha: context.tested_sha,
+    approval: {
+      decision: 'approved',
+      actor: 'NazarUsik',
+      source_uri: `https://github.com/${context.repository}/pull/99#pullrequestreview${kind === 'wrong-fragment' ? '' : '-'}777`,
+      approved_at: '2026-11-04T12:00:00Z',
+    },
+  }
+  const comment = kind === 'pr-comment' || kind === 'issue-comment'
+  if (comment)
+    record.approval.source_uri = `https://github.com/${context.repository}/${kind === 'pr-comment' ? 'pull' : 'issues'}/99#issuecomment-777`
+  if (kind !== 'wrong-fragment') expect(sourceUri.safeParse(record.approval.source_uri).success).toBe(true)
+  let calls = 0
+  const provider = readinessProvider(dir(), dir(), {
+    archive: async () => new Map(),
+    githubJSON: async (_context, endpoint) => {
+      calls++
+      expect(endpoint).toBe(comment ? '/issues/comments/777' : '/pulls/99/reviews/777')
+      return {
+        user: {login: kind === 'wrong-owner' ? 'not-owner' : 'NazarUsik'},
+        submitted_at: kind === 'wrong-timestamp' ? '2026-11-03T12:00:00Z' : record.approval.approved_at,
+        body:
+          '```forge-deviation-v1\n' +
+          JSON.stringify({
+            decision: 'approved',
+            id: record.id,
+            contract_diff_sha256: kind === 'wrong-hash' ? 'e'.repeat(64) : record.contract_diff_sha256,
+            head_sha: context.head_sha,
+            tested_sha: kind === 'wrong-revision' ? 'f'.repeat(40) : context.tested_sha,
+          }) +
+          '\n```',
+      }
+    },
+  })
+  if (['exact', 'pr-comment', 'issue-comment'].includes(kind))
+    await expect(provider.deviation(record, context)).resolves.toBeUndefined()
+  else await expect(provider.deviation(record, context)).rejects.toThrow()
+  expect(calls).toBe(kind === 'wrong-fragment' ? 0 : 1)
+})
+it('AC-25 shared provider jobs reject non-positive IDs consistently', () => {
+  const job = {id: 1, name: 'quality', status: 'completed', conclusion: 'success', started_at: null, completed_at: null}
+  expect(providerJob.safeParse(job).success).toBe(true)
+  for (const id of [0, -1, 1.5]) expect(providerJob.safeParse({...job, id}).success).toBe(false)
+})

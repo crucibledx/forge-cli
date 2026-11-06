@@ -7,21 +7,14 @@ import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {contextSchema, evidencePath, laneSchema} from './evidence-schema'
 import {artifactName} from './gate'
-import {currentPullRequest, githubJSON} from './github-evidence'
+import {currentPullRequest, githubJSON, providerJob} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead} from './validation-context'
 import {laneById} from './validation-lanes'
 import {checkEvidencePath} from './validation-policy'
 
-const jobSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  status: z.string(),
-  conclusion: z.string().nullable(),
-  started_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-})
+const jobSchema = providerJob
 const artifactSchema = z.object({
   id: z.number().int(),
   name: z.string(),
@@ -248,7 +241,10 @@ export function readinessProvider(
       const comment = /^#issuecomment-(\d+)$/.exec(uri.hash),
         review = /^#pullrequestreview-(\d+)$/.exec(uri.hash)
       if (
-        !(comment && uri.pathname === `${prefix}issues/${context.pr_number}`) &&
+        !(
+          comment &&
+          [`${prefix}issues/${context.pr_number}`, `${prefix}pull/${context.pr_number}`].includes(uri.pathname)
+        ) &&
         !(review && uri.pathname === `${prefix}pull/${context.pr_number}`)
       )
         throw new Error('Unsupported deviation approval object')

@@ -9,6 +9,23 @@ import {hashContent} from '@domain/sync/state'
 import {getSyncStatePath, loadSyncState, parseSyncState, writeSyncState} from './state'
 
 const getDir = useTmpDir('sync_state')
+const legacyPath = '.claude/rules/a.md'
+const legacy = {lastSync: '', files: {[legacyPath]: {hash: hashContent('desired'), sourceName: 'old'}}}
+it('AC-6 parses legacy state without mutating its input', () => {
+  expect(parseSyncState(legacy).files[legacyPath].baseline).toBe('legacy-unknown')
+  expect(legacy.files[legacyPath]).not.toHaveProperty('baseline')
+})
+it.each([
+  null,
+  {},
+  {...legacy, version: 1},
+  {...legacy, version: 3},
+  {...legacy, files: {[legacyPath]: {hash: 'not-a-hash', sourceName: 'x'}}},
+  {...legacy, files: {'../escape': legacy.files[legacyPath]}},
+  {...legacy, version: 2},
+])('AC-6 rejects malformed or unsupported state %#', (input) => {
+  expect(() => parseSyncState(input)).toThrow()
+})
 it('AC-6 canonicalizes legacy/native separators without merging distinct tracked entries', () => {
   const entry = {hash: hashContent('original'), sourceName: 'team'}
   const original = {lastSync: '', files: {'.claude\\rules\\a.md': entry}}

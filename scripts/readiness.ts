@@ -1,5 +1,5 @@
 import {readFile, unlink} from 'node:fs/promises'
-import {resolve} from 'node:path'
+import {basename, dirname, relative, resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
 import {readEvidence, writeEvidence} from './evidence-io'
@@ -53,16 +53,21 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       laneResults.push({lane_id: id, status: 'blocked'})
       continue
     }
-    if (lane.status === 'fail' || lane.checks.some((check) => failedExit(check.exit_code)))
-      add('failure', id, 'Required check failed')
-    if (lane.status !== 'pass') add('blocked', id, `Lane ${lane.status}`)
-    await authenticate(id, async () => {
+    let valid = await authenticate(id, async () => {
       assessLane(lane, context, pin)
     })
-    for (const check of lane.checks)
-      for (const ref of check.evidence)
-        await authenticate(`${id}/${check.id}`, () => provider.artifact(ref, context, lane))
-    laneResults.push({lane_id: id, status: lane.status, checks: lane.checks})
+    valid = contextValid && valid
+    for (const check of lane.checks) {
+      for (const ref of check.evidence) {
+        const authenticated = await authenticate(`${id}/${check.id}`, () => provider.artifact(ref, context, lane))
+        valid = authenticated && valid
+      }
+    }
+    if (valid && (lane.status === 'fail' || lane.checks.some((check) => failedExit(check.exit_code))))
+      add('failure', id, 'Required check failed')
+    const status = valid ? lane.status : 'blocked'
+    if (status !== 'pass') add('blocked', id, `Lane ${status}`)
+    laneResults.push({lane_id: id, status, checks: lane.checks})
   }
   if (
     identity(bundle.gate, 'Deterministic gate') &&
@@ -179,6 +184,7 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
   if (args[0] === '--') args = args.slice(1)
   let input = resolve(root, 'results/readiness-input.json'),
     output = resolve(root, 'results/readiness.json')
+  let cleanupAllowed = false
   try {
     while (args.length) {
       const flag = args.shift(),
@@ -189,13 +195,37 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
       else output = resolve(value)
     }
     if (input === output) throw new Error('Output cannot overwrite source attestations')
+    const sourceNames = [
+      'context.json',
+      'verifier.json',
+      'producers.json',
+      'deviations.json',
+      'gate.json',
+      ...requiredLaneIds.map((id) => `${id}.json`),
+    ]
+    const within = relative(dirname(input), output).replaceAll('\\', '/')
+    if (sourceNames.includes(basename(output)) || /^(reviews|checks|raw-reports)\//.test(within))
+      throw new Error('Output cannot overwrite source evidence')
+    try {
+      const previous = JSON.parse(await readFile(output, 'utf8'))
+      if (
+        previous.schema_version !== 1 ||
+        !['ready-for-owner-review', 'blocked', 'not-ready'].includes(previous.verdict) ||
+        !Array.isArray(previous.ac_results) ||
+        !Array.isArray(previous.lane_results)
+      )
+        throw new Error('Output is existing non-report data; refusing overwrite or cleanup')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    cleanupAllowed = true
     const value = JSON.parse(await readFile(input, 'utf8'))
     const report = await readiness(value, (await readFile(resolve(root, '.bun-version'), 'utf8')).trim(), provider)
     await writeEvidence(output, report)
     console.log(`${report.verdict}: ${report.reasons.length} reasons`)
     return report.exit_code
   } catch (error) {
-    if (input !== output) await unlink(output).catch(() => {})
+    if (cleanupAllowed) await unlink(output).catch(() => {})
     console.error(redact(`Readiness blocked: ${error instanceof Error ? error.message : String(error)}`))
     return 2
   }

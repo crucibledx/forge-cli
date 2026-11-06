@@ -154,6 +154,12 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   )
   require(ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Assemble lane evidence')?.run ===
     'bun run ci:lane -- --lane "${{ matrix.lane }}" --assemble', 'CI lane assembly entrypoint differs')
+  const setupFailure = ci.jobs.lanes.steps.find(
+    (step: {name?: string}) => step.name === 'Preserve installation-failure evidence',
+  )
+  require(setupFailure?.if === "always() && steps.install.outcome != 'success'" &&
+    setupFailure?.run ===
+      'bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"', 'Dependency-free installation-failure evidence missing')
   require(ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')
     ?.run === 'bun run ci:gate', 'CI gate entrypoint differs')
   require(input.package.scripts['ci:lane'] === 'bun run scripts/check-lanes.ts' &&

@@ -20,3 +20,9 @@ it('AC-18 compatibility runners reject deadline expiry even when the raw exit is
   await expect(runCommand('', 'status')).rejects.toThrow('deadline exceeded')
   await expect(runInitSession('', async () => {})).rejects.toThrow('deadline exceeded')
 })
+it('AC-18 retains the PTY transcript when compatibility completion times out after the driver returns', async () => {
+  timedOut.stdout = ''
+  timedOut.stderr = ''
+  timedOut.output = 'PTY final expected message, then command hung'
+  await expect(runInitSession('', async () => {})).rejects.toThrow(timedOut.output)
+})
