@@ -23,6 +23,7 @@ it('AC-25 preserves original blocked check/context/lane evidence without install
     'setup-failure-evidence.ts',
     'validation-identity.ts',
     'validation-lanes.ts',
+    'validation-evidence.ts',
     'registry/suites.ts',
   ])
     await copyFile(join(repositoryRoot, 'scripts', file), join(root, 'scripts', file))
@@ -48,4 +49,38 @@ it('AC-25 rejects removal of the installation-failure evidence path', () => {
     (step: {name?: string}) => step.name !== 'Preserve installation-failure evidence',
   )
   expect(validateContracts(input)).toContain('Dependency-free installation-failure evidence missing')
+})
+it.each([false, true])(
+  'AC-25,27 gate setup fallback persists ten blocked rows without dependencies, invalid-context=%s',
+  async (invalid) => {
+    const repository = await createBareRepo(dir(), {'skills/deploy.md': SKILL_DEPLOY})
+    const root = join(dir(), 'no-gate-dependencies')
+    expect((await runPipe(dir(), ['git', 'clone', repository, root])).exitCode).toBe(0)
+    await mkdir(join(root, 'scripts'))
+    for (const file of ['gate-setup-failure.ts', 'gate-summary.ts', 'validation-identity.ts', 'validation-lanes.ts'])
+      await copyFile(join(repositoryRoot, 'scripts', file), join(root, 'scripts', file))
+    const event = join(root, 'event.json')
+    await Bun.write(event, JSON.stringify({repository: {full_name: 'wrong/repository'}}))
+    const result = await runPipe(root, [process.execPath, 'scripts/gate-setup-failure.ts'], {
+      env: invalid
+        ? {GITHUB_ACTIONS: 'true', GITHUB_EVENT_PATH: event, GITHUB_REPOSITORY: 'crucibledx/forge-cli'}
+        : {GITHUB_ACTIONS: 'false'},
+    })
+    expect(result.exitCode).toBe(1)
+    expect(existsSync(join(root, 'node_modules'))).toBe(false)
+    const summary = await Bun.file(join(root, 'results/gate-summary.json')).json()
+    if (invalid) expect(summary.context).toBeNull()
+    else expect(contextSchema.parse(summary.context).kind).toBe('local')
+    expect(summary.conclusion).toBe('failure')
+    expect(summary.lanes).toHaveLength(10)
+    expect(summary.lanes.every((lane: {status: string}) => lane.status === 'blocked')).toBe(true)
+    expect(result.stderr).toContain('installation failed')
+  },
+)
+it('AC-25,27 rejects removal of the dependency-free gate setup fallback', () => {
+  const input = contractInputs()
+  input.ci.jobs.gate.steps = input.ci.jobs.gate.steps.filter(
+    (step: {name?: string}) => step.name !== 'Preserve gate installation-failure evidence',
+  )
+  expect(validateContracts(input)).toContain('Dependency-free gate installation-failure evidence missing')
 })

@@ -162,6 +162,16 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
       'bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"', 'Dependency-free installation-failure evidence missing')
   require(ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')
     ?.run === 'bun run ci:gate', 'CI gate entrypoint differs')
+  const gateSetupFailure = ci.jobs.gate.steps.find(
+    (step: {name?: string}) => step.name === 'Preserve gate installation-failure evidence',
+  )
+  require(gateSetupFailure?.if === "always() && steps.install.outcome != 'success'" &&
+    gateSetupFailure?.run === 'bun scripts/gate-setup-failure.ts' &&
+    ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')?.if ===
+      "always() && steps.install.outcome == 'success'" &&
+    ci.jobs.gate.steps.some(
+      (step: {id?: string; run?: string}) => step.id === 'install' && step.run === 'bun install --frozen-lockfile',
+    ), 'Dependency-free gate installation-failure evidence missing')
   require(input.package.scripts['ci:lane'] === 'bun run scripts/check-lanes.ts' &&
     input.package.scripts['ci:gate'] === 'bun run scripts/gate.ts', 'CI package entrypoints differ')
   // The requirement cannot be conditional on the very setup step an edit can remove.

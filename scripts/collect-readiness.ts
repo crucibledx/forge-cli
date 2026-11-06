@@ -2,8 +2,8 @@ import {readFile} from 'node:fs/promises'
 import {dirname, resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
-import {readEvidence, writeEvidence} from './evidence-io'
-import {contextSchema} from './evidence-schema'
+import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
+import {bundleSchema, contextSchema} from './evidence-schema'
 import {providerGate} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import {collectReadiness} from './readiness'
@@ -27,6 +27,15 @@ if (import.meta.main) {
     if (contextPath === output) throw new Error('Output cannot overwrite source context')
     if (dirname(contextPath) !== dirname(output))
       throw new Error('Output bundle must be colocated with context and relative check evidence')
+    protectEvidenceOutput(contextPath, output)
+    try {
+      if (!bundleSchema.safeParse(JSON.parse(await readFile(output, 'utf8'))).success)
+        throw new Error('Output is existing non-bundle data; refusing overwrite')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error('Output is existing non-bundle data or unavailable; refusing overwrite')
+      }
+    }
     const context = contextSchema.parse(JSON.parse(await readFile(contextPath, 'utf8'))),
       directory = dirname(contextPath)
     const provider = readinessProvider(repositoryRoot, directory)

@@ -6,9 +6,26 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 import {parse, stringify} from 'yaml'
 
-import {command, protectedBytes} from './helpers'
+import {command, config, protectedBytes} from './helpers'
 
 const dir = useTmpDir('repeat-contract')
+if (process.platform !== 'win32')
+  it.each(['skills/a\\b.md', '.claude/skills/a\\b.md'])(
+    'AC-9,14 literal POSIX backslash input cannot succeed once and fail next: %s',
+    async (path) => {
+      const root = dir()
+      await mkdir(join(root, 'upstream', path, '..'), {recursive: true})
+      await writeFile(join(root, 'upstream', path), 'desired')
+      await config(root, [{name: 'literal-backslash', type: 'local', path: 'upstream'}])
+      const before = await protectedBytes(root)
+      for (let run = 0; run < 2; run++) {
+        const result = await command(root)
+        expect(result.exitCode).toBe(1)
+        expect(result.stdout + result.stderr).toContain('Backslash')
+        expect(await protectedBytes(root)).toEqual(before)
+      }
+    },
+  )
 async function installed() {
   const root = dir()
   await syncFixture(root)

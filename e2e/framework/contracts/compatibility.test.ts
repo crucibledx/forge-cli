@@ -10,7 +10,12 @@ const timedOut = {
 }
 mock.module('../pipe', () => ({runPipe: async () => timedOut}))
 mock.module('../spawn', () => ({
-  spawnInteractive: () => ({waitForExit: async () => timedOut, dispose: async () => {}}),
+  spawnInteractive: () => ({
+    deadlineAt: performance.now() + 10000,
+    getOutput: () => timedOut.output,
+    waitForExit: async () => timedOut,
+    dispose: async () => {},
+  }),
 }))
 const {runCommand, runInitSession} = await import('../run')
 const {runPipe} = await import('../pipe')

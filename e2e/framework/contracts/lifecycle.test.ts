@@ -6,7 +6,7 @@ import {describe, expect, it} from 'bun:test'
 
 import {runPipe} from '../pipe'
 import {activeProcesses, disposeActiveProcesses} from '../process'
-import {runInitSession} from '../run'
+import {driveSession, runInitSession} from '../run'
 import {spawnPty} from '../spawn'
 
 const fixture = join(import.meta.dir, 'fixtures/process.ts')
@@ -23,6 +23,31 @@ function dead(pid: number): boolean {
 
 describe('BR-09 lifecycle contracts (AC-18)', () => {
   const dir = useTmpDir('lifecycle')
+  it.each(['live-child', 'disposed-child'])('bounds a driver awaiting an unrelated promise after %s', async (kind) => {
+    const cli = spawnPty(dir(), [process.execPath, fixture, 'hang'], {timeoutMs: 80})
+    const result = driveSession(cli, async (session) => {
+      if (kind === 'disposed-child') await session.dispose()
+      await new Promise<void>(() => {})
+    })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const observed = await Promise.race([
+        result.then(
+          () => 'unexpected success',
+          (error: Error) => error.message,
+        ),
+        new Promise<string>((resolve) => {
+          timer = setTimeout(() => resolve('outer watchdog expired'), 3000)
+        }),
+      ])
+      expect(observed).toContain('Command deadline exceeded')
+      expect(observed).not.toContain('outer watchdog')
+      expect(activeProcesses.size).toBe(0)
+    } finally {
+      clearTimeout(timer)
+      await cli.dispose()
+    }
+  })
   it('bounds pipe and PTY hangs and cancels pending waits', async () => {
     const start = performance.now()
     const pipe = await runPipe(dir(), [process.execPath, fixture, 'hang'], {timeoutMs: 80})

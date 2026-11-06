@@ -11,8 +11,8 @@ import {currentPullRequest, githubJSON, providerArtifact, providerJob, requiredC
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead} from './validation-context'
+import {checkEvidencePath} from './validation-evidence'
 import {laneById} from './validation-lanes'
-import {checkEvidencePath} from './validation-policy'
 
 const jobSchema = providerJob
 const artifactSchema = providerArtifact.extend({

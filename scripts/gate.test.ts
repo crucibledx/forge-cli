@@ -117,6 +117,7 @@ it('AC-25,27 actual gate entrypoint persists blocked rows after context failure'
   await mkdir(join(root, 'scripts'))
   for (const file of [
     'gate.ts',
+    'gate-summary.ts',
     'validation-context.ts',
     'validation-identity.ts',
     'evidence-io.ts',
@@ -124,6 +125,7 @@ it('AC-25,27 actual gate entrypoint persists blocked rows after context failure'
     'github-evidence.ts',
     'validation-lanes.ts',
     'validation-policy.ts',
+    'validation-evidence.ts',
   ])
     await copyFile(join(repositoryRoot, 'scripts', file), join(root, 'scripts', file))
   await symlink(join(repositoryRoot, 'src'), join(root, 'src'), 'junction')

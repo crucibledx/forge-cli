@@ -1,8 +1,8 @@
 import type {EvidenceContext, LaneEvidence} from './evidence-schema'
 import {laneSchema} from './evidence-schema'
+import {checkEvidencePath} from './validation-evidence'
 import {laneById} from './validation-lanes'
 
-export const checkEvidencePath = (lane: string, check: string) => `checks/${lane}/${check.replaceAll(':', '-')}.log`
 export const failedExit = (exit: number | null) => exit !== null && ![0, 2].includes(exit)
 export const aggregateExit = (lanes: LaneEvidence[]) =>
   lanes.some((lane) => lane.status === 'fail') ? 1 : lanes.some((lane) => lane.status !== 'pass') ? 2 : 0

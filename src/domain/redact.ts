@@ -1,7 +1,7 @@
 const queryKeys = ['access_token', 'token', 'password', 'secret', 'key', 'auth']
 const queryMarker = `[?&#](?:${queryKeys.join('|')})=`
-const queryValue = new RegExp(`(${queryMarker})[^&#\\s"']+`, 'gi')
-const unfinishedQuery = new RegExp(`${queryMarker}[^&#\\s"']*$`, 'i')
+const queryValue = new RegExp(`(${queryMarker})[^&#\\s"]+`, 'gi')
+const unfinishedQuery = new RegExp(`${queryMarker}[^&#\\s"]*$`, 'i')
 const queryStart = new RegExp(queryMarker, 'gi')
 const assignmentStart = /(?:token|password|secret|authorization)[=:]/gi
 

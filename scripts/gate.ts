@@ -6,6 +6,7 @@ import {z} from 'zod'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
+import {blockedGateSummary} from './gate-summary'
 import {githubJSON, providerArtifact, providerJob} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
@@ -120,20 +121,10 @@ if (import.meta.main) {
     process.exitCode = result.conclusion === 'success' ? 0 : 1
   } catch {
     try {
-      await writeEvidence(resolve(repositoryRoot, 'results/gate-summary.json'), {
-        schema_version: 1,
-        context: null,
-        conclusion: 'failure',
-        provider_errors: ['Provider/context unavailable'],
-        lanes: validationLanes.map((lane) => ({
-          lane_id: lane.id,
-          status: 'blocked',
-          reason: 'Provider/context unavailable',
-          evidence: null,
-          provider_job_id: null,
-          artifact_id: null,
-        })),
-      })
+      await writeEvidence(
+        resolve(repositoryRoot, 'results/gate-summary.json'),
+        blockedGateSummary('Provider/context unavailable'),
+      )
     } catch {
       console.error('Blocked gate summary could not be persisted')
     }
