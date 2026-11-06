@@ -90,6 +90,8 @@ CI checks out the event's exact tested SHA. Independent checks continue after si
 is disabled. Seven-day bounded sanitized artifacts include failures; the always-run `Deterministic gate` checks
 selected run/attempt, provider jobs and evidence before passing. Missing, stale, skipped or cancelled evidence
 fails the gate. An upload failure cannot turn a lane green.
+Unavailable or malformed provider lookups still persist a blocked all-lane gate summary, retaining independently
+available metadata and known failures. Invalid context is recorded as unavailable, never invented.
 After a frozen-install failure, a dependency-free Bun entrypoint records the original context, blocked lane and
 unexecuted check logs before the always-run upload. It does not require packages that failed to install.
 
@@ -111,8 +113,10 @@ report bootstraps its own success. The [approved supporting contract](quality-ga
 strict sidecars and provenance. Missing adapters/attestations remain blocked; prose saying “ready” is not evidence.
 
 Each check must cite its own `checks/<lane>/<check>.log`. The production provider validates its selected-run ZIP
-digest, original context and lane JSON, check bytes, completed job and citing lane. Authenticated failed/unavailable
-lane artifacts remain collectable for all-results diagnostics; a non-successful job cannot authenticate a passing
+digest, original context and lane JSON, check bytes, completed job and citing lane.
+The selected run must also match the provider ID and canonical path of the independently required `ci.yml`
+workflow, with the exact PR-merge workflow reference. A supplied bundle cannot nominate a different workflow.
+Authenticated failed/unavailable lane artifacts remain collectable for all-results diagnostics; a non-successful job cannot authenticate a passing
 lane. Producer reports cannot replace
 CI check logs, and one lane's log cannot stand in for another. Collection obtains the real selected gate job and
 requires `deviations.json` explicitly; a missing file is not evidence that no deviations exist.

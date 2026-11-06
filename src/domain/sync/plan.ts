@@ -1,7 +1,6 @@
 import {portablePath} from '../portable-path'
 
 export {CONFIG_PATH, STATE_PATH} from '../config/paths'
-export {portablePath} from '../portable-path'
 
 /** Source precedence is exact-spelling only; portable aliases never gain precedence. */
 export function validatePathGraph(paths: string[]): void {

@@ -29,6 +29,12 @@ it.each([
   'edited-lane',
   'cross-lane',
   'failed-job',
+  'foreign-workflow',
+  'wrong-workflow-id',
+  'missing-workflow-id',
+  'workflow-metadata-unavailable',
+  'workflow-metadata-path',
+  'workflow-reference',
 ])('production artifact provider accepts registry IDs with digits, rejects %s origin/content defects', async (kind) => {
   const bundle = readinessFixture(),
     context = bundle.context,
@@ -43,6 +49,14 @@ it.each([
   await writeFile(join(dir(), ref), kind === 'edited' ? 'forged check data' : 'original selected-run check data')
   if (kind === 'stale-tested') original.tested_sha = 'f'.repeat(40)
   if (kind === 'mixed-attempt') original.run_attempt = 2
+  if (kind === 'foreign-workflow') {
+    context.workflow_ref = `${context.repository}/.github/workflows/fabricated.yml@refs/pull/99/merge`
+    original.workflow_ref = context.workflow_ref
+  }
+  if (kind === 'workflow-reference') {
+    context.workflow_ref = `${context.repository}/.github/workflows/ci.yml@refs/heads/other`
+    original.workflow_ref = context.workflow_ref
+  }
   const files = new Map([
     ['context.json', Buffer.from(JSON.stringify(original))],
     [ref, Buffer.from('original selected-run check data')],
@@ -50,9 +64,20 @@ it.each([
   ])
   if (kind === 'edited-lane') lane.duration_ms++
   if (kind === 'missing') files.delete(ref)
+  let archives = 0
   const provider = readinessProvider(dir(), dir(), {
-    archive: async () => files,
+    archive: async () => {
+      archives++
+      return files
+    },
     githubJSON: async (_context, endpoint) => {
+      if (endpoint === '/actions/workflows/ci.yml') {
+        if (kind === 'workflow-metadata-unavailable') throw new Error('Workflow metadata unavailable')
+        return {
+          id: 7,
+          path: kind === 'workflow-metadata-path' ? '.github/workflows/fabricated.yml' : '.github/workflows/ci.yml',
+        }
+      }
       if (endpoint.endsWith('/jobs?per_page=100'))
         return {
           total_count: 1,
@@ -89,13 +114,25 @@ it.each([
             },
           ],
         }
-      return {id: 123, run_attempt: 1, head_sha: context.tested_sha, path: '.github/workflows/ci.yml'}
+      return {
+        id: 123,
+        run_attempt: 1,
+        head_sha: context.tested_sha,
+        workflow_id:
+          kind === 'missing-workflow-id'
+            ? undefined
+            : kind === 'wrong-workflow-id' || kind === 'foreign-workflow'
+              ? 8
+              : 7,
+        path: kind === 'foreign-workflow' ? '.github/workflows/fabricated.yml' : '.github/workflows/ci.yml',
+      }
     },
   })
   const citing = kind === 'cross-lane' ? bundle.lanes.find((lane) => lane.lane_id === 'security')! : lane
   if (['e2e', 'failed-evidence', 'blocked-evidence', 'cancelled-evidence', 'timed-out-evidence'].includes(kind))
     await expect(provider.artifact(ref, context, citing)).resolves.toBeUndefined()
   else await expect(provider.artifact(ref, context, citing)).rejects.toThrow()
+  if (kind.includes('workflow')) expect(archives).toBe(0)
   await expect(provider.artifact(bundle.reviews[0].provenance.source_uri, context, lane)).rejects.toThrow(
     'cannot substitute',
   )

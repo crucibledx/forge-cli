@@ -18,6 +18,14 @@ export const providerArtifact = z.object({
   created_at: z.string(),
 })
 
+/** The required workflow comes from repository policy, never the supplied bundle. */
+export async function requiredCIWorkflow(context: EvidenceContext, read = githubJSON) {
+  const file = 'ci.yml'
+  return z
+    .object({id: z.number().int().positive(), path: z.literal(`.github/workflows/${file}`)})
+    .parse(await read(context, `/actions/workflows/${file}`))
+}
+
 /** Exact-revision evidence cannot authorize a newer PR head or changed base/merge. */
 export async function currentPullRequest(context: EvidenceContext, read = githubJSON) {
   const pr = z
