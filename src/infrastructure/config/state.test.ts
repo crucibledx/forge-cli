@@ -6,9 +6,22 @@ import {describe, expect, it} from 'bun:test'
 
 import {hashContent} from '@domain/sync/state'
 
-import {getSyncStatePath, loadSyncState, writeSyncState} from './state'
+import {getSyncStatePath, loadSyncState, parseSyncState, writeSyncState} from './state'
 
 const getDir = useTmpDir('sync_state')
+it('AC-6 canonicalizes legacy/native separators without merging distinct tracked entries', () => {
+  const entry = {hash: hashContent('original'), sourceName: 'team'}
+  const original = {lastSync: '', files: {'.claude\\rules\\a.md': entry}}
+  const state = parseSyncState(original)
+  expect(state.files['.claude/rules/a.md']).toEqual({...entry, baseline: 'legacy-unknown'})
+  expect(Object.keys(original.files)).toEqual(['.claude\\rules\\a.md'])
+  expect(() => parseSyncState({...original, files: {...original.files, '.claude/rules/a.md': entry}})).toThrow(
+    'Competing',
+  )
+  expect(
+    Object.keys(parseSyncState({...original, files: {...original.files, '.claude/rules/A.md': entry}}).files),
+  ).toHaveLength(2)
+})
 
 describe('getSyncStatePath', () => {
   it('returns path inside .crucible dir', () => {

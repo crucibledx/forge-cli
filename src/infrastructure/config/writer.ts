@@ -14,15 +14,14 @@ export const CONFIG_HEADER = [
   '',
   '',
 ].join('\n')
+export const serializeProjectConfig = (config: ProjectConfig) => CONFIG_HEADER + stringifyYaml(config, {lineWidth: 120})
 
 export const writeProjectConfig: WriteProjectConfigFunction = async (projectRoot: string, config: ProjectConfig) => {
   const configPath = getProjectConfigPath(projectRoot)
 
   await mkdir(dirname(configPath), {recursive: true})
 
-  const yaml = stringifyYaml(config, {lineWidth: 120})
-
-  await writeFile(configPath, CONFIG_HEADER + yaml, 'utf-8')
+  await writeFile(configPath, serializeProjectConfig(config), 'utf-8')
 
   return configPath
 }

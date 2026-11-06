@@ -40,6 +40,10 @@ bun run check:contracts    # ledger, registry, workflow/toolchain boundaries
 bun run check:lanes -- --out results # all outcomes, at most two active commands
 ```
 
+Named suite membership is maintained in `scripts/registry/suites.ts`; package scripts only select a suite.
+Tests remain co-located under `src/` or in `e2e/`. Security/platform selections intentionally overlap those files.
+`test:platform` adds native OS checks; portable tests and the independent Linux build already validate Linux.
+
 - Unit tests mock at the infrastructure boundary, never at the file level.
 - E2e tests use temp directories and spawn the real CLI.
 - Use the isolated launcher for focused tests:
@@ -58,6 +62,10 @@ bun run check:lanes -- --out results # all outcomes, at most two active commands
   Producers supply structured exact-revision sidecars alongside raw Markdown; implementers cannot infer a verdict.
   CI artifacts must come from the selected run/attempt. Owner approval is an authenticated exact-hash/revision object.
   Required branch rules/reviews are configured by the owner only; agents report enforcement evidence or access blockers.
+  Writable local session transcripts and prose-only bot reviews are supporting material, not authenticated approval.
+  The production provider requires the independent app's structured GitHub review on the exact head/tested revision,
+  distinct verifier/review producer IDs, and each check's own selected-run CI log. Missing hosted attestations block
+  readiness even when all tests pass. See the provider requirements in `docs/safety-contract.md`.
 
 ## Before You Submit
 

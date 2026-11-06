@@ -41,12 +41,12 @@ for (const kind of [
       const repo = kind.startsWith('git-') ? await createBareRepo(root, {'skills/deploy.md': SKILL_DEPLOY}) : ''
       const bad: Source = kind.startsWith('local-')
         ? {
-            name: 'failed',
+            name: 'alpha',
             type: 'local',
             path: kind === 'local-file' ? file : kind === 'local-read' ? denied : join(root, 'missing'),
           }
         : {
-            name: 'failed',
+            name: 'alpha',
             type: 'git',
             url: kind === 'git-clone' ? join(root, 'no-repo.git') : repo,
             branch: kind === 'git-branch' ? 'no-branch' : 'main',
@@ -65,7 +65,7 @@ for (const kind of [
       const sources = [
         bad,
         ...(mode === 'all-failed'
-          ? [{name: 'also-failed', type: 'local', path: join(root, 'also-missing')}]
+          ? [{name: 'beta', type: 'local', path: join(root, 'also-missing')}]
           : mode === 'changed-neighbor'
             ? [goodSource]
             : []),
@@ -84,11 +84,27 @@ for (const kind of [
       try {
         const result = await command(root)
         expect(result.exitCode).toBe(1)
-        expect(result.stdout).toContain('failed')
+        expect(result.stdout).toMatch(/Failed to fetch source "alpha": .+/)
+        const start = result.stdout.indexOf('Failed to fetch source "alpha":')
+        const next = result.stdout.indexOf('Syncing from source:', start)
+        const diagnostic = result.stdout.slice(start, next < 0 ? undefined : next)
+        const causes: Record<string, RegExp> = {
+          'local-missing': /does not exist/i,
+          'local-file': /not a directory/i,
+          'local-read': /EACCES|Permission denied/i,
+          'git-read': /EACCES|Permission denied/i,
+          'git-clone': /clone|repository|not exist/i,
+          'git-fetch': /fetch/i,
+          'git-branch': /branch|no-branch/i,
+          'git-subdir-missing': /directory|ENOENT|not exist/i,
+          'git-subdir-file': /directory/i,
+        }
+        expect(diagnostic).toMatch(causes[kind])
         expect(result.stdout).toContain('dry-run')
         if (kind === 'git-fetch') expect(result.stdout).toContain('fetch')
         if (kind === 'local-read' || kind === 'git-read') expect(result.stdout).toMatch(/EACCES|Permission denied/i)
-        if (mode === 'all-failed') expect(result.stdout).toContain('also-failed')
+        if (mode === 'all-failed')
+          expect(result.stdout).toMatch(/Failed to fetch source "beta": Local source path does not exist:/)
         if (mode === 'changed-neighbor') {
           expect(result.stdout).toContain('Acquired "good"')
           expect(result.stdout).toContain('not yet installed')

@@ -8,7 +8,7 @@ import {expect, it} from 'bun:test'
 import {runPipe} from '../e2e/framework/pipe'
 import {writeEvidence} from './evidence-io'
 import {fixtureProvider, readinessFixture} from './fixtures/readiness'
-import {readiness, readinessCLI} from './readiness'
+import {collectReadiness, readiness, readinessCLI} from './readiness'
 
 const dir = useTmpDir('readiness')
 async function fixture() {
@@ -16,6 +16,12 @@ async function fixture() {
   await writeFile(join(dir(), 'fixtures/check.log'), 'authenticated fixture evidence\n')
   await writeFile(join(dir(), '.bun-version'), Bun.version)
   const bundle = readinessFixture()
+  for (const lane of bundle.lanes)
+    for (const check of lane.checks)
+      for (const ref of check.evidence) {
+        await mkdir(join(dir(), 'checks', lane.lane_id), {recursive: true})
+        await writeFile(join(dir(), ref), 'authenticated fixture evidence\n')
+      }
   return {bundle, provider: fixtureProvider(dir(), bundle)}
 }
 it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches owner review through the actual CLI parser', async () => {
@@ -43,7 +49,7 @@ it('AC-32 two failures dominate missing evidence while all sibling successes rem
     lane.checks[0].exit_code = 1
   }
   bundle.reviews = []
-  const report = await readiness(bundle, dir(), Bun.version, provider)
+  const report = await readiness(bundle, Bun.version, provider)
   expect(report.exit_code).toBe(1)
   expect(report.lane_results.filter((lane) => lane.status === 'fail')).toHaveLength(2)
   expect(report.lane_results.filter((lane) => lane.status === 'pass')).toHaveLength(8)
@@ -56,6 +62,7 @@ it.each([
   'missing-role',
   'missing-verifier',
   'spoofed-producer',
+  'same-review-verifier',
   'self-resolved',
   'open-blocker',
   'gate-skipped',
@@ -72,6 +79,10 @@ it.each([
   if (kind === 'missing-role') bundle.reviews.pop()
   if (kind === 'missing-verifier') bundle.verifier = null
   if (kind === 'spoofed-producer') bundle.reviews[0].provenance.actor = 'implementer'
+  if (kind === 'same-review-verifier') {
+    bundle.verifier!.provenance.producer_id = bundle.reviews[0].provenance.producer_id
+    bundle.verifier!.provenance.actor = bundle.reviews[0].provenance.actor
+  }
   if (kind === 'self-resolved' || kind === 'open-blocker')
     bundle.reviews[0].findings.push({
       id: 'P1',
@@ -98,7 +109,7 @@ it.each([
         approved_at: '2026-11-04T12:00:00.000Z',
       },
     })
-  expect((await readiness(bundle, dir(), Bun.version, provider)).exit_code).not.toBe(0)
+  expect((await readiness(bundle, Bun.version, provider)).exit_code).not.toBe(0)
 })
 it('AC-32 malformed/missing AC records and output failures exit 2, remove stale reports, and never overwrite input', async () => {
   const {bundle, provider} = await fixture()
@@ -120,4 +131,26 @@ it('AC-32 malformed/missing AC records and output failures exit 2, remove stale 
   ).toBe(2)
   expect(await readinessCLI(['--input', input, '--output', input], provider, dir())).toBe(2)
   expect(existsSync(input)).toBe(true)
+})
+it.each(['session-substitution', 'cross-lane', 'wrong-check'])(
+  'AC-25,32 blocks %s even when a permissive artifact resolver would accept it',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const substitute =
+      kind === 'session-substitution'
+        ? bundle.reviews[0].provenance.source_uri
+        : kind === 'cross-lane'
+          ? 'checks/business/test-unit.log'
+          : 'checks/quality/lint.log'
+    for (const lane of bundle.lanes) for (const check of lane.checks) check.evidence = [substitute]
+    provider.artifact = async () => {}
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.reasons.some((reason) => reason.message.includes('own selected-run artifact'))).toBe(true)
+  },
+)
+it('AC-32 missing deviations is not affirmative evidence of no deviations', async () => {
+  await expect(collectReadiness(readinessFixture().context, dir())).rejects.toThrow()
+  await writeEvidence(join(dir(), 'deviations.json'), [])
+  expect((await collectReadiness(readinessFixture().context, dir())).deviations).toEqual([])
 })

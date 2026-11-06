@@ -1,38 +1,13 @@
-import type {LocalConflictStrategy} from '../config/types'
-import {LOCAL_CONFLICT_STRATEGIES} from '../config/types'
 import type {SyncState} from './state'
 import {hashContent} from './state'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-export const CONFLICT_ACTIONS = {
-  WRITE: 'write',
-  SKIP: 'skip',
-  ERROR: 'error',
-} as const
-
-export type ConflictAction = (typeof CONFLICT_ACTIONS)[keyof typeof CONFLICT_ACTIONS]
-
-export interface ConflictResult {
-  action: ConflictAction
-}
 
 export interface LocalConflict {
   targetPath: string
   localHash: string
   storedHash: string
   remoteHash: string
-}
-
-export class LocalConflictError extends Error {
-  conflicts: LocalConflict[]
-
-  constructor(conflicts: LocalConflict[]) {
-    const paths = conflicts.map((c) => `  ${c.targetPath}`).join('\n')
-    super(`Local conflict on ${conflicts.length} file(s):\n${paths}`)
-    this.name = 'LocalConflictError'
-    this.conflicts = conflicts
-  }
 }
 
 // ─── Detection ───────────────────────────────────────────────────────────────
@@ -66,23 +41,4 @@ export function detectLocalConflict(
   if (remoteHash === entry.hash) return null
 
   return {targetPath, localHash, storedHash: entry.hash, remoteHash}
-}
-
-// ─── Resolution ──────────────────────────────────────────────────────────────
-
-/**
- * Resolves a local conflict according to the chosen strategy.
- *
- * - **remote-wins** → overwrite (action: 'write')
- * - **local-wins** → skip the file (action: 'skip')
- * - **error** → collect for batch error (action: 'error')
- */
-const conflictResolutionMap: Record<LocalConflictStrategy, ConflictResult> = {
-  [LOCAL_CONFLICT_STRATEGIES.REMOTE_WINS]: {action: CONFLICT_ACTIONS.WRITE},
-  [LOCAL_CONFLICT_STRATEGIES.LOCAL_WINS]: {action: CONFLICT_ACTIONS.SKIP},
-  [LOCAL_CONFLICT_STRATEGIES.ERROR]: {action: CONFLICT_ACTIONS.ERROR},
-}
-
-export function resolveLocalConflict(strategy: LocalConflictStrategy): ConflictResult {
-  return conflictResolutionMap[strategy]
 }

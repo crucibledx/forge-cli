@@ -2,26 +2,27 @@ import {readFile, unlink} from 'node:fs/promises'
 import {resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
-import {assessLane} from './check-lanes'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {
   DeviationEvidence,
   EvidenceContext,
+  LaneEvidence,
   ReadinessBundle,
   ReviewEvidence,
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
 import {acceptanceIds, requiredLaneIds} from './validation-lanes'
+import {assessLane, failedExit} from './validation-policy'
 
 export interface ReadinessProvider {
   context(context: EvidenceContext): Promise<void>
-  artifact(ref: string, context: EvidenceContext): Promise<void>
+  artifact(ref: string, context: EvidenceContext, citingLane?: LaneEvidence): Promise<void>
   producer(record: ReviewEvidence | VerifierEvidence, context: EvidenceContext): Promise<void>
   deviation(record: DeviationEvidence, context: EvidenceContext): Promise<void>
   gate(record: ReadinessBundle['gate'], context: EvidenceContext): Promise<void>
 }
-export async function readiness(value: unknown, root: string, pin: string, provider: ReadinessProvider) {
+export async function readiness(value: unknown, pin: string, provider: ReadinessProvider) {
   const bundle = bundleSchema.parse(value),
     context = bundle.context
   const reasons: {kind: 'failure' | 'blocked'; subject: string; message: string}[] = []
@@ -51,17 +52,15 @@ export async function readiness(value: unknown, root: string, pin: string, provi
       laneResults.push({lane_id: id, status: 'blocked'})
       continue
     }
-    if (
-      lane.status === 'fail' ||
-      lane.checks.some((check) => check.exit_code !== null && ![0, 2].includes(check.exit_code))
-    )
+    if (lane.status === 'fail' || lane.checks.some((check) => failedExit(check.exit_code)))
       add('failure', id, 'Required check failed')
     if (lane.status !== 'pass') add('blocked', id, `Lane ${lane.status}`)
     await authenticate(id, async () => {
       assessLane(lane, context, pin)
     })
     for (const check of lane.checks)
-      for (const ref of check.evidence) await authenticate(`${id}/${check.id}`, () => provider.artifact(ref, context))
+      for (const ref of check.evidence)
+        await authenticate(`${id}/${check.id}`, () => provider.artifact(ref, context, lane))
     laneResults.push({lane_id: id, status: lane.status, checks: lane.checks})
   }
   if (
@@ -106,6 +105,18 @@ export async function readiness(value: unknown, root: string, pin: string, provi
   const verifier = bundle.verifier
   if (!verifier) add('blocked', 'verifier', 'Missing independent implementation-check attestation')
   else {
+    if (
+      bundle.reviews.some(
+        (review) =>
+          review.provenance.producer_id === verifier.provenance.producer_id &&
+          review.provenance.actor === verifier.provenance.actor,
+      )
+    )
+      add(
+        'blocked',
+        'verifier',
+        'Implementation verification must come from a different producer than code/security review',
+      )
     const valid =
       identity(verifier, 'verifier') &&
       verifier.provenance.producer_role === 'verifier' &&
@@ -168,12 +179,7 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
     }
     if (input === output) throw new Error('Output cannot overwrite source attestations')
     const value = JSON.parse(await readFile(input, 'utf8'))
-    const report = await readiness(
-      value,
-      root,
-      (await readFile(resolve(root, '.bun-version'), 'utf8')).trim(),
-      provider,
-    )
+    const report = await readiness(value, (await readFile(resolve(root, '.bun-version'), 'utf8')).trim(), provider)
     await writeEvidence(output, report)
     console.log(`${report.verdict}: ${report.reasons.length} reasons`)
     return report.exit_code
@@ -198,7 +204,7 @@ export async function collectReadiness(context: EvidenceContext, directory: stri
     (review) => review !== null,
   )
   const verifier = await optional('verifier.json'),
-    deviations = (await optional('deviations.json')) ?? []
+    deviations = JSON.parse(await readEvidence(directory, 'deviations.json'))
   const gate = (await optional('gate.json')) ?? {
     schema_version: 1,
     name: 'Deterministic gate',

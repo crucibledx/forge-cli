@@ -3,6 +3,12 @@ import {runPipe} from './pipe'
 import type {CLIResult, CLISession} from './spawn'
 import {spawnInteractive} from './spawn'
 
+function completed(result: CLIResult): CLIResult {
+  if (result.timedOut)
+    throw new Error(`Command deadline exceeded (exit ${result.exitCode}):\n${result.stdout}\n${result.stderr}`)
+  return result
+}
+
 // ─── Non-interactive command runner ──────────────────────────────────────────
 
 /**
@@ -15,13 +21,13 @@ export async function runCommand(
   args: string[] = [],
   env: Record<string, string> = {},
 ): Promise<CLIResult> {
-  return runPipe(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env})
+  return completed(await runPipe(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env}))
 }
 
 async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
   try {
     await drive(cli)
-    return await cli.waitForExit()
+    return completed(await cli.waitForExit())
   } finally {
     await cli.dispose()
   }
@@ -66,7 +72,7 @@ export async function runStatus(cwd: string): Promise<CLIResult> {
 }
 
 /**
- * Runs `forge scheduler <subcommand>` non-interactively.
+ * Runs `forge health` non-interactively.
  */
 export async function runHealth(cwd: string): Promise<CLIResult> {
   return runCommand(cwd, 'health')

@@ -2,6 +2,7 @@ import {readEvidence} from '../evidence-io'
 import type {ReadinessBundle} from '../evidence-schema'
 import type {ReadinessProvider} from '../readiness'
 import {acceptanceIds, requiredLaneIds, validationLanes} from '../validation-lanes'
+import {checkEvidencePath} from '../validation-policy'
 
 export function readinessFixture(): ReadinessBundle {
   const head = 'a'.repeat(40),
@@ -45,7 +46,7 @@ export function readinessFixture(): ReadinessBundle {
         command: check.command.join(' '),
         exit_code: 0,
         duration_ms: 1,
-        evidence: ['fixtures/check.log'],
+        evidence: [checkEvidencePath(lane.id, check.id)],
       })),
     })),
     reviews: (['code', 'security'] as const).map((role) => ({
@@ -96,7 +97,10 @@ export function fixtureProvider(directory: string, original: ReadinessBundle): R
     },
     async artifact(ref) {
       if (
-        ref !== 'fixtures/check.log' ||
+        ![
+          'fixtures/check.log',
+          ...expected.lanes.flatMap((lane) => lane.checks.flatMap((check) => check.evidence)),
+        ].includes(ref) ||
         (await readEvidence(directory, ref)).trim() !== 'authenticated fixture evidence'
       )
         throw new Error('Missing/invalid fixture artifact')

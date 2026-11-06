@@ -4,9 +4,10 @@ import {dirname, resolve} from 'node:path'
 import {redact} from '../src/domain/redact'
 import {readEvidence, writeEvidence} from './evidence-io'
 import {contextSchema} from './evidence-schema'
+import {providerGate} from './github-evidence'
+import {providerProducer} from './producer-evidence'
 import {collectReadiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
-import {sessionProducer} from './session-evidence'
 import {repositoryRoot} from './validation-context'
 
 if (import.meta.main) {
@@ -28,6 +29,15 @@ if (import.meta.main) {
       directory = dirname(contextPath)
     const provider = readinessProvider(repositoryRoot, directory)
     await provider.context(context)
+    const gate = await providerGate(context)
+    await provider.gate(gate, context)
+    try {
+      if (JSON.stringify(JSON.parse(await readEvidence(directory, 'gate.json'))) !== JSON.stringify(gate))
+        throw new Error('Refusing to overwrite a different gate record')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    await writeEvidence(resolve(directory, 'gate.json'), gate)
     let sources: unknown = []
     try {
       sources = JSON.parse(await readEvidence(directory, 'producers.json'))
@@ -37,7 +47,7 @@ if (import.meta.main) {
     if (!Array.isArray(sources) || sources.some((uri) => typeof uri !== 'string'))
       throw new Error('Invalid producer selection')
     for (const uri of sources) {
-      const payload = await sessionProducer(uri)
+      const payload = await providerProducer(uri, context)
       const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
       for (const record of records) {
         await provider.producer(record, context)
@@ -56,7 +66,7 @@ if (import.meta.main) {
     }
     const bundle = await collectReadiness(context, directory)
     for (const lane of bundle.lanes)
-      for (const check of lane.checks) for (const ref of check.evidence) await provider.artifact(ref, context)
+      for (const check of lane.checks) for (const ref of check.evidence) await provider.artifact(ref, context, lane)
     for (const record of [...bundle.reviews, ...(bundle.verifier ? [bundle.verifier] : [])])
       await provider.producer(record, context)
     if (bundle.gate.source_uri) await provider.gate(bundle.gate, context)

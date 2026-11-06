@@ -1,5 +1,6 @@
 import stripAnsi from 'strip-ansi'
 
+import {redact} from '../../src/domain/redact'
 import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
 export const TAIL_BYTES = 256 * 1024
@@ -13,8 +14,9 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 }
 
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
-  let result = text
-    .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[redacted]@')
+  // Domain redaction owns URI credentials; harness scrubbing additionally covers
+  // disposable paths, explicit fixture secrets and loose assignment-shaped text.
+  let result = redact(text)
     .replace(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi, '$1[redacted]')
     .replaceAll(cwd, '<project>')
   for (const secret of secrets.filter(Boolean)) result = result.replaceAll(secret, '[redacted]')
@@ -107,24 +109,26 @@ export async function terminateTree(proc: OwnedProcess): Promise<void> {
     }
     return
   }
-  try {
-    process.kill(-proc.pid, 0)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+  const signal = (value: NodeJS.Signals | 0) => {
+    try {
+      process.kill(-proc.pid, value)
+      return true
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      // The durable owner can finish first. Ignore EPERM only after proving
+      // that the group contains no live process, never for a real denial.
+      if (code === 'ESRCH' || (code === 'EPERM' && !groupAlive(proc.pid))) return false
+      throw error
+    }
+  }
+  if (!signal(0)) {
     await proc.exited
     return
   }
-  const signal = (force: boolean) => {
-    try {
-      process.kill(-proc.pid, force ? 'SIGKILL' : 'SIGTERM')
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-    }
-  }
-  signal(false)
+  signal('SIGTERM')
   // Always escalate the group, even if its leader exited before its descendants.
   await new Promise((resolve) => setTimeout(resolve, 500))
-  signal(true)
+  signal('SIGKILL')
   const cleanupEnd = performance.now() + 1500
   let timer: ReturnType<typeof setTimeout> | undefined
   try {

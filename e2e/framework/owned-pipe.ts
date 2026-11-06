@@ -1,5 +1,6 @@
 import {join} from 'node:path'
 
+import {posixOwnership} from './posix-owner'
 import {activeProcesses} from './process'
 import {createWindowsJob, windowsJobs} from './windows-job'
 
@@ -17,8 +18,20 @@ export async function spawnOwnedPipe(
   cwd: string,
   env: Record<string, string>,
 ): Promise<PipeProcess> {
-  if (process.platform !== 'win32')
-    return Bun.spawn(command, {cwd, env, detached: true, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe'})
+  if (process.platform !== 'win32') {
+    const owner = posixOwnership(command)
+    return owner.wrap(
+      Bun.spawn(owner.command, {
+        cwd,
+        env,
+        detached: true,
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        ipc: owner.ipc,
+      }),
+    )
+  }
   const executable = Bun.which(command[0], {PATH: env.PATH}) ?? command[0]
   const job = await createWindowsJob()
   const packet = Buffer.from(

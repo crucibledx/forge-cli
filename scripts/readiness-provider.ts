@@ -5,13 +5,14 @@ import {z} from 'zod'
 import {artifactFiles} from './artifact-archive'
 import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
-import {contextSchema, evidencePath} from './evidence-schema'
+import {contextSchema, evidencePath, laneSchema} from './evidence-schema'
 import {artifactName} from './gate'
-import {githubJSON} from './github-evidence'
+import {currentPullRequest, githubJSON} from './github-evidence'
+import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
-import {sessionProducer} from './session-evidence'
 import {actualHead} from './validation-context'
 import {laneById} from './validation-lanes'
+import {checkEvidencePath} from './validation-policy'
 
 const jobSchema = z.object({
   id: z.number().int(),
@@ -74,11 +75,11 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
 export function readinessProvider(
   root: string,
   evidenceRoot: string,
-  ports = {githubJSON, sessionProducer, archive},
+  ports = {githubJSON, archive},
 ): ReadinessProvider {
-  const sessions = new Map<string, ReturnType<typeof sessionProducer>>()
-  const source = (uri: string) => {
-    if (!sessions.has(uri)) sessions.set(uri, ports.sessionProducer(uri))
+  const sessions = new Map<string, ReturnType<typeof providerProducer>>()
+  const source = (uri: string, context: EvidenceContext) => {
+    if (!sessions.has(uri)) sessions.set(uri, providerProducer(uri, context, ports.githubJSON))
     return sessions.get(uri)!
   }
   const runs = new Map<
@@ -146,11 +147,13 @@ export function readinessProvider(
         )
           throw new Error('Tested merge parents differ from the selected PR/base')
         await selected(context)
+        await currentPullRequest(context, ports.githubJSON)
       }
     },
-    async artifact(ref, context) {
-      if (ref.startsWith('factory-session://')) {
-        const payload = await source(ref)
+    async artifact(ref, context, citingLane) {
+      if (ref.startsWith('factory-session://') || ref.startsWith('https://')) {
+        if (citingLane) throw new Error('A producer report cannot substitute for a lane check artifact')
+        const payload = await source(ref, context)
         if (
           ![...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])].some(
             (record) => record.head_sha === context.head_sha && record.tested_sha === context.tested_sha,
@@ -164,7 +167,13 @@ export function readinessProvider(
       if (parts.length !== 3 || parts[0] !== 'checks')
         throw new Error('Evidence is not a selected-run lane artifact or authenticated producer')
       const lane = laneById(parts[1])
-      if (!lane.checks.some((check) => `${check.id.replaceAll(':', '-')}.log` === parts[2]))
+      if (
+        citingLane &&
+        (citingLane.lane_id !== lane.id ||
+          !citingLane.checks.some((check) => ref === checkEvidencePath(lane.id, check.id)))
+      )
+        throw new Error('Artifact is not owned by the citing lane/check')
+      if (!lane.checks.some((check) => ref === checkEvidencePath(lane.id, check.id)))
         throw new Error('Unknown check artifact')
       const {jobs, artifacts} = await selected(context)
       const job = jobs.filter((job) => job.name === lane.id),
@@ -172,6 +181,7 @@ export function readinessProvider(
       if (
         job.length !== 1 ||
         job[0].status !== 'completed' ||
+        job[0].conclusion !== 'success' ||
         artifact.length !== 1 ||
         artifact[0].expired ||
         artifact[0].workflow_run.id !== Number(context.run_id)
@@ -187,6 +197,14 @@ export function readinessProvider(
       if (!archives.has(artifact[0].id))
         archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
       const files = await archives.get(artifact[0].id)!
+      if (citingLane) {
+        const originalLane = files.get(`${lane.id}.json`)
+        if (
+          !originalLane ||
+          JSON.stringify(laneSchema.parse(JSON.parse(originalLane.toString()))) !== JSON.stringify(citingLane)
+        )
+          throw new Error('Lane verdict differs from the authenticated provider artifact')
+      }
       const originalContext = files.get('context.json')
       if (
         !originalContext ||
@@ -198,7 +216,7 @@ export function readinessProvider(
         throw new Error('Local artifact differs from authenticated provider bytes')
     },
     async producer(record, context) {
-      const payload = await source(record.provenance.source_uri)
+      const payload = await source(record.provenance.source_uri, context)
       const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
       if (
         !records.some(
@@ -242,7 +260,6 @@ export function readinessProvider(
           body: z.string(),
           created_at: z.string().optional(),
           submitted_at: z.string().optional(),
-          updated_at: z.string().optional(),
           issue_url: z.string().optional(),
         })
         .parse(await ports.githubJSON(context, endpoint))

@@ -3,12 +3,13 @@ import {resolve} from 'node:path'
 
 import {parse} from 'yaml'
 
+import {testSuites} from './registry/suites'
 import {safetyLedger} from './safety-ledger'
 import {repositoryRoot} from './validation-context'
 import {acceptanceIds, businessRuleIds, validationLanes} from './validation-lanes'
 
-export function contractInputs(root = repositoryRoot) {
-  const read = (path: string) => readFileSync(resolve(root, path), 'utf8')
+export function contractInputs() {
+  const read = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8')
   return {
     pin: read('.bun-version').trim(),
     lock: read('bun.lock'),
@@ -17,11 +18,13 @@ export function contractInputs(root = repositoryRoot) {
     release: parse(read('.github/workflows/release.yml')),
     ledger: safetyLedger,
     lanes: validationLanes,
+    suites: testSuites as Record<string, readonly string[]>,
+    testText: read,
     docs: ['README.md', 'CONTRIBUTING.md', '.factory/loop-contract.md', 'docs/safety-contract.md'].map((path) => ({
       path,
       text: read(path),
     })),
-    exists: (path: string) => existsSync(resolve(root, path)),
+    exists: (path: string) => existsSync(resolve(repositoryRoot, path)),
   }
 }
 export function validateContracts(input: ReturnType<typeof contractInputs>): string[] {
@@ -64,7 +67,26 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   ]
   require(input.lanes.length === required.length &&
     new Set(input.lanes.map((lane) => lane.id)).size === required.length &&
-    required.every((id) => input.lanes.some((lane) => lane.id === id && lane.required)), 'Required module set changed')
+    required.every((id) => input.lanes.some((lane) => lane.id === id)), 'Required module set changed')
+  for (const [name, paths] of Object.entries(input.suites))
+    require(paths.length && paths.every(input.exists), `${name}: suite path missing`)
+  // Labels prevent registry drift, not a substitute for reviewing the assertions.
+  for (const lane of input.lanes.filter((lane) => lane.id === 'security' || lane.id.startsWith('native-'))) {
+    const suite = lane.id === 'security' ? 'security' : 'platform'
+    const labels = new Set<string>()
+    for (const path of input.suites[suite] ?? []) {
+      if (!input.exists(path)) continue
+      const ids = [...input.testText(path).matchAll(/\bAC-(\d+(?:[–-]\d+)?(?:,\d+(?:[–-]\d+)?)*)/g)].flatMap((match) =>
+        match[1].split(',').flatMap((part) => {
+          const [start, end = start] = part.split(/[–-]/).map(Number)
+          return Array.from({length: Math.max(0, end - start + 1)}, (_, i) => `AC-${start + i}`)
+        }),
+      )
+      ids.forEach((id) => labels.add(id))
+      require(ids.some((id) => lane.ac_ids.includes(id)), `${lane.id}: ${path} asserts no declared lane acceptance ID`)
+    }
+    require(lane.ac_ids.every((id) => labels.has(id)), `${lane.id}: declared lane acceptance IDs lack test labels`)
+  }
   for (const lane of input.lanes) {
     require(lane.timeout_ms > 0 &&
       lane.timeout_ms <= 600000 &&
@@ -114,9 +136,9 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
       uploads.every(
         (step) => step.if === 'always()' && (step.with as Record<string, unknown>)?.['retention-days'] === 7,
       ), 'Always-upload seven-day evidence missing')
-    require(steps
-      .filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
-      .every(
+    const setups = steps.filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
+    require(setups.length === 1 &&
+      setups.every(
         (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
       ), 'CI Bun pin differs')
   }
@@ -126,16 +148,27 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     checks.every((step: {if?: string}) =>
       step.if?.startsWith('always()'),
     ), 'Independent checks must continue after early failures')
-  for (const job of Object.values(input.release.jobs ?? {}) as {steps?: Record<string, unknown>[]}[]) {
-    const steps = job.steps ?? []
-    if (steps.some((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))) {
-      require(steps.some((step) => step.run === 'bun install --frozen-lockfile'), 'Release frozen install missing')
-      require(steps
-        .filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
-        .every(
-          (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
-        ), 'Release Bun pin differs')
-    }
+  checks.forEach((step: {run?: string}, index: number) =>
+    require(step.run ===
+      `bun run ci:lane -- --lane "\${{ matrix.lane }}" --check-index ${index}`, 'CI check commands must use the registered package entrypoint'),
+  )
+  require(ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Assemble lane evidence')?.run ===
+    'bun run ci:lane -- --lane "${{ matrix.lane }}" --assemble', 'CI lane assembly entrypoint differs')
+  require(ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')
+    ?.run === 'bun run ci:gate', 'CI gate entrypoint differs')
+  require(input.package.scripts['ci:lane'] === 'bun run scripts/check-lanes.ts' &&
+    input.package.scripts['ci:gate'] === 'bun run scripts/gate.ts', 'CI package entrypoints differ')
+  // The requirement cannot be conditional on the very setup step an edit can remove.
+  for (const id of ['quality', 'test', 'build', 'publish-npm']) {
+    const job = input.release.jobs?.[id] as {steps?: Record<string, unknown>[]} | undefined
+    require(job, `Required release job missing: ${id}`)
+    const steps = job?.steps ?? []
+    const setups = steps.filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
+    require(steps.some((step) => step.run === 'bun install --frozen-lockfile'), 'Release frozen install missing')
+    require(setups.length === 1 &&
+      setups.every(
+        (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
+      ), 'Release Bun pin differs')
   }
   const safety = input.docs.find((doc) => doc.path === 'docs/safety-contract.md')?.text ?? ''
   require(businessRuleIds.every((id) => safety.includes(id)), 'Documented safety ledger incomplete')

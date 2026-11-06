@@ -1,4 +1,5 @@
-import {readFile} from 'node:fs/promises'
+import {existsSync} from 'node:fs'
+import {readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
@@ -39,6 +40,86 @@ describe('BR-04–08 truthful outcomes and incidental storage (AC-7,8,15,23)', (
       },
     }
   }
+  for (const keep of [false, true])
+    for (const preview of [false, true])
+      it(`AC-3,7,8 empty acquisition reaches real orchestration: keep=${keep}, preview=${preview}`, async () => {
+        const deps = await dependencies()
+        const context = await deps.io.buildContext()
+        context.projectConfig.sync = {...context.projectConfig.sync!, keep_local: keep}
+        deps.loadSource = async () => []
+        const before = await snapshot(dir())
+        await runSyncWithDependencies({...options, dryRun: preview}, deps)
+        expect(process.exitCode).toBe(0)
+        if (preview) {
+          expect(await snapshot(dir())).toEqual(before)
+          expect(deps.written).toEqual([])
+        } else {
+          expect(existsSync(join(dir(), trackedPath))).toBe(keep)
+          const state = JSON.parse(await readFile(join(dir(), '.crucible/sync-state.json'), 'utf8'))
+          const config = parseYaml(await readFile(join(dir(), '.crucible/forge.config.yaml'), 'utf8'))
+          expect(Boolean(state.files[trackedPath])).toBe(keep)
+          expect(state.lastSync).toBe(config.lastSync)
+          expect(state.lastSync).not.toBe(context.projectConfig.lastSync)
+          expect(deps.written[0].success).toBe(true)
+        }
+      })
+  for (const strategy of ['local-wins', 'remote-wins', 'error'] as const)
+    for (const preview of [false, true])
+      for (const equal of [false, true])
+        it(`AC-6 legacy Windows keys migrate conservatively: ${strategy}, preview=${preview}, equal=${equal}`, async () => {
+          const deps = await dependencies(),
+            context = await deps.io.buildContext()
+          context.projectConfig.sync = {...context.projectConfig.sync!, local_conflict_strategy: strategy}
+          const raw = JSON.parse(await readFile(join(dir(), '.crucible/sync-state.json'), 'utf8'))
+          raw.files[trackedPath.replaceAll('/', '\\')] = raw.files[trackedPath]
+          delete raw.files[trackedPath]
+          await writeFile(join(dir(), '.crucible/sync-state.json'), JSON.stringify(raw))
+          if (equal) await writeFile(join(dir(), trackedPath), 'after')
+          const before = await snapshot(dir()),
+            failed = strategy === 'error' && !equal
+          await runSyncWithDependencies({...options, dryRun: preview}, deps)
+          expect(process.exitCode).toBe(failed ? 1 : 0)
+          if (preview || failed) expect(await snapshot(dir())).toEqual(before)
+          else {
+            const next = JSON.parse(await readFile(join(dir(), '.crucible/sync-state.json'), 'utf8'))
+            expect(Object.keys(next.files)).toEqual([trackedPath])
+            expect(next.files[trackedPath].baseline).toBe(
+              !equal && strategy === 'local-wins' ? 'legacy-unknown' : 'installed',
+            )
+            expect(await readFile(join(dir(), trackedPath), 'utf8')).toBe(
+              !equal && strategy === 'local-wins' ? 'before' : 'after',
+            )
+          }
+        })
+  it('AC-2,15 reports every distinct source failure cause, successful acquisitions and exact error count', async () => {
+    const deps = await dependencies(),
+      context = await deps.io.buildContext()
+    context.projectConfig.sources = ['alpha', 'beta', 'gamma', 'empty'].map((name) => ({
+      name,
+      type: 'local',
+      path: 'unused',
+    }))
+    deps.loadSource = async (source?: {name: string}) => {
+      if (source?.name === 'alpha') throw new Error('alpha-read-denied')
+      if (source?.name === 'beta') throw new Error('beta-branch-unavailable')
+      return source?.name === 'empty' ? [] : [{relativePath: 'rules/a.md', content: 'after'}]
+    }
+    const out = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      await runSyncWithDependencies({...options, silent: false}, deps)
+      const text = out.mock.calls.flat().join('\n')
+      expect(text).toContain('Failed to fetch source "alpha": alpha-read-denied')
+      expect(text).toContain('Failed to fetch source "beta": beta-branch-unavailable')
+      expect(text).toContain('Acquired "gamma": 1 resolved targets (not yet installed)')
+      expect(text).toContain('Acquired "empty": 0 resolved targets (not yet installed)')
+      expect(text).toContain('dry-run')
+      expect(deps.written[0].files.errors).toBe(2)
+      expect(deps.written[0].files.synced).toBe(0)
+      expect(deps.written[0].success).toBe(false)
+    } finally {
+      out.mockRestore()
+    }
+  })
   it('commits identical state/config timestamps even for a successful no-op and keeps repeat bytes stable', async () => {
     const deps = await dependencies()
     await runSyncWithDependencies(options, deps)

@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto'
 
+import {propertyOptions} from '@test-helpers/property-options'
 import {describe, expect, it} from 'bun:test'
 import fc from 'fast-check'
 
@@ -8,7 +9,6 @@ import {setGlobalMode} from '@domain/scope'
 
 import {detectLocalConflict} from './conflict'
 import {resolveSourceConflicts} from './merge'
-import {propertyOptions} from './property-options'
 import {reconcileState} from './reconcile'
 import {resolveTargets} from './resolver'
 import type {SyncState} from './state'

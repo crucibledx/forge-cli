@@ -4,7 +4,11 @@ import {join} from 'node:path'
 import type {ProjectConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {hashContent} from '@domain/sync/state'
+import {commitPrepared, prepareSync} from '@application/commands/sync/handler'
 import {writeProjectConfig} from '@infrastructure/config/writer'
+
+/** Test convenience only; these are the same prepare/commit steps used by the command. */
+export const applySyncPlan = (...args: Parameters<typeof prepareSync>) => prepareSync(...args).then(commitPrepared)
 
 export const trackedPath = '.claude/rules/a.md'
 export async function syncFixture(root: string) {

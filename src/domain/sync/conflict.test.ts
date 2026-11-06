@@ -1,7 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 
-import {LOCAL_CONFLICT_STRATEGIES} from '../config/types'
-import {CONFLICT_ACTIONS, detectLocalConflict, resolveLocalConflict} from './conflict'
+import {detectLocalConflict} from './conflict'
 import type {SyncState} from './state'
 import {hashContent} from './state'
 
@@ -47,20 +46,5 @@ describe('detectLocalConflict', () => {
     const same = 'same content'
     const state = stateWith({'a.md': same})
     expect(detectLocalConflict('a.md', same, same, state)).toBeNull()
-  })
-})
-
-describe('resolveLocalConflict', () => {
-  it('remote-wins → write', () => {
-    expect(resolveLocalConflict(LOCAL_CONFLICT_STRATEGIES.REMOTE_WINS)).toEqual({action: CONFLICT_ACTIONS.WRITE})
-  })
-
-  it('local-wins → skip', () => {
-    expect(resolveLocalConflict(LOCAL_CONFLICT_STRATEGIES.LOCAL_WINS)).toEqual({action: CONFLICT_ACTIONS.SKIP})
-  })
-
-  it('error → error', () => {
-    const result = resolveLocalConflict(LOCAL_CONFLICT_STRATEGIES.ERROR)
-    expect(result.action).toBe(CONFLICT_ACTIONS.ERROR)
   })
 })

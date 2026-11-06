@@ -1,5 +1,4 @@
-export const STATE_PATH = '.crucible/sync-state.json'
-export const CONFIG_PATH = '.crucible/forge.config.yaml'
+export {CONFIG_PATH, STATE_PATH} from '../config/paths'
 
 export function portablePath(path: string): string {
   return path.replaceAll('\\', '/').replace(/\/+/g, '/').normalize('NFC').toLowerCase().replace(/\/+$/, '')

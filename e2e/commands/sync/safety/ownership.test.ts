@@ -3,7 +3,7 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
-import {syncFixture, trackedPath} from '@test-helpers/sync-fixture'
+import {applySyncPlan as executePlan, syncFixture, trackedPath} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
@@ -11,7 +11,7 @@ import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {reconcileState} from '@domain/sync/reconcile'
 import type {SyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
-import {buildPlan, executePlan} from '@application/commands/sync/handler'
+import {buildPlan} from '@application/commands/sync/handler'
 
 const dir = useTmpDir('stale-matrix')
 for (const kind of ['installed-edited', 'legacy-edited', 'legacy-hash-equal'])

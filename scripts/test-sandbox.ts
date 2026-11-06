@@ -16,10 +16,10 @@ const runtimeKeys = [
 ]
 const replayKeys = ['FC_SEED', 'FC_PATH']
 
-export function allowlistedEnvironment(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+export function allowlistedEnvironment(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const key of [...runtimeKeys, ...replayKeys]) {
-    if (source[key] !== undefined) env[key] = source[key]!
+    if (process.env[key] !== undefined) env[key] = process.env[key]!
   }
   return env
 }
@@ -46,16 +46,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
   writeFileSync(gitConfig, process.platform === 'win32' ? '[core]\nlongpaths = true\n' : '', {mode: 0o600})
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
   const fake = resolve(import.meta.dir, 'fixtures/fake-scheduler.ts')
-  if (process.platform === 'win32') {
-    const result = Bun.spawnSync(
-      [process.execPath, 'build', fake, '--compile', '--outfile', join(bin, 'schtasks.exe')],
-      {stdout: 'pipe', stderr: 'pipe'},
-    )
-    if (result.exitCode !== 0) {
-      rmSync(root, {recursive: true, force: true})
-      throw new Error('Cannot build isolated scheduler backend')
-    }
-  } else {
+  if (process.platform !== 'win32') {
     for (const command of ['launchctl', 'crontab', 'schtasks']) {
       writeFileSync(
         join(bin, command),
@@ -82,6 +73,16 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
     GIT_TERMINAL_PROMPT: '0',
     GIT_ALLOW_PROTOCOL: 'file',
     NO_COLOR: '1',
+  }
+  if (process.platform === 'win32') {
+    const result = Bun.spawnSync(
+      [process.execPath, 'build', fake, '--compile', '--outfile', join(bin, 'schtasks.exe')],
+      {cwd: project, env, stdout: 'pipe', stderr: 'pipe'},
+    )
+    if (result.exitCode !== 0) {
+      rmSync(root, {recursive: true, force: true})
+      throw new Error('Cannot build isolated scheduler backend')
+    }
   }
   writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
   return {root, project, home, temp, env, dispose: () => rmSync(root, {recursive: true, force: true})}

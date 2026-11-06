@@ -175,7 +175,7 @@ Forge auto-detects how your source is organized — no configuration needed:
 
 - **Multi-source** — collect every source outcome; any failed acquisition aborts the complete sync before protected writes
 - **SHA-256 change detection** — no unnecessary writes
-- **Conflict strategies** — `prefer_source`, `prefer_local`, or `error` for both source and local conflicts
+- **Conflict strategies** — source `first-wins`/`last-wins`/`error`; local `remote-wins`/`local-wins`/`error`
 - **Backup** — `.bak` copies before overwrites
 - **Dry-run** — preview everything before writing
 - **Rollback** — handled failures compensate targets and metadata; incomplete recovery names untrusted paths instead of claiming success

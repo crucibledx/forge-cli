@@ -80,7 +80,7 @@ interface Snapshot {
 
 export class TransactionError extends Error {
   constructor(
-    readonly original: unknown,
+    original: unknown,
     readonly unrestored: string[],
     readonly recoveryFiles: string[] = [],
   ) {
