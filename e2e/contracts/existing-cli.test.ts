@@ -10,6 +10,8 @@ import {hashContent} from '@domain/sync/state'
 import {setupLocalSync, writeConfig} from '@e2e/fixtures'
 import {runPipe} from '@e2e/framework/pipe'
 
+import pkg from '../../package.json'
+
 const cli = resolve(import.meta.dir, '../../src/main.ts')
 describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', () => {
   const dir = useTmpDir('agent-cli')
@@ -30,7 +32,7 @@ describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', 
     expect(help.stderr).toBe('')
     const version = await command(['--version'])
     outcome(version)
-    expect(version.stdout.trim()).toBe('0.6.24')
+    expect(version.stdout.trim()).toBe(pkg.version)
     expect(version.stderr).toBe('')
     expect(await snapshot(dir())).toEqual(before)
   })

@@ -1,25 +1,19 @@
 import {join, resolve} from 'node:path'
 
-import {RULE_WITH_PATHS, SKILL_DEPLOY} from '@e2e/fixtures/sources'
+import {gitFixtures} from '@e2e/fixtures/git-manifest'
 
 import {runPipe} from './pipe'
 
 const history = resolve(import.meta.dir, '../fixtures/git-history.bundle')
-const fixtures: Array<[string, Record<string, string>]> = [
-  ['fixture-skills', {'skills/deploy.md': SKILL_DEPLOY}],
-  ['fixture-rules', {'rules/api.md': RULE_WITH_PATHS}],
-  ['fixture-feature', {'skills/feature.md': '# Feature branch skill'}],
-  ['fixture-team', {'skills/review.md': '# Review skill'}],
-]
 function fixtureFor(files: Record<string, string>): string {
-  const fixture = fixtures.find(
+  const fixture = gitFixtures.find(
     ([, known]) =>
       Object.keys(files).length === Object.keys(known).length &&
       Object.entries(known).every(([path, content]) => files[path] === content),
   )
   if (!fixture)
     throw new Error(
-      'Unknown Git fixture. Extend scripts/fixtures/create-git-bundle.ts and rebuild frozen history using your configured Git identity.',
+      'Unknown Git fixture. Extend e2e/fixtures/git-manifest.ts and rebuild frozen history using your configured Git identity.',
     )
   return fixture[0]
 }

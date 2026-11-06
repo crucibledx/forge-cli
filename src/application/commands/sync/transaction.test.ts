@@ -3,11 +3,11 @@ import {join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
 import {applySyncPlan as executePlan, syncFixture, trackedPath} from '@test-helpers/sync-fixture'
+import {buildSyncState} from '@test-helpers/sync-state'
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it, spyOn} from 'bun:test'
 
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
-import {buildSyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
 import {TransactionError, transactionIO} from '@infrastructure/fs/transaction'
 

@@ -4,7 +4,7 @@ import {existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync} f
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 
-import {RULE_WITH_PATHS, SKILL_DEPLOY} from '../../e2e/fixtures/sources'
+import {gitFixtures} from '../../e2e/fixtures/git-manifest'
 
 const root = mkdtempSync(join(tmpdir(), 'forge-fixture-authoring-'))
 const output = resolve(import.meta.dir, '../../e2e/fixtures/git-history.bundle')
@@ -16,18 +16,12 @@ try {
   git('init', '--initial-branch=fixture-skills')
   git('var', 'GIT_AUTHOR_IDENT')
   git('var', 'GIT_COMMITTER_IDENT')
-  const fixtures = [
-    ['fixture-skills', {'skills/deploy.md': SKILL_DEPLOY}],
-    ['fixture-rules', {'rules/api.md': RULE_WITH_PATHS}],
-    ['fixture-feature', {'skills/feature.md': '# Feature branch skill'}],
-    ['fixture-team', {'skills/review.md': '# Review skill'}],
-  ] as const
-  for (let i = 0; i < fixtures.length; i++) {
-    const [branch, files] = fixtures[i]
+  for (let i = 0; i < gitFixtures.length; i++) {
+    const [branch, files] = gitFixtures[i]
     if (i) {
       git('checkout', '--orphan', branch)
       git('rm', '-r', '--cached', '--ignore-unmatch', '.')
-      for (const [, previous] of fixtures)
+      for (const [, previous] of gitFixtures)
         for (const path of Object.keys(previous)) {
           if (existsSync(join(root, path))) unlinkSync(join(root, path))
         }

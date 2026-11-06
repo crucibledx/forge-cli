@@ -4,10 +4,32 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## New hosted review5804051755
+
+All nine inline findings on7df422f were confirmed and corrected. The hosted reviewer used Bun1.2.11 without
+dependencies, so its static findings were reproduced using the pinned1.4.2 launcher, not assumed tested.
+
+| Comment | Disposition and regression |
+| --- | --- |
+|4495380351 | Fixed actual `#pullrequestreview-ID` owner approval parsing; real-route positive plus wrong owner/revision/hash/timestamp/fragment controls. |
+|4495380393 | Authenticate completed failed/blocked/canceled lane artifacts without treating them as passes. Original lane/context/check bytes remain bound; failed job plus passing lane is rejected. Aggregate failure/sibling reporting remains covered. |
+|4495380402 | Block AC results for unauthenticated/stale/unavailable/non-independent verifiers or invalid row evidence/exits. Context failure blocks all rows; a bad row does not erase verified siblings. Eight negative controls, valid32-pass fixture, and trusted/unverified failure classification. |
+|4495380413 | Reject non-colocated collector outputs before provider access. Actual CLI tests cover relocated, colocated and source-overwrite cases. |
+|4495380424 | Removed unused local-session parser and parser-only tests. Shared hosted payload schema lives in `producer-payload.ts`; schema-only tests do not claim authentication. Hosted producer forgery controls remain. |
+|4495380431 | Frozen Git generation and lookup import one `e2e/fixtures/git-manifest.ts`; existing bundle bytes are unchanged. Real Git E2E cases exercise imports. |
+|4495380442 | Both source/compiled version assertions read `package.json.version`; no version bump. |
+|4495380459 | Ownership and collision checks use shared domain portable folding, including repeated separators. Unicode/case/slash aliases and actual ownership have regressions. State migration deliberately retains its distinct conservative key handling. |
+|4495380467 | Removed production `buildSyncState`; remaining fixture convenience and all callers live in test helpers/tests. Production continues through `reconcileState`. |
+
+The issue-comment's tenth, unconfirmed version-sensitive teardown candidate was not an inline finding. No
+speculative lifecycle rewrite is made; pinned full-suite/contract checks remain the reproduction standard.
+The owner's explicit instruction is to mark the corrected PR ready for review so independent automation starts.
+This UI state does not substitute for authenticated readiness or authorize merge/release/global service changes.
+
 ## Critical corrections
 
 - Lane validation requires each check's own selected-run log. The production provider binds the citing lane,
-  original lane JSON/context, artifact digest/check bytes and successful provider job.
+  original lane JSON/context, artifact digest/check bytes and completed provider job, without promoting failure evidence to pass.
 - Writable local sessions cannot authenticate independent approval. Only the independently operated app's
   provider-hosted structured exact-revision review is supported. The verifier must be a different producer.
   The live PR head/base/merge must still match the selected revision.

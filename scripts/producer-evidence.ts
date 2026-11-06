@@ -4,7 +4,7 @@ import {z} from 'zod'
 
 import type {EvidenceContext} from './evidence-schema'
 import {githubJSON} from './github-evidence'
-import {producerPayload} from './session-evidence'
+import {producerPayload} from './producer-payload'
 
 /** Trust the independently operated review app, never files or an implementer's GitHub comment. */
 export async function providerProducer(uri: string, context: EvidenceContext, read = githubJSON) {

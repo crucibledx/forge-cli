@@ -43,7 +43,8 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     }
     return true
   }
-  await authenticate('context', () => provider.context(context))
+  const contextValid = await authenticate('context', () => provider.context(context))
+  const acResults = new Map<string, VerifierEvidence['rows'][number]>()
   const laneResults = []
   for (const id of requiredLaneIds) {
     const lane = bundle.lanes.find((lane) => lane.lane_id === id)
@@ -105,30 +106,42 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
   const verifier = bundle.verifier
   if (!verifier) add('blocked', 'verifier', 'Missing independent implementation-check attestation')
   else {
-    if (
-      bundle.reviews.some(
-        (review) =>
-          review.provenance.producer_id === verifier.provenance.producer_id &&
-          review.provenance.actor === verifier.provenance.actor,
-      )
+    const independent = !bundle.reviews.some(
+      (review) =>
+        review.provenance.producer_id === verifier.provenance.producer_id &&
+        review.provenance.actor === verifier.provenance.actor,
     )
+    if (!independent)
       add(
         'blocked',
         'verifier',
         'Implementation verification must come from a different producer than code/security review',
       )
     const valid =
+      contextValid &&
+      independent &&
       identity(verifier, 'verifier') &&
       verifier.provenance.producer_role === 'verifier' &&
       (await authenticate('verifier', () => provider.producer(verifier, context)))
     if (!valid || verifier.completion !== 'complete')
       add('blocked', 'verifier', 'Unavailable/unverified implementation-check producer')
     for (const row of verifier.rows) {
-      if (row.result === 'fail') add('failure', row.ac_id, 'Acceptance check failed')
+      let rowValid = valid && verifier.completion === 'complete'
       if (row.result === 'blocked') add('blocked', row.ac_id, 'Acceptance check blocked')
-      if (row.result === 'pass' && row.exit_code !== 0) add('blocked', row.ac_id, 'Pass contradicts command exit')
-      if (row.result === 'fail' && row.exit_code === 0) add('blocked', row.ac_id, 'Failure contradicts command exit')
-      for (const ref of row.evidence) await authenticate(row.ac_id, () => provider.artifact(ref, context))
+      if (row.result === 'pass' && row.exit_code !== 0) {
+        add('blocked', row.ac_id, 'Pass contradicts command exit')
+        rowValid = false
+      }
+      if (row.result === 'fail' && row.exit_code === 0) {
+        add('blocked', row.ac_id, 'Failure contradicts command exit')
+        rowValid = false
+      }
+      for (const ref of row.evidence) {
+        const authenticated = await authenticate(row.ac_id, () => provider.artifact(ref, context))
+        rowValid = authenticated && rowValid
+      }
+      if (rowValid && row.result === 'fail') add('failure', row.ac_id, 'Acceptance check failed')
+      acResults.set(row.ac_id, rowValid ? row : {...row, result: 'blocked'})
     }
   }
   for (const deviation of bundle.deviations) {
@@ -147,9 +160,7 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     context,
     verdict,
     lane_results: laneResults,
-    ac_results: acceptanceIds.map(
-      (id) => verifier?.rows.find((row) => row.ac_id === id) ?? {ac_id: id, result: 'blocked'},
-    ),
+    ac_results: acceptanceIds.map((id) => acResults.get(id) ?? {ac_id: id, result: 'blocked'}),
     reviews: bundle.reviews,
     deviations: bundle.deviations,
     remaining_risks: bundle.reviews.flatMap((review) => review.remaining_risks),

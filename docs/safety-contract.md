@@ -109,9 +109,14 @@ report bootstraps its own success. The [approved supporting contract](quality-ga
 strict sidecars and provenance. Missing adapters/attestations remain blocked; prose saying “ready” is not evidence.
 
 Each check must cite its own `checks/<lane>/<check>.log`. The production provider validates its selected-run ZIP
-digest, original context and lane JSON, check bytes, successful job and citing lane. Producer reports cannot replace
+digest, original context and lane JSON, check bytes, completed job and citing lane. Authenticated failed/unavailable
+lane artifacts remain collectable for all-results diagnostics; a non-successful job cannot authenticate a passing
+lane. Producer reports cannot replace
 CI check logs, and one lane's log cannot stand in for another. Collection obtains the real selected gate job and
 requires `deviations.json` explicitly; a missing file is not evidence that no deviations exist.
+The output bundle must be colocated with its context/check evidence. Relocated `--out` paths are rejected before
+provider access instead of emitting a bundle whose relative paths cannot resolve. Unauthenticated/stale/unavailable
+verifiers produce blocked AC results; an invalid row's evidence or exit status blocks that row, not verified siblings.
 
 **Local session files are supporting reports, never independent approval.** The production adapter rejects
 `factory-session://` producers, even with valid schemas and hashes. Its supported authenticated producer is a
@@ -123,14 +128,16 @@ an implementer-posted copy or prose-only bot review is insufficient. Verificatio
 from code/security review. Readiness also checks the live PR head/base/merge rather than accepting stale evidence.
 
 This adapter does not make the existing review service emit such an attestation. If the existing independently
-operated review/verifier cannot provide it, readiness stays **blocked** and the PR stays draft. Do not manufacture
+operated review/verifier cannot provide it, readiness stays **blocked**. Normally keep the PR draft; an explicit owner
+request may mark it ready for review to start independent automation, without granting readiness or merge approval.
+Do not manufacture
 a payload, post as the owner, reuse a local transcript as authentication, or change shared reviewer services/settings.
 The Nov5 readiness result for PR6 used the weaker local trust path and is withdrawn as sufficient approval.
 
 The owner must configure required `Deterministic gate` and independent reviews in branch rules after inspecting
 the actual check names. Agents do not change repository settings, merge, release or grant deviations. Report
 read-only branch-rule evidence or the access blocker in the implementation PR. A draft/non-draft toggle is not
-readiness and must not create a review-trigger cycle.
+readiness. Do not repeatedly toggle the state to force a review cycle without an owner request.
 
 Future CLI and MCP interfaces need **separate approved contracts** over shared application use cases and safety
 invariants. CLI stdout/exits and MCP schemas/errors remain transport-specific. This work adds no MCP lane, protocol,

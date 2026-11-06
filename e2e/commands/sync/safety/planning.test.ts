@@ -2,11 +2,11 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {applySyncPlan as executePlan, syncFixture, trackedPath} from '@test-helpers/sync-fixture'
+import {buildSyncState} from '@test-helpers/sync-state'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
-import {buildSyncState} from '@domain/sync/state'
 import {buildPlan} from '@application/commands/sync/handler'
 
 import {command, config, protectedBytes} from './helpers'
