@@ -74,6 +74,9 @@ byte copies, so disposing or altering one backend cannot affect another.
 
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
 native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.
+The macOS lane uses the standard native `macos-15-intel` image. GitHub canceled the earlier ARM `macos-latest`
+job without assigning a runner after15 minutes of capacity retries. This image change retains the same checks,
+deadlines and fail-closed gate; it is not cross-compilation or an ARM execution claim.
 Suite membership lives in `scripts/registry/suites.ts`, not package-script argument lists. Unit files stay co-located
 with their layers; security and platform suites intentionally overlap them. `test:platform` means additional native
 OS checks, not all Linux validation: portable suites plus the independent Linux build already cover Linux.

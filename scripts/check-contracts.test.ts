@@ -5,6 +5,18 @@ import {contractInputs, validateContracts} from './check-contracts'
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])
 })
+it.each([
+  ['native-macos', 'ubuntu-latest'],
+  ['native-macos', 'macos-latest'],
+  ['native-windows', 'ubuntu-latest'],
+])('AC-26 rejects runner drift for %s to %s', (lane, os) => {
+  const original = contractInputs()
+  const input = {...original, ci: structuredClone(original.ci)}
+  input.ci.jobs.lanes.strategy.matrix.include.find((row: {lane: string}) => row.lane === lane).os = os
+  expect(validateContracts(input)).toContain(
+    'Native jobs must use the selected native hosted runners (no cross-compilation)',
+  )
+})
 it.each(['pin', 'minimum', 'lock', 'rule', 'path', 'lane', 'workflow', 'fail-fast', 'retention', 'timeout', 'release'])(
   'rejects malformed %s contracts',
   (kind) => {

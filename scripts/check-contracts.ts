@@ -115,7 +115,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     ), 'Workflow matrix differs from registry')
   require(matrix.find((row: {lane: string}) => row.lane === 'native-windows')?.os === 'windows-latest' &&
     matrix.find((row: {lane: string}) => row.lane === 'native-macos')?.os ===
-      'macos-latest', 'Native jobs cannot use cross-compilation as execution evidence')
+      'macos-15-intel', 'Native jobs must use the selected native hosted runners (no cross-compilation)')
   require(ci.jobs?.lanes?.['timeout-minutes'] <= 10 &&
     ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
   require(ci.jobs?.gate?.name === 'Deterministic gate' &&
