@@ -15,12 +15,12 @@ describe('BR-10 full-suite process isolation (AC-19)', () => {
     const b = createTestSandbox('isolation-b-')
     try {
       expect(a.root).not.toBe(b.root)
-      expect(new Set([a.project, a.home, a.temp]).size).toBe(3)
+      expect(new Set([a.project, a.env.HOME, a.env.TMPDIR]).size).toBe(3)
       const fixture = join(import.meta.dir, 'fixtures/process.ts')
       const result = await runPipe(a.project, [process.execPath, fixture, 'env'])
       const probe = JSON.parse(result.stdout.replaceAll('<project>', a.project))
-      expect(probe.home).toBe(a.home)
-      expect(probe.temp).toBe(a.temp)
+      expect(probe.home).toBe(a.env.HOME)
+      expect(probe.temp).toBe(a.env.TMPDIR)
       for (const key of ['SSH_AUTH_SOCK', 'GITHUB_TOKEN', 'NPM_TOKEN', 'AWS_SECRET_ACCESS_KEY', 'FORGE_SECRET']) {
         expect(probe.env[key]).toBeUndefined()
       }

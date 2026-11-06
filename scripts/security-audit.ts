@@ -1,9 +1,9 @@
-import {createHash} from 'node:crypto'
 import {readFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
 
 import {z} from 'zod'
 
+import {hashContent} from '../src/domain/sync/state'
 import {repositoryRoot} from './validation-identity'
 import type {CommandOutcome} from './validation-process'
 import {executeCheck} from './validation-process'
@@ -53,10 +53,7 @@ export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
 }
 async function audit() {
   const lock = resolve(repositoryRoot, 'bun.lock')
-  const hash = async () =>
-    createHash('sha256')
-      .update(await readFile(lock))
-      .digest('hex')
+  const hash = async () => hashContent(await readFile(lock))
   const before = await hash()
   const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], repositoryRoot, 60000)
   return assessAudit(result, before === (await hash()))

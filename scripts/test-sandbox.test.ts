@@ -32,8 +32,8 @@ try {
  appendFileSync(join(first.root, 'bin/schtasks.exe'), 'fixture-only')
  const independent = statSync(executable).size === size
  const compile = launches[0]
- const isolated = compile.cwd === first.project && compile.env.HOME === first.home &&
-   compile.env.USERPROFILE === first.home && compile.env.TMPDIR === first.temp &&
+ const isolated = compile.cwd === first.project && compile.env.HOME === first.env.HOME &&
+   compile.env.USERPROFILE === first.env.HOME && compile.env.TMPDIR === first.env.TMPDIR &&
    !['FORGE_COMPILER_SECRET','SSH_AUTH_SOCK','BUN_OPTIONS'].some(key => key in compile.env)
  first.dispose()
  const run = args => original([executable, ...args], {cwd: second.project, env: second.env, stdout: 'pipe', stderr: 'pipe', timeout: 5000})

@@ -11,6 +11,57 @@ import {fixtureProvider, readinessFixture} from './fixtures/readiness'
 import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './readiness'
 
 const dir = useTmpDir('readiness')
+it.each([
+  'unavailable',
+  'stale-pending',
+  'stale-rejected',
+  'stale-approved',
+  'context-pending',
+  'context-approved',
+  'current-pending',
+  'current-rejected',
+  'current-approved',
+  'unavailable-with-failure',
+])(
+  'AC-32 deviation decisions require current authenticated evidence, preserving failure precedence: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const decision = kind.endsWith('pending') ? 'pending' : kind.endsWith('rejected') ? 'rejected' : 'approved'
+    bundle.deviations.push({
+      schema_version: 1,
+      id: 'D1',
+      description: 'synthetic only',
+      ac_ids: ['AC-26'],
+      contract_diff_sha256: 'd'.repeat(64),
+      head_sha: bundle.context.head_sha,
+      tested_sha: kind.startsWith('stale') ? 'f'.repeat(40) : bundle.context.tested_sha,
+      approval: {
+        decision,
+        actor: 'NazarUsik',
+        source_uri: 'https://github.com/crucibledx/forge-cli/pull/99#issuecomment-123',
+        approved_at: '2026-11-04T12:00:00.000Z',
+      },
+    })
+    let calls = 0
+    provider.deviation = async () => {
+      calls++
+      if (kind.startsWith('unavailable')) throw new Error('HTTP503 approval unavailable')
+    }
+    if (kind.startsWith('context'))
+      provider.context = async () => {
+        throw new Error('Context unavailable')
+      }
+    if (kind === 'unavailable-with-failure') {
+      bundle.lanes[0].status = 'fail'
+      bundle.lanes[0].checks[0].exit_code = 1
+    }
+    const report = await readiness(bundle, Bun.version, provider)
+    const failed = ['current-pending', 'current-rejected', 'unavailable-with-failure'].includes(kind)
+    expect(report.exit_code).toBe(kind === 'current-approved' ? 0 : failed ? 1 : 2)
+    expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(failed)
+    expect(calls).toBe(decision === 'approved' && !kind.startsWith('context') && !kind.startsWith('stale') ? 1 : 0)
+  },
+)
 async function fixture() {
   await mkdir(join(dir(), 'fixtures'))
   await writeFile(join(dir(), 'fixtures/check.log'), 'authenticated fixture evidence\n')

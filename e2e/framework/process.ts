@@ -1,6 +1,5 @@
-import stripAnsi from 'strip-ansi'
-
 import {redact, redactionContext} from '../../src/domain/redact'
+import {createAnsiText} from './ansi-text'
 import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
 export const TAIL_BYTES = 256 * 1024
@@ -25,7 +24,9 @@ export function sanitize(text: string, cwd: string, secrets: string[] = []): str
 
 export function createTranscript(clean: (text: string) => string = (text) => text, secrets: string[] = []) {
   const decoder = new TextDecoder()
+  const plainText = createAnsiText()
   let raw = ''
+  let plain = ''
   let offset = 0
   let context = ''
   let diagnostic = ''
@@ -36,6 +37,9 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     return bytes.subarray(start).toString()
   }
   function add(text: string): void {
+    const visible = plain + plainText(text)
+    plain = tail(visible)
+    offset += visible.length - plain.length
     raw += text
     // Redact with the original recognizer context BEFORE discarding bytes.
     diagnostic = tail(clean(context + raw))
@@ -45,7 +49,6 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
       while ((bytes[start] & 0xc0) === 0x80) start++
       const discarded = bytes.subarray(0, start).toString()
       context = redactionContext(context + discarded, secrets)
-      offset += stripAnsi(discarded).length
       raw = bytes.subarray(start).toString()
     }
   }
@@ -61,7 +64,7 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
       add(decoder.decode())
     },
     text() {
-      return stripAnsi(raw)
+      return plain
     },
     rawText() {
       return raw

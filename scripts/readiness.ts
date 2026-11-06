@@ -22,11 +22,13 @@ export interface ReadinessProvider {
   deviation(record: DeviationEvidence, context: EvidenceContext): Promise<void>
   gate(record: ReadinessBundle['gate'], context: EvidenceContext): Promise<void>
 }
+const REASON_KINDS = {FAILURE: 'failure', BLOCKED: 'blocked'} as const
+type ReasonKind = (typeof REASON_KINDS)[keyof typeof REASON_KINDS]
 export async function readiness(value: unknown, pin: string, provider: ReadinessProvider) {
   const bundle = bundleSchema.parse(value),
     context = bundle.context
-  const reasons: {kind: 'failure' | 'blocked'; subject: string; message: string}[] = []
-  const add = (kind: 'failure' | 'blocked', subject: string, message: string) => reasons.push({kind, subject, message})
+  const reasons: {kind: ReasonKind; subject: string; message: string}[] = []
+  const add = (kind: ReasonKind, subject: string, message: string) => reasons.push({kind, subject, message})
   const authenticate = async (subject: string, action: () => Promise<void>) => {
     try {
       await action()
@@ -155,12 +157,11 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     }
   }
   for (const deviation of bundle.deviations) {
-    identity(deviation, deviation.id)
+    if (!contextValid || !identity(deviation, deviation.id)) continue
     if (deviation.approval.decision !== 'approved') add('failure', deviation.id, 'Unapproved/rejected deviation')
-    else if (!(await authenticate(deviation.id, () => provider.deviation(deviation, context))))
-      add('failure', deviation.id, 'Deviation approval is not authenticated for this exact hash/revision')
+    else await authenticate(deviation.id, () => provider.deviation(deviation, context))
   }
-  const verdict = reasons.some((reason) => reason.kind === 'failure')
+  const verdict = reasons.some((reason) => reason.kind === REASON_KINDS.FAILURE)
     ? 'not-ready'
     : reasons.length
       ? 'blocked'

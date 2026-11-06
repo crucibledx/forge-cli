@@ -28,8 +28,6 @@ export function allowlistedEnvironment(): Record<string, string> {
 export interface TestSandbox {
   root: string
   project: string
-  home: string
-  temp: string
   env: Record<string, string>
   dispose(): void
 }
@@ -96,7 +94,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): Tes
     }
   }
   writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
-  return {root, project, home, temp, env, dispose: () => rmSync(root, {recursive: true, force: true})}
+  return {root, project, env, dispose: () => rmSync(root, {recursive: true, force: true})}
 }
 
 /** Locate a per-test sandbox, including commands invoked from nested project directories. */

@@ -4,9 +4,8 @@ import {propertyOptions} from '@test-helpers/property-options'
 import {describe, expect, it} from 'bun:test'
 import fc from 'fast-check'
 
-import {getAllAssistants} from '@domain/assistants'
-import {setGlobalMode} from '@domain/scope'
-
+import {getAllAssistants} from '../assistants'
+import {setGlobalMode} from '../scope'
 import {detectLocalConflict} from './conflict'
 import {resolveSourceConflicts} from './merge'
 import {reconcileState} from './reconcile'

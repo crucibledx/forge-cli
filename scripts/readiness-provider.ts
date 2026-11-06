@@ -1,7 +1,6 @@
-import {createHash} from 'node:crypto'
-
 import {z} from 'zod'
 
+import {hashContent} from '../src/domain/sync/state'
 import {artifactFiles} from './artifact-archive'
 import {readEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
@@ -57,8 +56,7 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
     reader.releaseLock()
   }
   const bytes = Buffer.concat(chunks)
-  if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== digest)
-    throw new Error('Provider artifact digest mismatch')
+  if (`sha256:${hashContent(bytes)}` !== digest) throw new Error('Provider artifact digest mismatch')
   return artifactFiles(bytes)
 }
 export function readinessProvider(
