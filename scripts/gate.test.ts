@@ -62,6 +62,34 @@ async function fixture(kind: string) {
   }
   return {bundle, jobs, artifacts}
 }
+it.each(['artifact', 'start', 'end', 'reversed'])(
+  'AC-25,27,32 malformed timestamp %s blocks only its row and preserves known sibling failure',
+  async (kind) => {
+    const {bundle, jobs, artifacts} = await fixture('complete')
+    if (kind === 'artifact') artifacts[0].created_at = 'not-an-ISO-date'
+    if (kind === 'start') jobs[0].started_at = 'not-an-ISO-date'
+    if (kind === 'end') jobs[0].completed_at = 'not-an-ISO-date'
+    if (kind === 'reversed') jobs[0].started_at = '2026-11-04T10:02:00Z'
+    jobs[1].conclusion = 'failure'
+    const direct = await deterministicGate(bundle.context, dir(), Bun.version, jobs, artifacts)
+    expect(direct.lanes[0].status).toBe('blocked')
+    expect(direct.lanes[1].status).toBe('fail')
+    expect(direct.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
+    const result = await runGate(
+      bundle.context,
+      dir(),
+      Bun.version,
+      join(dir(), 'summary.json'),
+      async (_context, endpoint) =>
+        endpoint.includes('/jobs?') ? {total_count: jobs.length, jobs} : {total_count: artifacts.length, artifacts},
+    )
+    expect(result.conclusion).toBe('failure')
+    expect(result.lanes[0].status).toBe('blocked')
+    expect(result.lanes[1].status).toBe('fail')
+    expect(result.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
+    expect(result.provider_errors).toEqual([])
+  },
+)
 it.each([99, 100, 199])('AC-25,27 complete attempt10 remains valid after %s historical uploads', async (count) => {
   const {bundle, jobs, artifacts} = await fixture('attempt10')
   const all = [

@@ -22,6 +22,12 @@ export function diagnosticTail(text: string, maximum = TAIL_BYTES): string {
   while ((bytes[start] & 0xc0) === 0x80) start++
   return bytes.subarray(start).toString()
 }
+export function diagnosticHead(text: string, maximum: number): string {
+  const bytes = Buffer.from(text)
+  let end = Math.min(bytes.length, maximum)
+  while ((bytes[end] & 0xc0) === 0x80) end--
+  return bytes.subarray(0, end).toString()
+}
 function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''
   let offset = 0
@@ -29,7 +35,13 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let secretPrefix = ''
   let diagnostic = ''
   let protectedSpans: RedactionSpan[] = []
-  const options = () => ({credentialPrefixes: contexts, secretPrefix, secrets, assignments: true})
+  const options = () => ({
+    credentialPrefixes: contexts,
+    secretPrefix,
+    secrets,
+    assignments: true,
+    unfinishedUserinfo: true,
+  })
   function add(text: string, spans: RedactionSpan[]): void {
     raw += text
     const masked = maskRedactionSpans(raw, spans)

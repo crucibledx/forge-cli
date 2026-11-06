@@ -36,7 +36,7 @@ export async function driveSession(cli: CLISession, drive: (cli: CLISession) => 
       Promise.resolve().then(() => drive(cli)),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`Command deadline exceeded while driving session:\n${cli.getOutput()}`)),
+          () => reject(new Error('Command deadline exceeded while driving session')),
           Math.max(0, cli.deadlineAt - performance.now()),
         )
       }),

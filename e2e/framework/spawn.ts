@@ -9,6 +9,7 @@ import {posixOwnership} from './posix-owner'
 import {
   activeProcesses,
   createTranscript,
+  diagnosticHead,
   diagnosticTail,
   sanitize,
   sessionBudget,
@@ -75,26 +76,39 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   const term = proc.terminal!
   const getOutput = () => transcript.visibleDiagnostic()
   const failure = (errors: readonly unknown[]) => {
-    const safe = (text: string) => {
-      const view = createTranscript(
-        (value) =>
-          sanitize(value, cwd, options.secrets)
-            .replaceAll(repositoryRoot, '<repository>')
-            .replaceAll(process.execPath, '<runtime>'),
-        options.secrets,
-      )
+    const safe = (text: string, leadingBytes?: number) => {
+      const view = createTranscript((value) => {
+        const cleaned = sanitize(value, cwd, options.secrets)
+          .replaceAll(repositoryRoot, '<repository>')
+          .replaceAll(process.execPath, '<runtime>')
+        return leadingBytes === undefined ? cleaned : diagnosticHead(cleaned, leadingBytes)
+      }, options.secrets)
       view.append(Buffer.from(text))
+      // The entire input is recognized before clipping; capture its leading view before tail eviction is rendered again.
+      const leading = view.visibleDiagnostic()
       view.finish()
-      return view.visibleDiagnostic()
+      return leadingBytes === undefined ? view.visibleDiagnostic() : leading
     }
+    const messages = errors.map((error) => (error instanceof Error ? error.message : String(error)))
+    const summaries = diagnosticHead(
+      messages
+        .map(
+          (message, index) =>
+            `${errors[index] instanceof Error ? safe(errors[index].name, 64) + ': ' : ''}${safe(message, 1024)}`,
+        )
+        .join('\n'),
+      TAIL_BYTES / 8,
+    )
+    const detailBudget = Math.floor(TAIL_BYTES / 8 / Math.max(1, errors.length))
     const details = diagnosticTail(
-      safe(
-        errors
-          .map((error) =>
-            error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error),
-          )
-          .join('\n'),
-      ),
+      errors
+        .map((error, index) =>
+          diagnosticTail(
+            safe(error instanceof Error ? (error.stack ?? messages[index]) : messages[index]),
+            detailBudget,
+          ),
+        )
+        .join('\n'),
       TAIL_BYTES / 8,
     )
     const context = diagnosticTail(
@@ -114,9 +128,9 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     )
     // Preserve the original stack as sanitized text, not an unredacted cause object.
     const error = new Error(
-      `${details}\nSession: ${context}\nTranscript tail:\n${diagnosticTail(getOutput(), TAIL_BYTES / 2)}`,
+      `${summaries}\nDetails:\n${details}\nSession: ${context}\nTranscript tail:\n${diagnosticTail(getOutput(), TAIL_BYTES / 2)}`,
     )
-    if (errors[0] instanceof Error) error.name = diagnosticTail(safe(errors[0].name), 64)
+    if (errors[0] instanceof Error) error.name = safe(errors[0].name, 64)
     error.stack = safe(error.stack ?? error.message)
     return error
   }

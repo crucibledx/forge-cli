@@ -9,12 +9,28 @@ import {createTestSandbox} from './test-sandbox'
 import {repositoryRoot} from './validation-identity'
 
 export interface CommandOutcome {
+  signal: string | null
+  cwd: string
+  seed: string | null
+  replay: string | null
   exit_code: number | null
   duration_ms: number
   timed_out: boolean
   stdout: string
   stderr: string
   reason?: string
+}
+
+/** Snapshot only allowlisted replay inputs, before setup or cleanup can change them. */
+export function commandMetadata() {
+  const safe = (value: string | undefined) => {
+    if (value === undefined) return null
+    const transcript = createTranscript(redact)
+    transcript.append(Buffer.from(value))
+    transcript.finish()
+    return transcript.visibleDiagnostic()
+  }
+  return {signal: null as string | null, cwd: '.', seed: safe(process.env.FC_SEED), replay: safe(process.env.FC_PATH)}
 }
 
 /** Bounded diagnostics, closed stdin, isolated HOME/cache and owned process group. */
@@ -24,6 +40,7 @@ export async function executeCheck(
   ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree},
 ): Promise<CommandOutcome> {
   const start = performance.now()
+  const metadata = commandMetadata()
   let sandbox: TestSandbox | undefined
   const stdout = createTranscript(redact),
     stderr = createTranscript(redact)
@@ -54,7 +71,10 @@ export async function executeCheck(
         drainTranscript(child.stdout, stdout, readers),
         drainTranscript(child.stderr, stderr, readers),
         child.exited.then((code) => {
-          if (observing) exit = code
+          if (observing) {
+            exit = code
+            metadata.signal = child?.signalCode ? String(child.signalCode) : null
+          }
         }),
       ]),
       new Promise<void>((resolve) => {
@@ -92,6 +112,7 @@ export async function executeCheck(
     return sandbox ? text.replaceAll(sandbox.root, '<sandbox>') : text
   }
   return {
+    ...metadata,
     exit_code: exit !== null && exit !== 0 ? exit : timedOut ? null : exit,
     duration_ms: performance.now() - start,
     timed_out: timedOut,

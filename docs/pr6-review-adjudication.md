@@ -4,7 +4,56 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on 8d79a72
+## Latest hosted and independent review on 0c88fdc
+
+CI42307687363 completed successfully22:58:43Z; hosted42307688599 completed22:59:32Z.
+All checks finished before further source edits. Hosted review added two findings; static
+review-w added a P2 and verifier-w found blocking W-1. These override prior bounded support.
+PR stays ready at the owner's instruction, never as a substitute for authenticated readiness.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4498504370 | Conservatively mask unfinished colon-bearing URL userinfo in live diagnostics, including ANSI/OSC formatting, byte prefixes, suffixes after eviction and stopped output. All public pipe/PTY/validation/driver views use the same policy; private assertion text stays untouched. Ordinary completed URLs and surrounding output remain positive controls. |
+|4498504387 | Snapshot supplied seed/replay and relative cwd at command start; retain observed child.signalCode with exit status before cleanup. Cleanup-only or late signals cannot become the original termination. Injected races, actual POSIX SIGTERM/SIGKILL and retained per-check runner JSON cover the metadata. |
+| review-w P2 | Reserve independently sanitized leading primary/cleanup summaries before separately clipping detail tails. Remove redundant transcript embedding from the driver deadline. Cover oversized Error/non-Error/cleanup messages, noisy deadline, long known secrets and positive context within the existing byte cap. |
+| verifier-w W-1 | Authenticate all three selected-window timestamps through strict ISO parsing, finite epoch values and ordered bounds in one shared gate/provider helper. Validate per selected row rather than discarding unrelated known job failures. Regress both gate entrypoints and actual artifact provider, missing/reversed/malformed/impossible dates, valid endpoints/offsets and sibling preservation. |
+
+Parent originals: first three controls0/3; corrected3/0. Timestamp original6 failures across
+both actual consumers are retained unchanged; correction-focused234/0. Two earlier expanded
+runs retain their invalid fixture oracles: an evicted early marker and a second wait for an
+already-consumed PTY marker, which tested the wait deadline rather than the driver deadline.
+The corrected fixture preserves timeout and privacy assertions without relaxing limits.
+Complete format/lint/types/contracts, full1496/0 in18 isolated batches, build and compiled smoke0;
+unchanged default20s security297/0. Security now includes actual validation-process failures.
+Full log SHA-256 `9ca39a447cde487616c0f7ae4fe9138dc467824f8bcca0f6b5f47cfc1c93ead4`;
+security `c67711aae77d7ecbee4da631f5f4e8bd954594f092820024818a27487594bc14`;
+focused `78108b6461a6afd87c2d9ab455d0190bf780258413578f0cd583e258f8637f49`.
+
+Original Windows artifact13548220087 has provider/actual ZIP digest
+`27664e722c6a7c9d0249c2571de3b5de0948e69b5f6b5a5305f948925af4ccc4`.
+Embedded context matches0c88fdc/merge90b4c82/run42307687363/attempt1.
+Native job128201077530 reports237/0, including first-byte privacy, partial recovery,
+malformed DACL and access preservation/refusal. Finding4498296400 closed only after this proof
+(follow-up4498660733). Current inventory must still paginate103 threads.
+
+Verifier-w completed2026-11-06T23:08:21.502722Z:29 pass/3 fail, W-1 blocks AC-25/27/32.
+It independently ran full1452/0 once, ten fresh606/0 contract runs without retries,
+new11 original ZIPs/21 logs, native237/0 on both OSes, three compiled smokes,
+default security264/0 and live audit0. New finite OSC8 corpus:35/0,21 semantic cases,
+1597 UTF8 cuts,828 tail observations,12 lone characters and27 invisible-eviction stages.
+Full authenticated fixture readiness incorrectly accepted malformed artifact/job timestamps;
+the positive enum-oracle mistake and report-generation tooling failures remain disclosed,
+not counted as production failures or hidden retries. Actual collect0/checkblocked2 still
+lacks genuine exact-revision code/security/distinct-verifier attestations.
+Report SHA-256 `4d3b09a7cb9e2483ed60abe3b3c58d479c48df2c4e485e179a9cda68cc2b0421`;
+rows `0315667118f29bad0fd18a417736ddfcfb5d4277c3ac1f6fd636b6ec11ec9d40`;
+manifest `cabe9e3491a8a57975ec7ec93d481dd189966c47fdcd87d313ef0d0a28f180aa`.
+Parent live-privacy/summary/metadata counterexamples also override unqualified
+AC-15/16/18/27/30 support. Static review-w examined the complete17-file delta and relevant
+dependencies without execution or writes; its one P2 was reproduced and accepted.
+The new candidate requires fresh exact-revision hosted and independent assessment.
+
+## Hosted and independent review on 8d79a72
 
 All checks completed before correction: CI42303981084 succeeded22:26:26Z and hosted
 review42303981852 succeeded22:30:21Z, posting five findings in review5807891602.

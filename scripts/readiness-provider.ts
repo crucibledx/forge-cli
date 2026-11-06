@@ -10,6 +10,7 @@ import {
   currentPullRequest,
   githubJSON,
   providerArtifact,
+  providerArtifactInJobWindow,
   providerArtifacts,
   providerJob,
   requiredCIWorkflow,
@@ -187,13 +188,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         artifact[0].workflow_run.id !== Number(context.run_id)
       )
         throw new Error('Artifact origin unavailable or mismatched')
-      if (
-        !job[0].started_at ||
-        !job[0].completed_at ||
-        Date.parse(artifact[0].created_at) < Date.parse(job[0].started_at) ||
-        Date.parse(artifact[0].created_at) > Date.parse(job[0].completed_at)
-      )
-        throw new Error('Artifact run-attempt/job window mismatch')
+      if (!providerArtifactInJobWindow(artifact[0], job[0])) throw new Error('Artifact run-attempt/job window mismatch')
       if (!archives.has(artifact[0].id))
         archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
       const files = await archives.get(artifact[0].id)!

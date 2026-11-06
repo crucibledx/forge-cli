@@ -54,6 +54,7 @@ interface RedactionOptions {
   credentialPrefixes?: readonly string[]
   secretPrefix?: string
   assignments?: boolean
+  unfinishedUserinfo?: boolean
   spans?: readonly RedactionSpan[]
 }
 export interface RedactionSpan {
@@ -93,6 +94,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       }
     }
     scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1)
+    if (options.unfinishedUserinfo)
+      scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/@\p{Cc}]*:[^\s/@\p{Cc}]*(?=$|[\s\p{Cc}])/giu)
     scan(queryValue)
     scan(/(Bearer\s+)[a-z\d._~+/-]+=*/gi)
     if (options.assignments) scan(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi)
@@ -139,6 +142,8 @@ export function redactionContext(discarded: string): string[] {
   )
   if (assignment) contexts.add(assignment[1] ? 'secret=x' : 'secret=')
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/]*$/i)) contexts.add('https://')
+  if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/@\p{Cc}]*:[^\s/@\p{Cc}]*$/iu))
+    contexts.add('https://x:')
   let partial = ''
   for (const marker of [
     'Bearer',
