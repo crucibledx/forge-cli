@@ -81,6 +81,13 @@ owner approval, contract amendment, merge or release are authorized by this foll
 
 ## Validation boundary
 
+The first corrected-head native CI run (`42246778781`) passed nine lanes but failed Windows:194 tests passed,
+two hooks timed out while recompiling the same fake scheduler. Those failures and original artifacts are retained,
+not retried into success. Compilation now occurs once per process, primed before test imports with isolated env/cwd
+and a30-second bound; each fixture receives an independent byte copy. The native regression verifies one compile,
+environment isolation, independence after mutation/disposal of the first fixture, and a real second fake job.
+The30-second compiler probe uses a40-second runner budget. Actual subsequent native evidence is still required.
+
 Current code must pass frozen install, format/lint/typecheck/contracts, full isolated tests, native build/compiled
 smoke and actual selected-run native CI. The PR records exact revisions and links after those runs complete.
 Historical CI, an earlier local test run, a synthetic fixture's ready verdict, and a draft toggle are not current

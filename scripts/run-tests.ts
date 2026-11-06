@@ -43,13 +43,24 @@ export async function runTests(args: string[]): Promise<number> {
     const batches = [...(clean.length ? [clean] : []), ...mocked.map((file) => [file])]
     let failed = false
     for (const batch of batches) {
-      const child = Bun.spawn([process.execPath, 'test', '--timeout', timeout, ...batch], {
-        cwd: root,
-        env: sandbox.env,
-        stdin: 'ignore',
-        stdout: 'inherit',
-        stderr: 'inherit',
-      })
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          'test',
+          '--preload',
+          resolve(import.meta.dir, 'test-preload.ts'),
+          '--timeout',
+          timeout,
+          ...batch,
+        ],
+        {
+          cwd: root,
+          env: sandbox.env,
+          stdin: 'ignore',
+          stdout: 'inherit',
+          stderr: 'inherit',
+        },
+      )
       if ((await child.exited) !== 0) failed = true
     }
     return failed ? 1 : 0

@@ -51,6 +51,9 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   It sets disposable home/temp/cache roots before any test import and replaces scheduler commands with offline fakes.
   Sessions have a 10-second total deadline and a 20-second runner budget. For a 30-second session, select
   `--timeout-ms 40000` before `--`. PTY output is a transcript, not a terminal screen.
+  Full/checker/platform entrypoints select40 seconds for the bounded native compiler probe; ordinary session
+  deadlines remain10 seconds. Windows compiles the isolated fake scheduler once before test imports and gives each
+  fixture its own byte copy, never a shared mutable executable.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 - `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
   not a native Windows/macOS substitute. CI runs all ten independent lanes and an always-run `Deterministic gate`;
