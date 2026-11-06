@@ -4,7 +4,29 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on a8f1853
+## Latest hosted review and CI failure on 41f6cee
+
+All checks completed before this inventory. CI `42292191041` failed at20:59:02Z: nine lanes passed,
+but security and the deterministic gate failed. Hosted review `42292192425` completed successfully
+at21:01:44Z, posting five findings (review5806925604). Inventory: **86 threads, 5 open**.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4497545246 | Keep the consumed PTY cursor monotonic when an explicit historical mark replays old text. The actual batch child exits after replay; a subsequent default wait must reject the consumed second prompt. |
+|4497545279 | Authenticate completed CHANGES_REQUESTED reviews while retaining exact app/revision/hash/role binding. Approved/commented/negative structured reviews parse; pending/dismissed reviews remain rejected. An authenticated open blocker produces known failure1 rather than unavailable2. |
+|4497545287 | Move the unchanged three-case direct transaction permission matrix to infrastructure. Unit discovery now includes it; preserve security/native/contract selections explicitly. Keep the real CLI preview/apply refusal and byte-preservation regression in the original E2E file. |
+|4497545297 | Reuse dependency-free repositoryRoot in the launcher, compiled smoke and generated-file cleanup. Preserve checkout-relative discovery and exact generated-file cleanup scope. |
+|4497545307 | Remove invariant root parameters from runLanes and its private runCheck path. They always use repositoryRoot; output directory and executor still vary independently. Actual compiler fixtures retain their explicit disposable child cwd. |
+| CI security failure | The original selected-run command artifact records209 pass/2 fail: two complete encoded matrices each exceeded their unchanged20s security runner budget (22.204s/22.674s). Split the same six-key/two-spelling/two-view/all-cut matrix into24 independent cases; keep actual both-stream checks separate. No case, cut, assertion, session deadline or runner budget is removed or relaxed. The default-budget security suite now passes235/0 locally. |
+
+Original cursor/provider negatives reproduced **38 pass/3 fail**. Corrected focused checks pass
+**54/0 in two isolated batches**. Review-r's preceding14-file static inspection found no substantiated
+blocking/should-fix/nit findings and executed no tests; its scope does not override the new counterexamples.
+Parent-preserved return SHA-256 `3fcc36e111e80f2aa527df37296b54419a725515a17d835c96e596472b244a48`.
+Independent verifier-r's executed results remain separate; no previous report, resolved thread or ready UI
+can override the selected run's failed security/gate outcomes.
+
+## Hosted and independent review on a8f1853
 
 Review-q completed static inspection `2026-11-06T20:34:21Z` on merge `d0212d1`.
 It found a P1 concurrent URI-scheme continuation leak and a P2 gap in every-cut assertions.

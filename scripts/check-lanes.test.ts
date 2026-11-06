@@ -21,7 +21,6 @@ it('AC-25 actual pinned compiler diagnostics retain exit2 and fail the aggregate
   const context = validationContext()
   const out = join(dir(), 'evidence')
   const reports = await runLanes(
-    dir(),
     out,
     context,
     async (command) =>
@@ -55,7 +54,6 @@ it.each(['typecheck', 'check:security-audit', 'test:e2e'])(
     const context = validationContext()
     const reports = await runLanes(
       dir(),
-      dir(),
       context,
       async (command) => ({
         exit_code: command.at(-1) === selected ? 2 : 0,
@@ -82,7 +80,6 @@ it('AC-25 preserves two simultaneous failures, later successes and foreign-nativ
   const called: string[] = []
   const context = validationContext()
   const reports = await runLanes(
-    dir(),
     dir(),
     context,
     async (command) => {

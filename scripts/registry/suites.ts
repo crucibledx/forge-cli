@@ -14,6 +14,7 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'src/infrastructure/fs/transaction-permissions.test.ts',
     'e2e/framework/contracts/redaction-tail.test.ts',
     'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
@@ -32,6 +33,7 @@ export const testSuites = {
     'scripts/security-audit.test.ts',
   ],
   platform: [
+    'src/infrastructure/fs/transaction-permissions.test.ts',
     'src/infrastructure/source/git/shared-cache.test.ts',
     'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
@@ -52,6 +54,7 @@ export const testSuites = {
   ],
   performance: ['e2e/contracts/performance.test.ts', 'e2e/contracts/performance-wrapper.test.ts'],
   contracts: [
+    'src/infrastructure/fs/transaction-permissions.test.ts',
     'src/application/commands/sync/assistant-scope.test.ts',
     'src/application/commands/sync/ownership.test.ts',
     'src/application/commands/sync/state.test.ts',

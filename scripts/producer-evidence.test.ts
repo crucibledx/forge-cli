@@ -5,6 +5,7 @@ import {expect, it} from 'bun:test'
 import {readinessFixture} from './fixtures/readiness'
 import {currentPullRequest, providerGate} from './github-evidence'
 import {providerProducer} from './producer-evidence'
+import {readiness} from './readiness'
 
 function fixture() {
   const bundle = readinessFixture()
@@ -28,7 +29,7 @@ function fixture() {
     html_url: uri,
     body: '',
   }
-  return {context: bundle.context, uri, payload, review}
+  return {bundle, context: bundle.context, uri, payload, review}
 }
 it.each(['exact', 'head', 'base', 'merge', 'unmergeable'])('AC-32 binds readiness to the live PR: %s', async (kind) => {
   const context = readinessFixture().context
@@ -45,14 +46,43 @@ it.each(['exact', 'head', 'base', 'merge', 'unmergeable'])('AC-32 binds readines
   if (kind === 'exact') await expect(result()).resolves.toBeUndefined()
   else await expect(result()).rejects.toThrow()
 })
-it('AC-32 accepts only the independent app’s provider-hosted exact-revision structured review', async () => {
-  const {context, uri, payload, review} = fixture()
-  review.body = '```forge-evidence-v1\n' + JSON.stringify(payload) + '\n```'
-  const actual = await providerProducer(uri, context, async (_context, endpoint) => {
-    expect(endpoint).toBe('/pulls/99/reviews/777')
-    return review
+it.each(['APPROVED', 'COMMENTED', 'CHANGES_REQUESTED'])(
+  'AC-32 accepts completed independent structured reviews: %s',
+  async (state) => {
+    const {context, uri, payload, review} = fixture()
+    review.state = state
+    review.body = '```forge-evidence-v1\n' + JSON.stringify(payload) + '\n```'
+    const actual = await providerProducer(uri, context, async (_context, endpoint) => {
+      expect(endpoint).toBe('/pulls/99/reviews/777')
+      return review
+    })
+    expect(actual).toEqual(payload)
+  },
+)
+it('AC-32 completed authenticated change requests retain known failure precedence', async () => {
+  const {bundle, context, uri, payload, review} = fixture()
+  payload.reviews[0].findings.push({
+    id: 'known',
+    severity: 'blocking',
+    status: 'open',
+    evidence: ['fixtures/check.log'],
   })
-  expect(actual).toEqual(payload)
+  review.state = 'CHANGES_REQUESTED'
+  review.body = '```forge-evidence-v1\n' + JSON.stringify(payload) + '\n```'
+  bundle.reviews = payload.reviews
+  const report = await readiness(bundle, Bun.version, {
+    context: async () => {},
+    artifact: async () => {},
+    gate: async () => {},
+    deviation: async () => {},
+    producer: async (record) => {
+      if (!('role' in record)) return
+      const authenticated = await providerProducer(uri, context, async () => review)
+      expect(authenticated.reviews).toContainEqual(record)
+    },
+  })
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons).toContainEqual({kind: 'failure', subject: 'code/known', message: 'Open blocking finding'})
 })
 it.each([
   'local-session',
@@ -67,6 +97,7 @@ it.each([
   'role',
   'timestamp',
   'dismissed',
+  'pending',
   'prose-only',
 ])('AC-32 refuses independent-producer forgery: %s', async (kind) => {
   const f = fixture()
@@ -83,6 +114,7 @@ it.each([
   if (kind === 'role') f.payload.reviews[0].provenance.producer_role = 'verifier'
   if (kind === 'timestamp') f.payload.reviews[0].provenance.completed_at = '2026-11-05T12:00:00.000Z'
   if (kind === 'dismissed') f.review.state = 'DISMISSED'
+  if (kind === 'pending') f.review.state = 'PENDING'
   f.review.body = kind === 'prose-only' ? 'All good' : '```forge-evidence-v1\n' + JSON.stringify(f.payload) + '\n```'
   let calls = 0
   await expect(

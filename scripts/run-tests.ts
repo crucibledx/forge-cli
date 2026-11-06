@@ -3,6 +3,7 @@ import {resolve} from 'node:path'
 
 import {type TestSuite, testSuites} from './registry/suites'
 import {createTestSandbox} from './test-sandbox'
+import {repositoryRoot} from './validation-identity'
 
 export async function runTests(args: string[]): Promise<number> {
   let timeout = '20000'
@@ -19,15 +20,14 @@ export async function runTests(args: string[]): Promise<number> {
   if (!['20000', '40000'].includes(timeout) || !args.length || args.some((arg) => arg.startsWith('-'))) {
     throw new Error('Usage: run-tests.ts [--timeout-ms 20000|40000] -- <paths...>')
   }
-  const pin = readFileSync(resolve(import.meta.dir, '../.bun-version'), 'utf8').trim()
+  const pin = readFileSync(resolve(repositoryRoot, '.bun-version'), 'utf8').trim()
   if (Bun.version !== pin) throw new Error(`Tests require Bun ${pin}; found ${Bun.version}`)
   const sandbox = createTestSandbox()
   try {
-    const root = resolve(import.meta.dir, '..')
     const files = [
       ...new Set(
         args.flatMap((path) => {
-          const full = resolve(root, path)
+          const full = resolve(repositoryRoot, path)
           return statSync(full).isDirectory()
             ? [...new Bun.Glob('**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}').scanSync({cwd: full, absolute: true})]
             : [full]
@@ -54,7 +54,7 @@ export async function runTests(args: string[]): Promise<number> {
           ...batch,
         ],
         {
-          cwd: root,
+          cwd: repositoryRoot,
           env: sandbox.env,
           stdin: 'ignore',
           stdout: 'inherit',

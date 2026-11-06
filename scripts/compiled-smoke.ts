@@ -1,15 +1,15 @@
 import {resolve} from 'node:path'
 
 import pkg from '../package.json'
+import {repositoryRoot} from './validation-identity'
 import {executeCheck} from './validation-process'
 
 if (import.meta.main) {
-  const root = resolve(import.meta.dir, '..')
   let failed = false
   for (const flag of ['--help', '--version']) {
     const result = await executeCheck(
-      [resolve(root, process.platform === 'win32' ? 'dist/forge.exe' : 'dist/forge'), flag],
-      root,
+      [resolve(repositoryRoot, process.platform === 'win32' ? 'dist/forge.exe' : 'dist/forge'), flag],
+      repositoryRoot,
       30000,
     )
     const correct =
