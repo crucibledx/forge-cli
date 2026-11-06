@@ -4,9 +4,108 @@ import {join, resolve} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
+import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
+import {terminateTree} from '../e2e/framework/process'
+import {createTestSandbox} from './test-sandbox'
 import {executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
+const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it('AC-25 setup failure returns a blocked diagnostic without spawning a command', async () => {
+  let spawns = 0
+  let setupBudget: number | undefined
+  const result = await executeCheck(['unused'], dir(), 17, {
+    ...ports,
+    createSandbox: (_prefix, _base, timeout) => {
+      setupBudget = timeout
+      throw new Error('Cannot build isolated scheduler backend: fixture compiler failure')
+    },
+    spawn: async (...args) => {
+      spawns++
+      return spawnOwnedPipe(...args)
+    },
+  })
+  expect(spawns).toBe(0)
+  expect(setupBudget).toBe(17)
+  expect(result).toMatchObject({exit_code: null, timed_out: false, stdout: '', stderr: ''})
+  expect(result.reason).toContain('fixture compiler failure')
+})
+it.each(['tree', 'sandbox'] as const)(
+  'AC-25 cleanup %s failure blocks passes without erasing known command failures',
+  async (kind) => {
+    for (const code of [0, 1, 2]) {
+      const result = await executeCheck(
+        [process.execPath, '-e', `process.stderr.write('original diagnostic');process.exit(${code})`],
+        dir(),
+        5000,
+        {
+          ...ports,
+          createSandbox: (...args) => {
+            const sandbox = createTestSandbox(...args)
+            return {
+              ...sandbox,
+              dispose() {
+                sandbox.dispose()
+                if (kind === 'sandbox') throw new Error('fixture sandbox disposal failure')
+              },
+            }
+          },
+          terminate: async (child) => {
+            await terminateTree(child)
+            if (kind === 'tree') throw new Error('fixture process-group verification failure')
+          },
+        },
+      )
+      expect(result.exit_code).toBe(code === 0 ? null : code)
+      expect(result.reason).toContain('Cleanup failed')
+      expect(result.stderr).toBe('original diagnostic')
+    }
+  },
+)
+it.each([0, 1])('AC-25 diagnostic drain failure cannot pass or erase proven exit%s', async (code) => {
+  const result = await executeCheck(['injected-process'], dir(), 5000, {
+    ...ports,
+    spawn: async () =>
+      ({
+        exited: Promise.resolve(code),
+        stdout: new ReadableStream({
+          start(controller) {
+            setTimeout(() => controller.error(new Error('fixture diagnostic drain failure')), 10)
+          },
+        }),
+        stderr: new ReadableStream({
+          start(controller) {
+            controller.close()
+          },
+        }),
+      }) as Awaited<ReturnType<typeof spawnOwnedPipe>>,
+    terminate: async () => {},
+  })
+  expect(result.exit_code).toBe(code === 0 ? null : code)
+  expect(result.reason).toContain('fixture diagnostic drain failure')
+})
+it('AC-25 a proven failure survives a later pipe deadline', async () => {
+  const result = await executeCheck(['injected-process'], dir(), 50, {
+    ...ports,
+    spawn: async () =>
+      ({
+        exited: Promise.resolve(1),
+        stdout: new ReadableStream({
+          start(controller) {
+            controller.enqueue(Buffer.from('original failure'))
+          },
+        }),
+        stderr: new ReadableStream({
+          start(controller) {
+            controller.close()
+          },
+        }),
+      }) as Awaited<ReturnType<typeof spawnOwnedPipe>>,
+    terminate: async () => {},
+  })
+  expect(result).toMatchObject({exit_code: 1, timed_out: true, stdout: 'original failure'})
+  expect(result.reason).toContain('deadline')
+})
 it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure diagnostics', async () => {
   const result = await executeCheck(
     [process.execPath, '-e', "process.stdout.write('out');process.stderr.write('err');setInterval(()=>{},1000)"],

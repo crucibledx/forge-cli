@@ -4,7 +4,46 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 26ac169
+## Latest hosted review on 4e27e98
+
+All current checks finished before this inventory. CI `42297469940` succeeded at21:37:46Z.
+Hosted review `42297470921` completed at21:42:05Z, posting five findings (review5807420589).
+Inventory: **94 threads, 5 open**. Four functional/evidence findings and one maintenance item were confirmed.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4497925128 | Recognize unchanged raw and streamed terminal-visible spans independently, then project visible sensitive spans back across their original formatting ranges. Preserve separate raw stdout/stderr, private raw inspection, bounded visible diagnostics and unredacted assertion cursors. Every chunk/raw-tail cut, retained suffix, finalization/later append and actual pipe/PTY/validation checks cover explicit and automatic credentials without hiding ordinary output. |
+|4497925134 | Capture the lane clock before checkout using the portable epoch-second shell clock. Each independent check receives only remaining elapsed job time minus90 seconds for bounded cleanup, assembly and upload inside the unchanged ten-minute job cap. Missing/malformed/future/exhausted clocks block rather than renew the budget. Contract negatives reject removed/late/changed anchors; actual CLI probes preserve all three quality check logs and blocked assembly. |
+|4497925139 | Move sandbox setup inside the handled command lifecycle and cap the isolated Windows compiler by the smaller remaining setup budget, never above its existing30 seconds. Preserve setup diagnostics as blocked records, dispose partial sandbox roots and continue sibling collection even if an executor rejects unexpectedly. Inject setup failures and run all-results collection with a known synthetic sibling failure; the separate pinned-compiler regression retains actual exit2/failure1 coverage. |
+|4497925143 | Retain nonzero command exits observed before cleanup/deadline; cleanup errors block a prior success without replacing proven failure. Keep original diagnostics plus cleanup reasons, including sandbox disposal/drain errors. Do not mistake signals generated during cleanup for a prior command failure. Inject both cleanup boundaries for exit0/1/2 and a proven failure followed by a pipe deadline. |
+|4497925149 | Remove the invariant provider checkout-root parameter. Both production callers and fixture callers use the reduced signature; checkout head/cleanliness/merge-parent verification always uses shared repositoryRoot. Independently varying evidence directory and provider ports remain. API maintenance, not a newly reproduced safety defect. |
+
+Original formatted controls reproduced **65 pass/6 fail**, including both real pipe and PTY disclosures.
+Source-isolated original executor controls reproduced **1 pass/5 fail**; only absolute imports and process-boundary
+ports were added to original HEAD logic, with original sources/logs retained. The first correction's focused run
+caught cleanup-induced signal exits incorrectly counted as failures; the observing boundary was corrected before
+completion. Expanded focused controls passed148/0 before two additional drain-failure rows.
+
+Final format/lint/types/contracts, full tests (**1395/0 in18 isolated batches**), build and compiled smoke all exit0.
+The unchanged-default20s security suite passes244/0. Five extra production-CLI/actual-deadline probes pass5/0:
+missing/malformed/future/exhausted clocks preserve logs and assembly, and a1.5-second hanging command finishes
+cleanup at2.042 seconds, before the reserved evidence interval. Probe CI identities are synthetic checker inputs,
+not provider approval. No assertion, fixture, session/test deadline, job cap, frozen acceptance, dependency or pin
+is removed or relaxed. The workflow adds only the initial clock step.
+
+Static review-t completed2026-11-06T21:36:02Z with no substantiated blocking/should-fix/nit finding in its
+seven-file scope plus relevant dependencies, and no dynamic tests executed.
+Parent-preserved return SHA-256 `ec5f6cc0d91b52ba89f656fcfb7289e6620fa3911dcdf948303a37ccc8e08747`.
+Verifier-t completed2026-11-06T21:49:24.055197Z on4e27e98/merge4158bda with32 bounded support passes,
+own1375/0 full suite and ten529/0 contract runs without retries. Its independent39/0 root-selector controls
+and fresh native237/0 per OS support the preceding root correction. Eleven original ZIPs/21 per-check logs,
+compiled smoke on all three OSes and prior strong privacy matrices were freshly authenticated/executed.
+They did not cover these formatting/lifecycle/deadline counterexamples, which override unqualified
+AC-15/16/18/25/27/30/32 support. The raw report remains unchanged, not transferred to the next revision.
+Actual phase2 remained blocked/exit2 for missing genuine code/security/distinct-verifier attestations.
+Report SHA-256 `0d5c05000d27dee5868a13b78462d1783c36f0bb4b852b4099ee1fd8d1d949bc`.
+
+## Hosted review on 26ac169
 
 All current checks finished before this inventory. CI `42294603204` passed at21:16:44Z,
 including the corrected default-budget security lane235/0 and deterministic gate. Hosted review

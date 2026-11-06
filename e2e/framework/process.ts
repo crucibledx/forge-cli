@@ -1,4 +1,5 @@
-import {redact, redactionContext} from '../../src/domain/redact'
+import type {RedactionSpan} from '../../src/domain/redact'
+import {redact, redactionContext, redactionSpans} from '../../src/domain/redact'
 import {createAnsiText} from './ansi-text'
 import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
@@ -15,11 +16,8 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
   return redact(text, {secrets, assignments: true}).replaceAll(cwd, '<project>')
 }
-export function createTranscript(clean: (text: string) => string = (text) => text, secrets: string[] = []) {
-  const decoder = new TextDecoder()
-  const plainText = createAnsiText()
+function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''
-  let plain = ''
   let offset = 0
   let contexts: string[] = []
   let secretPrefix = ''
@@ -30,23 +28,12 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     while ((bytes[start] & 0xc0) === 0x80) start++
     return bytes.subarray(start).toString()
   }
-  function add(text: string): void {
-    const visible = plain + plainText(text)
-    plain = tail(visible)
-    offset += visible.length - plain.length
+  const options = () => ({credentialPrefixes: contexts, secretPrefix, secrets, assignments: true})
+  function add(text: string, spans: RedactionSpan[] = []): void {
     raw += text
     // Credential and explicit-secret views recognize unchanged raw bytes. Neither
     // masking operation can interrupt the other's syntax or exposed suffix.
-    diagnostic = tail(
-      clean(
-        redact(raw, {
-          credentialPrefixes: contexts,
-          secretPrefix,
-          secrets,
-          assignments: true,
-        }),
-      ),
-    )
+    diagnostic = tail(clean(redact(raw, {...options(), spans})))
     const bytes = Buffer.from(raw)
     if (bytes.length > TAIL_BYTES) {
       let start = bytes.length - TAIL_BYTES
@@ -63,7 +50,9 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
           }
         }
       }
-      raw = bytes.subarray(start).toString()
+      const retained = bytes.subarray(start).toString()
+      offset += raw.length - retained.length
+      raw = retained
     }
   }
 
@@ -71,21 +60,76 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     get offset() {
       return offset
     },
+    append: add,
+    spans: (text: string) => redactionSpans(raw + text, options()),
+    text() {
+      return raw
+    },
+    diagnostic() {
+      return diagnostic
+    },
+  }
+}
+
+export function createTranscript(clean: (text: string) => string = (text) => text, secrets: string[] = []) {
+  const decoder = new TextDecoder()
+  const raw = diagnosticView(clean, secrets)
+  const visible = diagnosticView(clean, secrets)
+  let segments: {raw: number; visible: number; length: number}[] = []
+  let rawEnd = 0,
+    visibleEnd = 0
+  const plainText = createAnsiText((start, end) => {
+    const previous = segments.at(-1)
+    if (
+      previous &&
+      previous.raw + previous.length === rawEnd + start &&
+      previous.visible + previous.length === visibleEnd
+    )
+      previous.length += end - start
+    else segments.push({raw: rawEnd + start, visible: visibleEnd, length: end - start})
+    visibleEnd += end - start
+  })
+  function add(text: string) {
+    rawEnd = raw.offset + raw.text().length
+    visibleEnd = visible.offset + visible.text().length
+    const plain = plainText(text)
+    const spans: RedactionSpan[] = []
+    let index = 0
+    // Project visible secret spans onto their original raw range, including
+    // intervening formatting. Keep raw streams, visible diagnostics and waits separate.
+    for (const span of visible.spans(plain)) {
+      const from = visible.offset + span.start,
+        to = visible.offset + span.end
+      while (index < segments.length && segments[index].visible + segments[index].length <= from) index++
+      let start: number | undefined,
+        end = 0
+      for (let i = index; i < segments.length && segments[i].visible < to; i++) {
+        const segment = segments[i]
+        start ??= segment.raw + Math.max(0, from - segment.visible)
+        end = segment.raw + Math.min(segment.length, to - segment.visible)
+      }
+      if (start !== undefined) spans.push({start: start - raw.offset, end: end - raw.offset})
+    }
+    raw.append(text, spans)
+    visible.append(plain)
+    segments = segments.filter(
+      (segment) => segment.raw + segment.length > raw.offset && segment.visible + segment.length > visible.offset,
+    )
+  }
+  return {
+    get offset() {
+      return visible.offset
+    },
     append(bytes: Uint8Array) {
       add(decoder.decode(bytes, {stream: true}))
     },
     finish() {
       add(decoder.decode())
     },
-    text() {
-      return plain
-    },
-    rawText() {
-      return raw
-    },
-    diagnostic() {
-      return diagnostic
-    },
+    text: visible.text,
+    rawText: raw.text,
+    diagnostic: raw.diagnostic,
+    visibleDiagnostic: visible.diagnostic,
   }
 }
 

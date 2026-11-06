@@ -9,7 +9,7 @@ import {artifactName} from './gate'
 import {currentPullRequest, githubJSON, providerArtifact, providerJob, requiredCIWorkflow} from './github-evidence'
 import {providerProducer} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
-import {actualHead} from './validation-context'
+import {actualHead, repositoryRoot} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
 import {laneById} from './validation-lanes'
 
@@ -59,11 +59,7 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
   if (`sha256:${hashContent(bytes)}` !== digest) throw new Error('Provider artifact digest mismatch')
   return artifactFiles(bytes)
 }
-export function readinessProvider(
-  root: string,
-  evidenceRoot: string,
-  ports = {githubJSON, archive},
-): ReadinessProvider {
+export function readinessProvider(evidenceRoot: string, ports = {githubJSON, archive}): ReadinessProvider {
   const sessions = new Map<string, ReturnType<typeof providerProducer>>()
   const source = (uri: string, context: EvidenceContext) => {
     if (!sessions.has(uri)) sessions.set(uri, providerProducer(uri, context, ports.githubJSON))
@@ -121,14 +117,15 @@ export function readinessProvider(
   }
   const provider: ReadinessProvider = {
     async context(context) {
-      if (actualHead(root) !== context.tested_sha) throw new Error('Bundle does not match the actual tested checkout')
-      const clean = Bun.spawnSync(['git', '-C', root, 'diff', '--quiet', 'HEAD', '--'], {
+      if (actualHead(repositoryRoot) !== context.tested_sha)
+        throw new Error('Bundle does not match the actual tested checkout')
+      const clean = Bun.spawnSync(['git', '-C', repositoryRoot, 'diff', '--quiet', 'HEAD', '--'], {
         stdout: 'pipe',
         stderr: 'pipe',
       })
       if (clean.exitCode !== 0) throw new Error('Tracked checkout differs from its attested revision')
       if (context.kind === 'pr') {
-        const result = Bun.spawnSync(['git', '-C', root, 'cat-file', '-p', context.tested_sha], {
+        const result = Bun.spawnSync(['git', '-C', repositoryRoot, 'cat-file', '-p', context.tested_sha], {
           stdout: 'pipe',
           stderr: 'pipe',
         })

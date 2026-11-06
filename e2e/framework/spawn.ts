@@ -1,7 +1,5 @@
 import './teardown'
 
-import stripAnsi from 'strip-ansi'
-
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {CLI_ENTRY} from './constants'
 import {ENTER} from './keys'
@@ -65,7 +63,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     }),
   )
   const term = proc.terminal!
-  const getOutput = () => stripAnsi(transcript.diagnostic())
+  const getOutput = () => transcript.visibleDiagnostic()
   const mark = () => transcript.offset + transcript.text().length
   const owner = {
     dispose() {

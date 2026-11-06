@@ -1,7 +1,5 @@
 import './teardown'
 
-import stripAnsi from 'strip-ansi'
-
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {spawnOwnedPipe} from './owned-pipe'
 import {activeProcesses, createTranscript, drainTranscript, sanitize, sessionBudget, terminateTree} from './process'
@@ -60,7 +58,7 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     return {
       stdout: stdout.diagnostic(),
       stderr: stderr.diagnostic(),
-      output: stripAnsi(stdout.diagnostic()),
+      output: stdout.visibleDiagnostic(),
       exitCode: proc.signalCode ? null : proc.exitCode,
       signal: proc.signalCode ? String(proc.signalCode) : null,
       timedOut,

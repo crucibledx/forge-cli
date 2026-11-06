@@ -65,7 +65,7 @@ it.each([
   if (kind === 'edited-lane') lane.duration_ms++
   if (kind === 'missing') files.delete(ref)
   let archives = 0
-  const provider = readinessProvider(dir(), dir(), {
+  const provider = readinessProvider(dir(), {
     archive: async () => {
       archives++
       return files
@@ -170,7 +170,7 @@ it.each([
     record.approval.source_uri = `https://github.com/${context.repository}/${kind === 'pr-comment' ? 'pull' : 'issues'}/99#issuecomment-777`
   if (kind !== 'wrong-fragment') expect(sourceUri.safeParse(record.approval.source_uri).success).toBe(true)
   let calls = 0
-  const provider = readinessProvider(dir(), dir(), {
+  const provider = readinessProvider(dir(), {
     archive: async () => new Map(),
     githubJSON: async (_context, endpoint) => {
       calls++

@@ -6,7 +6,13 @@ import {parse} from 'yaml'
 import {testSuites} from './registry/suites'
 import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
 import {repositoryRoot} from './validation-context'
-import {acceptanceIds, businessRuleIds, validationLanes} from './validation-lanes'
+import {
+  acceptanceIds,
+  businessRuleIds,
+  CI_EVIDENCE_RESERVE_MS,
+  LANE_BUDGET_MS,
+  validationLanes,
+} from './validation-lanes'
 
 export function contractInputs() {
   const read = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8')
@@ -118,6 +124,13 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
       'macos-15-intel', 'Native jobs must use the selected native hosted runners (no cross-compilation)')
   require(ci.jobs?.lanes?.['timeout-minutes'] <= 10 &&
     ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
+  const startBudget = ci.jobs?.lanes?.steps?.[0]
+  require(ci.jobs?.lanes?.['timeout-minutes'] * 60000 === LANE_BUDGET_MS &&
+    CI_EVIDENCE_RESERVE_MS >= 60000 &&
+    startBudget?.name === 'Start lane budget' &&
+    startBudget.shell === 'bash' &&
+    startBudget.run ===
+      'echo "FORGE_LANE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"', 'CI deadline must start before setup and reserve evidence/cleanup headroom')
   require(ci.jobs?.gate?.name === 'Deterministic gate' &&
     ci.jobs.gate.if === 'always()' &&
     ci.jobs.gate.needs?.includes('lanes'), 'Always-run aggregate gate missing')
