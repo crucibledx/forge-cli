@@ -4,7 +4,43 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on b904e16
+## Latest hosted and independent review on a8f1853
+
+Review-q completed static inspection `2026-11-06T20:34:21Z` on merge `d0212d1`.
+It found a P1 concurrent URI-scheme continuation leak and a P2 gap in every-cut assertions.
+The parent reproduced the leak with **31 pass/2 fail**, without modifying the reviewer/verifier worktrees.
+
+| Finding | Correction and regression |
+| --- | --- |
+| Independent P1 | Retain the conservative partial URI-scheme view independently of every other context. `Bearer custom123` followed by retained `456://user:...` must not lose URI recognition merely because a Bearer recognizer is active. Pure span rendering and every raw cut through finalization/later appends pass, including both streams of real pipes and validation diagnostics. |
+| Independent P2 | Check the actual surviving credential fragment at each cut, not just the complete original sentinel. Preserve visible padding and subsequent appended text, and assert the diagnostic byte cap, so empty or indiscriminately hidden output cannot pass. |
+|4497352058 | Recognize literal/mixed/percent-encoded ASCII query names, including encoded uppercase letters, without decoding or rewriting diagnostic offsets. Carry validated finite partial names across cuts inside percent escapes. All six sensitive names, surrounding visible parameters, nested redaction data and both process streams are covered. |
+|4497352065 | Define blocked exits per registered command, not universally. TypeScript exit2 is failure; launcher/audit incompleteness remains blocked. Shared classification drives lane assembly, evidence assessment and authenticated readiness. A real pinned-compiler TS2322 fixture retains exit2 and aggregate failure1; that known failure also dominates an unavailable sibling log. |
+|4497352072 | Export/reuse PLATFORMS in the evidence schema. Existing three values remain accepted; an unknown OS is rejected. This is shared-authority maintenance, not a newly reproduced runtime safety defect. |
+|4497352077 | Export/reuse SAFETY_LAYERS in contract validation. Preserve valid layers and reject an invalid runtime layer. This is shared-authority maintenance, not a newly reproduced runtime safety defect. |
+
+CI `42288538734` completed successfully at20:34:01Z. Hosted review `42288540194` completed at20:39:14Z,
+posting the four comments above (review5806676081). The parent inventoried **81 threads, 4 open**
+after every current check completed. No draft toggle or earlier green workflow substituted for that inventory.
+
+Hosted functional negatives reproduced **92 pass/8 fail**. Expanded positive diagnostics controls also caught
+completed credentials incorrectly hiding the next ordinary line. Context now distinguishes awaiting a value
+from continuing one, and requires an absolute-end match rather than accepting JavaScript `$` before a final newline.
+This preserves visible text while keeping arbitrary and overlapping credential continuations private.
+Final combined pure/transcript/real-pipe/actual-compiler/checker controls pass **166/0**.
+
+Review-q executed no tests and supplied no hosted approval; parent-preserved return SHA-256
+`0f14604b351613f015ca8857f8951bc504c81a2e46d433810c669e12242dfe15`.
+Verifier-q completed `2026-11-06T20:42:13.988940Z` with32 phase1 passes in its executed scope,
+own1309/0 full suite and ten483/0 contract runs. It authenticated eleven new original ZIPs/21 per-check logs,
+with actual native224/0 per OS, compiled smoke on all three OSes, and CI feedback379s/queue2s.
+Its thousands of previous composition/assignment/embedded-userinfo observations passed, but did not cover the
+new URI-scheme, encoded-name or compiler-exit counterexamples. Those confirmed defects override an unqualified
+current-head acceptance claim (AC-15/25/30/32); the original report is preserved, not rewritten.
+Report SHA-256 `fc531e1bee5e82114d164602f12882bcbb5b1cdfc7e9ad774b89f61137652d2f`.
+Actual phase2 remained blocked without genuine hosted producer attestations. Prior verdicts do not transfer.
+
+## Hosted and independent review on b904e16
 
 All checks on `b904e16` completed: CI `42285520399` and hosted review `42285521142` succeeded.
 The completed reviewer posted four findings. Separate static review-p found a P1 composition leak;

@@ -9,7 +9,7 @@ import {repositoryRoot, validationContext} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
 import type {ValidationCheck, ValidationLane} from './validation-lanes'
 import {laneById, validationLanes} from './validation-lanes'
-import {aggregateExit, assessLane, failedExit} from './validation-policy'
+import {aggregateExit, assessLane, blockedExit, failedExit} from './validation-policy'
 import type {CommandOutcome} from './validation-process'
 import {executeCheck} from './validation-process'
 
@@ -41,7 +41,8 @@ async function runCheck(
     mode: 0o600,
   })
   const reason =
-    result.reason ?? (result.exit_code === 2 ? 'Command reports incomplete/unavailable validation' : undefined)
+    result.reason ??
+    (blockedExit(result.exit_code, check) ? 'Command reports incomplete/unavailable validation' : undefined)
   const record = {
     id: check.id,
     command: check.command.join(' '),
@@ -59,7 +60,12 @@ function laneResult(
   duration: number,
   platform: NodeJS.Platform,
 ): LaneEvidence {
-  const status = checks.some((check) => failedExit(check.exit_code))
+  const status = checks.some((check) =>
+    failedExit(
+      check.exit_code,
+      lane.checks.find((expected) => expected.id === check.id)!,
+    ),
+  )
     ? 'fail'
     : checks.some((check) => check.exit_code !== 0)
       ? 'blocked'

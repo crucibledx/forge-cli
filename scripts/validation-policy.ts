@@ -1,9 +1,12 @@
 import type {EvidenceContext, LaneEvidence} from './evidence-schema'
 import {laneSchema} from './evidence-schema'
 import {checkEvidencePath} from './validation-evidence'
+import type {ValidationCheck} from './validation-lanes'
 import {laneById} from './validation-lanes'
 
-export const failedExit = (exit: number | null) => exit !== null && ![0, 2].includes(exit)
+export const blockedExit = (exit: number | null, check: ValidationCheck) =>
+  exit === null || Boolean(check.blocked_exits?.includes(exit))
+export const failedExit = (exit: number | null, check: ValidationCheck) => exit !== 0 && !blockedExit(exit, check)
 export const aggregateExit = (lanes: LaneEvidence[]) =>
   lanes.some((lane) => lane.status === 'fail') ? 1 : lanes.some((lane) => lane.status !== 'pass') ? 2 : 0
 
@@ -22,14 +25,22 @@ export function assessLane(value: unknown, context: EvidenceContext, pin: string
     const actual = lane.checks.find((check) => check.id === expected.id)
     if (!actual || actual.command !== expected.command.join(' '))
       throw new Error(`${lane.lane_id}: missing/incorrect command ${expected.id}`)
-    if ((actual.exit_code === null || actual.exit_code === 2) && !actual.reason)
+    if (blockedExit(actual.exit_code, expected) && !actual.reason)
       throw new Error(`${lane.lane_id}: missing blocked/cancellation reason`)
     if (actual.evidence.length !== 1 || actual.evidence[0] !== checkEvidencePath(lane.lane_id, expected.id))
       throw new Error(`${lane.lane_id}: check requires its own selected-run artifact`)
   }
   if (lane.status === 'pass' && lane.checks.some((check) => check.exit_code !== 0))
     throw new Error(`${lane.lane_id}: claimed pass contradicts checks`)
-  if (lane.status === 'fail' && !lane.checks.some((check) => failedExit(check.exit_code)))
+  if (
+    lane.status === 'fail' &&
+    !lane.checks.some((check) =>
+      failedExit(
+        check.exit_code,
+        definition.checks.find((expected) => expected.id === check.id)!,
+      ),
+    )
+  )
     throw new Error(`${lane.lane_id}: claimed failure lacks failed check`)
   return lane
 }

@@ -11,6 +11,24 @@ import {fixtureProvider, readinessFixture} from './fixtures/readiness'
 import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './readiness'
 
 const dir = useTmpDir('readiness')
+it('AC-25,32 authenticated TypeScript exit2 is failure even with unavailable sibling evidence', async () => {
+  const {bundle, provider} = await fixture()
+  const lane = bundle.lanes.find((item) => item.lane_id === 'quality')!
+  lane.status = 'fail'
+  lane.checks.find((check) => check.id === 'typecheck')!.exit_code = 2
+  const original = provider.artifact
+  provider.artifact = async (ref, ...args) => {
+    if (ref.includes('format')) throw new Error('Sibling log unavailable')
+    await original(ref, ...args)
+  }
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons).toContainEqual({
+    kind: 'failure',
+    subject: 'quality/typecheck',
+    message: 'Required check failed',
+  })
+})
 it.each([
   'unavailable',
   'stale-pending',

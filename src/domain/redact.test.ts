@@ -1,6 +1,36 @@
 import {expect, it} from 'bun:test'
 
-import {redact, redactData} from './redact'
+import {redact, redactData, redactionContext} from './redact'
+
+it.each(['access_token', 'token', 'password', 'secret', 'key', 'auth'])(
+  'AC-15,30 encoded credential query names keep surrounding diagnostics: %s',
+  (key) => {
+    const encode = (value: string) => [...value].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')
+    for (const name of [
+      encode(key),
+      encode(key.toUpperCase()),
+      encode(key[0]) + key.slice(1),
+      [...key].map((char, i) => (i % 2 ? char : encode(char))).join(''),
+    ]) {
+      expect(new URLSearchParams(`${name}=value`).keys().next().value?.toLowerCase()).toBe(key)
+      for (const separator of ['?', '&', '#']) {
+        const input = `diagnostic https://fixture.invalid/repo${separator}${name}=ENCODED_QUERY_SENTINEL&visible=yes`
+        const expected = input.replace('ENCODED_QUERY_SENTINEL', '[redacted]')
+        expect(redact(input)).toBe(expected)
+        expect(redactData({error: {cause: input}})).toEqual({error: {cause: expected}})
+      }
+    }
+    expect(redact('https://fixture.invalid?%6cogin=visible')).toContain('%6cogin=visible')
+  },
+)
+
+it('AC-15 URI-scheme continuation remains independent of concurrent Bearer context', () => {
+  expect(
+    redact('456://user:VISIBLE_SECRET@fixture.invalid', {
+      credentialPrefixes: redactionContext('Bearer custom123'),
+    }),
+  ).toBe('[redacted]://[redacted]@fixture.invalid')
+})
 
 it.each([
   ['Bearer prefixKNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX', 'KNOWNSECRET'],

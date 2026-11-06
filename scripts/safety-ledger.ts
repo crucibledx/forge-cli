@@ -1,4 +1,4 @@
-const SAFETY_LAYERS = {
+export const SAFETY_LAYERS = {
   DOMAIN: 'domain',
   APPLICATION: 'application',
   INFRASTRUCTURE: 'infrastructure',
