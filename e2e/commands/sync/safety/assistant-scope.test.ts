@@ -7,6 +7,7 @@ import {expect, it} from 'bun:test'
 import {getAllAssistants} from '@domain/assistants'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {hashContent} from '@domain/sync/state'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
 import {testEnvironment} from '../../../../scripts/test-sandbox'
@@ -52,9 +53,9 @@ for (const global of [false, true])
             ],
           }),
         )
-        const cli = join(import.meta.dir, '../../../../src/main.ts')
         expect(
-          (await runPipe(cwd, [process.execPath, cli, ...(global ? ['--global'] : []), 'sync', '--silent'])).exitCode,
+          (await runPipe(cwd, [process.execPath, CLI_ENTRY, ...(global ? ['--global'] : []), 'sync', '--silent']))
+            .exitCode,
         ).toBe(0)
         expect(JSON.parse(await readFile(join(root, '.crucible/sync-state.json'), 'utf8')).files).toEqual(files)
         for (const path of paths) expect(await readFile(join(root, path), 'utf8')).toBe(`unchanged ${path}`)

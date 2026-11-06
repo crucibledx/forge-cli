@@ -24,5 +24,6 @@ it.each([10, 1000])(
       }),
     )
   },
-  40000,
+  // Three independent 30-second invocations, plus fixture verification/cleanup.
+  120000,
 )

@@ -9,6 +9,43 @@ import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
 
 const dir = useTmpDir('redacted-tail')
+it.each(['redact', 'sanitize'])(
+  'AC-15,16,30 userinfo context survives embedded assignment/query delimiters: %s',
+  async (kind) => {
+    const prefix = 'https://user:password=prefix'
+    const value = prefix + '&ACTUAL_CREDENTIAL@fixture.invalid\n'
+    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+    const transcript = createTranscript(clean)
+    transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + prefix.length - value.length)))
+    transcript.finish()
+    transcript.append(Buffer.from('after'))
+    expect(transcript.diagnostic().includes('ACTUAL_CREDENTIAL')).toBe(false)
+    const program = `await Bun.write(Bun.stdout, ${JSON.stringify(value)} + 'x'.repeat(${TAIL_BYTES + prefix.length - value.length}))`
+    const command = [process.execPath, '-e', program]
+    const result = kind === 'redact' ? await executeCheck(command, dir(), 10000) : await runPipe(dir(), command)
+    expect(result.stdout.includes('ACTUAL_CREDENTIAL')).toBe(false)
+  },
+)
+it.each([
+  ['Bearer prefixKNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX', 'KNOWNSECRET'],
+  ['https://fixture.invalid?token=ACTUAL_CREDENTIAL_SUFFIX', 'token'],
+  ['https://user:KNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX@fixture.invalid', 'KNOWNSECRET'],
+  ['password=prefixKNOWNSECRET_ACTUAL_CREDENTIAL_SUFFIX', 'KNOWNSECRET'],
+])('AC-15,30 independent masking cannot break credential syntax or spans: %s', (value, secret) => {
+  expect(sanitize(value, dir(), [secret])).not.toContain('ACTUAL_CREDENTIAL_SUFFIX')
+  for (let cut = 1; cut < value.length; cut++) {
+    const transcript = createTranscript((text) => sanitize(text, dir(), [secret]), [secret])
+    const assertHidden = () =>
+      expect({cut, leaked: transcript.diagnostic().includes('ACTUAL_CREDENTIAL_SUFFIX')}).toEqual({cut, leaked: false})
+    const payload = value + '\n'
+    transcript.append(Buffer.from(payload + 'x'.repeat(TAIL_BYTES + cut - payload.length)))
+    assertHidden()
+    transcript.finish()
+    assertHidden()
+    transcript.append(Buffer.from('after'))
+    assertHidden()
+  }
+})
 it.each(['https://fixture.invalid?token=', 'https://user:', 'Bearer '])(
   'AC-15,16,30 real pipe preserves credential context with overlapping fixture secrets: %s',
   async (prefix) => {

@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {mkdir, readFile, symlink, writeFile} from 'node:fs/promises'
-import {dirname, join, resolve} from 'node:path'
+import {dirname, join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
 import {useTmpDir} from '@test-helpers/tmp'
@@ -10,19 +10,19 @@ import {stringify} from 'yaml'
 import {getAllAssistants} from '@domain/assistants'
 import {hashContent} from '@domain/sync/state'
 import {buildConfigYaml, SKILL_DEPLOY, writeConfig, writeSourceTree} from '@e2e/fixtures'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {createBareRepo} from '@e2e/framework/git'
 import {runPipe} from '@e2e/framework/pipe'
 
 import {testEnvironment} from '../../../scripts/test-sandbox'
 
-const cli = resolve(import.meta.dir, '../../..', 'src/main.ts')
 const tracked = '.claude/skills/deploy.md'
 describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   const dir = useTmpDir('sync-safety')
   const sync = (flags: string[] = []) =>
     runPipe(dir(), [
       process.execPath,
-      cli,
+      CLI_ENTRY,
       ...flags.filter((flag) => flag === '--global'),
       'sync',
       ...flags.filter((flag) => flag !== '--global'),

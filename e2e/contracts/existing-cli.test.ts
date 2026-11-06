@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
 import {useTmpDir} from '@test-helpers/tmp'
@@ -8,14 +8,14 @@ import {describe, expect, it} from 'bun:test'
 
 import {hashContent} from '@domain/sync/state'
 import {setupLocalSync, writeConfig} from '@e2e/fixtures'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
 import pkg from '../../package.json'
 
-const cli = resolve(import.meta.dir, '../../src/main.ts')
 describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', () => {
   const dir = useTmpDir('agent-cli')
-  const command = (args: string[]) => runPipe(dir(), [process.execPath, cli, ...args])
+  const command = (args: string[]) => runPipe(dir(), [process.execPath, CLI_ENTRY, ...args])
   function outcome(result: Awaited<ReturnType<typeof runPipe>>, exit = 0) {
     expect(result.exitCode).toBe(exit)
     expect(result.signal).toBeNull()

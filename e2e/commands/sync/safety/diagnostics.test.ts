@@ -1,17 +1,17 @@
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 import {parse, stringify} from 'yaml'
 
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
 import {testEnvironment} from '../../../../scripts/test-sandbox'
 import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
-const cli = resolve(import.meta.dir, '../../../../src/main.ts')
 it.each(['https', 'ftp', 'ftps'].flatMap((scheme) => [false, true].map((silent) => ({scheme, silent}))))(
   'BR-01/06 raw streams/logs/reports redact $scheme credentials, silent=$silent, without harness masking (C4, AC-15)',
   async ({scheme, silent}) => {
@@ -28,7 +28,7 @@ it.each(['https', 'ftp', 'ftps'].flatMap((scheme) => [false, true].map((silent) 
     let raw = ''
     const result = await runPipe(
       root,
-      [process.execPath, cli, '--log-level', 'debug', 'sync', ...(silent ? ['--silent'] : [])],
+      [process.execPath, CLI_ENTRY, '--log-level', 'debug', 'sync', ...(silent ? ['--silent'] : [])],
       {
         inspectRaw: (stdout, stderr) => {
           raw = stdout + stderr

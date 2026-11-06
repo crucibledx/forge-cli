@@ -1,17 +1,17 @@
 import {existsSync} from 'node:fs'
 import {chmod, mkdir, readFile, unlink, writeFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {buildConfigYaml, setupLocalSync, writeConfig} from '@e2e/fixtures'
+import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
 
 const dir = useTmpDir('native-platform')
-const cli = resolve(import.meta.dir, '../../src/main.ts')
 const destinations = [
   {id: 'claude-code', project: '.claude/rules/native.md', global: '.claude/rules/native.md'},
   {id: 'cursor', project: '.cursor/rules/native.mdc', global: '.cursor/rules/native.mdc'},
@@ -38,7 +38,7 @@ it.each(destinations.flatMap((assistant) => [false, true].map((global) => ({...a
         root,
         buildConfigYaml({assistants: [assistant.id], localSource: {path: source}, sync: {keep_local: false}}),
       )
-    const args = [process.execPath, cli, ...(assistant.globalMode ? ['--global'] : []), 'sync']
+    const args = [process.execPath, CLI_ENTRY, ...(assistant.globalMode ? ['--global'] : []), 'sync']
     const path = assistant.globalMode ? assistant.global : assistant.project
     expect((await runPipe(dir(), args)).exitCode).toBe(0)
     const before = await readFile(join(root, path))
@@ -68,7 +68,7 @@ it.each(destinations.flatMap((assistant) => [false, true].map((global) => ({...a
 )
 it('native access metadata remains supported or read-only replacement refuses safely (AC-10,26)', async () => {
   await setupLocalSync(dir(), ['claude-code'], {rules: {'native.md': '# Native fixture\n'}})
-  const args = [process.execPath, cli, 'sync']
+  const args = [process.execPath, CLI_ENTRY, 'sync']
   expect((await runPipe(dir(), args)).exitCode).toBe(0)
   const path = join(dir(), '.claude/rules/native.md')
   await writeFile(join(dir(), 'source/rules/native.md'), '# Changed native fixture\n')

@@ -94,6 +94,10 @@ export function detectFullDrift(
     }
 
     if (!stored) continue
+    if (disk === null || disk === undefined) {
+      files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.DELETED})
+      continue
+    }
     if (stored.baseline !== 'installed') {
       files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.LEGACY_UNKNOWN})
       continue
@@ -104,9 +108,7 @@ export function detectFullDrift(
     const localChanged = diskHash !== null && diskHash !== stored.hash
     const remoteChanged = remoteHash !== null && remoteHash !== stored.hash
 
-    if (disk === null || disk === undefined) {
-      files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.DELETED})
-    } else if (localChanged && remoteChanged) {
+    if (localChanged && remoteChanged) {
       files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.CONFLICT})
     } else if (remoteChanged) {
       files.push({targetPath, sourceName: stored.sourceName, status: DRIFT_STATUSES.REMOTE_UPDATED})

@@ -92,6 +92,21 @@ describe('detectDrift', () => {
 })
 
 describe('detectFullDrift', () => {
+  it.each(['legacy-unknown', undefined] as const)(
+    'AC-6 legacy baseline %s still detects missing disk independently of upstream',
+    (baseline) => {
+      const state = stateWith({'a.md': {content: 'before', sourceName: 'team'}})
+      state.files['a.md'].baseline = baseline
+      for (const disk of [null, undefined]) {
+        const contents: Record<string, string | null> = disk === null ? {'a.md': null} : {}
+        expect(detectFullDrift(state, contents, {'a.md': 'before'}).files[0].status).toBe(DRIFT_STATUSES.DELETED)
+        expect(detectDrift(state, contents).files[0].status).toBe(DRIFT_STATUSES.DELETED)
+      }
+      expect(detectFullDrift(state, {'a.md': 'before'}, {'a.md': 'before'}).files[0].status).toBe(
+        DRIFT_STATUSES.LEGACY_UNKNOWN,
+      )
+    },
+  )
   it('reports in_sync when local and remote match stored', () => {
     const state = stateWith({'a.md': {content: 'hello', sourceName: 'team'}})
     const result = detectFullDrift(state, {'a.md': 'hello'}, {'a.md': 'hello'})
