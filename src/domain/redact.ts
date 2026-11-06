@@ -128,12 +128,7 @@ export function redactionContext(discarded: string): string[] {
   let partial = ''
   for (const marker of [
     'Bearer',
-    'access_token=',
-    'token=',
-    'password=',
-    'secret=',
-    'key=',
-    'auth=',
+    ...queryKeys.map((key) => `${key}=`),
     'authorization=',
     'token:',
     'password:',

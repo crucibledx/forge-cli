@@ -1,7 +1,7 @@
 import {lstat, realpath} from 'node:fs/promises'
 import {isAbsolute, relative, resolve, sep, win32} from 'node:path'
 
-export class ConfinementError extends Error {
+class ConfinementError extends Error {
   constructor(path: string, reason: string) {
     super(`Unsafe path "${path}": ${reason}`)
     this.name = 'ConfinementError'
