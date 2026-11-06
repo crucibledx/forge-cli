@@ -1,3 +1,5 @@
+const PLATFORMS = {MACOS: 'darwin', WINDOWS: 'win32', LINUX: 'linux'} as const
+type ValidationPlatform = (typeof PLATFORMS)[keyof typeof PLATFORMS]
 export interface ValidationCheck {
   id: string
   command: string[]
@@ -5,7 +7,7 @@ export interface ValidationCheck {
 export interface ValidationLane {
   id: string
   timeout_ms: number
-  platform?: 'darwin' | 'win32' | 'linux'
+  platform?: ValidationPlatform
   fixture_scope: string
   ac_ids: string[]
   br_ids: string[]
@@ -103,7 +105,7 @@ export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'native-macos',
     timeout_ms: LANE_BUDGET_MS,
-    platform: 'darwin',
+    platform: PLATFORMS.MACOS,
     fixture_scope: 'native macOS project/global roots and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-09', 'BR-10'],
@@ -112,7 +114,7 @@ export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'native-windows',
     timeout_ms: LANE_BUDGET_MS,
-    platform: 'win32',
+    platform: PLATFORMS.WINDOWS,
     fixture_scope: 'native Windows project/global roots, access controls, Job Objects and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-09', 'BR-10'],
@@ -121,7 +123,7 @@ export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'build',
     timeout_ms: LANE_BUDGET_MS,
-    platform: 'linux',
+    platform: PLATFORMS.LINUX,
     fixture_scope: 'independent native Linux build and compiled help/version',
     ac_ids: ['AC-26'],
     br_ids: ['BR-09', 'BR-10'],

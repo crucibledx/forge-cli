@@ -3,11 +3,12 @@ import {join} from 'node:path'
 
 import {snapshot} from '@test-helpers/snapshot'
 import {trackedPath} from '@test-helpers/sync-fixture'
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {testEnvironment} from '../../../../scripts/test-sandbox'
-import {command, config, protectedBytes} from './helpers'
+import {command, config} from './helpers'
 
 const dir = useTmpDir('preview-failure')
 it('BR-05 failed conflict/source previews leave existing latest/history and protected bytes unchanged (AC-8)', async () => {

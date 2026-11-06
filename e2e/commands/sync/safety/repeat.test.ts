@@ -2,11 +2,12 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {syncFixture, trackedPath} from '@test-helpers/sync-fixture'
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 import {parse, stringify} from 'yaml'
 
-import {command, config, protectedBytes} from './helpers'
+import {command, config} from './helpers'
 
 const dir = useTmpDir('repeat-contract')
 if (process.platform !== 'win32')

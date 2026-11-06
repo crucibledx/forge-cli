@@ -13,7 +13,6 @@ import {aggregateExit, assessLane, failedExit} from './validation-policy'
 import type {CommandOutcome} from './validation-process'
 import {executeCheck} from './validation-process'
 
-export {aggregateExit, assessLane} from './validation-policy'
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
 async function runCheck(

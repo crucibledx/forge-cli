@@ -22,8 +22,9 @@ export async function runCommand(
   command: string,
   args: string[] = [],
   env: Record<string, string> = {},
+  execute = runPipe,
 ): Promise<CLIResult> {
-  return completed(await runPipe(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env}))
+  return completed(await execute(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env}))
 }
 
 export async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
@@ -55,8 +56,9 @@ export async function runInitSession(
   cwd: string,
   drive: (cli: CLISession) => Promise<void>,
   args: string[] = [],
+  spawn = spawnInteractive,
 ): Promise<CLIResult> {
-  const cli = spawnInteractive(cwd, 'init', args)
+  const cli = spawn(cwd, 'init', args)
   return driveSession(cli, drive)
 }
 
