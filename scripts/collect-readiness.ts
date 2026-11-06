@@ -38,7 +38,7 @@ if (import.meta.main) {
     }
     const context = contextSchema.parse(JSON.parse(await readFile(contextPath, 'utf8'))),
       directory = dirname(contextPath)
-    const provider = readinessProvider(repositoryRoot, directory)
+    const provider = readinessProvider(directory)
     await provider.context(context)
     const gate = await providerGate(context)
     await provider.gate(gate, context)

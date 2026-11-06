@@ -72,6 +72,14 @@ Full/checker/platform entrypoints allow40 seconds for the30-second native compil
 ordinary session deadlines. Windows primes one isolated compilation before test imports; fixtures receive separate
 byte copies, so disposing or altering one backend cannot affect another.
 
+Raw stream channels remain separate. Diagnostics recognize both unchanged raw bytes and streamed terminal-visible
+text, projecting sensitive visible spans back across formatting; assertion cursors use a separate unredacted
+bounded transcript. This is not a terminal screen emulator. Sandbox setup errors produce blocked check records.
+Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.
+CI records its lane clock before checkout, shares remaining time across independent steps, and reserves90 seconds
+inside the unchanged ten-minute job limit for bounded cleanup, evidence assembly and upload. Missing, malformed,
+future or exhausted clock evidence blocks command execution rather than granting a new full budget.
+
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
 native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.
 The macOS lane uses the standard native `macos-15-intel` image. GitHub canceled the earlier ARM `macos-latest`

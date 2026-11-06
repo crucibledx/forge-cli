@@ -8,13 +8,19 @@ import {contextSchema, laneSchema} from './evidence-schema'
 import {repositoryRoot, validationContext} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
 import type {ValidationCheck, ValidationLane} from './validation-lanes'
-import {laneById, validationLanes} from './validation-lanes'
+import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, laneById, validationLanes} from './validation-lanes'
 import {aggregateExit, assessLane, blockedExit, failedExit} from './validation-policy'
 import type {CommandOutcome} from './validation-process'
 import {executeCheck} from './validation-process'
 
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
+export function remainingCIBudget(lane: ValidationLane, startedAt: string | undefined, now = Date.now()): number {
+  if (!startedAt || !/^\d+$/.test(startedAt)) return 0
+  const start = Number(startedAt) * 1000
+  if (!Number.isSafeInteger(start) || start <= 0 || start > now) return 0
+  return Math.max(0, Math.min(lane.timeout_ms, LANE_BUDGET_MS) - (now - start) - CI_EVIDENCE_RESERVE_MS)
+}
 async function runCheck(
   out: string,
   lane: ValidationLane,
@@ -23,7 +29,7 @@ async function runCheck(
   executor: typeof executeCheck,
   blocked?: string,
 ) {
-  const result: CommandOutcome =
+  let result: CommandOutcome =
     blocked || budget <= 0
       ? {
           exit_code: null,
@@ -33,7 +39,16 @@ async function runCheck(
           stderr: '',
           reason: blocked ?? 'Lane deadline exhausted',
         }
-      : await executor(check.command, repositoryRoot, budget)
+      : {exit_code: null, duration_ms: 0, timed_out: false, stdout: '', stderr: ''}
+  if (!blocked && budget > 0) {
+    const start = performance.now()
+    try {
+      result = await executor(check.command, repositoryRoot, budget)
+    } catch (error) {
+      result.duration_ms = performance.now() - start
+      result.reason = `Validator setup/execution unavailable: ${String(error)}`
+    }
+  }
   const evidence = logPath(lane.id, check.id)
   await mkdir(resolve(out, 'checks', lane.id), {recursive: true, mode: 0o700})
   await writeFile(resolve(out, evidence), redact(JSON.stringify({command: check.command, ...result})) + '\n', {
@@ -173,7 +188,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
     out,
     lane,
     check,
-    lane.timeout_ms,
+    remainingCIBudget(lane, process.env.FORGE_LANE_STARTED_AT),
     executeCheck,
     lane.platform && lane.platform !== process.platform ? `Requires native ${lane.platform}` : undefined,
   )

@@ -33,68 +33,76 @@ export interface TestSandbox {
 }
 
 /** Must run in a launcher, before importing any application or test modules. */
-export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir()): TestSandbox {
+export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), timeoutMs = 30000): TestSandbox {
   const root = mkdtempSync(join(base, prefix))
-  const project = join(root, 'project')
-  const home = join(root, 'home')
-  const temp = join(root, 'tmp')
-  const bin = join(root, 'bin')
-  for (const path of [project, home, temp, bin]) mkdirSync(path, {mode: 0o700})
-  const gitConfig = join(root, 'gitconfig')
-  // Git fixtures import frozen history. Tests need no operator identity/config.
-  writeFileSync(gitConfig, process.platform === 'win32' ? '[core]\nlongpaths = true\n' : '', {mode: 0o600})
-  const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
-  const fake = resolve(import.meta.dir, 'fixtures/fake-scheduler.ts')
-  if (process.platform !== 'win32') {
-    for (const command of ['launchctl', 'crontab', 'schtasks']) {
-      writeFileSync(
-        join(bin, command),
-        `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(fake)} ${shellQuote(command)} "$@"\n`,
-        {mode: 0o700},
-      )
-    }
-  }
-  const env = {
-    ...allowlistedEnvironment(),
-    PATH: [bin, dirname(process.execPath), process.env.PATH ?? process.env.Path ?? ''].join(delimiter),
-    HOME: home,
-    USERPROFILE: home,
-    TMPDIR: temp,
-    TMP: temp,
-    TEMP: temp,
-    XDG_CONFIG_HOME: join(home, '.config'),
-    XDG_CACHE_HOME: join(home, '.cache'),
-    XDG_DATA_HOME: join(home, '.local', 'share'),
-    GIT_CONFIG_GLOBAL: gitConfig,
-    GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_ATTR_NOSYSTEM: '1',
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_ALLOW_PROTOCOL: 'file',
-    NO_COLOR: '1',
-  }
-  if (process.platform === 'win32') {
-    const executable = join(bin, 'schtasks.exe')
-    if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
-    else {
-      // Compile once with isolated env/cwd. Cache bytes, never a mutable shared
-      // file/hardlink: disposing or modifying one fixture cannot affect another.
-      const result = Bun.spawnSync([process.execPath, 'build', fake, '--compile', '--outfile', executable], {
-        cwd: project,
-        env,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: 30000,
-      })
-      if (result.exitCode !== 0) {
-        rmSync(root, {recursive: true, force: true})
-        throw new Error('Cannot build isolated scheduler backend')
+  try {
+    const project = join(root, 'project')
+    const home = join(root, 'home')
+    const temp = join(root, 'tmp')
+    const bin = join(root, 'bin')
+    for (const path of [project, home, temp, bin]) mkdirSync(path, {mode: 0o700})
+    const gitConfig = join(root, 'gitconfig')
+    // Git fixtures import frozen history. Tests need no operator identity/config.
+    writeFileSync(gitConfig, process.platform === 'win32' ? '[core]\nlongpaths = true\n' : '', {mode: 0o600})
+    const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+    const fake = resolve(import.meta.dir, 'fixtures/fake-scheduler.ts')
+    if (process.platform !== 'win32') {
+      for (const command of ['launchctl', 'crontab', 'schtasks']) {
+        writeFileSync(
+          join(bin, command),
+          `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(fake)} ${shellQuote(command)} "$@"\n`,
+          {mode: 0o700},
+        )
       }
-      windowsScheduler = readFileSync(executable)
     }
+    const env = {
+      ...allowlistedEnvironment(),
+      PATH: [bin, dirname(process.execPath), process.env.PATH ?? process.env.Path ?? ''].join(delimiter),
+      HOME: home,
+      USERPROFILE: home,
+      TMPDIR: temp,
+      TMP: temp,
+      TEMP: temp,
+      XDG_CONFIG_HOME: join(home, '.config'),
+      XDG_CACHE_HOME: join(home, '.cache'),
+      XDG_DATA_HOME: join(home, '.local', 'share'),
+      GIT_CONFIG_GLOBAL: gitConfig,
+      GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_ATTR_NOSYSTEM: '1',
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_ALLOW_PROTOCOL: 'file',
+      NO_COLOR: '1',
+    }
+    if (process.platform === 'win32') {
+      const executable = join(bin, 'schtasks.exe')
+      if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
+      else {
+        // Compile once with isolated env/cwd. Cache bytes, never a mutable shared
+        // file/hardlink: disposing or modifying one fixture cannot affect another.
+        const result = Bun.spawnSync([process.execPath, 'build', fake, '--compile', '--outfile', executable], {
+          cwd: project,
+          env,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: Math.min(30000, Math.max(1, timeoutMs)),
+        })
+        if (result.exitCode !== 0) {
+          throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
+        }
+        windowsScheduler = readFileSync(executable)
+      }
+    }
+    writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
+    return {root, project, env, dispose: () => rmSync(root, {recursive: true, force: true})}
+  } catch (error) {
+    try {
+      rmSync(root, {recursive: true, force: true})
+    } catch (cleanup) {
+      throw new Error(`${String(error)}; Sandbox setup cleanup failed: ${String(cleanup)}`)
+    }
+    throw error
   }
-  writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
-  return {root, project, env, dispose: () => rmSync(root, {recursive: true, force: true})}
 }
 
 /** Locate a per-test sandbox, including commands invoked from nested project directories. */

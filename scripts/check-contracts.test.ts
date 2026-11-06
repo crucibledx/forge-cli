@@ -5,6 +5,17 @@ import {contractInputs, validateContracts} from './check-contracts'
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])
 })
+it.each(['removed', 'late', 'changed'])('AC-25,27 rejects a %s job budget anchor', (kind) => {
+  const original = contractInputs()
+  const input = {...original, ci: structuredClone(original.ci)}
+  const steps = input.ci.jobs.lanes.steps
+  if (kind === 'removed') steps.shift()
+  if (kind === 'late') steps.push(steps.shift())
+  if (kind === 'changed') steps[0].run = 'echo ignored'
+  expect(validateContracts(input)).toContain(
+    'CI deadline must start before setup and reserve evidence/cleanup headroom',
+  )
+})
 it.each([
   ['native-macos', 'ubuntu-latest'],
   ['native-macos', 'macos-latest'],

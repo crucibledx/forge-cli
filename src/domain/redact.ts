@@ -54,20 +54,22 @@ interface RedactionOptions {
   credentialPrefixes?: readonly string[]
   secretPrefix?: string
   assignments?: boolean
+  spans?: readonly RedactionSpan[]
 }
-interface RedactionSpan {
+export interface RedactionSpan {
   start: number
   end: number
 }
 
 /** Recognize every span against unchanged input, then mask their union. */
-export function redact(text: string, options: RedactionOptions = {}): string {
+export function redactionSpans(text: string, options: RedactionOptions = {}): RedactionSpan[] {
   const spans: RedactionSpan[] = []
   const add = (start: number, end: number) => {
     start = Math.max(0, start)
     end = Math.min(text.length, end)
     if (start < end) spans.push({start, end})
   }
+  for (const span of options.spans ?? []) add(span.start, span.end)
   for (const credentialPrefix of ['', ...(options.credentialPrefixes ?? [])]) {
     const credentialText = credentialPrefix + text
     const scan = (pattern: RegExp, trailing = 0) => {
@@ -103,9 +105,12 @@ export function redact(text: string, options: RedactionOptions = {}): string {
     if (previous && span.start <= previous.end) previous.end = Math.max(previous.end, span.end)
     else merged.push({...span})
   }
+  return merged
+}
+export function redact(text: string, options: RedactionOptions = {}): string {
   let result = '',
     cursor = 0
-  for (const span of merged) {
+  for (const span of redactionSpans(text, options)) {
     result += text.slice(cursor, span.start) + '[redacted]'
     cursor = span.end
   }

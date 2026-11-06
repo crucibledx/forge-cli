@@ -19,7 +19,8 @@ const run = (id: string, blocked_exits: readonly number[] = []): ValidationCheck
   command: ['bun', 'run', id],
   blocked_exits,
 })
-const LANE_BUDGET_MS = 10 * 60 * 1000
+export const LANE_BUDGET_MS = 10 * 60 * 1000
+export const CI_EVIDENCE_RESERVE_MS = 90_000
 export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'quality',

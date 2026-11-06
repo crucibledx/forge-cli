@@ -2,13 +2,96 @@ import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
+import stripAnsi from 'strip-ansi'
 
 import {executeCheck} from '../../../scripts/validation-process'
 import {redact} from '../../../src/domain/redact'
 import {runPipe} from '../pipe'
 import {createTranscript, sanitize, TAIL_BYTES} from '../process'
+import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
+it.each([
+  ['FI\u001b[31mXTURE_SECRET\u001b[0m', ['FIXTURE_SECRET']],
+  ['Bearer \u001b[31mFIXTURE_SECRET\u001b[0m', []],
+  ['Be\u001b[31marer FIXTURE_SECRET\u001b[0m', []],
+  ['https://user:\u001b[31mFIXTURE_SECRET\u001b[0m@fixture.invalid', []],
+  ['https://fixture.invalid?%74oken=\u001b[31mFIXTURE_SECRET\u001b[0m', []],
+  ['FI\u001b]0;format\u0007XTURE_SECRET', ['FIXTURE_SECRET']],
+] as const)('AC-15,16,30 formatted credentials stay private at every chunk boundary: %s', (value, known) => {
+  const secrets = [...known]
+  for (let cut = 0; cut <= value.length; cut++) {
+    const transcript = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
+    transcript.append(Buffer.from('visible-before\n' + value.slice(0, cut)))
+    transcript.append(Buffer.from(value.slice(cut) + '\nvisible-after'))
+    transcript.finish()
+    const output = stripAnsi(transcript.diagnostic())
+    expect(output).not.toContain('FIXTURE_SECRET')
+    expect(output).toContain('visible-before')
+    expect(output).toContain('visible-after')
+    const bounded = createTranscript((text) => sanitize(text, dir(), secrets), secrets)
+    bounded.append(Buffer.from(value + '\n' + 'x'.repeat(TAIL_BYTES + cut - value.length - 1)))
+    const assertBounded = () => {
+      const surviving = Array.from({length: 'FIXTURE_SECRET'.length}, (_, i) => 'FIXTURE_SECRET'.slice(i)).find(
+        (suffix) => bounded.text().includes(suffix),
+      )
+      for (const diagnostic of [stripAnsi(bounded.diagnostic()), bounded.visibleDiagnostic()]) {
+        if (surviving)
+          expect({cut, surviving, leaked: diagnostic.includes(surviving)}).toEqual({cut, surviving, leaked: false})
+        expect(diagnostic).toContain('x'.repeat(64))
+        expect(Buffer.byteLength(diagnostic)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+    assertBounded()
+    bounded.finish()
+    assertBounded()
+    bounded.append(Buffer.from('after'))
+    assertBounded()
+    expect(bounded.visibleDiagnostic()).toEndWith('after')
+  }
+})
+it.each(['pipe', 'pty'] as const)(
+  'AC-15,16,30 actual %s formatted output hides known and automatic credentials',
+  async (kind) => {
+    if (kind === 'pty' && process.platform === 'win32') return
+    const value =
+      'visible-before\nFI\u001b[31mXTURE_SECRET\u001b[0m\nBearer \u001b[31mAUTO_CREDENTIAL\u001b[0m\nvisible-after'
+    const command = [
+      process.execPath,
+      '-e',
+      `await Bun.write(Bun.stdout, ${JSON.stringify(value)}); await Bun.write(Bun.stderr, ${JSON.stringify(value)})`,
+    ]
+    const result =
+      kind === 'pipe'
+        ? await runPipe(dir(), command, {secrets: ['FIXTURE_SECRET']})
+        : await spawnPty(dir(), command, {secrets: ['FIXTURE_SECRET']}).waitForExit()
+    expect(result).toMatchObject({exitCode: 0, timedOut: false})
+    for (const output of [result.output, result.stdout, result.stderr]) {
+      expect(stripAnsi(output)).not.toContain('FIXTURE_SECRET')
+      expect(stripAnsi(output)).not.toContain('AUTO_CREDENTIAL')
+    }
+    expect(result.output).toContain('visible-before')
+    expect(result.output).toContain('visible-after')
+  },
+)
+it('AC-15,16,30 validation diagnostics also hide ANSI-formatted automatic credentials on both streams', async () => {
+  const value = 'visible-before\nBearer \u001b[31mVALIDATION_CREDENTIAL\u001b[0m\nvisible-after'
+  const result = await executeCheck(
+    [
+      process.execPath,
+      '-e',
+      `await Bun.write(Bun.stdout, ${JSON.stringify(value)});await Bun.write(Bun.stderr, ${JSON.stringify(value)})`,
+    ],
+    dir(),
+    10000,
+  )
+  expect(result).toMatchObject({exit_code: 0, timed_out: false})
+  for (const output of [result.stdout, result.stderr]) {
+    expect(output).not.toContain('VALIDATION_CREDENTIAL')
+    expect(output).toContain('visible-before')
+    expect(output).toContain('visible-after')
+  }
+})
 function expectPrivateTail(
   transcript: ReturnType<typeof createTranscript>,
   value: string,

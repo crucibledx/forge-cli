@@ -34,6 +34,9 @@ jobs:
           - {lane: native-windows, os: windows-latest}
           - {lane: build, os: ubuntu-latest}
     steps:
+      - name: Start lane budget
+        shell: bash
+        run: echo "FORGE_LANE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}

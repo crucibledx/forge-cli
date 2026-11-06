@@ -2,7 +2,7 @@ const ANSI = {TEXT: 0, ESCAPE: 1, CSI: 2, OSC: 3, OSC_ESCAPE: 4, INTERMEDIATE: 5
 type AnsiState = (typeof ANSI)[keyof typeof ANSI]
 
 /** Strip streamed control sequences without retaining unbounded unfinished payloads. Not a screen emulator. */
-export function createAnsiText() {
+export function createAnsiText(onText?: (start: number, end: number) => void) {
   let state: AnsiState = ANSI.TEXT
   return (chunk: string): string => {
     let text = '',
@@ -12,9 +12,11 @@ export function createAnsiText() {
         const next = chunk.slice(index).search(/[\u001b\u009b\u009d]/)
         if (next < 0) {
           text += chunk.slice(index)
+          onText?.(index, chunk.length)
           break
         }
         text += chunk.slice(index, index + next)
+        if (next) onText?.(index, index + next)
         const control = chunk[index + next]
         index += next + 1
         state = control === '\u009b' ? ANSI.CSI : control === '\u009d' ? ANSI.OSC : ANSI.ESCAPE

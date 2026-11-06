@@ -4,14 +4,59 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
-import {runLanes} from './check-lanes'
+import {remainingCIBudget, runLanes} from './check-lanes'
 import {laneSchema} from './evidence-schema'
 import {validationContext} from './validation-context'
-import {PLATFORMS, validationLanes} from './validation-lanes'
+import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, PLATFORMS, validationLanes} from './validation-lanes'
 import {aggregateExit, assessLane} from './validation-policy'
 import {executeCheck} from './validation-process'
 
 const dir = useTmpDir('lane-fixtures')
+it('AC-25,27 CI checks share elapsed setup/check time and leave cleanup/evidence headroom', () => {
+  const lane = validationLanes[0],
+    start = 1800000000000
+  const marker = String(start / 1000)
+  expect(remainingCIBudget(lane, marker, start)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS)
+  expect(remainingCIBudget(lane, marker, start + 120000)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 120000)
+  expect(remainingCIBudget(lane, marker, start + LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 1500)).toBe(1500)
+  expect(remainingCIBudget(lane, marker, start + LANE_BUDGET_MS)).toBe(0)
+  for (const invalid of [
+    undefined,
+    '',
+    'garbage',
+    '-1',
+    'Infinity',
+    '999999999999999999999999',
+    String(start / 1000 + 1),
+  ])
+    expect(remainingCIBudget(lane, invalid, start)).toBe(0)
+})
+it('AC-25 thrown setup outcomes retain all sibling logs and proven failure precedence', async () => {
+  const context = validationContext()
+  const reports = await runLanes(
+    dir(),
+    context,
+    async (command) => {
+      if (command.at(-1) === 'format:check') throw new Error('fixture scheduler setup failure')
+      return {
+        exit_code: command.at(-1) === 'typecheck' ? 2 : 0,
+        duration_ms: 1,
+        timed_out: false,
+        stdout: 'sibling diagnostic',
+        stderr: '',
+      }
+    },
+    'linux',
+  )
+  expect(reports).toHaveLength(validationLanes.length)
+  expect(aggregateExit(reports)).toBe(1)
+  const quality = reports.find((lane) => lane.lane_id === 'quality')!
+  const setup = quality.checks.find((check) => check.id === 'format:check')!
+  expect(setup.exit_code).toBeNull()
+  expect(setup.reason).toContain('fixture scheduler setup failure')
+  expect(reports.find((lane) => lane.lane_id === 'agent-cli')?.status).toBe('pass')
+  expect(JSON.parse(await readFile(join(dir(), setup.evidence[0]), 'utf8')).reason).toContain('setup failure')
+})
 it('AC-25 actual pinned compiler diagnostics retain exit2 and fail the aggregate', async () => {
   await writeFile(
     join(dir(), 'tsconfig.json'),
