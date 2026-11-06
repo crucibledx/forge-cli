@@ -49,9 +49,7 @@ mock.module('@infrastructure/fs', () => ({
     scanCalled = true
     return mockDetectionResults
   },
-  applyMutations: async () => [],
   collectFiles: async () => [],
-  rollbackMutations: async () => {},
 }))
 
 mock.module('@infrastructure/config', () => ({

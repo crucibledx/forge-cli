@@ -1,7 +1,6 @@
-import {createHash} from 'node:crypto'
-
 import {z} from 'zod'
 
+import {hashContent} from '../src/domain/sync/state'
 import type {EvidenceContext} from './evidence-schema'
 import {githubJSON} from './github-evidence'
 import {producerPayload} from './producer-payload'
@@ -35,7 +34,7 @@ export async function providerProducer(uri: string, context: EvidenceContext, re
   const blocks = [...review.body.matchAll(/```forge-evidence-v1\n([\s\S]*?)\n```/g)]
   if (blocks.length !== 1) throw new Error('Independent provider supplied no unique structured attestation')
   const payload = producerPayload.parse(JSON.parse(blocks[0][1]))
-  const hash = createHash('sha256').update(payload.raw_report_markdown).digest('hex')
+  const hash = hashContent(payload.raw_report_markdown)
   const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
   if (!records.length) throw new Error('Independent provider supplied no verdict')
   for (const record of records) {

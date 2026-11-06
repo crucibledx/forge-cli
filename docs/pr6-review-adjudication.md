@@ -4,7 +4,27 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review on 660d815
+## Latest hosted review on 90bedd5
+
+All checks on `90bedd5` completed, including hosted review `42278123829`. It posted seven additional findings.
+The authorized loop continued rather than treating a successful reviewer check as a no-findings verdict.
+
+| Comment | Correction and regression |
+| --- | --- |
+|4496676173 | Assertion text is streamed through a bounded ANSI recognizer before independent plain-text truncation. Cursor offsets count only discarded visible text, never separately stripped escape fragments. CSI/OSC tail cuts, every control-chunk boundary, long unfinished OSC and an actual PTY late wait cover consumed-prompt rejection and genuine subsequent prompts. Raw diagnostics/redaction remain separately bounded. |
+|4496676181 | Deviation failures require validated current context/revision. Unavailable approval authentication adds a blocker only; current pending/rejected declarations remain failures. Ten controls cover stale/context/unavailable/current cases and a genuine failed sibling retaining precedence. |
+|4496676191 | Remove orphan apply/rollback executors, AppliedMutation/FsService declarations, barrels and mocks. Preserve lexical safeResolve and its four pure checks; protected writes/compensation still use the transaction engine and its unchanged injection matrix. Tests exclusively for the removed executors are removed with those APIs, not counted as protected-transaction coverage. |
+|4496676196 | Use relative imports for assistants/scope inside the domain property module; independent oracle hashing remains deliberately separate. |
+|4496676202 | Define const-derived readiness ReasonKind once and share it between reasons and the callback. |
+|4496676208 | Reuse the existing string/byte hashContent authority for producer Markdown, provider ZIP bytes and audit lock hashing. Independent expected-hash test oracles remain independent. |
+|4496676215 | Remove redundant public sandbox home/temp fields. Assertions use env.HOME/env.TMPDIR, the same authority consumed by launchers; creation still uses distinct local directories. |
+
+Before correction, the new controls reproduced 64 pass/9 fail. Independent verifier-n also reproduced both
+behavioral findings on `90bedd5`: 30 phase-1 rows pass, AC-17/32 fail, including the actual PTY and actual readiness CLI.
+Its report hash is `f80d05df9effd17bfe7b806582933995ef9b0e4882dfdee4e75e26ca0b17a275`.
+That old revision's 1244/0 full suite and ten 405/0 contract runs do not override its original failed probes.
+
+## Hosted review on 660d815
 
 The owner explicitly authorized continuing after each push until all current-revision checks, including the
 hosted reviewer, finish without unresolved actionable comments. The previous review completed with eight more
