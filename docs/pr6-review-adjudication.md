@@ -4,7 +4,79 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent assessment on0d1a191
+## Latest hosted and independent assessment on77e7464
+
+Head77e7464, provider-tested merge7c7fbf5, base3fb78e1, tree85880bf (equal to head):
+CI42325266537 succeeded01:47:23Z; hosted reviewer42325267237 completed successfully
+01:45:50Z and submitted review5809282899 with two new P2 findings. All five hosted
+runs completed. Complete two-page inventory:111 threads,109 resolved,2 open.
+Both independent tracks also completed before source correction began. Green CI,
+finite no-findings review and resolved conversations cannot cancel a concrete counterexample.
+
+| Finding | Accepted correction and regression |
+| --- | --- |
+|4499431437 / AA-1 | Redact untrusted renderer fields before visibly escaping terminal C0/C1, bidi and line-separator controls; add trusted styling afterward. A state-only unknown-owner path must not drive OSC52 clipboard/title/ST, CSI erase or C1 controls in ordinary sync or preview. All renderer entrypoints, ordinary Unicode, private fragmented URLs, stored state and preview byte preservation are covered. |
+|4499431442 / AA-2 | Authenticate current paginated provider history, separately by role and exact head/tested revision. Reject stale/partial/unavailable/malformed/duplicate/oversized selections. Carry authenticated blockers into readiness as known failure1 with provider URIs, including simultaneous missing-lane diagnostics. A later passing report cannot omit an unresolved earlier blocker; only a later same-role independent resolution on this revision clears its ID. New verifier selection is checked separately. |
+
+The parent's unchanged-head controls reproduced0/3. The verifier independently
+reproduced1/3, including a positive negative-control selecting the actual later blocker.
+An unchanged copy of those stronger four assertions passes4/0 on the correction:
+the older-pass counterexample must yield exit1 and `code/later-blocker`, not merely blocked2.
+New tests are co-located in `scripts/producer-supersession.test.ts`,
+`src/infrastructure/cli/terminal-text.test.ts`, the renderer test and real raw-output
+sync diagnostics. Security selection adds the terminal/renderer tests without raising20s.
+
+Parent review of the first correction found a related precedence edge: a later
+history-page outage erased already-authenticated selected/partial-page blockers into
+blocked2. Two new controls first reproduced24pass/2fail, then pass after preserving
+authenticated history through failure handling. Both failure and incompleteness remain
+listed; unauthenticated bundle claims cannot establish a failure.
+
+Final focused coverage is249/0 across10 files, including both sets of unchanged
+hosted/verifier counterexamples. After the history-outage correction, fresh full
+validation passes1607/0 in18 invocations (1473 across123 files plus17 targeted batches).
+Unchanged20s security402/0, audit0, quality/types/contracts/build/compiled0.
+Full log SHA-256 `6befe0d8acccd70aeba0c420cf56d7701491eea85636223d9689ac9db761d364`;
+security `3f96d838862b25f298bdae52d316816e999d07d1a0f044c0231d428216e9a7bd`;
+focused `ab7ca575d9c20e7d907bd781a77a5cd0a1c820ada70d63421095e2f431615a18`.
+The earlier1605/0 full baseline remains retained separately.
+The initial focused237/1 was a new fixture-oracle mistake: apply canonicalizes the
+backslash in the OSC ST terminator. A stale-read guard rejected the first expectation
+patch, so the next invocation retained the same failure. Both logs remain. After a
+fresh read, only that state-key expectation changed; raw-output safety and preview
+byte assertions stayed intact, and diagnostics passed18/0.
+
+Review-aa found no actionable P0/P1/P2 on7c7fbf5 and confirmed all three previous
+corrections. Its attempted focused test/output command was denied before execution,
+never retried or counted passing. Returned-summary SHA-256
+`7eb63644fcccb35b63ba60940b1bf0feb2334d1861852af55965ebcb00dbaac5`;
+separate faithful reconstruction `93b83f88d3fede87e219638bd8cecc989f15342e6686acced10d5da97da8ecbd`.
+The unpersisted original digest is unverified; reconstruction is not byte-identical recovery.
+
+Verifier-aa's completed report was recovered from disk after an empty delegated return:
+**29pass/1fail/2publication-only not runnable**. AC-32 fails on AA-2; AA-1 is an additional
+blocking security defect, not an invented failure in unrelated frozen AC wording.
+Original JSON SHA-256 `7207ec30b66f52e23b011daec81555f77e503f6e0ac4cd2396df863f160f3886`;
+sidecar `a810c4eac9f15df6e2d7719abaaa21a31b25cef9cce4f1da2094715f794ee1ce`.
+AC-20/27 product executions completed; their current-revision seed/path/expected negative
+failure, ten fresh719/0 no-retry runs, raw hashes and native/CI timing links were subsequently
+[published as supporting evidence](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6700843747).
+The implementer does not rewrite or promote the independent result.
+
+Recorder metadata escaped-regex/newline errors were normalized from intact raw logs
+without test reruns. Three initial independent-probe failures were verifier oracle
+errors, retained beside a distinct9/0 v2 fixture. Initial raw-job log reads refused
+escape sequences; separate permitted raw reads preserved bytes without CI/test retries.
+Original reports and pre-findings reports remain separate and immutable.
+
+Actual phase2 readiness still needs genuine exact-revision app-authored code/security
+and distinct-verifier attestations. Local reports, sidecars, supporting publications,
+READY UI and synthetic ready fixtures cannot replace them. The owner-requested READY
+state stays unchanged. Frozen acceptance/spec/amendment/lock/dependencies, workflows,
+version, settings and release boundaries remain unchanged; the correction needs a fresh
+exact-provider-merge independent and hosted cycle.
+
+## Prior hosted and independent assessment on0d1a191
 
 CI42319926566 succeeded00:49:53Z on provider mergef2b82b2 (head0d1a191,
 base3fb78e1; tree8ec9c41 equals head). Hosted reviewer42319927480 finished

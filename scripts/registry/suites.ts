@@ -15,6 +15,8 @@ export const testSuites = {
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
     'src/domain/redact.test.ts',
+    'src/infrastructure/cli/terminal-text.test.ts',
+    'src/infrastructure/cli/renderer.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'e2e/framework/contracts/redaction-tail.test.ts',
     'e2e/framework/contracts/lifecycle.test.ts',

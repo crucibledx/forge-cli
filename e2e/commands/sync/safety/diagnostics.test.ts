@@ -12,6 +12,52 @@ import {testEnvironment} from '../../../../scripts/test-sandbox'
 import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
+it.each(
+  ['osc52', 'osc-title', 'erase-screen', 'c1-osc'].flatMap((kind) => [false, true].map((preview) => ({kind, preview}))),
+)(
+  'AC-15,30 retained state path controls are inert in actual raw output: $kind, preview=$preview',
+  async ({kind, preview}) => {
+    const root = dir(),
+      source = join(root, 'empty-upstream')
+    await mkdir(source)
+    await config(root, [{name: 'empty', type: 'local', path: source}], {keep_local: true})
+    const controls: Record<string, string> = {
+      osc52: '\x1b]52;c;YXR0YWNrZXI=\x07',
+      'osc-title': '\x1b]0;untrusted-title\x1b\\',
+      'erase-screen': '\x1b[2J',
+      'c1-osc': '\x9d52;c;YXR0YWNrZXI=\x9c',
+    }
+    const path = 'unknown/visible-é' + controls[kind] + '.md'
+    const statePath = join(root, '.crucible/sync-state.json')
+    const original = JSON.stringify({
+      version: 2,
+      lastSync: '2026-11-07T00:00:00.000Z',
+      files: {[path]: {hash: '0'.repeat(64), sourceName: 'empty', baseline: 'installed'}},
+    })
+    await writeFile(statePath, original)
+    const configPath = join(root, '.crucible/forge.config.yaml'),
+      beforeConfig = await readFile(configPath, 'utf8')
+    let raw = ''
+    const result = await runPipe(root, [process.execPath, CLI_ENTRY, 'sync', ...(preview ? ['--dry-run'] : [])], {
+      inspectRaw: (stdout, stderr) => {
+        raw = stdout + stderr
+      },
+    })
+    expect(result.exitCode).toBe(0)
+    expect(raw).toContain('Retaining tracked path')
+    expect(raw).toContain('unknown/visible-é')
+    expect(raw.includes(controls[kind])).toBe(false)
+    expect(raw).toContain(kind === 'c1-osc' ? '\\u009d' : '\\u001b')
+    const after = await readFile(statePath, 'utf8')
+    const retainedPath = preview ? path : path.replaceAll('\\', '/')
+    expect(Object.keys(JSON.parse(after).files)).toEqual([retainedPath])
+    expect(JSON.parse(after).files[retainedPath]).toEqual(JSON.parse(original).files[path])
+    if (preview) {
+      expect(after).toBe(original)
+      expect(await readFile(configPath, 'utf8')).toBe(beforeConfig)
+    }
+  },
+)
 it.each([
   'https://user:X_PERSISTED_PRIVATE',
   'https://X_PERSISTED_PRIVATE',
