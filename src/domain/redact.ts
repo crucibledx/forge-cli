@@ -27,10 +27,12 @@ function assignmentKey(name: string) {
     .replace(/\\(["'\\/])/g, '$1')
 }
 
+function credentialName(name: string): string {
+  return name.replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16))).toLowerCase()
+}
+
 function credentialQueryKey(name: string, complete = true): boolean {
-  const decoded = name
-    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
-    .toLowerCase()
+  const decoded = credentialName(name)
   // Azure SAS uses this short alias; matching it as a fragment would hide "design".
   return (complete && decoded === 'sig') || queryKeys.some((key) => decoded.includes(key))
 }
@@ -205,9 +207,7 @@ function quotedKeyContext(text: string) {
       : undefined
   const name = text.slice(start)
   const encoding = finalMatch(name, /\\(?:u[a-f\d]{0,3})?$/i)?.[0] ?? finalMatch(name, /%[a-f\d]?$/i)?.[0] ?? ''
-  const decoded = assignmentKey(encoding ? name.slice(0, -encoding.length) : name)
-    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
-    .toLowerCase()
+  const decoded = credentialName(assignmentKey(encoding ? name.slice(0, -encoding.length) : name))
   if (credentialQueryKey(decoded, false)) return {syntax: quote + 'secret', index: start - 1}
   let partial = ''
   for (const key of queryKeys)
@@ -219,10 +219,11 @@ function quotedKeyContext(text: string) {
   return {syntax: quote + (decoded.length > partial.length ? 'q' : '') + partial + encoding, index: start - 1}
 }
 
-function lastMarkerSuffix(text: string, marker: RegExp, accept = (_match: RegExpExecArray) => true): string {
-  marker.lastIndex = 0
+function lastCredentialQuerySuffix(text: string): string {
+  queryStart.lastIndex = 0
   let start = -1
-  for (let match = marker.exec(text); match; match = marker.exec(text)) if (accept(match)) start = match.index
+  for (let match = queryStart.exec(text); match; match = queryStart.exec(text))
+    if (credentialQueryKey(match[1])) start = match.index
   return start < 0 ? '' : text.slice(start)
 }
 
@@ -258,13 +259,15 @@ export interface RedactionSegment {
   visible: number
   length: number
 }
+export const REDACTION_VIEWS = {RAW: 'raw', VISIBLE: 'visible'} as const
+export type RedactionView = (typeof REDACTION_VIEWS)[keyof typeof REDACTION_VIEWS]
 
 /** Project ordered spans through monotonic UTF-16 segments, accounting for independent view eviction. */
 export function projectRedactionSpans(
   spans: readonly RedactionSpan[],
   segments: readonly RedactionSegment[],
-  from: 'raw' | 'visible',
-  to: 'raw' | 'visible',
+  from: RedactionView,
+  to: RedactionView,
   offsets = {raw: 0, visible: 0},
 ): RedactionSpan[] {
   const projected: RedactionSpan[] = []
@@ -518,13 +521,7 @@ export function redactionContext(discarded: string): string[] {
         : 0
     contexts.add((indent ? valueContext({indent, kind: 'k', column: null}) : '') + syntax)
   }
-  if (
-    finalMatch(
-      lastMarkerSuffix(discarded, queryStart, (match) => credentialQueryKey(match[1])),
-      /^[?&#][^?&#=\s]+=[^&#\s]*$/,
-    )
-  )
-    contexts.add('?token=x')
+  if (finalMatch(lastCredentialQuerySuffix(discarded), /^[?&#][^?&#=\s]+=[^&#\s]*$/)) contexts.add('?token=x')
   const queryName = unfinishedQueryName(discarded)
   const pendingQuery = queryName ? finalMatch(discarded, /[?&#]([^?&#=\s]*)$/)?.index : undefined
   if (queryName) contexts.add(queryName)
@@ -559,9 +556,7 @@ export function redactionContext(discarded: string): string[] {
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
   const encoding = finalMatch(discarded, /%[a-f\d]?$/i)?.[0] ?? ''
-  const lower = (encoding ? discarded.slice(0, -encoding.length) : discarded)
-    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
-    .toLowerCase()
+  const lower = credentialName(encoding ? discarded.slice(0, -encoding.length) : discarded)
   for (const marker of [
     'Bearer',
     'Basic',

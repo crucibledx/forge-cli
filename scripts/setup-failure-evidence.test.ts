@@ -28,6 +28,7 @@ async function withoutDependencies(name: string) {
     'scripts/validation-identity.ts',
     'scripts/validation-lanes.ts',
     'scripts/validation-evidence.ts',
+    'src/domain/portable-path.ts',
     'src/infrastructure/fs/confinement.ts',
   ]) {
     await mkdir(dirname(join(root, file)), {recursive: true})

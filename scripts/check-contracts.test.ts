@@ -148,8 +148,8 @@ it.each(['missing-suite-path', 'unmapped-suite-file', 'uncovered-native-ac', 'un
     const input = {...original, suites: structuredClone(original.suites), lanes: structuredClone(original.lanes)}
     if (kind === 'missing-suite-path') input.suites.security = ['does-not-exist.test.ts']
     if (kind === 'unmapped-suite-file') input.suites.security = [...input.suites.security, 'e2e/commands/help.test.ts']
-    if (kind === 'uncovered-native-ac') input.lanes.find((lane) => lane.id === 'native-windows')!.ac_ids.push('AC-32')
-    if (kind === 'uncovered-security-ac') input.lanes.find((lane) => lane.id === 'security')!.ac_ids.push('AC-32')
+    if (kind === 'uncovered-native-ac') input.lanes.find((lane) => lane.id === 'native-windows')!.ac_ids.push('AC-28')
+    if (kind === 'uncovered-security-ac') input.lanes.find((lane) => lane.id === 'security')!.ac_ids.push('AC-28')
     expect(validateContracts(input).length).toBeGreaterThan(0)
   },
 )

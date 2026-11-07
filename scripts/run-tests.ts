@@ -47,6 +47,7 @@ export async function runTests(args: string[]): Promise<number> {
       const child = Bun.spawn(
         [
           process.execPath,
+          '--no-env-file',
           'test',
           '--preload',
           resolve(import.meta.dir, 'test-preload.ts'),

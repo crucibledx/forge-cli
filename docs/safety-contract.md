@@ -73,6 +73,9 @@ fixtures. Local macOS passes or safe refusal do not establish Windows acceptance
 
 Use exact Bun `.bun-version` and `bun install --frozen-lockfile`. Full tests remain `bun run test`, always through
 the disposable launcher. Focused: `bun run scripts/run-tests.ts -- <paths...>`. Never run raw `bun test`.
+The launcher and validation executor disable Bun dotenv autoload before imports. Their isolated environment also
+disables it for nested Bun package scripts; operator `BUN_OPTIONS` are not inherited. Explicit fixture preloads retain
+this protection. Identity probes stop Git discovery at the disposable parent, including temp roots inside a checkout.
 Default session deadline is 10 seconds with a 20-second test budget; 30-second sessions need
 `--timeout-ms 40000` before `--`. PTY text is a transcript, not a reconstructed screen.
 Full/checker/platform entrypoints allow40 seconds for the30-second native compiler probe, without extending
@@ -138,6 +141,9 @@ cannot redirect a write. This is additional evidence security, not an extension 
 Readiness selects that boundary from the input bundle's directory, not the report's parent. Its default report
 is `readiness.json` in that selected directory. Previous-report reads and stale cleanup use the same boundary;
 cleanup revalidates after asynchronous provider work. A selected-root alias is supported, links beneath it are not.
+Input/output equality uses the same portable case/NFC/expanding-case identity as other ownership comparisons.
+Existing files also compare exact device/inode identities, covering hardlinks and native short-name aliases.
+Both evidence CLIs reject source aliases before reading stale output or permitting cleanup, preserving the input bytes.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 

@@ -1,5 +1,5 @@
 import {createAnsiText} from '../../src/domain/ansi-text'
-import type {RedactionSegment, RedactionSpan} from '../../src/domain/redact'
+import type {RedactionSegment, RedactionSpan, RedactionView} from '../../src/domain/redact'
 import {
   diagnosticAuthoritySpans,
   maskRedactionSpans,
@@ -205,7 +205,7 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     else segments.push({raw: rawEnd + start, visible: visibleEnd, length: end - start})
     visibleEnd += end - start
   })
-  function project(spansToProject: RedactionSpan[], from: 'raw' | 'visible', to: 'raw' | 'visible') {
+  function project(spansToProject: RedactionSpan[], from: RedactionView, to: RedactionView) {
     return projectRedactionSpans(spansToProject, segments, from, to, {raw: raw.offset, visible: visible.offset})
   }
   function add(text: string) {
