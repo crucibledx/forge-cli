@@ -70,9 +70,12 @@ describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', 
     'fails %s without waiting for a prompt or changing protected data',
     async (kind) => {
       if (kind === 'malformed') await writeConfig(dir(), 'version: [invalid\n')
+      if (kind === 'invalid-option')
+        await setupLocalSync(dir(), ['claude-code'], {skills: {'agent.md': '# Agent fixture\n'}})
       const before = await snapshot(dir())
       const result = await command(kind === 'invalid-option' ? ['sync', '--not-a-forge-option'] : ['sync'])
       outcome(result, 1)
+      if (kind === 'invalid-option') expect(result.stderr).toContain("unknown option '--not-a-forge-option'")
       expect(result.stdout + result.stderr).not.toContain('Select assistants')
       expect(await snapshot(dir())).toEqual(before)
       expect(existsSync(join(dir(), '.crucible/sync-state.json'))).toBe(false)

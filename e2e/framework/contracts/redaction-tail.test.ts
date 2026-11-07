@@ -13,6 +13,28 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each([
+  {prefix: '"api_keys":', suffix: '\n- PENDING_PRIVATE_Q'},
+  {prefix: "'api_keys':", suffix: '\n- PENDING_PRIVATE_Q'},
+  {prefix: '  "api_keys":', suffix: '\n  - PENDING_PRIVATE_Q'},
+  {prefix: 'password: Bearer PREFIX', suffix: '\n  PENDING_PRIVATE_Q'},
+  {prefix: 'password: Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
+  {prefix: 'client_secret: Bearer PREFIX', suffix: ' PENDING_PRIVATE_Q'},
+  {prefix: 'client_secret=\n  Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
+  ...['sig', '%73ig', 'SIG', '%73%69%67'].map((prefix) => ({prefix, suffix: ': PENDING_PRIVATE_Q'})),
+])('AC-15,16,30 pending credential syntax survives whitespace eviction: $prefix', ({prefix, suffix}) => {
+  const transcript = createTranscript()
+  transcript.append(Buffer.from(prefix + ' '.repeat(TAIL_BYTES + 1)))
+  transcript.append(Buffer.from(suffix + '\nvisible=PENDING_PUBLIC_Q'))
+  for (const finish of [false, true]) {
+    if (finish) transcript.finish()
+    for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+      expect(output).not.toContain('PENDING_PRIVATE_Q')
+      expect(output).toContain('visible=PENDING_PUBLIC_Q')
+      expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+  }
+})
 it('AC-15,16,18,30 repeated whitespace evictions remain bounded and retain credential/public boundaries', async () => {
   const program = `
     import {createTranscript, TAIL_BYTES} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))}

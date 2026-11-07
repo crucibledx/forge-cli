@@ -29,6 +29,15 @@ it.each([
   'api_keys:\r\n- MULTI_FIRST_Q\r\n-\r\n  MULTI_SECOND_Q',
   'root:\n  api_keys:\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
   '- api_keys:\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
+  '"api_keys":\n- MULTI_FIRST_Q\n- MULTI_SECOND_Q',
+  "'api_keys':\n- MULTI_FIRST_Q\n- MULTI_SECOND_Q",
+  'root:\n  "api_keys":\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
+  'password: Bearer MULTI_FIRST_Q\n  MULTI_SECOND_Q',
+  'password: Basic MULTI_FIRST_Q:MULTI_SECOND_Q',
+  'client_secret: Bearer MULTI_FIRST_Q MULTI_SECOND_Q',
+  'client_secret=\n  Basic MULTI_FIRST_Q:MULTI_SECOND_Q',
+  'sig : MULTI_FIRST_Q MULTI_SECOND_Q',
+  '%73ig : MULTI_FIRST_Q MULTI_SECOND_Q',
 ])('AC-15,30 complete scalar credentials remain private at every context cut: %j', (value) => {
   const input = `${value}\nvisible=yes\n`
   for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {

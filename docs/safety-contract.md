@@ -95,6 +95,9 @@ quoted/escaped values, quoted JSON keys, and complete YAML plain, literal and fo
 multiword and indented continuation lines and doubled single quotes. Generic inline `key=value` diagnostics
 retain their token boundary; indented values after a newline are private through their complete scalar body.
 Streaming continuation retains bounded phase/indent counters and quote syntax, never discarded scalar words.
+Quoted-key continuation retains scalar mode independently, including indentless private sequences.
+Basic/Bearer recognition does not narrow an established complete scalar boundary. Whitespace completes exact
+short aliases before a delayed delimiter; unfinished names such as `sig` remain eligible to become public `signal`.
 Repeated whitespace eviction keeps one complete current-line indentation origin per pending key syntax,
 not every suffix column. Independent watchdogs still verify flood completion and later private/public boundaries.
 An empty assignment does not hide the next unindented public diagnostic. Dedented public lines remain visible
