@@ -13,7 +13,6 @@ Thumbs.db
 
 # Bun
 bun.lockb
-bun.lock
 *.bun-build
 
 # Local config (personal overrides, not committed)
@@ -26,3 +25,4 @@ bun.lock
 # Logs
 logs/
 *.log
+results/

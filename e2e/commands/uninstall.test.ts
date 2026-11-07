@@ -8,6 +8,7 @@ import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
 
+import {hashContent} from '@domain/sync/state'
 import {buildConfigYaml, writeConfig} from '@e2e/fixtures'
 import {
   crucibleDirPath,
@@ -65,7 +66,7 @@ describe('forge uninstall', () => {
         stateFile,
         JSON.stringify({
           lastSync: '2026-06-18T12:00:00Z',
-          files: {'.claude/rules/deploy.md': {hash: 'abc', sourceName: 'default'}},
+          files: {'.claude/rules/deploy.md': {hash: hashContent('# Deploy'), sourceName: 'default'}},
         }),
       )
 

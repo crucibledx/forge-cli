@@ -1,69 +1,42 @@
-import {join} from 'node:path'
+import {join, resolve} from 'node:path'
 
-import {writeSourceFile} from '@e2e/fixtures/sources'
+import {gitFixtures} from '@e2e/fixtures/git-manifest'
 
-// ─── Git test utilities ──────────────────────────────────────────────────────
+import {runPipe} from './pipe'
 
-async function exec(cwd: string, cmd: string[]): Promise<void> {
-  const proc = Bun.spawn(cmd, {cwd, stdout: 'pipe', stderr: 'pipe'})
-  const code = await proc.exited
-  if (code !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`Command failed: ${cmd.join(' ')}\n${stderr}`)
-  }
+const history = resolve(import.meta.dir, '../fixtures/git-history.bundle')
+function fixtureFor(files: Record<string, string>): string {
+  const fixture = gitFixtures.find(
+    ([, known]) =>
+      Object.keys(files).length === Object.keys(known).length &&
+      Object.entries(known).every(([path, content]) => files[path] === content),
+  )
+  if (!fixture)
+    throw new Error(
+      'Unknown Git fixture. Extend e2e/fixtures/git-manifest.ts and rebuild frozen history using your configured Git identity.',
+    )
+  return fixture[0]
+}
+async function exec(cwd: string, command: string[]): Promise<void> {
+  const result = await runPipe(cwd, command)
+  if (result.exitCode !== 0 || result.timedOut)
+    throw new Error(`Fixture command failed: ${command.join(' ')}\n${result.stderr}`)
 }
 
-/**
- * Creates a local bare git repo with the given files, returns the bare repo path.
- * No network access required — useful for testing git source flows.
- */
+/** Import existing local fixture commits, never author commits or configure identity in tests. */
 export async function createBareRepo(baseDir: string, files: Record<string, string>, branch = 'main'): Promise<string> {
-  const bareDir = join(baseDir, 'repo.git')
-  const workDir = join(baseDir, 'repo-work')
-
-  await exec(baseDir, ['git', 'init', '--bare', bareDir])
-  await exec(baseDir, ['git', 'clone', bareDir, workDir])
-  await exec(workDir, ['git', 'checkout', '-b', branch])
-
-  for (const [path, content] of Object.entries(files)) {
-    await writeSourceFile(workDir, path, content)
-  }
-
-  await exec(workDir, ['git', 'add', '-A'])
-  await exec(workDir, ['git', '-c', 'user.name=test', '-c', 'user.email=test@test.com', 'commit', '-m', 'init'])
-  await exec(workDir, ['git', 'push', 'origin', branch])
-
-  return bareDir
+  const path = join(baseDir, 'repo.git')
+  const fixture = fixtureFor(files)
+  await exec(baseDir, ['git', 'clone', '--bare', '--single-branch', '--branch', fixture, history, path])
+  await exec(baseDir, ['git', '-C', path, 'update-ref', `refs/heads/${branch}`, `refs/heads/${fixture}`])
+  await exec(baseDir, ['git', '-C', path, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`])
+  return path
 }
-
-/**
- * Adds a new branch with different files to an existing bare repo.
- */
 export async function addBranchToBareRepo(
   baseDir: string,
   barePath: string,
   branch: string,
   files: Record<string, string>,
 ): Promise<void> {
-  const workDir = join(baseDir, `repo-work-${branch.replace(/\//g, '-')}`)
-
-  await exec(baseDir, ['git', 'clone', barePath, workDir])
-  await exec(workDir, ['git', 'checkout', '-b', branch])
-
-  for (const [path, content] of Object.entries(files)) {
-    await writeSourceFile(workDir, path, content)
-  }
-
-  await exec(workDir, ['git', 'add', '-A'])
-  await exec(workDir, [
-    'git',
-    '-c',
-    'user.name=test',
-    '-c',
-    'user.email=test@test.com',
-    'commit',
-    '-m',
-    `add ${branch}`,
-  ])
-  await exec(workDir, ['git', 'push', 'origin', branch])
+  await exec(baseDir, ['git', '-C', barePath, 'fetch', history, `refs/heads/${fixtureFor(files)}:refs/heads/${branch}`])
 }

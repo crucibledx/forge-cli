@@ -99,7 +99,7 @@ describe('forge sync — local conflicts', () => {
 
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
-    expect(output).toContain('modified locally and remotely')
+    expect(output).toContain('Local conflict')
   })
 
   it('backup: creates .bak file when remote-wins overwrites', async () => {

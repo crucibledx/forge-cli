@@ -69,7 +69,7 @@ describe('forge source edit', () => {
           .pressEnter()
           // clear pre-filled path and enter new path
           .waitForText(LM.path.message)
-          .write(BACKSPACE.repeat(300) + newDir)
+          .write(BACKSPACE.repeat(oldDir.length) + newDir)
           .pressEnter()
           // decline advanced options
           .waitForText(SPM.options.gate)

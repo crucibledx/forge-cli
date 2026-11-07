@@ -40,6 +40,8 @@ mock.module('@infrastructure/config', () => ({
 }))
 
 mock.module('@infrastructure/cli/prompts', () => ({
+  text: async (opts: {message: string; defaultValue?: string}) =>
+    promptResponses[opts.message] ?? opts.defaultValue ?? '',
   select: async (opts: {message: string}) => {
     const val = promptResponses[opts.message]
     if (Array.isArray(val)) return val.shift() ?? ''

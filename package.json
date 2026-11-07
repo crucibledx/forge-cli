@@ -26,18 +26,33 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile dist/forge && bun run clean",
-    "clean": "find . -maxdepth 1 -name '*.bun-build' -delete",
-    "test:unit": "bun test src/",
-    "test:e2e": "bun test e2e/",
-    "test": "bun test src/ e2e/",
-    "format": "prettier --write src/ e2e/",
-    "format:check": "prettier --check src/ e2e/",
-    "lint": "eslint src/ e2e/",
-    "lint:fix": "eslint src/ e2e/ --fix",
+    "clean": "bun run scripts/clean.ts",
+    "test:unit": "bun run scripts/run-tests.ts --suite unit",
+    "test:e2e": "bun run scripts/run-tests.ts --suite e2e",
+    "test:properties": "bun run scripts/run-tests.ts --suite properties",
+    "test:human": "bun run scripts/run-tests.ts --suite human",
+    "test:agent": "bun run scripts/run-tests.ts --suite agent",
+    "test:security": "bun run scripts/run-tests.ts --suite security",
+    "test:performance": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite performance",
+    "test:platform": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite platform",
+    "test:compiled": "bun run scripts/compiled-smoke.ts",
+    "check:security-audit": "bun run scripts/security-audit.ts",
+    "check:contracts": "bun run scripts/check-contracts.ts",
+    "check:lanes": "bun run scripts/check-lanes.ts",
+    "ci:gate": "bun run scripts/gate.ts",
+    "collect:readiness": "bun run scripts/collect-readiness.ts",
+    "check:readiness": "bun run scripts/check-readiness.ts",
+    "test:checkers": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite checkers",
+    "test:contracts": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite contracts",
+    "test": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite all",
+    "format": "prettier --write src/ e2e/ scripts/",
+    "format:check": "prettier --check src/ e2e/ scripts/",
+    "lint": "eslint src/ e2e/ scripts/",
+    "lint:fix": "eslint src/ e2e/ scripts/ --fix",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clack/prompts": "^1.3.0",
+    "@clack/prompts": "1.3.0",
     "lodash-es": "^4.17.21",
     "strip-ansi": "^7.1.0",
     "commander": "^14.0.3",
@@ -49,7 +64,7 @@
     "zod": "^4.4.3"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.4.2"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",
@@ -58,6 +73,7 @@
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-simple-import-sort": "^13.0.0",
+    "fast-check": "4.4.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1"

@@ -10,7 +10,7 @@ import {STATUS_MESSAGES as M} from './messages'
 export {formatTimeAgo}
 
 function assistantIdForPath(targetPath: string): AssistantId {
-  return resolveAssistantByPath(targetPath)?.id ?? 'claude-code'
+  return resolveAssistantByPath(targetPath)?.id ?? 'unknown'
 }
 
 // ─── Display ─────────────────────────────────────────────────────────────────
@@ -28,8 +28,9 @@ export function displayDrift(summary: DriftSummary): void {
 
   for (const [assistantId, files] of Object.entries(byAssistant)) {
     if (!files) continue
-    const def = getAssistant(assistantId as AssistantId)
-    renderer.render(`${def.name}:`)
+    renderer.render(
+      `${assistantId === 'unknown' ? 'Unknown or ambiguous ownership' : getAssistant(assistantId as AssistantId).name}:`,
+    )
     for (const file of files) {
       renderer.renderDriftFile(file.targetPath, file.status)
     }
@@ -37,6 +38,7 @@ export function displayDrift(summary: DriftSummary): void {
   }
 
   const counts = {
+    legacyUnknown: summary.files.filter((f) => f.status === DRIFT_STATUSES.LEGACY_UNKNOWN).length,
     modified: summary.files.filter((f) => f.status === DRIFT_STATUSES.MODIFIED).length,
     deleted: summary.files.filter((f) => f.status === DRIFT_STATUSES.DELETED).length,
     remoteUpdated: summary.files.filter((f) => f.status === DRIFT_STATUSES.REMOTE_UPDATED).length,
@@ -51,9 +53,14 @@ export function displayDrift(summary: DriftSummary): void {
   if (counts.conflict > 0) renderer.renderWarning(M.summary.conflict(counts.conflict))
   if (counts.deleted > 0) renderer.renderWarning(M.summary.deleted(counts.deleted))
   if (counts.removedFromSource > 0) renderer.renderDim(M.summary.removedFromSource(counts.removedFromSource))
+  if (counts.legacyUnknown > 0)
+    renderer.renderWarning(
+      `${counts.legacyUnknown} file(s): legacy-unknown baseline; previous state does not prove installed bytes.`,
+    )
 
   const hasActionable =
     counts.modified +
+      counts.legacyUnknown +
       counts.deleted +
       counts.remoteUpdated +
       counts.conflict +

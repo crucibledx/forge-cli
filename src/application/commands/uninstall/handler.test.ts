@@ -33,6 +33,7 @@ const track =
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
+const cleanupQueries = {...(await import('../shared/source.cleanup'))}
 mock.module('@infrastructure/cli/prompts', () => ({
   intro: track('intro'),
   outro: track('outro'),
@@ -73,6 +74,7 @@ mock.module('@infrastructure/scheduler', () => ({
 }))
 
 mock.module('../shared/source.cleanup', () => ({
+  ...cleanupQueries,
   deleteSourceFiles: async (_root: string, files: string[]) => {
     deletedFiles = files
     return {cleaned: files.length, errors: 0}

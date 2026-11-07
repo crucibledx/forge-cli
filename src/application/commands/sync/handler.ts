@@ -1,358 +1,316 @@
-import type {AssistantDefinition, AssistantId} from '@domain/assistants'
-import {getAssistant, resolveAssistantByPath} from '@domain/assistants'
+import type {AssistantDefinition} from '@domain/assistants'
+import {getAllAssistants, getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
-import type {LocalConflict} from '@domain/sync/conflict'
-import {CONFLICT_ACTIONS, detectLocalConflict, LocalConflictError, resolveLocalConflict} from '@domain/sync/conflict'
+import {redact} from '@domain/redact'
+import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
-import type {SyncReport} from '@domain/sync/report'
-import {buildSyncReport} from '@domain/sync/report'
+import {CONFIG_PATH, STATE_PATH, validatePathGraph} from '@domain/sync/plan'
+import {reconcileState} from '@domain/sync/reconcile'
 import {resolveTargets} from '@domain/sync/resolver'
 import type {SyncState} from '@domain/sync/state'
-import {buildSyncState} from '@domain/sync/state'
+import {hashContent} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
-import {MUTATION_TYPES, SYNC_FILE_STATUSES} from '@domain/sync/types'
+import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
-import {loadSyncState, writeProjectConfig, writeSyncState} from '@infrastructure/config'
-import {applyMutations, readFileContent, rollbackMutations} from '@infrastructure/fs'
-import type {IOContext} from '@infrastructure/io'
+import {terminalText} from '@infrastructure/cli/terminal-text'
+import {loadSyncState, serializeProjectConfig} from '@infrastructure/config'
+import {createConfinement} from '@infrastructure/fs/confinement'
+import {createFileReader} from '@infrastructure/fs/reader'
+import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
+import {prepareTransaction, TransactionError, transactionIO} from '@infrastructure/fs/transaction'
+import type {IOContext, IOService} from '@infrastructure/io'
 import io from '@infrastructure/io'
-import type {FileLogger} from '@infrastructure/logger'
 import {createFileLogger} from '@infrastructure/logger'
-import {createReportService} from '@infrastructure/report'
+import type {ReportService} from '@infrastructure/report'
 import {loadSourceFiles} from '@infrastructure/source'
 import {setTelemetryContext} from '@infrastructure/telemetry'
 
 import {CommandError} from '../types'
+import {SafetyError} from './errors'
 import {SYNC_MESSAGES as M} from './messages'
+import {persistOutcome} from './outcome'
 import type {SyncCommandAction, SyncOptions} from './types'
 
-export const runSync: SyncCommandAction = async (options) => {
-  if (options.silent) renderer.setSilent(true)
+interface SyncDependencies {
+  io?: IOService
+  reports?: ReportService
+  loadSource?: typeof loadSourceFiles
+  transaction?: TransactionIO
+}
 
+export const runSync: SyncCommandAction = (options) => runSyncWithDependencies(options)
+
+export async function runSyncWithDependencies(
+  options: SyncOptions,
+  dependencies: SyncDependencies = {},
+): Promise<void> {
+  renderer.setSilent(Boolean(options.silent))
+  const started = Date.now()
   const logger = createFileLogger()
-
-  try {
-    const report = await runSyncInner(options, logger)
-    if (report) {
-      const reports = createReportService()
-      await reports.writeReport(report)
-      await reports.rotate()
-    }
-  } finally {
-    if (options.silent) renderer.setSilent(false)
-    await logger.rotate()
-    logger.flush()
-  }
-}
-
-async function runSyncInner(options: SyncOptions, logger: FileLogger): Promise<SyncReport | null> {
-  const startTime = Date.now()
-  const projectRoot = io.resolveProjectRoot()
-  const context = await io.buildContext(projectRoot)
-
-  if (!context.projectConfig) {
-    logger.error('sync aborted: no config found')
-    throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
-  }
-
-  const config = context.projectConfig
-  validateConfig(config, true)
-
-  const assistantIds = config.assistants.filter((a) => a.enabled !== false).map((a) => a.id)
-  const sourceNames = config.sources.map((s) => s.name)
-  logger.info('sync started', {assistants: assistantIds, sources: sourceNames})
-
-  const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
-  const allResolved = await fetchAndResolve(config.sources, assistantDefs)
-
-  if (allResolved.length === 0) {
-    logger.warn('sync finished: no files to sync')
-    renderer.renderWarning(M.warnings.noFilesToSync)
-    return buildSyncReport({
-      startTime,
-      sources: sourceNames,
-      assistants: assistantIds,
-      synced: 0,
-      skipped: 0,
-      conflicts: 0,
-      errors: 0,
-      driftDetails: [],
-      success: true,
+  let config: ProjectConfig | undefined
+  const persist = (success: boolean, summaries: SyncFileSummary[], error?: unknown) =>
+    persistOutcome({
+      dryRun: Boolean(options.dryRun),
+      started,
+      config,
+      reports: dependencies.reports,
+      success,
+      summaries,
+      error,
     })
-  }
-
-  const strategy = config.sync?.source_conflict_strategy ?? SYNC_CONFIG_DEFAULTS.source_conflict_strategy
-
-  let resolved: ResolvedTarget[]
   try {
-    resolved = resolveSourceConflicts(allResolved, strategy)
-  } catch (err) {
-    if (err instanceof SourceConflictError) {
-      logger.error('sync aborted: source conflicts', {count: err.conflicts.length})
-      throw new CommandError(M.errors.sourceConflict(err.conflicts.length), err.message)
+    const service = dependencies.io ?? io
+    const boundary = await createConfinement(service.resolveProjectRoot())
+    await boundary.resolve(CONFIG_PATH)
+    await boundary.resolve(STATE_PATH)
+    const context = await service.buildContext(boundary.root)
+    config = context.projectConfig ?? undefined
+    if (!config) throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
+    validateConfig(config, true)
+    const enabled = new Set(config.assistants.filter((assistant) => assistant.enabled).map((assistant) => assistant.id))
+    const definitions = [...enabled].map(getAssistant)
+    logger.info('sync acquisition started', {
+      sources: config.sources.map((source) => source.name),
+      assistants: [...enabled],
+    })
+    const acquired = await fetchAndResolve(config.sources, definitions, dependencies.loadSource)
+    const syncConfig = {...SYNC_CONFIG_DEFAULTS, ...config.sync}
+    let resolved: ResolvedTarget[]
+    try {
+      resolved = resolveSourceConflicts(acquired, syncConfig.source_conflict_strategy)
+    } catch (error) {
+      if (error instanceof SourceConflictError) throw new SafetyError(error.message, error.conflicts.length)
+      throw error
     }
-    throw err
-  }
-
-  logger.debug('targets resolved', {count: resolved.length})
-
-  const syncState = await loadSyncState(projectRoot)
-  const syncConfig: SyncConfig = {...SYNC_CONFIG_DEFAULTS, ...config.sync}
-
-  let planResult: {summaries: SyncFileSummary[]; mutations: Mutation[]}
-  try {
-    planResult = await buildPlan(projectRoot, resolved, syncState, syncConfig)
-  } catch (err) {
-    if (err instanceof LocalConflictError) {
-      logger.error('sync aborted: local conflicts', {count: err.conflicts.length})
-      throw new CommandError(M.errors.localConflict(err.conflicts.length), err.message)
+    const state = await loadSyncState(boundary.root)
+    const {summaries, mutations, warnings} = await buildPlan(boundary.root, resolved, state, syncConfig, enabled)
+    warnings.forEach(renderer.renderWarning)
+    displayPlan(summaries, config.sources, syncConfig, options.dryRun)
+    const next = reconcileState(state, resolved, summaries, new Date().toISOString())
+    // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
+    const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
+    if (options.dryRun) return
+    await commitPrepared(prepared)
+    const synced = summaries.filter(
+      (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,
+    ).length
+    setTelemetryContext({file_count: synced})
+    renderer.renderSuccess(M.output.done(synced, config.sources.map((source) => source.name).join(', ')))
+    renderer.renderDim(M.output.lastSync(next.lastSync))
+    await persist(true, summaries)
+  } catch (error) {
+    process.exitCode = 1
+    setTelemetryContext({success: false})
+    const message = redact(error instanceof Error ? error.message : String(error))
+    logger.error('sync failed', {error: message})
+    renderer.renderError(
+      message,
+      error instanceof CommandError
+        ? error.suggestion
+        : 'Correct the source/path, then retry a dry-run. No partial sync is permitted.',
+    )
+    await persist(false, [], error)
+  } finally {
+    try {
+      await logger.rotate()
+      logger.flush()
+    } catch {
+      renderer.renderWarning('File logging unavailable; sync outcome is unchanged.')
     }
-    throw err
+    renderer.setSilent(false)
   }
-
-  const {summaries, mutations} = planResult
-
-  displayPlan(summaries, config.sources, syncConfig, options.dryRun)
-
-  if (options.dryRun) {
-    logger.info('sync dry-run completed', {files: summaries.length})
-    return null
-  }
-
-  await executePlan(projectRoot, mutations, resolved, context)
-  setTelemetryContext({file_count: mutations.length})
-  logger.info('sync completed', {files: summaries.length, mutations: mutations.length})
-
-  return buildSyncReport({
-    startTime,
-    sources: sourceNames,
-    assistants: assistantIds,
-    synced: countByStatus(summaries, SYNC_FILE_STATUSES.NEW, SYNC_FILE_STATUSES.UPDATE, SYNC_FILE_STATUSES.DELETED),
-    skipped: countByStatus(summaries, SYNC_FILE_STATUSES.NO_CHANGE),
-    conflicts: countByStatus(summaries, SYNC_FILE_STATUSES.SKIPPED),
-    errors: countByStatus(summaries, SYNC_FILE_STATUSES.ERROR),
-    driftDetails: [],
-    success: true,
-  })
-}
-
-function countByStatus(summaries: SyncFileSummary[], ...statuses: string[]): number {
-  return summaries.filter((s) => statuses.includes(s.status)).length
 }
 
 export function validateConfig(config: ProjectConfig, configExists = false): void {
-  if (config.sources.length === 0) {
+  if (!config.sources.length)
     throw new CommandError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
-  }
-
-  if (config.assistants?.every((a) => !a.enabled)) {
+  if (!config.assistants.some((assistant) => assistant.enabled))
     throw new CommandError(M.errors.noAssistants, M.errors.noAssistantsHint)
-  }
 }
 
 export async function fetchAndResolve(
   sources: Source[],
-  assistantDefs: AssistantDefinition[],
+  definitions: AssistantDefinition[],
+  load = loadSourceFiles,
 ): Promise<ResolvedTarget[]> {
-  const fetchResults = await Promise.allSettled(
-    sources.map(async (source) => {
-      const sourceFiles = await loadSourceFiles(source)
-      return {source, sourceFiles}
-    }),
+  const outcomes = await Promise.allSettled(
+    sources.map(async (source) => resolveTargets(await load(source), definitions, source.name, source.layout)),
   )
-
-  const allResolved: ResolvedTarget[] = []
-
+  const resolved: ResolvedTarget[] = []
+  const errors: string[] = []
   for (let i = 0; i < sources.length; i++) {
-    const result = fetchResults[i]
-    const source = sources[i]
-
-    renderer.renderNewline()
-    renderer.renderInfo(M.progress.syncingSource(source.name))
-
-    if (result.status === 'rejected') {
-      const error = result.reason instanceof Error ? result.reason.message : String(result.reason)
-      renderer.renderError(M.errors.sourceFetchFailed(source.name, error))
-      continue
+    const outcome = outcomes[i]
+    const name = sources[i].name
+    renderer.renderInfo(M.progress.syncingSource(name))
+    if (outcome.status === 'rejected') {
+      const message = M.errors.sourceFetchFailed(
+        name,
+        redact(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)),
+      )
+      renderer.renderError(message)
+      errors.push(message)
+    } else {
+      renderer.renderDim(`Acquired "${name}": ${outcome.value.length} resolved targets (not yet installed).`)
+      resolved.push(...outcome.value)
     }
-
-    const {sourceFiles} = result.value
-
-    if (sourceFiles.length === 0) {
-      renderer.renderWarning(M.warnings.noFilesInSource(source.name))
-      continue
-    }
-
-    const resolved = resolveTargets(sourceFiles, assistantDefs, source.name, source.layout)
-
-    if (resolved.length === 0) {
-      renderer.renderWarning(M.warnings.noTargetsFromSource(source.name))
-      continue
-    }
-
-    allResolved.push(...resolved)
   }
-
-  return allResolved
+  if (errors.length)
+    throw new SafetyError(`Source acquisition failed; no protected data changed:\n${errors.join('\n')}`, errors.length)
+  return resolved
 }
 
 export async function buildPlan(
-  projectRoot: string,
-  resolved: ResolvedTarget[],
-  syncState: SyncState,
-  syncConfig: SyncConfig,
-): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]}> {
+  root: string,
+  targets: ResolvedTarget[],
+  state: SyncState,
+  config: SyncConfig,
+  enabled = new Set(getAllAssistants().map((assistant) => assistant.id)),
+): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]; warnings: string[]}> {
   const summaries: SyncFileSummary[] = []
   const mutations: Mutation[] = []
-  const conflicts: LocalConflict[] = []
-
-  for (const target of resolved) {
+  const warnings: string[] = []
+  const errors: string[] = []
+  const backups: string[] = []
+  const read = await createFileReader(root)
+  const selected = targets.filter((target) => enabled.has(target.assistantId))
+  const paths = selected.map((target) => target.targetPath)
+  const desired = new Set(paths)
+  const graph = [...paths, ...Object.keys(state.files).filter((path) => !desired.has(path)), STATE_PATH, CONFIG_PATH]
+  // Validate desired/state/metadata aliases before planning can read any candidate.
+  validatePathGraph(graph)
+  const active = selected.filter((target) => {
+    const owner = resolveAssistantByPath(target.targetPath)
+    if (owner?.id === target.assistantId && enabled.has(owner.id)) return true
+    warnings.push(`Retaining target with disabled, unknown, ambiguous or mismatched ownership: ${target.targetPath}`)
+    return false
+  })
+  const backup = async (path: string, content: Buffer) => {
+    const backupPath = `${path}.bak`
+    backups.push(backupPath)
+    const existing = await read(backupPath)
+    if (existing !== null && !existing.equals(content))
+      throw new Error(`Different backup already exists: ${backupPath}; preserve or move it before retrying`)
+    const text = content.toString('utf8')
+    if (existing === null)
+      mutations.push({
+        type: MT.FILE_WRITE,
+        path: backupPath,
+        content: Buffer.from(text).equals(content) ? text : content,
+        backup: true,
+      })
+  }
+  const policy = (path: string) => {
+    if (config.local_conflict_strategy === 'error') throw new Error(`Local conflict: ${path}`)
+    return config.local_conflict_strategy === 'local-wins' ? S.SKIPPED : S.UPDATE
+  }
+  for (const target of active) {
     try {
-      await processTarget(target)
-    } catch (err) {
+      const existing = await read(target.targetPath)
+      const equal = existing !== null && existing.equals(Buffer.from(target.content))
+      let status: SyncFileSummary['status'] = existing === null ? S.NEW : equal ? S.NO_CHANGE : S.UPDATE
+      if (existing !== null && !equal) {
+        if (detectLocalConflict(target.targetPath, existing, target.content, state)) status = policy(target.targetPath)
+        if (status === S.UPDATE && config.backup) await backup(target.targetPath, existing)
+      }
       summaries.push({
         targetPath: target.targetPath,
         sourcePath: target.sourcePath,
         assistantId: target.assistantId,
-        status: SYNC_FILE_STATUSES.ERROR,
-        error: err instanceof Error ? err.message : String(err),
+        status,
       })
+      if (status === S.NEW || status === S.UPDATE)
+        mutations.push({type: MT.FILE_WRITE, path: target.targetPath, content: target.content})
+    } catch (error) {
+      errors.push(`${target.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-
-  if (!syncConfig.keep_local) {
-    const resolvedPaths = new Set(resolved.map((r) => r.targetPath))
-    for (const targetPath of Object.keys(syncState.files)) {
-      if (!resolvedPaths.has(targetPath)) {
-        const assistantId = resolveAssistantByPath(targetPath)?.id ?? 'unknown'
-        mutations.push({type: MUTATION_TYPES.FILE_DELETE, path: targetPath})
-        summaries.push({
-          targetPath,
-          sourcePath: '',
-          assistantId,
-          status: SYNC_FILE_STATUSES.DELETED,
-        })
+  for (const [path, entry] of Object.entries(state.files)) {
+    if (desired.has(path)) continue
+    const owner = resolveAssistantByPath(path)
+    if (!owner || !enabled.has(owner.id)) {
+      warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
+      continue
+    }
+    if (config.keep_local) continue
+    try {
+      const existing = await read(path)
+      const changed = existing !== null && (entry.baseline !== 'installed' || hashContent(existing) !== entry.hash)
+      const skip = changed && policy(path) === S.SKIPPED
+      if (!skip) {
+        if (changed && config.backup) await backup(path, existing!)
+        mutations.push({type: MT.FILE_DELETE, path})
       }
+      summaries.push({targetPath: path, sourcePath: '', assistantId: owner.id, status: skip ? S.SKIPPED : S.DELETED})
+    } catch (error) {
+      errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+  // Recheck after generated backups exist: the first graph cannot detect .bak collisions.
+  validatePathGraph([...graph, ...backups])
+  if (errors.length)
+    throw new SafetyError(`Planning failed; no protected data changed:\n${errors.join('\n')}`, errors.length)
+  return {summaries, mutations, warnings}
+}
 
-  if (conflicts.length > 0) {
-    throw new LocalConflictError(conflicts)
-  }
-
-  return {summaries, mutations}
-
-  function classifyExisting(target: ResolvedTarget, existing: string): SyncFileSummary['status'] | 'conflict' {
-    if (existing === target.content) return SYNC_FILE_STATUSES.NO_CHANGE
-
-    const conflict = detectLocalConflict(target.targetPath, existing, target.content, syncState)
-    if (!conflict) return SYNC_FILE_STATUSES.UPDATE
-
-    const {action} = resolveLocalConflict(syncConfig.local_conflict_strategy)
-
-    if (action === CONFLICT_ACTIONS.SKIP) return SYNC_FILE_STATUSES.SKIPPED
-    if (action === CONFLICT_ACTIONS.ERROR) {
-      conflicts.push(conflict)
-      return 'conflict'
-    }
-
-    if (syncConfig.backup) {
-      mutations.push({type: MUTATION_TYPES.FILE_WRITE, path: `${target.targetPath}.bak`, content: existing})
-    }
-    return SYNC_FILE_STATUSES.UPDATE
-  }
-
-  async function processTarget(target: ResolvedTarget) {
-    const existing = await readFileContent(projectRoot, target.targetPath)
-    let status: SyncFileSummary['status'] = SYNC_FILE_STATUSES.NEW
-
-    if (existing !== null) {
-      const result = classifyExisting(target, existing)
-      if (result === 'conflict') return
-      status = result
-    }
-
-    summaries.push({
-      targetPath: target.targetPath,
-      sourcePath: target.sourcePath,
-      assistantId: target.assistantId,
-      status,
+function operationsFor(mutations: Mutation[], next: SyncState, context: IOContext): FileOperation[] {
+  const operations: FileOperation[] = mutations.map((mutation) => {
+    if (mutation.type === MT.FILE_WRITE)
+      return {
+        path: mutation.path,
+        content: mutation.content,
+        backup: mutation.backup === true,
+        private: mutation.backup === true,
+      }
+    if (mutation.type === MT.FILE_DELETE) return {path: mutation.path, content: null}
+    throw new Error(`Unsupported sync operation: ${mutation.type}`)
+  })
+  // Commit targets/backups, then state, then config; compensation must reverse this metadata boundary.
+  operations.push({path: STATE_PATH, content: JSON.stringify(next, null, 2) + '\n', private: true})
+  if (context.projectConfig)
+    operations.push({
+      path: CONFIG_PATH,
+      content: serializeProjectConfig({...context.projectConfig, lastSync: next.lastSync}),
+      private: true,
     })
+  return operations
+}
 
-    if (status !== SYNC_FILE_STATUSES.NO_CHANGE && status !== SYNC_FILE_STATUSES.SKIPPED) {
-      mutations.push({type: MUTATION_TYPES.FILE_WRITE, path: target.targetPath, content: target.content})
+export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepareTransaction>>): Promise<void> {
+  try {
+    await prepared.commit()
+  } catch (error) {
+    if (error instanceof TransactionError && error.unrestored.length) {
+      // Presentation suppression must never hide a manual recovery requirement.
+      console.error(
+        `Recovery required; unrestored/untrusted paths: ${error.unrestored.map(terminalText).join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.map(terminalText).join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
+      )
     }
+    throw error
   }
+}
+
+export function prepareSync(
+  root: string,
+  mutations: Mutation[],
+  next: SyncState,
+  context: IOContext,
+  fs = transactionIO,
+) {
+  return prepareTransaction(root, operationsFor(mutations, next, context), fs)
 }
 
 export function displayPlan(
   summaries: SyncFileSummary[],
   sources: Source[],
-  syncConfig: SyncConfig,
+  config: SyncConfig,
   dryRun: boolean,
 ): void {
-  const byAssistant = Object.groupBy(summaries, (item) => item.assistantId)
-  const sourceNames = sources.map((s) => s.name).join(', ')
-
-  if (dryRun) {
-    renderer.renderInfo(M.output.wouldSync(sourceNames))
+  if (dryRun) renderer.renderInfo(M.output.wouldSync(sources.map((source) => source.name).join(', ')))
+  renderer.renderDim(M.output.strategyBanner(config.source_conflict_strategy, config.local_conflict_strategy))
+  for (const [id, files] of Object.entries(Object.groupBy(summaries, (item) => item.assistantId))) {
+    renderer.render(`${id === 'unknown' ? 'Other' : getAssistant(id).name}:`)
+    files?.forEach((file) => renderer.renderSyncFile(file.targetPath, file.status, dryRun))
   }
-
-  renderer.renderDim(M.output.strategyBanner(syncConfig.source_conflict_strategy, syncConfig.local_conflict_strategy))
-  renderer.renderNewline()
-
-  for (const [assistantId, files] of Object.entries(byAssistant)) {
-    if (!files) continue
-    const def = assistantId === 'unknown' ? {name: 'Other'} : getAssistant(assistantId as AssistantId)
-    renderer.render(`${def.name}:`)
-    for (const file of files) {
-      renderer.renderSyncFile(file.targetPath, file.status, dryRun)
-    }
-    renderer.renderNewline()
-  }
-
-  const errorCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.ERROR).length
-  const deletedCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.DELETED).length
-  const skippedCount = summaries.filter((s) => s.status === SYNC_FILE_STATUSES.SKIPPED).length
-
-  if (errorCount > 0) renderer.renderWarning(M.summary.errors(errorCount))
-  if (deletedCount > 0) renderer.renderWarning(M.summary.deleted(deletedCount))
-  if (skippedCount > 0) renderer.renderInfo(M.summary.skipped(skippedCount))
-
-  if (dryRun) {
-    renderer.renderDim(M.output.dryRunHint)
-  }
-}
-
-export async function executePlan(
-  projectRoot: string,
-  mutations: Mutation[],
-  resolved: ResolvedTarget[],
-  context: IOContext,
-): Promise<void> {
-  const applied = await applyMutations(projectRoot, mutations)
-  const failed = applied.find((a) => !a.success)
-
-  if (failed) {
-    renderer.renderDim(M.progress.rollingBack)
-    await rollbackMutations(projectRoot, applied)
-    renderer.renderDim(M.progress.rollbackComplete)
-    throw new CommandError(M.errors.applyFailed(failed.error ?? 'Unknown error'))
-  }
-
-  const syncState = buildSyncState(resolved)
-  await writeSyncState(projectRoot, syncState)
-
-  if (context.projectConfig) {
-    await writeProjectConfig(projectRoot, {
-      ...context.projectConfig,
-      lastSync: syncState.lastSync,
-    })
-  }
-
-  const sourceNames = context.projectConfig?.sources?.map((s) => s.name).join(', ') ?? ''
-  const changeCount = mutations.length
-  renderer.renderSuccess(M.output.done(changeCount, sourceNames))
-  renderer.renderDim(M.output.lastSync(syncState.lastSync))
+  if (dryRun) renderer.renderDim(M.output.dryRunHint)
 }

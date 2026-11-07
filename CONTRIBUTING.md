@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) v1.1+
+- [Bun](https://bun.sh), exact version in `.bun-version` (currently 1.4.2)
 - Node.js 20+ (for some tooling)
 - Git
 
@@ -13,7 +13,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 ```bash
 git clone https://github.com/crucibledx/forge-cli.git
 cd forge-cli
-bun install
+bun install --frozen-lockfile
 ```
 
 ## Development
@@ -29,10 +29,53 @@ bun run build              # compile to single binary at dist/forge
 bun run test               # all tests (unit + e2e)
 bun run test:unit          # unit tests only (src/)
 bun run test:e2e           # e2e tests only (e2e/)
+bun run test:properties    # four 100-case properties, fixed replay seed
+bun run test:human         # persisted PTY wizard journeys
+bun run test:agent         # closed stdin, separate streams
+bun run test:security      # offline attack/rollback/redaction checks
+bun run check:security-audit # public advisory metadata, 60-second bound
+bun run test:performance   # offline 10/1000-target correctness and advisory timings
+bun run test:platform      # current OS only; native Windows/macOS CI evidence is separate
+bun run check:contracts    # ledger, registry, workflow/toolchain boundaries
+bun run check:lanes -- --out results # all outcomes, at most two active commands
 ```
+
+Named suite membership is maintained in `scripts/registry/suites.ts`; package scripts only select a suite.
+Tests remain co-located under `src/` or in `e2e/`. Security/platform selections intentionally overlap those files.
+`test:platform` adds native OS checks; portable tests and the independent Linux build already validate Linux.
 
 - Unit tests mock at the infrastructure boundary, never at the file level.
 - E2e tests use temp directories and spawn the real CLI.
+- Use the isolated launcher for focused tests:
+  `bun run scripts/run-tests.ts -- e2e/framework/contracts/`.
+  It sets disposable home/temp/cache roots before any test import and replaces scheduler commands with offline fakes.
+  Bun dotenv autoload is disabled before preloads, including nested `bun run` children. Explicit fixture preloads
+  remain supported without restoring repository `.env` credentials. Shared sandbox environments bound Git discovery
+  before the canonical sandbox parent, including commands starting at its root and symlink/junction placements.
+  Explicit `git -C` access to fixture repositories still works without reading the enclosing checkout's config.
+  A canonical sandbox parent containing the native Git path-list delimiter is rejected with cleanup, not passed
+  as an ambiguous ceiling list. Native fixture identity uses unique bytes, not equivalent8.3/full path spelling.
+  Sessions have a 10-second total deadline and a 20-second runner budget. For a 30-second session, select
+  `--timeout-ms 40000` before `--`. PTY output is a transcript, not a terminal screen.
+  Full/checker/platform entrypoints select40 seconds for the bounded native compiler probe; ordinary session
+  deadlines remain10 seconds. Windows compiles the isolated fake scheduler once before test imports. A fixture
+  materializes its independent byte copy when its command environment is requested, never for pure filesystem
+  setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
+- Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
+- `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
+  not a native Windows/macOS substitute. CI runs all ten independent lanes and an always-run `Deterministic gate`;
+  seven-day sanitized artifacts include failures. See [safety and readiness guidance](docs/safety-contract.md).
+- Phase 1 independent checks include `scripts/readiness.test.ts` and need no prior readiness report. Phase 2:
+  `bun run collect:readiness -- --context results/context.json --out results/readiness-input.json`, then
+  `bun run check:readiness -- --input results/readiness-input.json --output results/readiness.json`.
+  Exits are 0 ready for owner review, 1 known failure/unapproved deviation, 2 blocked/invalid evidence.
+  Producers supply structured exact-revision sidecars alongside raw Markdown; implementers cannot infer a verdict.
+  CI artifacts must come from the selected run/attempt. Owner approval is an authenticated exact-hash/revision object.
+  Required branch rules/reviews are configured by the owner only; agents report enforcement evidence or access blockers.
+  Writable local session transcripts and prose-only bot reviews are supporting material, not authenticated approval.
+  The production provider requires the independent app's structured GitHub review on the exact head/tested revision,
+  distinct verifier/review producer IDs, and each check's own selected-run CI log. Missing hosted attestations block
+  readiness even when all tests pass. See the provider requirements in `docs/safety-contract.md`.
 
 ## Before You Submit
 
