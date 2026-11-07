@@ -5,6 +5,33 @@ import type {OutputEntry} from '@domain/protocol/types'
 
 import * as renderer from './renderer'
 
+it('AC-15,30 renderer fields escape untrusted terminal controls before adding trusted presentation', () => {
+  const logs: string[] = []
+  const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
+  const text = 'visible/é\x1b]52;c;fixture\x07\x1b[2J.md'
+  try {
+    renderer.setSilent(false)
+    renderer.renderHeader(text)
+    renderer.renderDetectionResults([{id: 'cursor', name: text, detected: true, evidence: text}])
+    renderer.renderSyncFile(text, 'new', false)
+    renderer.renderDriftFile(text, 'modified')
+    renderer.renderSuccess(text)
+    renderer.renderInfo(text)
+    renderer.renderWarning(text)
+    renderer.renderError(text, text)
+    renderer.renderDim(text)
+    renderer.render(text)
+    renderer.renderOutputEntries([{level: 'warn', message: text, detail: text}])
+  } finally {
+    spy.mockRestore()
+  }
+  const output = logs.join('\n')
+  expect(output).not.toContain('\x1b]52')
+  expect(output).not.toContain('\x07')
+  expect(output).not.toContain('\x1b[2J')
+  expect(output).toContain('visible/é\\u001b]52;c;fixture\\u0007\\u001b[2J.md')
+})
+
 describe('renderHeader', () => {
   it('calls console.log with box-drawing border containing the title', () => {
     const logs: string[] = []

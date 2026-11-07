@@ -151,6 +151,20 @@ The independently operated app must finalize that block with its own review ID/U
 an implementer-posted copy or prose-only bot review is insufficient. Verification requires a different producer ID
 from code/security review. Readiness also checks the live PR head/base/merge rather than accepting stale evidence.
 
+Selecting a passing review ID cannot hide newer independent findings. The provider authenticates the complete
+paginated review history for this head/tested revision, separately per code/security/verifier role. An older
+role verdict is stale; unrelated heads, integrated revisions, actors and roles cannot supersede it. A blocking
+finding persists until a later same-role app-authored review explicitly resolves its ID with that review's
+authenticated URI. Omitting the finding from a newer passing report is not resolution. New authenticated
+blockers retain known-failure exit1, even when later history pages are unavailable; missing/invalid/duplicate/
+oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
+Raw report-byte authentication is separate from current-verdict selection.
+
+Human renderer fields are credential-redacted before escaping terminal control characters, including OSC/CSI,
+C0/C1, bidi controls and line separators. Trusted renderer styling and structural newlines are added afterward.
+Escaping presentation does not rewrite stored paths or user files. Tests inspect actual raw pipe output in
+ordinary sync and preview, not a transcript sanitizer that could hide an emitted clipboard/title control.
+
 This adapter does not make the existing review service emit such an attestation. If the existing independently
 operated review/verifier cannot provide it, readiness stays **blocked**. Normally keep the PR draft; an explicit owner
 request may mark it ready for review to start independent automation, without granting readiness or merge approval.

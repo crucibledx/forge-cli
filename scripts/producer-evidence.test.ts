@@ -53,8 +53,8 @@ it.each(['APPROVED', 'COMMENTED', 'CHANGES_REQUESTED'])(
     review.state = state
     review.body = '```forge-evidence-v1\n' + JSON.stringify(payload) + '\n```'
     const actual = await providerProducer(uri, context, async (_context, endpoint) => {
-      expect(endpoint).toBe('/pulls/99/reviews/777')
-      return review
+      expect(['/pulls/99/reviews/777', '/pulls/99/reviews?per_page=100']).toContain(endpoint)
+      return endpoint.includes('?') ? [review] : review
     })
     expect(actual).toEqual(payload)
   },
@@ -77,7 +77,9 @@ it('AC-32 completed authenticated change requests retain known failure precedenc
     deviation: async () => {},
     producer: async (record) => {
       if (!('role' in record)) return
-      const authenticated = await providerProducer(uri, context, async () => review)
+      const authenticated = await providerProducer(uri, context, async (_context, endpoint) =>
+        endpoint.includes('?') ? [review] : review,
+      )
       expect(authenticated.reviews).toContainEqual(record)
     },
   })

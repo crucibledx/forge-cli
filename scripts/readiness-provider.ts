@@ -15,7 +15,7 @@ import {
   providerJob,
   requiredCIWorkflow,
 } from './github-evidence'
-import {providerProducer} from './producer-evidence'
+import {providerProducer, providerReport} from './producer-evidence'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
@@ -69,9 +69,14 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
 }
 export function readinessProvider(evidenceRoot: string, ports = {githubJSON, archive}): ReadinessProvider {
   const sessions = new Map<string, ReturnType<typeof providerProducer>>()
-  const source = (uri: string, context: EvidenceContext) => {
-    if (!sessions.has(uri)) sessions.set(uri, providerProducer(uri, context, ports.githubJSON))
-    return sessions.get(uri)!
+  const source = (uri: string, context: EvidenceContext, role?: 'code' | 'security' | 'verifier') => {
+    const key = `${uri}/${role ?? 'report'}`
+    if (!sessions.has(key))
+      sessions.set(
+        key,
+        role ? providerProducer(uri, context, ports.githubJSON, role) : providerReport(uri, context, ports.githubJSON),
+      )
+    return sessions.get(key)!
   }
   const runs = new Map<
     string,
@@ -210,7 +215,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         throw new Error('Local artifact differs from authenticated provider bytes')
     },
     async producer(record, context) {
-      const payload = await source(record.provenance.source_uri, context)
+      const payload = await source(record.provenance.source_uri, context, record.provenance.producer_role)
       const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
       if (
         !records.some(

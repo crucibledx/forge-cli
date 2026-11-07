@@ -12,6 +12,7 @@ import type {
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
+import {ProducerBlockers} from './producer-evidence'
 import {repositoryRoot} from './validation-identity'
 import {acceptanceIds, laneById, requiredLaneIds} from './validation-lanes'
 import {assessLane, failedExit} from './validation-policy'
@@ -29,12 +30,18 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
   const bundle = bundleSchema.parse(value),
     context = bundle.context
   const reasons: {kind: ReasonKind; subject: string; message: string}[] = []
+  const currentProducerEvidence = new Set<string>()
   const add = (kind: ReasonKind, subject: string, message: string) => reasons.push({kind, subject, message})
   const authenticate = async (subject: string, action: () => Promise<void>) => {
     try {
       await action()
       return true
     } catch (error) {
+      if (error instanceof ProducerBlockers)
+        for (const finding of error.findings) {
+          add('failure', finding.subject, 'Open blocking finding')
+          currentProducerEvidence.add(finding.source_uri)
+        }
       add('blocked', subject, redact(error instanceof Error ? error.message : String(error)))
       return false
     }
@@ -186,6 +193,7 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     reasons,
     evidence: [
       ...new Set([
+        ...currentProducerEvidence,
         ...bundle.lanes.flatMap((lane) => lane.checks.flatMap((check) => check.evidence)),
         ...bundle.reviews.map((review) => review.provenance.source_uri),
         ...(verifier ? [verifier.provenance.source_uri] : []),
