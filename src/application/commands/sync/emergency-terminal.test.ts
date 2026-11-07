@@ -19,7 +19,7 @@ for (const vector of vectors)
     it.each([false, true])(
       `AC-23 AC-26 emergency ${vector.name} is inert with silent=${silent}, report-failure=%s`,
       async (reportFailure) => {
-        // Real source resolution/planning/transaction and command outcome, with injected filesystem faults.
+        // Application-boundary subprocess: real planning/transaction/outcome with injected filesystem faults.
         // No invalid native filename is created, so Windows exercises the same diagnostic boundary.
         const program = `
           import {handlerFixture} from ${modulePath('src/test-helpers/sync-fixture.ts')};

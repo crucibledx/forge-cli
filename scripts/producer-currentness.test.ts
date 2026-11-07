@@ -87,9 +87,15 @@ it('AC-32 collection preserves combined current roles and rejects duplicate/exce
   await expect(collectProducers([f.selected.uri, f.selected.uri], f.bundle.context, read)).rejects.toThrow('Duplicate')
   await expect(collectProducers(['a', 'b', 'c', 'd'], f.bundle.context, read)).rejects.toThrow('Too many')
 })
-it('AC-32 collection must not skip an invalid or unresolved source as if merely superseded', async () => {
+it('AC-32 collection preserves unresolved authenticated records for aggregation, not invalid payloads', async () => {
   const f = producerFixture()
-  await expect(collectProducers([f.selected.uri, f.resolved.uri], f.bundle.context, f.read())).rejects.toThrow()
+  const imported = await collectProducers([f.selected.uri, f.resolved.uri], f.bundle.context, f.read())
+  expect(imported[0].records).toEqual(f.resolved.payload.reviews)
+  f.bundle.reviews = f.resolved.payload.reviews
+  expect((await evaluate(f, [f.selected, f.later, f.resolved])).exit_code).toBe(1)
+  const read = f.read([f.selected])
+  f.selected.review.body = 'Malformed selected attestation'
+  await expect(collectProducers([f.selected.uri], f.bundle.context, read)).rejects.toThrow()
 })
 it.each(['missing-user', 'missing-type', 'invalid-type', 'wrong-app-type'] as const)(
   'AC-32 incomplete actor history cannot leave a stale review ready: %s',
@@ -232,5 +238,103 @@ it.each(['valid', 'missing', 'exit', 'blocked', 'incomplete', 'dismissed'] as co
     const report = await evaluate(f, [f.selected, prior, current], {rejectedEvidence: 'unavailable.log'})
     expect(report.exit_code).toBe(mode === 'valid' ? 0 : 1)
     if (mode !== 'valid') expect(report.ac_results.find((row) => row.ac_id === 'AC-1')?.result).toBe('fail')
+  },
+)
+it.each(['complete', 'unavailable', 'dismissed'] as const)(
+  'AC-32 only a completed non-dismissed review resolution clears a historical blocker: %s',
+  async (mode) => {
+    const f = producerFixture()
+    f.selected.payload.reviews[0].findings.push(f.blocker)
+    f.later.payload.reviews[0].findings = [{...f.blocker, status: 'resolved', resolution_source_uri: f.later.uri}]
+    if (mode === 'unavailable') f.later.payload.reviews[0].completion = 'unavailable'
+    if (mode === 'dismissed') f.later.review.state = 'DISMISSED'
+    f.bundle.reviews = f.resolved.payload.reviews
+    expect((await evaluate(f, [f.selected, f.later, f.resolved])).exit_code).toBe(mode === 'complete' ? 0 : 1)
+  },
+)
+it.each([false, true])(
+  'AC-32 incomplete open findings never gain failure authority, history outage=%s',
+  async (outage) => {
+    const f = producerFixture()
+    f.selected.payload.reviews[0].completion = 'unavailable'
+    f.selected.payload.reviews[0].findings.push(f.blocker)
+    f.bundle.reviews = outage ? f.selected.payload.reviews : f.resolved.payload.reviews
+    const read = f.read([f.selected, f.resolved])
+    const report = await evaluate(f, [], {
+      read: async (c, e) => {
+        if (outage && e.includes('?')) throw Error('Synthetic unavailable history')
+        return read(c, e)
+      },
+    })
+    expect(report.exit_code).toBe(outage ? 2 : 0)
+    expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(false)
+  },
+)
+it.each(['a-b', 'b-a'] as const)(
+  'AC-32 collector retains latest failing code and current older security: %s',
+  async (order) => {
+    const f = producerFixture()
+    f.resolved.payload.reviews = f.resolved.payload.reviews.filter((record) => record.role === 'code')
+    f.resolved.payload.reviews[0].findings.push({...f.blocker, evidence: [f.resolved.uri]})
+    const sources = [f.selected, f.resolved]
+    const selected = order === 'a-b' ? sources : [...sources].reverse()
+    const imported = await collectProducers(
+      selected.map((s) => s.uri),
+      f.bundle.context,
+      f.read(sources),
+    )
+    f.bundle.reviews = imported.flatMap((source) => source.records).filter((record) => 'role' in record)
+    expect(f.bundle.reviews).toHaveLength(2)
+    expect(f.bundle.reviews.find((r) => r.role === 'code')!.provenance.source_uri).toBe(f.resolved.uri)
+    expect(f.bundle.reviews.find((r) => r.role === 'security')!.provenance.source_uri).toBe(f.selected.uri)
+    expect((await evaluate(f, sources)).exit_code).toBe(1)
+  },
+)
+it.each(['reviews-first', 'verifier-first'] as const)(
+  'AC-32 history outage cannot make passing review collection suppress a valid failed verifier: %s',
+  async (order) => {
+    const f = producerFixture(),
+      failed = f.make(780, 30, true)
+    Object.assign(failed.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+    const sources = [f.selected, failed],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (c, e) => {
+      if (e.includes('?')) throw Error('Synthetic HTTP503')
+      return original(c, e)
+    }
+    const selected = order === 'reviews-first' ? sources : [...sources].reverse()
+    const imported = await collectProducers(
+      selected.map((s) => s.uri),
+      f.bundle.context,
+      read,
+    )
+    const records = imported.flatMap((source) => source.records)
+    f.bundle.reviews = records.filter((record) => 'role' in record)
+    f.bundle.verifier = records.find((record) => 'rows' in record) as typeof f.bundle.verifier
+    expect(records).toHaveLength(3)
+    expect((await evaluate(f, [], {read})).exit_code).toBe(1)
+  },
+)
+it.each(['a-b', 'b-a'] as const)(
+  'AC-32 uncertain duplicate roles retain an adverse authenticated candidate for row validation: %s',
+  async (order) => {
+    const f = producerFixture()
+    f.resolved.payload.reviews = f.resolved.payload.reviews.filter((r) => r.role === 'code')
+    f.resolved.payload.reviews[0].findings.push({...f.blocker, evidence: [f.resolved.uri]})
+    const sources = [f.selected, f.resolved],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (c, e) => {
+      if (e.includes('?')) throw Error('Synthetic HTTP503')
+      return original(c, e)
+    }
+    const selected = order === 'a-b' ? sources : [...sources].reverse()
+    const imported = await collectProducers(
+      selected.map((s) => s.uri),
+      f.bundle.context,
+      read,
+    )
+    f.bundle.reviews = imported.flatMap((source) => source.records).filter((record) => 'role' in record)
+    expect(f.bundle.reviews.find((r) => r.role === 'code')!.provenance.source_uri).toBe(f.resolved.uri)
+    expect((await evaluate(f, [], {read})).exit_code).toBe(1)
   },
 )

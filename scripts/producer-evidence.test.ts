@@ -4,7 +4,7 @@ import {expect, it} from 'bun:test'
 
 import {readinessFixture} from './fixtures/readiness'
 import {currentPullRequest, providerGate} from './github-evidence'
-import {providerProducer} from './producer-evidence'
+import {providerProducerState} from './producer-evidence'
 import {readiness} from './readiness'
 
 function fixture() {
@@ -52,11 +52,11 @@ it.each(['APPROVED', 'COMMENTED', 'CHANGES_REQUESTED'])(
     const {context, uri, payload, review} = fixture()
     review.state = state
     review.body = '```forge-evidence-v1\n' + JSON.stringify(payload) + '\n```'
-    const actual = await providerProducer(uri, context, async (_context, endpoint) => {
+    const actual = await providerProducerState(uri, context, async (_context, endpoint) => {
       expect(['/pulls/99/reviews/777', '/pulls/99/reviews?per_page=100']).toContain(endpoint)
       return endpoint.includes('?') ? [review] : review
     })
-    expect(actual).toEqual(payload)
+    expect(actual.payload).toEqual(payload)
   },
 )
 it('AC-32 completed authenticated change requests retain known failure precedence', async () => {
@@ -77,10 +77,10 @@ it('AC-32 completed authenticated change requests retain known failure precedenc
     deviation: async () => {},
     producer: async (record) => {
       if (!('role' in record)) return
-      const authenticated = await providerProducer(uri, context, async (_context, endpoint) =>
+      const authenticated = await providerProducerState(uri, context, async (_context, endpoint) =>
         endpoint.includes('?') ? [review] : review,
       )
-      expect(authenticated.reviews).toContainEqual(record)
+      expect(authenticated.payload.reviews).toContainEqual(record)
     },
   })
   expect(report.exit_code).toBe(1)
@@ -120,7 +120,7 @@ it.each([
   f.review.body = kind === 'prose-only' ? 'All good' : '```forge-evidence-v1\n' + JSON.stringify(f.payload) + '\n```'
   let calls = 0
   await expect(
-    providerProducer(uri, f.context, async () => {
+    providerProducerState(uri, f.context, async () => {
       calls++
       return f.review
     }),

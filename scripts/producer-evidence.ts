@@ -1,7 +1,7 @@
 import {z} from 'zod'
 
 import {hashContent} from '../src/domain/sync/state'
-import type {EvidenceContext, VerifierEvidence} from './evidence-schema'
+import type {EvidenceContext, ReviewEvidence, VerifierEvidence} from './evidence-schema'
 import {githubJSON} from './github-evidence'
 import {producerPayload} from './producer-payload'
 import type {ProducerRole} from './producer-roles'
@@ -36,7 +36,12 @@ export class ProducerBlockers extends Error {
     )
   }
 }
-export class ProducerSuperseded extends Error {}
+export class ProducerSuperseded extends ProducerBlockers {}
+
+export function assertProducerRecord(payload: Payload, record: ReviewEvidence | VerifierEvidence): void {
+  if (!records(payload).some((item) => JSON.stringify(item) === JSON.stringify(record)))
+    throw new Error('Sidecar is not the independent producer’s exact structured verdict')
+}
 
 function authenticateReview(value: unknown, context: EvidenceContext) {
   const review = reviewSchema.parse(value)
@@ -106,21 +111,17 @@ function historyState(history: ReturnType<typeof authenticateReview>[], roles: S
       if (!roles.has(currentRole)) continue
       latest.set(currentRole, source.review.id)
       if ('rows' in record) verifiers.push({record, dismissed: source.review.state === 'DISMISSED'})
-      if ('findings' in record)
+      if ('findings' in record && record.completion === 'complete')
         for (const finding of record.findings) {
           const subject = `${currentRole}/${finding.id}`
           if (finding.severity !== 'blocking') continue
-          if (finding.status === 'resolved' && finding.resolution_source_uri === source.review.html_url)
-            open.delete(subject)
-          else open.set(subject, {subject, source_uri: source.review.html_url})
+          if (finding.status === 'resolved') {
+            if (source.review.state !== 'DISMISSED' && finding.resolution_source_uri === source.review.html_url)
+              open.delete(subject)
+          } else open.set(subject, {subject, source_uri: source.review.html_url})
         }
     }
   return {latest, open, verifiers}
-}
-
-/** Trust current independent verdicts, not a staged choice of an obsolete passing review. */
-export async function providerProducer(uri: string, context: EvidenceContext, read = githubJSON, role?: ProducerRole) {
-  return (await providerProducerState(uri, context, read, role)).payload
 }
 
 /** Authenticated historical verifier rows still require independent artifact/exit validation by readiness. */
@@ -207,18 +208,22 @@ export async function providerProducerState(
     if (!listed || JSON.stringify(listed.review) !== JSON.stringify(selected.review))
       throw new Error('Selected provider review missing or changed in current listing')
     const {latest, open, verifiers} = historyState(history, roles)
+    if (unavailable.length) throw new Error(`Current provider review unavailable: ${unavailable.join('; ')}`)
+    if ([...roles].some((currentRole) => latest.get(currentRole) !== selected.review.id))
+      throw new ProducerSuperseded(
+        [...open.values()],
+        new Error('Selected producer verdict is superseded by a later exact-revision review'),
+        verifiers,
+      )
     const selectedOpen = new Set(
       selected.payload.reviews.flatMap((record) =>
-        record.findings
+        (record.completion === 'complete' ? record.findings : [])
           .filter((f) => f.severity === 'blocking' && f.status === 'open')
           .map((f) => `${record.role}/${f.id}`),
       ),
     )
     const omitted = [...open.values()].filter((finding) => !selectedOpen.has(finding.subject))
     if (omitted.length) throw new ProducerBlockers(omitted, undefined, verifiers)
-    if (unavailable.length) throw new Error(`Current provider review unavailable: ${unavailable.join('; ')}`)
-    if ([...roles].some((currentRole) => latest.get(currentRole) !== selected.review.id))
-      throw new ProducerSuperseded('Selected producer verdict is superseded by a later exact-revision review')
     return {payload: selected.payload, verifiers}
   } catch (error) {
     if (error instanceof ProducerBlockers) throw error

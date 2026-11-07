@@ -9,7 +9,7 @@ import {assistantsRegistry, getAllAssistants, getAssistant, resolveAssistantByPa
 import type {Source} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {setGlobalMode} from '@domain/scope'
-import type {SyncState} from '@domain/sync/state'
+import type {SyncBaseline, SyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
 import type {ResolvedTarget} from '@domain/sync/types'
 
@@ -23,7 +23,7 @@ const target = (targetPath = path, content = 'desired'): ResolvedTarget => ({
   sourceName: 'team',
   assistantId: 'claude-code',
 })
-const state = (baseline: 'installed' | 'legacy-unknown' = 'installed', content = 'old'): SyncState => ({
+const state = (baseline: SyncBaseline = 'installed', content = 'old'): SyncState => ({
   version: 2,
   lastSync: '2026-01-01T00:00:00.000Z',
   files: {[path]: {hash: hashContent(content), sourceName: 'old', baseline}},

@@ -1,4 +1,4 @@
-import {mkdir, readFile, writeFile} from 'node:fs/promises'
+import {readFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
@@ -52,10 +52,7 @@ async function runCheck(
   }
   if (result.reason) result = {...result, reason: commandReason(result.reason)}
   const evidence = logPath(lane.id, check.id)
-  await mkdir(resolve(out, 'checks', lane.id), {recursive: true, mode: 0o700})
-  await writeFile(resolve(out, evidence), commandLog(check.command, result) + '\n', {
-    mode: 0o600,
-  })
+  await writeEvidence(resolve(out, evidence), JSON.parse(commandLog(check.command, result)), out)
   const reason =
     result.reason ??
     (blockedExit(result.exit_code, check) ? 'Command reports incomplete/unavailable validation' : undefined)
@@ -108,7 +105,7 @@ export async function runLanes(
 ): Promise<LaneEvidence[]> {
   const reports: LaneEvidence[] = []
   let cursor = 0
-  await writeEvidence(resolve(out, 'context.json'), context)
+  await writeEvidence(resolve(out, 'context.json'), context, out)
   await Promise.all(
     [0, 1].map(async () => {
       while (cursor < validationLanes.length) {
@@ -124,7 +121,7 @@ export async function runLanes(
             await runCheck(out, lane, check, lane.timeout_ms - (performance.now() - start), executor, blocked),
           )
         const report = laneResult(context, lane, checks, performance.now() - start, platform)
-        await writeEvidence(resolve(out, `${lane.id}.json`), report)
+        await writeEvidence(resolve(out, `${lane.id}.json`), report, out)
         reports.push(report)
       }
     }),
@@ -155,7 +152,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
     throw new Error('Single-step lane execution requires trusted CI context; use check:lanes locally')
   const lane = laneById(selected)
   const pin = (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim()
-  await writeEvidence(resolve(out, 'context.json'), context)
+  await writeEvidence(resolve(out, 'context.json'), context, out)
   if (assemble) {
     const checks = []
     for (const check of lane.checks) {
@@ -179,7 +176,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
       context,
       pin,
     )
-    await writeEvidence(resolve(out, `${lane.id}.json`), report)
+    await writeEvidence(resolve(out, `${lane.id}.json`), report, out)
     return aggregateExit([report])
   }
   if (index === undefined || !Number.isInteger(index) || index < 0 || index > 3)
@@ -194,7 +191,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
     executeCheck,
     lane.platform && lane.platform !== process.platform ? `Requires native ${lane.platform}` : undefined,
   )
-  await writeEvidence(resolve(out, resultPath(lane.id, check.id)), {context, check: result})
+  await writeEvidence(resolve(out, resultPath(lane.id, check.id)), {context, check: result}, out)
   return result.exit_code ?? 2
 }
 if (import.meta.main) {

@@ -96,7 +96,11 @@ export async function runGate(
       ...(artifacts.status === 'rejected' ? ['Provider artifacts unavailable or invalid'] : []),
     ],
   }
-  await ports.writeEvidence(resolve(repositoryRoot, 'results/gate-summary.json'), summary)
+  await ports.writeEvidence(
+    resolve(repositoryRoot, 'results/gate-summary.json'),
+    summary,
+    resolve(repositoryRoot, 'results'),
+  )
   return summary
 }
 if (import.meta.main) {
@@ -111,6 +115,7 @@ if (import.meta.main) {
       await writeEvidence(
         resolve(repositoryRoot, 'results/gate-summary.json'),
         blockedGateSummary('Provider/context unavailable'),
+        resolve(repositoryRoot, 'results'),
       )
     } catch {
       console.error('Blocked gate summary could not be persisted')

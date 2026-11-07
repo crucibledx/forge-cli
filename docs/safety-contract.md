@@ -104,6 +104,9 @@ Unavailable or malformed provider lookups still persist a blocked all-lane gate 
 available metadata and known failures. Invalid context is recorded as unavailable, never invented.
 The interactive driver shares the child's absolute session deadline, including unrelated waits after child disposal.
 Collector/report destinations cannot replace reserved source evidence or existing non-bundle/non-report data.
+Nested report, raw check-log and partial-result writes validate every existing ancestor against the original
+selected evidence root before creating directories or temporary files. A pre-existing link beneath that root
+cannot redirect a write. This is additional evidence security, not an extension of frozen sync BR-07.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 
@@ -157,7 +160,9 @@ Selecting a passing review ID cannot hide newer independent findings. The provid
 paginated review history for this head/tested revision, separately per code/security/verifier role. An older
 role verdict is stale; unrelated heads, integrated revisions, actors and roles cannot supersede it. A blocking
 finding persists until a later same-role app-authored review explicitly resolves its ID with that review's
-authenticated URI. Omitting the finding from a newer passing report is not resolution. New authenticated
+authenticated URI, completed verdict and non-dismissed provider review. Unavailable findings cannot establish
+failure authority, and unavailable/dismissed resolutions cannot clear a completed historical blocker.
+Omitting the finding from a newer passing report is not resolution. New authenticated
 blockers retain known-failure exit1, even when later history pages are unavailable; missing/invalid/duplicate/
 oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
 Raw report-byte authentication is separate from current-verdict selection.
@@ -168,6 +173,12 @@ exit, evidence, revision, completed producer and independence are validated. A l
 failure only with its own valid evidence, not an incomplete or dismissed verdict. Invalid claims stay blocked2.
 Producer payloads reject duplicate roles. Collection imports each current role independently, so newer code can
 combine with still-current older security without importing the superseded code record.
+Collection assembles authenticated records even when current history is unavailable or proves failures; it
+does not grant passing authority. The readiness checker revalidates history and verifier rows, retaining
+failure1 over blocked2. An uncertain duplicate role prefers an authenticated adverse candidate deterministically;
+invalid payloads still block collection. Tests preserve the actual collector-then-checker boundary in both URI orders.
+Injected emergency-handler subprocess tests live beside the application sync tests and remain in contracts,
+security and platform selections. They do not claim to invoke the real CLI entrypoint.
 
 Human renderer fields are credential-redacted before escaping terminal control characters, including OSC/CSI,
 C0/C1, bidi controls and line separators. Trusted renderer styling and structural newlines are added afterward.
