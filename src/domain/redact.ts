@@ -17,7 +17,8 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
-const assignmentStart = /(?:token|password|secret|authorization)[=:]/gi
+const assignmentStart = /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*[=:]/gi
+const authStart = /(?:Bearer|Basic)\s+/gi
 
 function credentialQueryKey(name: string, complete = true): boolean {
   const decoded = name
@@ -25,6 +26,43 @@ function credentialQueryKey(name: string, complete = true): boolean {
     .toLowerCase()
   // Azure SAS uses this short alias; matching it as a fragment would hide "design".
   return (complete && decoded === 'sig') || queryKeys.some((key) => decoded.includes(key))
+}
+
+function* credentialAssignments(text: string) {
+  const end = Math.max(text.lastIndexOf('='), text.lastIndexOf(':')) + 1
+  const input = text.slice(0, end)
+  assignmentStart.lastIndex = queryStart.lastIndex = 0
+  const names = input.matchAll(queryStart)
+  let query = names.next().value
+  for (const match of input.matchAll(assignmentStart)) {
+    while (query && query.index + query[0].length <= match.index) query = names.next().value
+    // Query values have their own delimiter rules, including literal quotes.
+    if (query && query.index <= match.index) continue
+    if (credentialQueryKey(match[1])) yield match
+  }
+}
+
+function credentialValue(text: string, start: number, authorization = false, token = false) {
+  while (start < text.length && /[ \t]/.test(text[start])) start++
+  let end = start
+  if (authorization) {
+    const scheme = /^(?:Basic|Bearer)[ \t]+/i.exec(text.slice(start))
+    if (scheme) {
+      end += scheme[0].length
+      token = true
+    }
+  }
+  const quote = text[end]
+  if (quote === '"' || quote === "'") {
+    let escaped = false
+    for (end++; end < text.length; end++) {
+      if (text[end] === quote && !escaped) return {start, end: end + 1, continuation: undefined}
+      escaped = text[end] === '\\' && !escaped
+    }
+    return {start, end, continuation: quote + 'x' + (escaped ? '\\' : '')}
+  }
+  while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/[\s&]/.test(text[end]))) end++
+  return {start, end, continuation: end === text.length ? (end > start ? 'x' : '') : undefined}
 }
 
 function lastMarkerSuffix(text: string, marker: RegExp, accept = (_match: RegExpExecArray) => true): string {
@@ -178,8 +216,22 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       // Do not rescan nested query-looking bytes already covered by this span.
       queryStart.lastIndex = end
     }
-    scan(/(Bearer\s+)[a-z\d._~+/-]+=*/gi)
-    if (options.assignments) scan(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi)
+    let covered = -1
+    for (const match of credentialText.matchAll(authStart)) {
+      if (match.index < covered) continue
+      const value = credentialValue(credentialText, match.index + match[0].length, false, true)
+      covered = value.end
+      add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
+    }
+    covered = -1
+    if (options.assignments !== false)
+      for (const match of credentialAssignments(credentialText)) {
+        if (match.index < covered) continue
+        if (!credentialPrefix && match.index === 0 && options.credentialPrefixes?.includes('_')) continue
+        const value = credentialValue(credentialText, match.index + match[0].length, true)
+        covered = value.end
+        add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
+      }
   }
 
   const secretPrefix = options.secretPrefix ?? ''
@@ -251,18 +303,31 @@ export function redactionContext(discarded: string): string[] {
     contexts.add('?token=x')
   const queryName = unfinishedQueryName(discarded)
   if (queryName) contexts.add(queryName)
-  const bearer = finalMatch(discarded, /Bearer\s+([a-z\d._~+/-]*=*)$/i)
-  if (bearer) contexts.add(bearer[1] ? 'Bearer x' : 'Bearer ')
-  const assignment = finalMatch(
-    lastMarkerSuffix(discarded, assignmentStart),
-    /^(?:token|password|secret|authorization)[=:]\s*([^\s&]*)$/i,
-  )
-  if (assignment) contexts.add(assignment[1] ? 'secret=x' : 'secret=')
+  let covered = -1
+  for (const match of discarded.matchAll(authStart)) {
+    if (match.index < covered) continue
+    const value = credentialValue(discarded, match.index + match[0].length, false, true)
+    covered = value.end
+    if (value.continuation !== undefined) contexts.add('Bearer ' + value.continuation)
+  }
+  covered = -1
+  for (const match of credentialAssignments(discarded)) {
+    if (match.index < covered) continue
+    const value = credentialValue(discarded, match.index + match[0].length, true)
+    covered = value.end
+    if (value.continuation !== undefined) contexts.add('secret=' + value.continuation)
+  }
+  const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
+  if (pendingName && credentialQueryKey(pendingName[1], false)) contexts.add('secret')
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
-  const lower = discarded.toLowerCase()
+  const encoding = finalMatch(discarded, /%[a-f\d]?$/i)?.[0] ?? ''
+  const lower = (encoding ? discarded.slice(0, -encoding.length) : discarded)
+    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .toLowerCase()
   for (const marker of [
     'Bearer',
+    'Basic',
     ...queryKeys.map((key) => `${key}=`),
     'authorization=',
     'token:',
@@ -276,11 +341,14 @@ export function redactionContext(discarded: string): string[] {
         break
       }
   }
-  if (partial) contexts.add(partial)
+  if (partial || encoding)
+    contexts.add((/[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') ? 'q' : '') + partial + encoding)
   const scheme = finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:(\/?)$/i)
   if (scheme) contexts.add(`https:${scheme[1]}`)
   // A partial URI scheme can coexist with another recognizer, such as Bearer.
   if (finalMatch(discarded, /[a-z\d+.-]$/i)) contexts.add('x')
+  // A raw tail starting mid-name cannot establish a fresh exact short alias.
+  if (finalMatch(discarded, /[a-z\d_.%+-]$/i)) contexts.add('_')
   return [...contexts]
 }
 

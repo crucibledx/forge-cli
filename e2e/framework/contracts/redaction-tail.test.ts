@@ -13,6 +13,39 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each(
+  [
+    'Basic PRIVATE_CREDENTIAL_Q',
+    'Authorization: Basic PRIVATE_CREDENTIAL_Q',
+    'Proxy-Authorization: Basic PRIVATE_CREDENTIAL_Q',
+    'password=PRIVATE_CREDENTIAL_Q',
+    'client_secret="prefix PRIVATE_CREDENTIAL_Q suffix"',
+    'api_key="prefix\\"PRIVATE_CREDENTIAL_Q suffix"',
+  ].flatMap((value) => ['redact', 'sanitize'].map((kind) => ({value, kind}))),
+)('AC-15,16,30 auth/assignment credentials survive no chunk or raw-tail cut: $value $kind', ({value, kind}) => {
+  const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+  const credential = 'PRIVATE_CREDENTIAL_Q'
+  value += '\nvisible=yes\n'
+  for (let cut = 1; cut <= value.indexOf(credential) + credential.length; cut++) {
+    const transcript = createTranscript(clean)
+    transcript.append(Buffer.from(value + 'x'.repeat(TAIL_BYTES + cut - value.length)))
+    expectPrivateTail(transcript, value, credential, cut)
+    transcript.finish()
+    expectPrivateTail(transcript, value, credential, cut)
+    expect(transcript.diagnostic()).toContain('visible=yes')
+    transcript.append(Buffer.from('after'))
+    expectPrivateTail(transcript, value, credential, cut)
+    expect(transcript.diagnostic()).toEndWith('after')
+  }
+  for (let cut = 0; cut <= value.length; cut++) {
+    const transcript = createTranscript(clean)
+    transcript.append(Buffer.from(value.slice(0, cut)))
+    transcript.append(Buffer.from(value.slice(cut)))
+    transcript.finish()
+    expect(transcript.diagnostic()).not.toContain(credential)
+    expect(transcript.diagnostic()).toContain('visible=yes')
+  }
+})
 it.each(['sig', '%73ig', 'SIG', '%53%49%47'].flatMap((key) => ['redact', 'sanitize'].map((kind) => ({key, kind}))))(
   'AC-15,16,30 SAS $key credentials survive no chunk or retained-tail boundary: $kind',
   ({key, kind}) => {

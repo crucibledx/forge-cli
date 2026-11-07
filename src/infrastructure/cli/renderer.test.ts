@@ -5,6 +5,33 @@ import type {OutputEntry} from '@domain/protocol/types'
 
 import * as renderer from './renderer'
 
+it('AC-15,30 every renderer redacts credentials before escaping without swallowing later public diagnostics', () => {
+  const logs: string[] = []
+  const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
+  const text = 'Authorization: Basic PRIVATE_CREDENTIAL_Q\nPUBLIC_AFTER_DIAGNOSTIC'
+  try {
+    renderer.setSilent(false)
+    renderer.renderHeader(text)
+    renderer.renderDetectionResults([{id: 'cursor', name: text, detected: true, evidence: text}])
+    renderer.renderSyncFile(text, 'new', false)
+    renderer.renderDriftFile(text, 'modified')
+    renderer.renderSuccess(text)
+    renderer.renderInfo(text)
+    renderer.renderWarning(text)
+    renderer.renderError(text, text)
+    renderer.renderDim(text)
+    renderer.render(text)
+    renderer.renderOutputEntries([{level: 'warn', message: text, detail: text}])
+  } finally {
+    spy.mockRestore()
+  }
+  for (const line of logs.filter((line) => line.includes('Authorization'))) {
+    expect(line).not.toContain('PRIVATE_CREDENTIAL_Q')
+    expect(line).toContain('PUBLIC_AFTER_DIAGNOSTIC')
+  }
+  expect(logs.filter((line) => line.includes('Authorization')).length).toBeGreaterThan(10)
+})
+
 it('AC-15,30 renderer fields escape untrusted terminal controls before adding trusted presentation', () => {
   const logs: string[] = []
   const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))

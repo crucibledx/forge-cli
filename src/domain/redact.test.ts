@@ -10,6 +10,39 @@ import {
 } from './redact'
 
 it.each([
+  'Basic PRIVATE_CREDENTIAL_Q',
+  'Authorization: Basic PRIVATE_CREDENTIAL_Q',
+  'Proxy-Authorization: Basic PRIVATE_CREDENTIAL_Q',
+  'authorization : Bearer "prefix PRIVATE_CREDENTIAL_Q suffix"',
+  'password=PRIVATE_CREDENTIAL_Q',
+  'client_secret="prefix PRIVATE_CREDENTIAL_Q suffix"',
+  'api_key="prefix\\"PRIVATE_CREDENTIAL_Q suffix"',
+  "passwd : 'prefix PRIVATE_CREDENTIAL_Q suffix'",
+  '%73ig=PRIVATE_CREDENTIAL_Q',
+])('AC-15,30 production diagnostic credentials remain private at every context cut: %s', (value) => {
+  const secret = 'PRIVATE_CREDENTIAL_Q'
+  const input = value + '\nvisible=yes'
+  expect(redact(input)).not.toContain(secret)
+  expect(JSON.stringify(redactData({cause: input}))).not.toContain(secret)
+  for (let cut = 0; cut <= input.length; cut++) {
+    const output = redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})
+    const surviving = secret.slice(Math.max(0, cut - input.indexOf(secret)))
+    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
+    if (cut <= input.indexOf('visible=yes')) expect(output).toContain('visible=yes')
+  }
+})
+it.each(['design', 'signal', 'signed_at', 'foosig'])(
+  'AC-15,30 ordinary assignment %s is not a short-alias credential',
+  (key) => {
+    const input = `${key}=PUBLIC_VALUE\nvisible=yes`
+    for (let cut = 0; cut <= input.length; cut++)
+      expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(
+        input.slice(cut),
+      )
+  },
+)
+
+it.each([
   'ordinary ' + 'x'.repeat(262144),
   'https://user:private@fixture.invalid/path\n' + 'x'.repeat(4096),
   'https://first:a@one.invalid/path https://second:b@two.invalid/path',

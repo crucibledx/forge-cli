@@ -2,7 +2,6 @@ import pc from 'picocolors'
 
 import type {DetectionResult} from '@domain/assistants'
 import type {OutputEntry} from '@domain/protocol/types'
-import {redactData} from '@domain/redact'
 import type {DriftStatus} from '@domain/sync/drift'
 import {DRIFT_STATUSES} from '@domain/sync/drift'
 import type {SyncFileStatus} from '@domain/sync/types'
@@ -16,8 +15,10 @@ export function setSilent(value: boolean): void {
   silent = value
 }
 
-function log(...args: unknown[]): void {
-  if (!silent) console.log(...args.map(redactData))
+function log(...args: string[]): void {
+  // Renderers sanitize fields before trusted formatting. Re-parsing escaped
+  // newlines here would merge public diagnostics into an earlier credential.
+  if (!silent) console.log(...args)
 }
 
 export function renderHeader(title: string): void {

@@ -4,6 +4,64 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction aftera896736, completed review AH
+
+Head `a896736cd19db62113a395ea9f124f5921ce8199`, actual hosted tested merge
+`1a7aa06138ea5271bda2e0e3e2090c50e13e011f`, ordered base/head parents
+`3fb78e1b471e3665567d5e737a8f340b781e996d` and that head, tree
+`bc4000faf36e53fc93d38efb5f17fac4942a8ea3`.
+ALL hosted including completed reviewer and BOTH independent tracks finished before edits.
+The final inventory had two terminal workflows/15 head checks, no merge checks/statuses,
+138 fully paginated threads/137 resolved/one historical open and no extra comment pages.
+All401 tracked hashes remained unchanged through original evidence recovery and publication.
+
+Original verifier **32pass/0fail/0not-runnable** is implementation-check evidence, not actual readiness:
+the real production collector/checker returned collected0/blocked2 for missing genuine exact-revision
+app-authored code/security/distinct-verifier attestations. Finite passes do not refute the separate static findings.
+Markdown SHA256 `abd2c1402df78afbe80b2da36ef67df89a089db9198f49d9b67069cecf47871b`;
+JSON `ead060e7c0849de94b9891b874d2015f3eb75e254d66ff71b408ef56d3be6b84`;
+seal `55b3096643ff385d8d3adec3a0aeb6289111efd7fbe517b3e06d31a87932e3f3`.
+The empty return was recovered without rerun/resume/report rewriting from801 exact regular-file copies,
+797 sealed originals and799 individually verified archive members. Parent also rechecked all30 fresh-process
+raw hashes/strict footers and distinct sandboxes:10unit796/0,10contracts966/0,10framework180/0, no retries.
+The first parent recovery copy succeeded before a wrong observer git directory exited128; only that observer
+path was corrected. Original verifier tooling failures, property failure/replay and raw evidence remain intact.
+
+Independent review requested **one blocking security/one should-fix/zero nits**, both static only.
+Probe creation was confirmation-denied before execution and not retried; tests/builds/installations0.
+No reviewer-created report files/hashes exist. Parent verbatim returned-text archive SHA256
+`53588121cdabf7594870d3a41c2d0f6d672fc31c4a528f6114735034836e7e40` is not a reviewer file or app attestation.
+[Original publication6704073457](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6704073457)
+preserves all32 verifier rows,30 samples, original review,11 provider ZIP/context assertions and every limit.
+CI317s/gate11s/first-start-delay2s and reviewer353s workflow/349s job are single observations, not p95.
+Native Windows/macOS282/0 and actual compiled0 remain separate. Protection/rules absence was authenticated;
+settings and pending owner reviews remained untouched. Historical root-confinement4500476732 was resolved
+only after its pushed fix and actual CLI/unit/hosted verification.
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| AH-S1 P1 | Recognize Basic/Bearer credentials and enable credential assignments by default across production human/file/report diagnostics. Reuse decoded key classification without borrowing query delimiter rules; retain finite syntax-only quoted/escaped/encoded continuation state. Bound repeated marker scans and preserve concurrent URI boundaries and public short-alias data. Real Git invokes an owned offline SSH program, never a network client, and checks original raw streams, debug files, latest/history, protected bytes and silent/preview modes. |
+| AH-C1 P2 | Reject raw own `__proto__` file keys before Zod4.6.7 can skip either valid ownership or malformed values. Reject the whole legacy/v2 state without mutation; preserve the original bytes/unknown-owner file during apply and preview. Ordinary `constructor`/`prototype` keys remain supported. |
+
+The first author focused run269/20 is preserved:16 offline fixture invocations were prevented by the file-only
+sandbox; one adversarial scan timed out; encoded bare-name continuation, a public short alias and an original
+Bearer/URI boundary assertion also failed. Production bounds/context/grammar were corrected without weakening
+assertions or changing budgets. A usage-only launcher2 was not counted as test execution.
+After the owned SSH transport was selected explicitly, eight public-output checks exposed redundant masking
+after terminal escaping. Every renderer still sanitizes each field before trusted formatting; its private string-only
+printer no longer re-parses escaped newlines as credential bytes. The public-output assertions remain unchanged.
+Original AG28/4/0 and AF27/5/0 remain unchanged below. READY is unchanged, not approval; every push restarts
+the complete ALL-hosted+BOTH wait and no local report supplies genuine hosted attestation.
+The first prior-revision regression run262/40 is also preserved: its eight CLI state cases passed both revisions
+because the fixture lacked a readable source, so those were not negative-control proof. The corrected fixture
+first proves a healthy preview succeeds, keeps its valid tracked entry, then injects the raw own key and checks
+the specific refusal diagnostic. A test-only widened literal type was fixed after static validation exited2;
+neither failure is hidden or counted as a clean final check.
+The final prior-revision run254/48 executes the same302 assertions against unchanged actual AH merge production:
+all16 real Git privacy cases, ten auth/quoted raw-tail cases, nine diagnostic domain cases, the renderer case,
+four raw-state parser cases and all eight corrected CLI state cases fail. Existing controls and ordinary data
+still pass. This is author negative-control evidence, not a rewritten original independent verdict or attestation.
+
 ## Nov7 correction after23a5d0e, completed review AG
 
 Frozen head `23a5d0ea6562da6e9fb02fd2f055c182d1318f6a`, actual hosted merge
