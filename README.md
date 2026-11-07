@@ -185,7 +185,8 @@ Forge auto-detects how your source is organized — no configuration needed:
 
 Serialize sync invocations. Empty readable sources can clean tracked stale files with `keep_local:false`; disabled
 assistants and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
-block planning. State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
+block planning, including case-fold-equivalent spellings such as sigma/final sigma, without renaming stored paths.
+State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
 edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
 This is not crash recovery or concurrent-writer safety, and ownership/xattrs/timestamps/alternate streams are not
 preservation guarantees. Windows access preservation and durable descendant ownership still require native validation

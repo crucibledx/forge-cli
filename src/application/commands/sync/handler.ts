@@ -13,6 +13,7 @@ import {hashContent} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
+import {terminalText} from '@infrastructure/cli/terminal-text'
 import {loadSyncState} from '@infrastructure/config/state'
 import {serializeProjectConfig} from '@infrastructure/config/writer'
 import {createConfinement} from '@infrastructure/fs/confinement'
@@ -283,7 +284,7 @@ export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepare
     if (error instanceof TransactionError && error.unrestored.length) {
       // Presentation suppression must never hide a manual recovery requirement.
       console.error(
-        redact(
+        terminalText(
           `Recovery required; unrestored/untrusted paths: ${error.unrestored.join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
         ),
       )

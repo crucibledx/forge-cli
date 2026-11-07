@@ -12,7 +12,9 @@ import type {
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
+import type {AuthenticatedVerifier} from './producer-evidence'
 import {ProducerBlockers} from './producer-evidence'
+import {REVIEW_ROLES} from './producer-roles'
 import {repositoryRoot} from './validation-identity'
 import {acceptanceIds, laneById, requiredLaneIds} from './validation-lanes'
 import {assessLane, failedExit} from './validation-policy'
@@ -20,7 +22,7 @@ import {assessLane, failedExit} from './validation-policy'
 export interface ReadinessProvider {
   context(context: EvidenceContext): Promise<void>
   artifact(ref: string, context: EvidenceContext, citingLane?: LaneEvidence): Promise<void>
-  producer(record: ReviewEvidence | VerifierEvidence, context: EvidenceContext): Promise<void>
+  producer(record: ReviewEvidence | VerifierEvidence, context: EvidenceContext): Promise<void | AuthenticatedVerifier[]>
   deviation(record: DeviationEvidence, context: EvidenceContext): Promise<void>
   gate(record: ReadinessBundle['gate'], context: EvidenceContext): Promise<void>
 }
@@ -31,17 +33,20 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     context = bundle.context
   const reasons: {kind: ReasonKind; subject: string; message: string}[] = []
   const currentProducerEvidence = new Set<string>()
+  const verifierHistory: AuthenticatedVerifier[] = []
   const add = (kind: ReasonKind, subject: string, message: string) => reasons.push({kind, subject, message})
-  const authenticate = async (subject: string, action: () => Promise<void>) => {
+  const authenticate = async (subject: string, action: () => Promise<unknown>) => {
     try {
       await action()
       return true
     } catch (error) {
-      if (error instanceof ProducerBlockers)
+      if (error instanceof ProducerBlockers) {
         for (const finding of error.findings) {
           add('failure', finding.subject, 'Open blocking finding')
           currentProducerEvidence.add(finding.source_uri)
         }
+        verifierHistory.push(...error.verifiers)
+      }
       add('blocked', subject, redact(error instanceof Error ? error.message : String(error)))
       return false
     }
@@ -100,7 +105,7 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     else if (bundle.gate.conclusion !== 'success')
       add('blocked', 'Deterministic gate', `Provider gate ${bundle.gate.conclusion}`)
   } else add('blocked', 'Deterministic gate', 'Gate run/attempt mismatch')
-  for (const role of ['code', 'security'] as const) {
+  for (const role of REVIEW_ROLES) {
     const review = bundle.reviews.find((record) => record.role === role)
     if (!review) {
       add('blocked', role, 'Missing independent review role')
@@ -149,7 +154,9 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       independent &&
       identity(verifier, 'verifier') &&
       verifier.provenance.producer_role === 'verifier' &&
-      (await authenticate('verifier', () => provider.producer(verifier, context)))
+      (await authenticate('verifier', async () => {
+        verifierHistory.push(...((await provider.producer(verifier, context)) ?? []))
+      }))
     if (!valid || verifier.completion !== 'complete')
       add('blocked', 'verifier', 'Unavailable/unverified implementation-check producer')
     for (const row of verifier.rows) {
@@ -159,8 +166,8 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
         add('blocked', row.ac_id, 'Pass contradicts command exit')
         rowValid = false
       }
-      if (row.result === 'fail' && row.exit_code === 0) {
-        add('blocked', row.ac_id, 'Failure contradicts command exit')
+      if (row.result === 'fail' && (row.exit_code === 0 || row.exit_code === null)) {
+        add('blocked', row.ac_id, 'Failure lacks a nonzero command exit')
         rowValid = false
       }
       for (const ref of row.evidence) {
@@ -170,6 +177,54 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       if (rowValid && row.result === 'fail') add('failure', row.ac_id, 'Acceptance check failed')
       acResults.set(row.ac_id, rowValid ? row : {...row, result: 'blocked'})
     }
+  }
+  // A history outage/superseded selection must not hide an independently proved failing AC.
+  // Historical pass rows clear a prior failure only with valid evidence, never by omission/dismissal.
+  const knownFailures = new Map<string, {row: VerifierEvidence['rows'][number]; source_uri: string}>()
+  const artifacts = new Map<string, Promise<boolean>>()
+  const verifiedArtifact = (ref: string) => {
+    if (!artifacts.has(ref))
+      artifacts.set(
+        ref,
+        provider.artifact(ref, context).then(
+          () => true,
+          () => false,
+        ),
+      )
+    return artifacts.get(ref)!
+  }
+  for (const {record, dismissed} of contextValid ? verifierHistory : []) {
+    if (
+      record.completion !== 'complete' ||
+      record.head_sha !== context.head_sha ||
+      record.tested_sha !== context.tested_sha ||
+      record.provenance.producer_role !== 'verifier' ||
+      bundle.reviews.some(
+        (review) =>
+          review.provenance.actor === record.provenance.actor &&
+          review.provenance.producer_id === record.provenance.producer_id,
+      )
+    )
+      continue
+    for (const row of record.rows) {
+      if (
+        row.result === 'blocked' ||
+        (row.result === 'pass' && (dismissed || row.exit_code !== 0)) ||
+        (row.result === 'fail' && (row.exit_code === 0 || row.exit_code === null))
+      )
+        continue
+      let proven = true
+      for (const ref of row.evidence) proven = (await verifiedArtifact(ref)) && proven
+      if (!proven) continue
+      if (row.result === 'fail') knownFailures.set(row.ac_id, {row, source_uri: record.provenance.source_uri})
+      else knownFailures.delete(row.ac_id)
+    }
+  }
+  for (const {row, source_uri} of knownFailures.values()) {
+    if (!reasons.some((reason) => reason.kind === 'failure' && reason.subject === row.ac_id))
+      add('failure', row.ac_id, 'Acceptance check failed')
+    acResults.set(row.ac_id, row)
+    for (const ref of [source_uri, ...row.evidence]) currentProducerEvidence.add(ref)
   }
   for (const deviation of bundle.deviations) {
     if (!contextValid || !identity(deviation, deviation.id)) continue

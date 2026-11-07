@@ -3,12 +3,35 @@ import {dirname, resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
 import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
+import type {EvidenceContext, ReviewEvidence, VerifierEvidence} from './evidence-schema'
 import {bundleSchema, contextSchema} from './evidence-schema'
-import {providerGate} from './github-evidence'
-import {providerProducer} from './producer-evidence'
+import {githubJSON, providerGate} from './github-evidence'
+import {ProducerSuperseded, providerProducer, providerReport} from './producer-evidence'
+import {PRODUCER_ROLES} from './producer-roles'
 import {collectReadiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
 import {repositoryRoot} from './validation-context'
+
+/** One report can remain current for security after its code role has been superseded. */
+export async function collectProducers(sources: string[], context: EvidenceContext, read = githubJSON) {
+  if (sources.length > Object.values(PRODUCER_ROLES).length) throw new Error('Too many selected producers')
+  if (new Set(sources).size !== sources.length) throw new Error('Duplicate producer selection')
+  const imported: {markdown: string; records: (ReviewEvidence | VerifierEvidence)[]}[] = []
+  for (const uri of sources) {
+    const payload = await providerReport(uri, context, read)
+    const current: (ReviewEvidence | VerifierEvidence)[] = []
+    for (const record of [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]) {
+      try {
+        await providerProducer(uri, context, read, record.provenance.producer_role)
+        current.push(record)
+      } catch (error) {
+        if (!(error instanceof ProducerSuperseded)) throw error
+      }
+    }
+    if (current.length) imported.push({markdown: payload.raw_report_markdown, records: current})
+  }
+  return imported
+}
 
 if (import.meta.main) {
   let args = Bun.argv.slice(2)
@@ -57,9 +80,7 @@ if (import.meta.main) {
     }
     if (!Array.isArray(sources) || sources.some((uri) => typeof uri !== 'string'))
       throw new Error('Invalid producer selection')
-    for (const uri of sources) {
-      const payload = await providerProducer(uri, context)
-      const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
+    for (const {records, markdown} of await collectProducers(sources, context)) {
       for (const record of records) {
         await provider.producer(record, context)
         const path = 'role' in record ? `reviews/${record.role}.json` : 'verifier.json'
@@ -72,7 +93,7 @@ if (import.meta.main) {
         }
       }
       await writeEvidence(resolve(directory, `raw-reports/${records[0].provenance.producer_id}.json`), {
-        markdown: payload.raw_report_markdown,
+        markdown,
       })
     }
     const bundle = await collectReadiness(context, directory)

@@ -15,7 +15,8 @@ import {
   providerJob,
   requiredCIWorkflow,
 } from './github-evidence'
-import {providerProducer, providerReport} from './producer-evidence'
+import {providerProducerState, providerReport} from './producer-evidence'
+import type {ProducerRole} from './producer-roles'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
@@ -68,15 +69,16 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
   return artifactFiles(bytes)
 }
 export function readinessProvider(evidenceRoot: string, ports = {githubJSON, archive}): ReadinessProvider {
-  const sessions = new Map<string, ReturnType<typeof providerProducer>>()
-  const source = (uri: string, context: EvidenceContext, role?: 'code' | 'security' | 'verifier') => {
-    const key = `${uri}/${role ?? 'report'}`
-    if (!sessions.has(key))
-      sessions.set(
-        key,
-        role ? providerProducer(uri, context, ports.githubJSON, role) : providerReport(uri, context, ports.githubJSON),
-      )
-    return sessions.get(key)!
+  const sessions = new Map<string, ReturnType<typeof providerReport>>()
+  const source = (uri: string, context: EvidenceContext) => {
+    if (!sessions.has(uri)) sessions.set(uri, providerReport(uri, context, ports.githubJSON))
+    return sessions.get(uri)!
+  }
+  const verdicts = new Map<string, ReturnType<typeof providerProducerState>>()
+  const verdict = (uri: string, context: EvidenceContext, role: ProducerRole) => {
+    const key = `${uri}/${role}`
+    if (!verdicts.has(key)) verdicts.set(key, providerProducerState(uri, context, ports.githubJSON, role))
+    return verdicts.get(key)!
   }
   const runs = new Map<
     string,
@@ -215,7 +217,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         throw new Error('Local artifact differs from authenticated provider bytes')
     },
     async producer(record, context) {
-      const payload = await source(record.provenance.source_uri, context, record.provenance.producer_role)
+      const {payload, verifiers} = await verdict(record.provenance.source_uri, context, record.provenance.producer_role)
       const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
       if (
         !records.some(
@@ -226,6 +228,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         )
       )
         throw new Error('Sidecar is not the independent producer’s exact structured verdict')
+      return verifiers
     },
     async gate(record, context) {
       const {jobs} = await selected(context)
