@@ -2,7 +2,7 @@ import './teardown'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
 import {spawnOwnedPipe} from './owned-pipe'
-import {activeProcesses, createTranscript, drainTranscript, sanitize, sessionBudget, terminateTree} from './process'
+import {createTranscript, drainTranscript, ownSession, sanitize, sessionBudget, terminateTree} from './process'
 import type {CLIResult} from './spawn'
 
 export interface ProcessOptions {
@@ -22,7 +22,6 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
   const stdout = createTranscript(clean, options.secrets)
   const stderr = createTranscript(clean, options.secrets)
   let timedOut = false
-  let disposal: Promise<void> | undefined
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
   // Start both reads before waiting for exit, including on nonzero exits.
   const drains = Promise.all([
@@ -30,20 +29,14 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     drainTranscript(proc.stderr, stderr, readers),
   ])
   void drains.catch(() => {})
-  const owner = {
-    dispose() {
-      return (disposal ??= (async () => {
-        clearTimeout(deadline)
-        try {
-          await terminateTree(proc, env)
-        } finally {
-          await Promise.allSettled(readers.map((reader) => reader.cancel()))
-          activeProcesses.delete(owner)
-        }
-      })())
-    },
-  }
-  activeProcesses.add(owner)
+  const owner = ownSession(async () => {
+    clearTimeout(deadline)
+    try {
+      await terminateTree(proc, env)
+    } finally {
+      await Promise.allSettled(readers.map((reader) => reader.cancel()))
+    }
+  })
   const deadline = setTimeout(
     () => {
       timedOut = true
@@ -52,9 +45,9 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     Math.max(1, budget - (performance.now() - started)),
   )
   try {
-    await proc.exited
+    await Promise.race([proc.exited, owner.finished])
     // A descendant may hold pipes open; the total deadline still owns the drain.
-    await drains
+    await Promise.race([drains, owner.finished])
     options.inspectRaw?.(stdout.rawText(), stderr.rawText())
     return {
       stdout: stdout.diagnostic(),

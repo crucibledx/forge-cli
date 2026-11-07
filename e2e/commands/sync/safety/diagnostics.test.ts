@@ -15,7 +15,7 @@ import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
 it.each(
-  ['private_token', 'client_secret', '%61pi_key'].flatMap((key) =>
+  ['private_token', 'client_secret', '%61pi_key', 'sig', '%73ig', 'SIG'].flatMap((key) =>
     ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({key, mode})),
   ),
 )('AC-15,30 actual offline Git $key values cannot leak to debug/raw/report artifacts: $mode', async ({key, mode}) => {

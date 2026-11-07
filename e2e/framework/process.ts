@@ -14,6 +14,37 @@ export const SESSION_MS = 10_000
 export const TAIL_BYTES = 256 * 1024
 export const activeProcesses = new Set<{dispose(): Promise<void>}>()
 
+/** Public session waits must settle even when bounded process cleanup rejects. */
+export function ownSession(cleanup: () => Promise<void>) {
+  let resolve!: () => void
+  let reject!: (error: unknown) => void
+  const finished = new Promise<void>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  // A caller may dispose before it starts waiting for exit.
+  void finished.catch(() => {})
+  let disposal: Promise<void> | undefined
+  const owner = {
+    finished,
+    dispose() {
+      if (!disposal) {
+        disposal = (async () => {
+          try {
+            await cleanup()
+          } finally {
+            activeProcesses.delete(owner)
+          }
+        })()
+        void disposal.then(resolve, reject)
+      }
+      return disposal
+    },
+  }
+  activeProcesses.add(owner)
+  return owner
+}
+
 export function sessionBudget(timeoutMs = SESSION_MS): number {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000) {
     throw new Error('Session timeout must be between 1 and 30000 ms')

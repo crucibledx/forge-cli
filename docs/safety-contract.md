@@ -77,6 +77,10 @@ byte copies, so disposing or altering one backend cannot affect another.
 Raw stream channels remain separate. Diagnostics recognize both unchanged raw bytes and streamed terminal-visible
 text, projecting sensitive visible spans back across formatting; assertion cursors use a separate unredacted
 bounded transcript. This is not a terminal screen emulator. Sandbox setup errors produce blocked check records.
+Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
+are not short-substring matches. Incomplete names remain undecided until their boundary is known.
+Owned-session public exit/drain waits also observe disposal completion: persistent cleanup denial must reject
+within the existing cleanup budget even if exit notification never arrives, not wait for the outer test timeout.
 Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.
 CI records its lane clock before checkout, shares remaining time across independent steps, and reserves90 seconds
 inside the unchanged ten-minute job limit for bounded cleanup, evidence assembly and upload. Missing, malformed,
@@ -107,6 +111,9 @@ Collector/report destinations cannot replace reserved source evidence or existin
 Nested report, raw check-log and partial-result writes validate every existing ancestor against the original
 selected evidence root before creating directories or temporary files. A pre-existing link beneath that root
 cannot redirect a write. This is additional evidence security, not an extension of frozen sync BR-07.
+Readiness selects that boundary from the input bundle's directory, not the report's parent. Its default report
+is `readiness.json` in that selected directory. Previous-report reads and stale cleanup use the same boundary;
+cleanup revalidates after asynchronous provider work. A selected-root alias is supported, links beneath it are not.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 

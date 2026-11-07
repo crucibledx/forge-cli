@@ -1,8 +1,9 @@
 import {readFile, unlink} from 'node:fs/promises'
-import {resolve} from 'node:path'
+import {dirname, resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
 import {terminalText} from '../src/infrastructure/cli/terminal-text'
+import {createConfinement} from '../src/infrastructure/fs/confinement'
 import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
 import type {
   DeviationEvidence,
@@ -343,8 +344,9 @@ export function readinessInputPath(args: string[]): string {
 export async function readinessCLI(args: string[], provider: ReadinessProvider): Promise<number> {
   if (args[0] === '--') args = args.slice(1)
   const input = readinessInputPath(args)
-  let output = resolve(repositoryRoot, 'results/readiness.json')
+  let output = resolve(dirname(input), 'readiness.json')
   let cleanupAllowed = false
+  let boundary: Awaited<ReturnType<typeof createConfinement>> | undefined
   try {
     while (args.length) {
       const flag = args.shift(),
@@ -353,9 +355,12 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider):
         throw new Error('Usage: check:readiness -- --input <bundle> --output <report>')
       if (flag === '--output') output = resolve(value)
     }
-    protectEvidenceOutput(input, output)
+    boundary = await createConfinement(dirname(input))
+    output = await boundary.resolve(output)
+    const selectedInput = await boundary.resolve(input)
+    protectEvidenceOutput(selectedInput, output)
     try {
-      const previous = JSON.parse(await readFile(output, 'utf8'))
+      const previous = JSON.parse(await readEvidence(boundary.root, output))
       if (
         previous.schema_version !== 1 ||
         !['ready-for-owner-review', 'blocked', 'not-ready'].includes(previous.verdict) ||
@@ -367,17 +372,21 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider):
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
     cleanupAllowed = true
-    const value = JSON.parse(await readFile(input, 'utf8'))
+    const value = JSON.parse(await readEvidence(boundary.root, selectedInput))
     const report = await readiness(
       value,
       (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim(),
       provider,
     )
-    await writeEvidence(output, report)
+    await writeEvidence(output, report, boundary.root)
     console.log(`${report.verdict}: ${report.reasons.length} reasons`)
     return report.exit_code
   } catch (error) {
-    if (cleanupAllowed) await unlink(output).catch(() => {})
+    if (cleanupAllowed && boundary)
+      await boundary
+        .resolve(output)
+        .then(unlink)
+        .catch(() => {})
     console.error(terminalText(`Readiness blocked: ${error instanceof Error ? error.message : String(error)}`))
     return 2
   }

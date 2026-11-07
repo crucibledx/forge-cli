@@ -1,6 +1,41 @@
 import {expect, it} from 'bun:test'
 
-import {redact, redactData, redactionContext, redactionSecretPrefix, redactionSpans} from './redact'
+import {
+  diagnosticAuthoritySpans,
+  redact,
+  redactData,
+  redactionContext,
+  redactionSecretPrefix,
+  redactionSpans,
+} from './redact'
+
+it.each([
+  'ordinary ' + 'x'.repeat(262144),
+  'https://user:private@fixture.invalid/path\n' + 'x'.repeat(4096),
+  'https://first:a@one.invalid/path https://second:b@two.invalid/path',
+  'https://user:a@host@last/path',
+  'broken://user@host\nordinary@fixture',
+  'https://fixture.invalid/no-userinfo/path @elsewhere',
+  'https://user:unfinished' + 'x'.repeat(128),
+  'https://fixture.invalid?visible=yes&other=public',
+])('AC-15,30 literal-bounded URI scans equal the original full-input recognizers: %#', (input) => {
+  const userinfo = [...input.matchAll(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi)].map((match) => ({
+    start: match.index + match[1].length,
+    end: match.index + match[0].length - 1,
+  }))
+  expect(redactionSpans(input)).toEqual(userinfo)
+  const pending: {start: number; end: number}[] = [],
+    resolved: {start: number; end: number}[] = []
+  let continuing = false
+  for (const match of input.matchAll(/(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\//gi)) {
+    const start = match.index + match[0].length
+    let end = start
+    while (end < input.length && !/[/?#\s\p{Cc}]/u.test(input[end])) end++
+    continuing ||= end === input.length
+    if (end > start) (end < input.length && '/?#'.includes(input[end]) ? resolved : pending).push({start, end})
+  }
+  expect(diagnosticAuthoritySpans(input)).toEqual({pending, resolved, continuing})
+})
 
 it.each([
   'private_token',
@@ -10,6 +45,9 @@ it.each([
   'signing-key',
   'nested.session.id',
   'providerCredential',
+  'sig',
+  'SIG',
+  'sIg',
 ])('AC-15,30 compound credential query names survive no plain/encoded stream boundary: %s', (key) => {
   const secret = 'COMPOUND_QUERY_PRIVATE'
   for (const name of [key, [...key].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')]) {
@@ -37,6 +75,17 @@ it('AC-15,30 a public redirect value cannot conceal a nested credential query', 
   expect(
     redact('https://fixture.invalid?redirect=https://nested.invalid?client_secret=NESTED_PRIVATE&visible=yes'),
   ).toBe('https://fixture.invalid?redirect=https://nested.invalid?client_secret=[redacted]&visible=yes')
+})
+
+it.each(['design', 'signal', 'signed_at'])('AC-15,30 the short SAS alias does not hide public %s data', (key) => {
+  for (const name of [key, [...key].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')]) {
+    const input = `https://fixture.invalid?${name}=PUBLIC_VALUE&visible=yes`
+    expect(redactData({[name]: 'PUBLIC_VALUE'})).toEqual({[name]: 'PUBLIC_VALUE'})
+    for (let cut = 0; cut < input.length; cut++)
+      expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(
+        input.slice(cut),
+      )
+  }
 })
 
 it('AC-15,18,30 known-secret matching and eviction state agree with an independent overlapping-prefix oracle', () => {
