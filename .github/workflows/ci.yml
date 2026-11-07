@@ -47,19 +47,19 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Independent check 1
         if: always() && steps.install.outcome == 'success'
-        run: bun run ci:lane -- --lane "${{ matrix.lane }}" --check-index 0
+        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 0
       - name: Independent check 2
         if: always() && steps.install.outcome == 'success'
-        run: bun run ci:lane -- --lane "${{ matrix.lane }}" --check-index 1
+        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 1
       - name: Independent check 3
         if: always() && steps.install.outcome == 'success'
-        run: bun run ci:lane -- --lane "${{ matrix.lane }}" --check-index 2
+        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 2
       - name: Independent check 4
         if: always() && steps.install.outcome == 'success'
-        run: bun run ci:lane -- --lane "${{ matrix.lane }}" --check-index 3
+        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 3
       - name: Assemble lane evidence
         if: always() && steps.install.outcome == 'success'
-        run: bun run ci:lane -- --lane "${{ matrix.lane }}" --assemble
+        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --assemble
       - name: Preserve installation-failure evidence
         if: always() && steps.install.outcome != 'success'
         run: bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"

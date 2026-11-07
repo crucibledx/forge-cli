@@ -35,6 +35,13 @@ it('AC-28 documentation inputs contain only the document actually validated', ()
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])
 })
+it('AC-24 AC-25 workflow reuses the lane entrypoint and rejects its implementation drift', () => {
+  const original = contractInputs()
+  expect(original.package.scripts['ci:lane']).toBeUndefined()
+  const input = {...original, package: structuredClone(original.package)}
+  input.package.scripts['check:lanes'] = 'echo passed'
+  expect(validateContracts(input)).toContain('CI package entrypoints differ')
+})
 it.each(['removed', 'late', 'changed'])('AC-25,27 rejects a %s job budget anchor', (kind) => {
   const original = contractInputs()
   const input = {...original, ci: structuredClone(original.ci)}

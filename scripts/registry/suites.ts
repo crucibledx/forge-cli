@@ -14,6 +14,7 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'scripts/evidence-io.test.ts',
     'src/domain/redact.test.ts',
     'src/infrastructure/cli/terminal-text.test.ts',
     'src/infrastructure/cli/renderer.test.ts',
@@ -29,7 +30,7 @@ export const testSuites = {
     'src/application/commands/sync/transaction.test.ts',
     'src/application/commands/sync/outcome.test.ts',
     'e2e/commands/sync/safety/diagnostics.test.ts',
-    'e2e/commands/sync/safety/emergency-terminal.test.ts',
+    'src/application/commands/sync/emergency-terminal.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
     'e2e/commands/sync/safety/planning.test.ts',
     'e2e/commands/sync/safety/confinement.test.ts',
@@ -42,7 +43,8 @@ export const testSuites = {
     'scripts/check-lanes.test.ts',
   ],
   platform: [
-    'e2e/commands/sync/safety/emergency-terminal.test.ts',
+    'scripts/evidence-io.test.ts',
+    'src/application/commands/sync/emergency-terminal.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'src/infrastructure/source/git/shared-cache.test.ts',
@@ -65,6 +67,7 @@ export const testSuites = {
   ],
   performance: ['e2e/contracts/performance.test.ts', 'e2e/contracts/performance-wrapper.test.ts'],
   contracts: [
+    'src/application/commands/sync/emergency-terminal.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'src/application/commands/sync/assistant-scope.test.ts',
     'src/application/commands/sync/ownership.test.ts',

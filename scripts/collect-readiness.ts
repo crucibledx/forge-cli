@@ -6,7 +6,14 @@ import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext, ReviewEvidence, VerifierEvidence} from './evidence-schema'
 import {bundleSchema, contextSchema} from './evidence-schema'
 import {githubJSON, providerGate} from './github-evidence'
-import {ProducerSuperseded, providerProducer, providerReport} from './producer-evidence'
+import {
+  assertProducerRecord,
+  ProducerBlockers,
+  ProducerSuperseded,
+  providerProducerState,
+  providerReport,
+} from './producer-evidence'
+import type {ProducerRole} from './producer-roles'
 import {PRODUCER_ROLES} from './producer-roles'
 import {collectReadiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
@@ -17,20 +24,44 @@ export async function collectProducers(sources: string[], context: EvidenceConte
   if (sources.length > Object.values(PRODUCER_ROLES).length) throw new Error('Too many selected producers')
   if (new Set(sources).size !== sources.length) throw new Error('Duplicate producer selection')
   const imported: {markdown: string; records: (ReviewEvidence | VerifierEvidence)[]}[] = []
+  const selected = new Map<
+    ProducerRole,
+    {
+      record: ReviewEvidence | VerifierEvidence
+      source: number
+      current: boolean
+      adverse: boolean
+    }
+  >()
   for (const uri of sources) {
     const payload = await providerReport(uri, context, read)
-    const current: (ReviewEvidence | VerifierEvidence)[] = []
+    const source = imported.push({markdown: payload.raw_report_markdown, records: []}) - 1
     for (const record of [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]) {
+      let current = false,
+        adverse = false
       try {
-        await providerProducer(uri, context, read, record.provenance.producer_role)
-        current.push(record)
+        await providerProducerState(uri, context, read, record.provenance.producer_role)
+        current = true
       } catch (error) {
-        if (!(error instanceof ProducerSuperseded)) throw error
+        if (error instanceof ProducerSuperseded) continue
+        // Collection authenticates records, not passing authority. Aggregation revalidates history and failures.
+        adverse = error instanceof ProducerBlockers
       }
+      const role = record.provenance.producer_role,
+        previous = selected.get(role)
+      if (current && previous?.current) throw new Error('Conflicting current producer records')
+      if (
+        !previous ||
+        (current && !previous.current) ||
+        (!previous.current &&
+          ((adverse && !previous.adverse) ||
+            (adverse === previous.adverse && uri < previous.record.provenance.source_uri)))
+      )
+        selected.set(role, {record, source, current, adverse})
     }
-    if (current.length) imported.push({markdown: payload.raw_report_markdown, records: current})
   }
-  return imported
+  for (const {record, source} of selected.values()) imported[source].records.push(record)
+  return imported.filter((source) => source.records.length)
 }
 
 if (import.meta.main) {
@@ -71,7 +102,7 @@ if (import.meta.main) {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
-    await writeEvidence(resolve(directory, 'gate.json'), gate)
+    await writeEvidence(resolve(directory, 'gate.json'), gate, directory)
     let sources: unknown = []
     try {
       sources = JSON.parse(await readEvidence(directory, 'producers.json'))
@@ -82,29 +113,32 @@ if (import.meta.main) {
       throw new Error('Invalid producer selection')
     for (const {records, markdown} of await collectProducers(sources, context)) {
       for (const record of records) {
-        await provider.producer(record, context)
         const path = 'role' in record ? `reviews/${record.role}.json` : 'verifier.json'
         try {
           if (JSON.stringify(JSON.parse(await readEvidence(directory, path))) !== JSON.stringify(record))
             throw new Error('Refusing to overwrite a different source attestation')
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          await writeEvidence(resolve(directory, path), record)
+          await writeEvidence(resolve(directory, path), record, directory)
         }
       }
-      await writeEvidence(resolve(directory, `raw-reports/${records[0].provenance.producer_id}.json`), {
-        markdown,
-      })
+      await writeEvidence(
+        resolve(directory, `raw-reports/${records[0].provenance.producer_id}.json`),
+        {
+          markdown,
+        },
+        directory,
+      )
     }
     const bundle = await collectReadiness(context, directory)
     for (const lane of bundle.lanes)
       for (const check of lane.checks) for (const ref of check.evidence) await provider.artifact(ref, context, lane)
     for (const record of [...bundle.reviews, ...(bundle.verifier ? [bundle.verifier] : [])])
-      await provider.producer(record, context)
+      assertProducerRecord(await providerReport(record.provenance.source_uri, context), record)
     if (bundle.gate.source_uri) await provider.gate(bundle.gate, context)
     for (const record of bundle.deviations.filter((record) => record.approval.decision === 'approved'))
       await provider.deviation(record, context)
-    await writeEvidence(output, bundle)
+    await writeEvidence(output, bundle, directory)
     console.log('Collected schema-valid evidence; readiness has not been decided')
   } catch (error) {
     console.error(redact(`Evidence collection blocked: ${String(error)}`))

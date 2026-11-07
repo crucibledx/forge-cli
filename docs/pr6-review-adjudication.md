@@ -4,6 +4,71 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after938b48d, completed review AC
+
+Frozen subject: head938b48db37b0a34c43576644973628c48acab8da,
+provider merge1fd5d37fd42e65778fc19fc404331c31b8000bf2,
+base3fb78e1, treed878bea (equal to head).
+All nine hosted workflows/checks/statuses, including reviewer42333280949
+(completed03:24:52Z), and both independent tracks completed before source edits.
+Full hosted inventory121 threads:115 resolved,6 new open findings. The six
+remain open until their correction is pushed and verified.
+
+Original verifier-ac verdict remains **30pass/0fail/2 publication-only
+not-runnable (AC20,27)**, completed03:36:15.449Z. Its269 original files were
+recovered byte-exactly, not reconstructed from an empty tool return.
+Markdown SHA256 `47a27fa0d74a7e969011941b22c1663046b430e2479f7c7048951c99fdfe67ec`,
+JSON `01701cc8192fa12054258681af57480b26c23736680a469f3d592604fc349c9e`,
+sidecar `4324d0bd151348ee4e5f99ae90fc927720064fe40f42b37792d96c2361062e0d`.
+Its synthetic AC32 pass did not cancel independently confirmed counterexamples.
+[Supporting publication6701814942](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6701814942)
+retains ten fresh810/0 no-retry processes (8100/0), property-defect/replay,
+11 CI ZIPs containing21 raw check logs plus21 per-check JSON records,
+native258/0 per OS and queue/execution/reviewer timings. Publication never
+promotes the original verdict or supplies genuine app authority.
+
+Independent review-ac returned two P1 blocking code findings and a P2
+should-fix security finding. Its focused execution/report persistence was denied
+or interrupted. Resuming the same context recovered returned text only, not
+original persisted files or an exhaustive204-file audit. Parent archive hashes:
+Markdown `bd9f05b8fb6a8a7360f6dbcb81805fd2ec808d496295fc11cf8d0331104e7132`,
+unavailable sidecars `45bf322b7fc55c5735edd7a2635fd041841dcfdf1b57c4e12ed643c3f55c38f7`.
+These intentionally retain unavailable provenance rather than invent app identity.
+
+### Seven accepted categories
+
+| Finding | Correction boundary |
+| --- | --- |
+| Hosted4499848792 / review-ac R1 P1 | Only completed findings establish historical failure authority. Only a completed non-dismissed same-role review with its own exact resolution URI clears a blocker. A completed dismissed open blocker still persists. |
+| Hosted4499848798 / review-ac R2 P1 | Per-role supersession precedes omitted-blocker validation only after complete authenticated history. Collection retains authenticated records through known-failure or unavailable history for checker validation, including current failing code with older current security in either order. Superseded errors retain historical failure data for direct checker callers. Exact structured source-record binding remains mandatory. |
+| Review-ac S1 P2 security (nonblocking in original) | All nested JSON, partial-result and raw check-log writes use the original selected evidence root, validating ancestors before mkdir/write. Outside sentinel bytes and absence of newly created outside directories are asserted. This is additional evidence security, not rewritten frozen BR-07. |
+| Hosted4499848804 | Import the existing const-derived SyncBaseline type instead of duplicating its literal union. |
+| Hosted4499848807 | Move injected emergency-handler subprocess tests beside application sync tests; preserve assertions and contracts/security/native membership. No real-CLI E2E claim. |
+| Hosted4499848814 | Remove the redundant payload-only producer wrapper. Existing exact-payload assertions now read state.payload; failure assertions remain intact. |
+| Hosted4499848817 | Workflow and non-frozen guards reuse check:lanes; remove duplicate ci:lane alias. Add actual implementation-drift rejection without changing approved acceptance text. |
+
+Unchanged938b48d controls:2pass/8fail; actual clean-merge offline collector:
+1pass/2fail, failing before the checker. Originals and observations stay unchanged.
+Candidate replay of all ten original library assertions:10/0. During correction,
+the same sibling escape was confirmed in raw check-log output:12pass/1fail.
+That dedicated control must pass after applying the shared rooted writer.
+
+Initial focused validation408pass/1fail and contracts failed because the new
+evidence IO file had no declared security/native lane AC label. Correcting the
+additional-control label, not weakening assertions or changing frozen IDs, produced
+410/0. A stale-read patch partially applied; its failure and ensuing contract failure
+are retained, not counted passing. Final candidate validation:1689/0 full suite across18 isolated invocations,
+431/0 security with its unchanged20-second default; format/lint/types/contracts,
+high/critical audit, build and compiled help/version all exit0. Moderate minimatch
+remains visible; version0.6.24 and frozen spec/amendment/lock hashes are unchanged.
+Build stdout remains in the tool log because shell redirection covered only the
+compiled probe; no missing-output inference or unnecessary build rerun.
+Genuine clean-merge collector/checker and temporal replays remain required before push.
+
+No original verdict is retroactively promoted. Genuine app-authored code/security
+and distinct-verifier exact-revision attestations remain unavailable. READY UI,
+local tests, implementer replies and resolved conversations do not confer readiness.
+
 ## Nov7 correction after064aa83, completed review AB
 
 Frozen subject: head064aa836c1eaf8f6d8c03f8edd09dff0941d09bc, tested provider

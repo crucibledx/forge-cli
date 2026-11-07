@@ -176,10 +176,10 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     ), 'Independent checks must continue after early failures')
   checks.forEach((step: {run?: string}, index: number) =>
     require(step.run ===
-      `bun run ci:lane -- --lane "\${{ matrix.lane }}" --check-index ${index}`, 'CI check commands must use the registered package entrypoint'),
+      `bun run check:lanes -- --lane "\${{ matrix.lane }}" --check-index ${index}`, 'CI check commands must use the registered package entrypoint'),
   )
   require(ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Assemble lane evidence')?.run ===
-    'bun run ci:lane -- --lane "${{ matrix.lane }}" --assemble', 'CI lane assembly entrypoint differs')
+    'bun run check:lanes -- --lane "${{ matrix.lane }}" --assemble', 'CI lane assembly entrypoint differs')
   const setupFailure = ci.jobs.lanes.steps.find(
     (step: {name?: string}) => step.name === 'Preserve installation-failure evidence',
   )
@@ -198,7 +198,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     ci.jobs.gate.steps.some(
       (step: {id?: string; run?: string}) => step.id === 'install' && step.run === 'bun install --frozen-lockfile',
     ), 'Dependency-free gate installation-failure evidence missing')
-  require(input.package.scripts['ci:lane'] === 'bun run scripts/check-lanes.ts' &&
+  require(input.package.scripts['check:lanes'] === 'bun run scripts/check-lanes.ts' &&
     input.package.scripts['ci:gate'] === 'bun run scripts/gate.ts', 'CI package entrypoints differ')
   // The requirement cannot be conditional on the very setup step an edit can remove.
   for (const id of ['quality', 'test', 'build', 'publish-npm']) {

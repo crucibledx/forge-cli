@@ -1,4 +1,4 @@
-import {readFile, writeFile} from 'node:fs/promises'
+import {mkdir, readdir, readFile, symlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -13,6 +13,34 @@ import {aggregateExit, assessLane} from './validation-policy'
 import {commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('lane-fixtures')
+it('AC-27 additional evidence security confines raw check logs to the selected output root', async () => {
+  const out = join(dir(), 'selected'),
+    outside = join(dir(), 'outside')
+  await mkdir(out)
+  await mkdir(outside)
+  await mkdir(join(outside, 'quality'))
+  const sentinel = join(outside, 'quality/format-check.log')
+  await writeFile(sentinel, 'outside sentinel')
+  await symlink(outside, join(out, 'checks'), 'junction')
+  await expect(
+    runLanes(
+      out,
+      validationContext(),
+      async () => ({
+        ...commandMetadata(),
+        exit_code: 0,
+        duration_ms: 1,
+        timed_out: false,
+        stdout: '',
+        stderr: '',
+      }),
+      'linux',
+    ),
+  ).rejects.toThrow()
+  expect(await readFile(sentinel, 'utf8')).toBe('outside sentinel')
+  expect(await readdir(outside)).toEqual(['quality'])
+  expect(await readdir(join(outside, 'quality'))).toEqual(['format-check.log'])
+})
 it.each(['raw', 'already-private'])(
   'AC-15,25,27 retained %s URL diagnostics remain structured and keep all fields',
   async (kind) => {

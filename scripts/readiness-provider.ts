@@ -15,7 +15,7 @@ import {
   providerJob,
   requiredCIWorkflow,
 } from './github-evidence'
-import {providerProducerState, providerReport} from './producer-evidence'
+import {assertProducerRecord, providerProducerState, providerReport} from './producer-evidence'
 import type {ProducerRole} from './producer-roles'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
@@ -218,16 +218,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
     },
     async producer(record, context) {
       const {payload, verifiers} = await verdict(record.provenance.source_uri, context, record.provenance.producer_role)
-      const records = [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]
-      if (
-        !records.some(
-          (item) =>
-            item.head_sha === context.head_sha &&
-            item.tested_sha === context.tested_sha &&
-            JSON.stringify(item) === JSON.stringify(record),
-        )
-      )
-        throw new Error('Sidecar is not the independent producer’s exact structured verdict')
+      assertProducerRecord(payload, record)
       return verifiers
     },
     async gate(record, context) {

@@ -1,7 +1,7 @@
 import {expect, it} from 'bun:test'
 
 import {producerFixture as fixture} from './fixtures/producer'
-import {ProducerBlockers, providerProducer} from './producer-evidence'
+import {ProducerBlockers, providerProducerState} from './producer-evidence'
 import {readiness} from './readiness'
 
 it.each(['older-pass', 'newer-pass-omits-blocker'] as const)(
@@ -9,30 +9,35 @@ it.each(['older-pass', 'newer-pass-omits-blocker'] as const)(
   async (kind) => {
     const f = fixture(),
       selected = kind === 'older-pass' ? f.selected : f.resolved
-    await expect(providerProducer(selected.uri, f.bundle.context, f.read())).rejects.toBeInstanceOf(ProducerBlockers)
+    await expect(providerProducerState(selected.uri, f.bundle.context, f.read())).rejects.toBeInstanceOf(
+      ProducerBlockers,
+    )
   },
 )
 it('AC-32 later independent resolution must name this exact review before an old blocker disappears', async () => {
   const f = fixture()
   f.resolved.payload.reviews[0].findings.push({...f.blocker, status: 'resolved', resolution_source_uri: f.resolved.uri})
-  expect(await providerProducer(f.resolved.uri, f.bundle.context, f.read())).toEqual(f.resolved.payload)
+  expect((await providerProducerState(f.resolved.uri, f.bundle.context, f.read())).payload).toEqual(f.resolved.payload)
   f.resolved.payload.reviews[0].findings[0].resolution_source_uri = f.selected.uri
-  await expect(providerProducer(f.resolved.uri, f.bundle.context, f.read())).rejects.toBeInstanceOf(ProducerBlockers)
+  await expect(providerProducerState(f.resolved.uri, f.bundle.context, f.read())).rejects.toBeInstanceOf(
+    ProducerBlockers,
+  )
 })
 it('AC-32 older passing verdict is stale even when a later same-role verdict also passes', async () => {
   const f = fixture()
   const read = f.read([f.selected, f.resolved])
-  await expect(providerProducer(f.selected.uri, f.bundle.context, read)).rejects.toThrow('superseded')
-  expect(await providerProducer(f.resolved.uri, f.bundle.context, read)).toEqual(f.resolved.payload)
+  await expect(providerProducerState(f.selected.uri, f.bundle.context, read)).rejects.toThrow('superseded')
+  expect((await providerProducerState(f.resolved.uri, f.bundle.context, read)).payload).toEqual(f.resolved.payload)
 })
 it('AC-32 role-specific selection preserves an older security record when only code is superseded', async () => {
   const f = fixture()
   f.resolved.payload.reviews = f.resolved.payload.reviews.filter((record) => record.role === 'code')
   expect(
-    await providerProducer(f.selected.uri, f.bundle.context, f.read([f.selected, f.resolved]), 'security'),
+    (await providerProducerState(f.selected.uri, f.bundle.context, f.read([f.selected, f.resolved]), 'security'))
+      .payload,
   ).toEqual(f.selected.payload)
   await expect(
-    providerProducer(f.selected.uri, f.bundle.context, f.read([f.selected, f.resolved]), 'code'),
+    providerProducerState(f.selected.uri, f.bundle.context, f.read([f.selected, f.resolved]), 'code'),
   ).rejects.toThrow('superseded')
 })
 it.each(['head', 'merge', 'human'] as const)(
@@ -42,9 +47,9 @@ it.each(['head', 'merge', 'human'] as const)(
     if (kind === 'head') f.later.review.commit_id = 'f'.repeat(40)
     if (kind === 'merge') for (const record of f.later.payload.reviews) record.tested_sha = 'f'.repeat(40)
     if (kind === 'human') f.later.review.user = {login: 'NazarUsik', type: 'User'}
-    expect(await providerProducer(f.selected.uri, f.bundle.context, f.read([f.selected, f.later]))).toEqual(
-      f.selected.payload,
-    )
+    expect(
+      (await providerProducerState(f.selected.uri, f.bundle.context, f.read([f.selected, f.later]))).payload,
+    ).toEqual(f.selected.payload)
   },
 )
 it.each(['prose', 'hash', 'dismissed', 'timestamp', 'pending'] as const)(
@@ -61,14 +66,14 @@ it.each(['prose', 'hash', 'dismissed', 'timestamp', 'pending'] as const)(
     if (kind === 'dismissed') f.later.review.state = 'DISMISSED'
     if (kind === 'timestamp') f.later.review.submitted_at = 'not-a-date'
     if (kind === 'pending') f.later.review.state = 'PENDING'
-    await expect(providerProducer(f.selected.uri, f.bundle.context, read)).rejects.toThrow()
+    await expect(providerProducerState(f.selected.uri, f.bundle.context, read)).rejects.toThrow()
   },
 )
 it('AC-32 pagination authenticates a later blocker on the second page', async () => {
   const f = fixture()
   const older = Array.from({length: 100}, (_, i) => ({id: 1000 + i, user: {login: 'human', type: 'User'}}))
   await expect(
-    providerProducer(f.selected.uri, f.bundle.context, f.read([f.selected, f.later], older)),
+    providerProducerState(f.selected.uri, f.bundle.context, f.read([f.selected, f.later], older)),
   ).rejects.toBeInstanceOf(ProducerBlockers)
 })
 it('AC-32 resolving a code finding cannot clear a security finding with the same ID', async () => {
@@ -76,7 +81,7 @@ it('AC-32 resolving a code finding cannot clear a security finding with the same
   f.later.payload.reviews[1].findings.push({...f.blocker})
   f.resolved.payload.reviews[0].findings.push({...f.blocker, status: 'resolved', resolution_source_uri: f.resolved.uri})
   try {
-    await providerProducer(f.resolved.uri, f.bundle.context, f.read())
+    await providerProducerState(f.resolved.uri, f.bundle.context, f.read())
     throw Error('Expected independent security blocker')
   } catch (error) {
     expect(error).toBeInstanceOf(ProducerBlockers)
@@ -93,7 +98,7 @@ it('AC-32 newer verifier reports supersede only verifier selection and retain kn
   later.payload.verifier!.rows[31].result = 'fail'
   later.payload.verifier!.rows[31].exit_code = 1
   const read = f.read([f.selected, prior, later])
-  await expect(providerProducer(prior.uri, f.bundle.context, read, 'verifier')).rejects.toThrow('superseded')
+  await expect(providerProducerState(prior.uri, f.bundle.context, read, 'verifier')).rejects.toThrow('superseded')
   f.bundle.verifier = later.payload.verifier
   f.bundle.reviews = f.selected.payload.reviews
   const report = await readiness(f.bundle, Bun.version, {
@@ -102,7 +107,7 @@ it('AC-32 newer verifier reports supersede only verifier selection and retain kn
     gate: async () => {},
     deviation: async () => {},
     producer: async (record, context) => {
-      await providerProducer(record.provenance.source_uri, context, read, record.provenance.producer_role)
+      await providerProducerState(record.provenance.source_uri, context, read, record.provenance.producer_role)
     },
   })
   expect(report.exit_code).toBe(1)
@@ -113,7 +118,7 @@ it('AC-32 nonterminating review pagination is bounded without treating a partial
     original = f.read([f.selected])
   let pages = 0
   await expect(
-    providerProducer(f.selected.uri, f.bundle.context, async (ctx, endpoint) => {
+    providerProducerState(f.selected.uri, f.bundle.context, async (ctx, endpoint) => {
       if (!endpoint.includes('?')) return original(ctx, endpoint)
       pages++
       return Array.from({length: 100}, (_, i) => ({id: 10000 + pages * 100 + i, user: {login: 'human', type: 'User'}}))
@@ -129,7 +134,7 @@ it('AC-32 review history has an aggregate byte cap as well as per-review and pag
     body: ' '.repeat(200000),
     submitted_at: '2026-11-04T12:00:30.000Z',
   }))
-  await expect(providerProducer(f.selected.uri, f.bundle.context, f.read([f.selected], history))).rejects.toThrow(
+  await expect(providerProducerState(f.selected.uri, f.bundle.context, f.read([f.selected], history))).rejects.toThrow(
     'oversized',
   )
 })
@@ -139,7 +144,7 @@ it.each(['duplicate', 'missing', 'changed', 'malformed', 'unavailable'] as const
     const f = fixture(),
       original = f.read([f.selected])
     await expect(
-      providerProducer(f.selected.uri, f.bundle.context, async (ctx, endpoint) => {
+      providerProducerState(f.selected.uri, f.bundle.context, async (ctx, endpoint) => {
         if (!endpoint.includes('?')) return original(ctx, endpoint)
         if (kind === 'unavailable') throw Error('Provider unavailable')
         if (kind === 'missing') return []
@@ -162,7 +167,7 @@ it('AC-32 complete readiness preserves later provider blockers and unrelated mis
       gate: async () => {},
       deviation: async () => {},
       producer: async (record, context) => {
-        if ('role' in record) await providerProducer(record.provenance.source_uri, context, read, record.role)
+        if ('role' in record) await providerProducerState(record.provenance.source_uri, context, read, record.role)
       },
     })
     expect(report.verdict).toBe('not-ready')
@@ -202,7 +207,7 @@ it.each(['selected', 'partial-page'] as const)(
       gate: async () => {},
       deviation: async () => {},
       producer: async (record, context) => {
-        if ('role' in record) await providerProducer(record.provenance.source_uri, context, read, record.role)
+        if ('role' in record) await providerProducerState(record.provenance.source_uri, context, read, record.role)
       },
     })
     expect(report.exit_code).toBe(1)
