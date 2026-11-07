@@ -19,11 +19,12 @@ const queryKeys = [
 const queryStart = /[?&#]([^?&#=\s]+)=/g
 const assignmentStart = /(?:token|password|secret|authorization)[=:]/gi
 
-function credentialQueryKey(name: string): boolean {
+function credentialQueryKey(name: string, complete = true): boolean {
   const decoded = name
     .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
     .toLowerCase()
-  return queryKeys.some((key) => decoded.includes(key))
+  // Azure SAS uses this short alias; matching it as a fragment would hide "design".
+  return (complete && decoded === 'sig') || queryKeys.some((key) => decoded.includes(key))
 }
 
 function lastMarkerSuffix(text: string, marker: RegExp, accept = (_match: RegExpExecArray) => true): string {
@@ -42,10 +43,12 @@ function finalMatch(text: string, pattern: RegExp): RegExpExecArray | null {
 function unfinishedQueryName(text: string): string {
   const match = finalMatch(text, /[?&#]([^?&#=\s]*)$/)
   if (!match) return ''
-  if (credentialQueryKey(match[1])) return '?token'
+  // A partial "sig" can still become the public name "signal".
+  if (credentialQueryKey(match[1], false)) return '?token'
   // Retain enough syntax for a fragment split anywhere in percent encoding.
   // Arbitrary provider prefixes may be evicted without retaining unbounded keys.
-  return '?q' + match[1].slice(-3 * Math.max(...queryKeys.map((key) => key.length)))
+  const limit = 3 * Math.max(...queryKeys.map((key) => key.length))
+  return '?' + (match[1].length > limit ? 'q' : '') + match[1].slice(-limit)
 }
 
 interface RedactionOptions {
@@ -81,7 +84,11 @@ export function diagnosticAuthoritySpans(text: string, prefixes: readonly string
   let continuing = false
   for (const prefix of ['', ...prefixes]) {
     const input = prefix + text
-    for (const match of input.matchAll(/(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\//gi)) {
+    const lastScheme = input.lastIndexOf('://')
+    if (lastScheme < 0) continue
+    // No scheme can start after the final delimiter. Avoid lookbehind scans
+    // through a large ordinary tail; authority boundaries still use full input.
+    for (const match of input.slice(0, lastScheme + 3).matchAll(/(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\//gi)) {
       const start = match.index + match[0].length
       let end = start
       while (end < input.length && !/[/?#\s\p{Cc}]/u.test(input[end])) end++
@@ -150,15 +157,17 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   for (const span of options.spans ?? []) add(span.start, span.end)
   for (const credentialPrefix of ['', ...(options.credentialPrefixes ?? [])]) {
     const credentialText = credentialPrefix + text
-    const scan = (pattern: RegExp, trailing = 0) => {
-      for (const match of credentialText.matchAll(pattern)) {
+    const scan = (pattern: RegExp, trailing = 0, input = credentialText) => {
+      for (const match of input.matchAll(pattern)) {
         add(
           match.index + match[1].length - credentialPrefix.length,
           match.index + match[0].length - trailing - credentialPrefix.length,
         )
       }
     }
-    scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1)
+    const lastAt = credentialText.lastIndexOf('@')
+    if (lastAt >= 0 && credentialText.includes('://'))
+      scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1, credentialText.slice(0, lastAt + 1))
     queryStart.lastIndex = 0
     for (let match = queryStart.exec(credentialText); match; match = queryStart.exec(credentialText)) {
       if (!credentialQueryKey(match[1])) continue
@@ -249,8 +258,9 @@ export function redactionContext(discarded: string): string[] {
     /^(?:token|password|secret|authorization)[=:]\s*([^\s&]*)$/i,
   )
   if (assignment) contexts.add(assignment[1] ? 'secret=x' : 'secret=')
-  if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/]*$/i)) contexts.add('https://')
+  if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
+  const lower = discarded.toLowerCase()
   for (const marker of [
     'Bearer',
     ...queryKeys.map((key) => `${key}=`),
@@ -261,7 +271,7 @@ export function redactionContext(discarded: string): string[] {
     'authorization:',
   ]) {
     for (let size = marker.length; size > partial.length; size--)
-      if (discarded.toLowerCase().endsWith(marker.slice(0, size).toLowerCase())) {
+      if (lower.endsWith(marker.slice(0, size).toLowerCase())) {
         partial = marker.slice(0, size)
         break
       }

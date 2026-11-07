@@ -4,6 +4,60 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after23a5d0e, completed review AG
+
+Frozen head `23a5d0ea6562da6e9fb02fd2f055c182d1318f6a`, actual hosted merge
+`83579b28d15eaab1dfee1b56f1a53bf3f6d82291`, ordered base/head parents
+`3fb78e1b471e3665567d5e737a8f340b781e996d` and that head,
+tree `1deb6c53663c827a981897ab31a214e1d32e6bcf`.
+ALL hosted checks including completed reviewer42346609752 and BOTH independent tracks finished before edits.
+At `2026-11-07T06:49:36.929630+00:00`, four workflows/23 head checks were terminal;
+138 threads/137 resolved/one open were fully paginated with no further comment pages.
+All400 tracked hashes remained unchanged through original-evidence recovery and publication.
+
+The immutable original verifier result is **28pass/4fail/0not-runnable**, failed AC15/16/30/32.
+Markdown SHA256 `fa2e32abd6a228d0754d910a91581bfc40b4f8b090e243dfc1d19902804c28d4`;
+JSON `55c12822cc8dc7caeca834cdd8c9a64724d5148c29d7f4a0619dd0646193e95d`.
+The empty return was recovered from2840 byte-exact regular files,2837 sealed originals and2838 archive members
+individually checked, without rerunning verification or changing a verdict.
+Ten fresh unit processes passed782/0 each and ten fresh contract processes passed932/0 each, no retries.
+These local passes do not erase current Linux E2E507/2/one error and security487/2/two errors:
+the two double-quoted redact/sanitize tail-cut regressions exceeded the unchanged20000ms budget.
+No credential disclosure is inferred from those timeouts.
+
+The independent review requested changes: **one blocking security /one should-fix lifecycle /zero nits**.
+Both counterexamples were static only. Its install/focused tests were denied before launch, with no exit code;
+zero tests ran. Report-file persistence was cancelled and no reviewer disk reports/hashes exist.
+The same session returned its already-prepared original text without tools or retrying denied operations.
+Verifier AC18 passed finite existing tests; that does not refute the separate cleanup-denial counterexample.
+
+[Original publication6703564655](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6703564655)
+precedes source corrections. It preserves all32 original rows, commands and raw hashes, all20 process timings,
+the original returned review, property failure/replay,11 selected-run ZIP digests and21 raw/JSON pairs.
+Parent rechecked all63 archive members and every companion's context/command/exit against actual bytes.
+Native Windows/macOS282/0 and compiled help/version0 remain distinct from Linux's two failing lanes.
+CI start-to-gate487s/queue3s and reviewer320s separately are single samples, not p95 or an SLA.
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| Reviewer AG-S1 P1 | Recognize decoded exact SAS `sig`, including encoded/case variants. Retain incomplete names without prematurely classifying `signal`; do not add short substring matching that hides `design`. Cover object/direct/raw Git/chunk/tail sinks and unchanged public-query controls. |
+| Reviewer AG-C1 P2 | Share an owned-session disposal completion signal and race public pipe/PTY exit/drain waits with it. Cleanup failure settles waits and retains the rejection, without claiming descendants died. Real owned-process integration controls inject persistent live group denial and loss of exit notification, then restore actual signalling and reap the fixtures. |
+| Hosted4500476732 / verifier AG-1 | Bind previous-report read, output write and stale cleanup to the original selected input directory. Recheck cleanup after provider work; reject nested/leaf links and outside/prefix-sibling destinations before effects. Default, nested and selected-root-alias reports still work. |
+| Verifier AG-2 | Bound lookbehind-heavy URI scans by the last literal scheme/userinfo delimiter without changing full-input authority boundaries or recognized spans; compute context case folding once. Profiling identified URI scans as the original workload's hot path. Keep the original two regression bodies/assertions and20000ms named budget intact; add SAS cases separately. Original Linux failures stay immutable until new exact-revision CI genuinely passes. |
+
+The initial author focused run failed316/4. Three public-name controls exposed authority-context and partial-alias
+overmasking, corrected in production. The existing repeated-input positive fixture wrote outside its selected
+directory; only its output path moved into that directory, preserving every expected result/assertion.
+Separate protected outside-report negative controls assert rejection without overwrite or deletion.
+Those first failures remain separate evidence, not rewritten passes or independent findings.
+
+Actual AG production readiness was **not-ready/1** from known CI failures, with missing genuine structured
+exact-revision code/security/distinct-verifier attestations still explicit. The local original AC32 row describes
+an unexpectedly successful unsafe product write0; its separate assertion exits1. That original supporting report
+is preserved, not silently rewritten into provider-authorized evidence.
+Original AF/AE verdicts below remain unchanged. No source, approval, frozen acceptance, dependency, lock, version,
+settings, tag or release authority is supplied by these reports. Every push restarts the complete wait.
+
 ## Nov7 correction after1613d02, completed review AF
 
 Frozen head `1613d02bb08c7547b03f2827e98eabe66ba42625`, hosted tested merge

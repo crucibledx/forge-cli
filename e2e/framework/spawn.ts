@@ -6,7 +6,7 @@ import {sessionFailure} from './failure'
 import {ENTER} from './keys'
 import type {ProcessOptions} from './pipe'
 import {posixOwnership} from './posix-owner'
-import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
+import {createTranscript, ownSession, sanitize, sessionBudget, terminateTree} from './process'
 
 export interface CLIResult {
   stdout: string
@@ -49,7 +49,6 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   let exited = false
   let closed = false
   let timedOut = false
-  let disposal: Promise<void> | undefined
   const notify = () => listeners.forEach((listener) => listener())
   const ownership = posixOwnership(command)
   const env = testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env})
@@ -87,22 +86,16 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
       options.secrets,
     )
   const mark = () => transcript.offset + transcript.text().length
-  const owner = {
-    dispose() {
-      return (disposal ??= (async () => {
-        closed = true
-        clearTimeout(deadline)
-        notify()
-        try {
-          await terminateTree(proc, env)
-        } finally {
-          term.close()
-          activeProcesses.delete(owner)
-        }
-      })())
-    },
-  }
-  activeProcesses.add(owner)
+  const owner = ownSession(async () => {
+    closed = true
+    clearTimeout(deadline)
+    notify()
+    try {
+      await terminateTree(proc, env)
+    } finally {
+      term.close()
+    }
+  })
   const deadlineAt = performance.now() + budget
   const deadline = setTimeout(
     () => {
@@ -176,7 +169,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     dispose: owner.dispose,
     async waitForExit() {
       try {
-        await exit
+        await Promise.race([exit, owner.finished])
         return {
           output: getOutput(),
           stdout: '',

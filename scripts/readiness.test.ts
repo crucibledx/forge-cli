@@ -1,5 +1,5 @@
 import {existsSync} from 'node:fs'
-import {mkdir, readFile, unlink, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, rename, symlink, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -12,6 +12,83 @@ import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './r
 import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('readiness')
+const priorReport = JSON.stringify({
+  schema_version: 1,
+  verdict: 'ready-for-owner-review',
+  ac_results: [],
+  lane_results: [],
+})
+it.each(
+  ['ancestor-link', 'leaf-link', 'absolute-outside', 'prefix-sibling'].flatMap((kind) =>
+    [false, true].map((malformed) => ({kind, malformed})),
+  ),
+)('AC-32 $kind cannot redirect readiness writes or cleanup, malformed=$malformed', async ({kind, malformed}) => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected'),
+    outside = join(dir(), kind === 'prefix-sibling' ? 'selected-other' : 'outside'),
+    input = join(selected, 'bundle.json'),
+    sentinel = join(outside, 'report.json')
+  await mkdir(selected)
+  await mkdir(outside)
+  await writeFile(input, malformed ? '{bad input' : JSON.stringify(bundle))
+  await writeFile(sentinel, priorReport)
+  let output = sentinel
+  if (kind === 'ancestor-link') {
+    await symlink(outside, join(selected, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+    output = join(selected, 'nested/report.json')
+  } else if (kind === 'leaf-link') {
+    await symlink(sentinel, join(selected, 'report.json'))
+    output = join(selected, 'report.json')
+  }
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+  expect(await readFile(sentinel, 'utf8')).toBe(priorReport)
+  expect(await readFile(input, 'utf8')).toBe(malformed ? '{bad input' : JSON.stringify(bundle))
+  if (!malformed && kind === 'ancestor-link') {
+    expect(await readinessCLI(['--input', input, '--output', join(selected, 'nested/new.json')], provider)).toBe(2)
+    expect(existsSync(join(outside, 'new.json'))).toBe(false)
+  }
+})
+it.each(['default', 'nested', 'root-alias'])('AC-32 selected-root %s report output remains supported', async (kind) => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected')
+  await mkdir(selected)
+  await writeFile(join(selected, 'bundle.json'), JSON.stringify(bundle))
+  let input = join(selected, 'bundle.json')
+  if (kind === 'root-alias') {
+    const alias = join(dir(), 'alias')
+    await symlink(selected, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    input = join(alias, 'bundle.json')
+  }
+  const args = ['--input', input]
+  const output = join(selected, kind === 'nested' ? 'nested/reports/report.json' : 'readiness.json')
+  if (kind === 'nested') args.push('--output', output)
+  expect(await readinessCLI(args, provider)).toBe(0)
+  expect(JSON.parse(await readFile(output, 'utf8')).verdict).toBe('ready-for-owner-review')
+})
+it('AC-32 cleanup revalidates the selected boundary after asynchronous provider work', async () => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected'),
+    nested = join(selected, 'nested'),
+    outside = join(dir(), 'outside'),
+    input = join(selected, 'bundle.json'),
+    output = join(nested, 'report.json'),
+    sentinel = join(outside, 'report.json')
+  await mkdir(nested, {recursive: true})
+  await mkdir(outside)
+  await writeFile(input, JSON.stringify(bundle))
+  await writeFile(output, priorReport)
+  await writeFile(sentinel, priorReport)
+  const original = provider.context
+  provider.context = async (...args) => {
+    await original(...args)
+    await rename(nested, join(selected, 'saved'))
+    await symlink(outside, nested, process.platform === 'win32' ? 'junction' : 'dir')
+  }
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+  expect(await readFile(sentinel, 'utf8')).toBe(priorReport)
+  expect(await readFile(join(selected, 'saved/report.json'), 'utf8')).toBe(priorReport)
+})
+
 it.each(['\x1b]52;c;YXR0YWNrZXI=\x07', '\x9d52;c;YXR0YWNrZXI=\x9c'])(
   'AC-32 missing-input terminal controls are inert in actual registered readiness stderr: %j',
   async (control) => {
@@ -176,7 +253,7 @@ it('AC-32 repeated input flags select one shared evidence root and bundle', asyn
   const {bundle, provider} = await fixture()
   const old = join(dir(), 'old/bundle.json'),
     current = join(dir(), 'current/bundle.json'),
-    output = join(dir(), 'report.json')
+    output = join(dir(), 'current/report.json')
   await writeEvidence(old, {invalid: 'old bundle must not be selected'})
   await writeEvidence(current, bundle)
   const args = ['--', '--input', old, '--input', current, '--output', output]
