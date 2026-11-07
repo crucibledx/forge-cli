@@ -23,6 +23,8 @@ export async function runTests(args: string[]): Promise<number> {
   const pin = readFileSync(resolve(repositoryRoot, '.bun-version'), 'utf8').trim()
   if (Bun.version !== pin) throw new Error(`Tests require Bun ${pin}; found ${Bun.version}`)
   const sandbox = createTestSandbox()
+  let failed = false
+  const errors: unknown[] = []
   try {
     const files = [
       ...new Set(
@@ -41,7 +43,6 @@ export async function runTests(args: string[]): Promise<number> {
     const mocked = files.filter((path) => /\bmock\.module\s*\(/.test(readFileSync(path, 'utf8')))
     const clean = files.filter((path) => !mocked.includes(path))
     const batches = [...(clean.length ? [clean] : []), ...mocked.map((file) => [file])]
-    let failed = false
     for (const batch of batches) {
       const child = Bun.spawn(
         [
@@ -63,10 +64,21 @@ export async function runTests(args: string[]): Promise<number> {
       )
       if ((await child.exited) !== 0) failed = true
     }
-    return failed ? 1 : 0
+  } catch (error) {
+    errors.push(error)
   } finally {
-    sandbox.dispose()
+    try {
+      sandbox.dispose()
+    } catch (error) {
+      errors.push(error)
+    }
   }
+  if (errors.length) {
+    const message = errors.map((error) => (error instanceof Error ? error.message : String(error))).join('\n')
+    if (!failed) throw new AggregateError(errors, message)
+    console.error(message)
+  }
+  return failed ? 1 : 0
 }
 
 if (import.meta.main) {

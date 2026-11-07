@@ -1,8 +1,9 @@
 import {createAnsiText} from '../../src/domain/ansi-text'
-import type {RedactionSpan} from '../../src/domain/redact'
+import type {RedactionSegment, RedactionSpan} from '../../src/domain/redact'
 import {
   diagnosticAuthoritySpans,
   maskRedactionSpans,
+  projectRedactionSpans,
   redact,
   redactionContext,
   redactionSecretPrefix,
@@ -53,7 +54,7 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 }
 
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
-  const cleaned = redact(text, {secrets, assignments: true})
+  const cleaned = redact(text, {secrets})
   return cwd ? cleaned.replaceAll(cwd, '<project>') : cleaned
 }
 export function diagnosticTail(text: string, maximum = TAIL_BYTES): string {
@@ -123,7 +124,6 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
     credentialPrefixes: contexts,
     secretPrefix,
     secrets,
-    assignments: true,
   })
   function add(text: string, spans: RedactionSpan[], pending: RedactionSpan[], resolved: RedactionSpan[]): void {
     raw += text
@@ -189,8 +189,7 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
   const decoder = new TextDecoder()
   const raw = diagnosticView(clean, secrets)
   const visible = diagnosticView(clean, secrets)
-  const views = {raw, visible}
-  let segments: {raw: number; visible: number; length: number}[] = []
+  let segments: RedactionSegment[] = []
   let rawEnd = 0,
     visibleEnd = 0
   const plainText = createAnsiText((start, end) => {
@@ -204,23 +203,8 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
     else segments.push({raw: rawEnd + start, visible: visibleEnd, length: end - start})
     visibleEnd += end - start
   })
-  function project(spansToProject: RedactionSpan[], from: keyof typeof views, to: keyof typeof views) {
-    const spans: RedactionSpan[] = []
-    let index = 0
-    for (const span of spansToProject) {
-      const first = views[from].offset + span.start,
-        last = views[from].offset + span.end
-      while (index < segments.length && segments[index][from] + segments[index].length <= first) index++
-      let start: number | undefined,
-        end = 0
-      for (let i = index; i < segments.length && segments[i][from] < last; i++) {
-        const segment = segments[i]
-        start ??= segment[to] + Math.max(0, first - segment[from])
-        end = segment[to] + Math.min(segment.length, last - segment[from])
-      }
-      if (start !== undefined) spans.push({start: start - views[to].offset, end: end - views[to].offset})
-    }
-    return spans
+  function project(spansToProject: RedactionSpan[], from: 'raw' | 'visible', to: 'raw' | 'visible') {
+    return projectRedactionSpans(spansToProject, segments, from, to, {raw: raw.offset, visible: visible.offset})
   }
   function add(text: string) {
     rawEnd = raw.offset + raw.text().length

@@ -2,7 +2,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it, spyOn} from 'bun:test'
 
 import {runPipe} from '../pipe'
-import {activeProcesses} from '../process'
+import {activeProcesses, TAIL_BYTES} from '../process'
 import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('session-denial')
@@ -35,14 +35,17 @@ it.each(['pipe', 'pty'])(
       }
       return nativeKill(pid, value)
     })
-    const command = [process.execPath, '-e', "process.on('SIGHUP',()=>{});setInterval(()=>{},1000)"]
+    const command = [
+      process.execPath,
+      '-e',
+      "process.on('SIGHUP',()=>{});console.log('STDOUT_FAILURE_REASON token=DENIAL_PRIVATE');console.error('STDERR_FAILURE_REASON');setInterval(()=>{},1000)",
+    ]
+    const options = {timeoutMs: 150, env: {FC_SEED: '123', FC_PATH: '0:1'}}
     const started = performance.now()
     let watchdog: ReturnType<typeof setTimeout> | undefined
     try {
       const pending =
-        kind === 'pipe'
-          ? runPipe(dir(), command, {timeoutMs: 150})
-          : spawnPty(dir(), command, {timeoutMs: 150}).waitForExit()
+        kind === 'pipe' ? runPipe(dir(), command, options) : spawnPty(dir(), command, options).waitForExit()
       const outcome = await Promise.race([
         pending.then(
           () => 'unexpected success',
@@ -54,6 +57,24 @@ it.each(['pipe', 'pty'])(
       ])
       expect(outcome).toBeInstanceOf(Error)
       expect((outcome as Error).message).toContain('persistent live owned-group permission denial')
+      for (const text of [(outcome as Error).message, (outcome as Error).stack!]) {
+        expect(text).toContain('STDOUT_FAILURE_REASON')
+        expect(text).toContain('STDERR_FAILURE_REASON')
+        expect(text).not.toContain('DENIAL_PRIVATE')
+        expect(text).not.toContain(dir())
+        expect(Buffer.byteLength(text)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+      const context = JSON.parse((outcome as Error).message.split('\nSession: ')[1].split('\nTranscript tail:')[0])
+      expect(context).toMatchObject({
+        cwd: '.',
+        exit: null,
+        signal: null,
+        timedOut: true,
+        timeoutMs: 150,
+        seed: '123',
+        replay: '0:1',
+      })
+      expect(context.command).toEqual(['<runtime>', '-e', '<inline program>'])
       expect(performance.now() - started).toBeLessThan(4000)
       expect(attempts).toBeGreaterThan(1)
       expect(children).toHaveLength(1)

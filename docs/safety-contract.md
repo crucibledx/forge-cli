@@ -29,6 +29,8 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
 - Different existing backups, target/backup/metadata collisions, file ancestors, and separator/case/Unicode-NFC
   aliases block the complete plan on every OS. Move the conflicting file deliberately before retrying a dry-run.
   Conservative Unicode case folding also rejects native sigma/final-sigma and expanding case equivalents.
+  This includes differently spelled intermediate directories with distinct filenames, before fresh-root preview
+  or apply. Identically spelled shared parent directories remain valid.
   This comparison never rewrites actual destination spelling or persisted state keys.
 - Config stays version `"1"`. State upgrades to version 2 only in a committed transaction. Loading old state does
   not write it: legacy hashes remain `legacy-unknown` until installation or byte-identical desired content verifies
@@ -75,7 +77,9 @@ Default session deadline is 10 seconds with a 20-second test budget; 30-second s
 `--timeout-ms 40000` before `--`. PTY text is a transcript, not a reconstructed screen.
 Full/checker/platform entrypoints allow40 seconds for the30-second native compiler probe, without extending
 ordinary session deadlines. Windows primes one isolated compilation before test imports; fixtures receive separate
-byte copies, so disposing or altering one backend cannot affect another.
+byte copies when `sandbox.env` or `testEnvironment()` is requested. Command-free fixtures do not write the large
+executable. Every command environment prepares its own backend before use, so disposing or altering one backend
+cannot affect another. Native Windows completion within the unchanged lane budget must still be verified.
 
 Raw stream channels remain separate. Diagnostics recognize both unchanged raw bytes and streamed terminal-visible
 text, projecting sensitive visible spans back across formatting; assertion cursors use a separate unredacted
@@ -83,13 +87,18 @@ bounded transcript. This is not a terminal screen emulator. Sandbox setup errors
 Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
 are not short-substring matches. Incomplete names remain undecided until their boundary is known.
 Production diagnostics also mask Basic/Bearer values and credential assignments by default, including
-quoted/escaped values and quoted JSON keys (including escaped names and multiline separators). URL userinfo
+quoted/escaped values, quoted JSON keys, and indented multiline values following unquoted credential keys.
+Streaming continuation retains pending newline/indent syntax; an empty assignment does not hide the next
+unindented public diagnostic. URL userinfo
 stops at authority boundaries, never query/fragment email data. Query delimiters remain separate; streaming continuation retains syntax, never discarded
 credential bytes. Renderers and emergency recovery diagnostics sanitize each field before terminal
 escaping/trusted formatting and print it once, preserving trusted recovery instructions.
 Owned-session public exit/drain waits also observe disposal completion: persistent cleanup denial must reject
 within the existing cleanup budget even if exit notification never arrives, not wait for the outer test timeout.
+Pipe/PTY failures retain original and cleanup errors with bounded sanitized transcript/invocation/replay context.
 Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.
+The isolated test launcher likewise retains observed test failure exit1 if sandbox cleanup later fails; a passing
+batch with incomplete cleanup remains blocked2.
 CI records its lane clock before checkout, shares remaining time across independent steps, and reserves90 seconds
 inside the unchanged shared ten-minute lane budget for bounded cleanup, evidence assembly and upload. Missing, malformed,
 future or exhausted clock evidence blocks command execution rather than granting a new full budget.

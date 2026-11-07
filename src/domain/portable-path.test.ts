@@ -25,3 +25,30 @@ it.each([
 it('AC-9 ordinary distinct Unicode destinations remain distinct', () => {
   expect(() => validatePathGraph(['rules/ä.md', 'rules/a.md', 'rules/東京.md', 'rules/👩‍💻.md'])).not.toThrow()
 })
+it.each([
+  ['Foo', 'foo'],
+  ['café', 'cafe\u0301'],
+  ['Σ', 'ς'],
+  ['ß', 'ss'],
+  ['ﬀ', 'ff'],
+])('AC-8,9 intermediate directory aliases compete before writes: %s / %s', (first, second) => {
+  for (const prefix of ['', '.claude/skills/', '.claude/skills/shared/']) {
+    const a = `${prefix}${first}/one/a.md`,
+      b = `${prefix}${second}/two/b.md`
+    for (const paths of [
+      [a, b],
+      [b, a],
+    ])
+      expect(() => validatePathGraph(paths)).toThrow('aliased directories')
+  }
+})
+it('AC-8,9 identically spelled shared parents and distinct ordinary Unicode parents remain valid', () => {
+  expect(() =>
+    validatePathGraph([
+      '.claude/skills/Foo/a.md',
+      '.claude/skills/Foo/b.md',
+      '.claude/skills/café/a.md',
+      '.claude/skills/東京/b.md',
+    ]),
+  ).not.toThrow()
+})

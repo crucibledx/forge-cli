@@ -1,4 +1,4 @@
-import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, resolve} from 'node:path'
 
@@ -16,6 +16,37 @@ const runtimeKeys = [
 ]
 const replayKeys = ['FC_SEED', 'FC_PATH']
 let windowsScheduler: Buffer | undefined
+
+/** Command-free fixtures need no large native executable; every command environment does. */
+function ensureWindowsScheduler(root: string, env: Record<string, string>, timeoutMs = 30000): void {
+  if (process.platform !== 'win32') return
+  const executable = join(root, 'bin', 'schtasks.exe')
+  if (existsSync(executable)) return
+  if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
+  else {
+    const result = Bun.spawnSync(
+      [
+        process.execPath,
+        'build',
+        resolve(import.meta.dir, 'fixtures/fake-scheduler.ts'),
+        '--compile',
+        '--outfile',
+        executable,
+      ],
+      {
+        cwd: join(root, 'project'),
+        env,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: Math.min(30000, Math.max(1, timeoutMs)),
+      },
+    )
+    if (result.exitCode !== 0)
+      throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
+    // Cache immutable bytes, never a mutable shared executable or hardlink.
+    windowsScheduler = readFileSync(executable)
+  }
+}
 
 export function allowlistedEnvironment(): Record<string, string> {
   const env: Record<string, string> = {}
@@ -74,27 +105,16 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
       GIT_ALLOW_PROTOCOL: 'file',
       NO_COLOR: '1',
     }
-    if (process.platform === 'win32') {
-      const executable = join(bin, 'schtasks.exe')
-      if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
-      else {
-        // Compile once with isolated env/cwd. Cache bytes, never a mutable shared
-        // file/hardlink: disposing or modifying one fixture cannot affect another.
-        const result = Bun.spawnSync([process.execPath, 'build', fake, '--compile', '--outfile', executable], {
-          cwd: project,
-          env,
-          stdout: 'pipe',
-          stderr: 'pipe',
-          timeout: Math.min(30000, Math.max(1, timeoutMs)),
-        })
-        if (result.exitCode !== 0) {
-          throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
-        }
-        windowsScheduler = readFileSync(executable)
-      }
-    }
     writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
-    return {root, project, env, dispose: () => rmSync(root, {recursive: true, force: true})}
+    return {
+      root,
+      project,
+      get env() {
+        ensureWindowsScheduler(root, env, timeoutMs)
+        return env
+      },
+      dispose: () => rmSync(root, {recursive: true, force: true}),
+    }
   } catch (error) {
     try {
       rmSync(root, {recursive: true, force: true})
@@ -109,13 +129,17 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
 export function testEnvironment(cwd: string, overrides: Record<string, string> = {}): Record<string, string> {
   let dir = resolve(cwd)
   while (true) {
+    let env: Record<string, string> | undefined
     try {
-      const env: Record<string, string> = JSON.parse(readFileSync(join(dir, '.forge-test-sandbox'), 'utf8'))
+      env = JSON.parse(readFileSync(join(dir, '.forge-test-sandbox'), 'utf8'))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    if (env) {
+      ensureWindowsScheduler(dir, env)
       const home = overrides.HOME ?? env.HOME
       // Deliberate fixture overrides are not inherited from the operator's environment.
       return {...env, ...overrides, HOME: home, USERPROFILE: home}
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
     const parent = dirname(dir)
     if (parent === dir) throw new Error('Test commands require a disposable test sandbox')
