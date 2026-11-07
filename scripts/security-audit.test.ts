@@ -38,6 +38,33 @@ it.each(['high', 'critical'].flatMap((severity) => [0, 1].map((exit_code) => ({s
 it('AC-30 accepts an explicit complete empty advisory result without changing dependency policy', () => {
   expect(assessAudit(clean, true).status).toBe('pass')
 })
+it.each(['high', 'critical'].flatMap((severity) => [false, true].map((timed_out) => ({severity, timed_out}))))(
+  'AC-30 observed $severity audit failure survives lifecycle diagnostics, timed_out=$timed_out',
+  ({severity, timed_out}) => {
+    const stdout = JSON.stringify({
+      'dev-only': [
+        {
+          id: 1,
+          url: 'https://github.com/advisories/GHSA-abcd-1234-5678',
+          title: 'fixture advisory',
+          severity,
+          vulnerable_versions: '*',
+          cwe: [],
+          cvss: {score: 9, vectorString: null},
+        },
+      ],
+    })
+    const result = assessAudit(
+      {...clean, stdout, exit_code: 1, timed_out, reason: 'Cleanup failed: fixture EBUSY', stderr: 'fixture warning'},
+      true,
+    )
+    expect(result).toMatchObject({status: 'fail', exit_code: 1})
+    expect(result).toHaveProperty('diagnostic', 'Cleanup failed: fixture EBUSY; fixture warning')
+  },
+)
+it('AC-30 lifecycle incompleteness still blocks an otherwise clean audit', () => {
+  expect(assessAudit({...clean, reason: 'Cleanup failed: fixture EBUSY'}, true).status).toBe('blocked')
+})
 it.each(['high', 'critical'])('AC-30 blocks %s advisories in any package, including dev dependencies', (severity) => {
   const stdout = JSON.stringify({
     'dev-only': [

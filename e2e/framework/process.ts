@@ -250,12 +250,12 @@ export async function drainTranscript(
   }
 }
 
-export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode' | 'signalCode'>
+export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode'>
 
-function groupAlive(pid: number): boolean {
+function groupAlive(pid: number, env: Record<string, string>): boolean {
   // On macOS, signal-zero may return EPERM for an orphan already awaiting init's
   // reap. Zombies have no running code or open descriptors, but are still PIDs.
-  const result = Bun.spawnSync(['ps', '-axo', 'pgid=,stat='], {stdout: 'pipe', stderr: 'pipe'})
+  const result = Bun.spawnSync(['ps', '-axo', 'pgid=,stat='], {env, stdout: 'pipe', stderr: 'pipe'})
   if (result.exitCode !== 0) throw new Error('Cannot verify owned process-group cleanup')
   return new TextDecoder()
     .decode(result.stdout)
@@ -267,7 +267,7 @@ function groupAlive(pid: number): boolean {
 }
 
 /** Process-group ownership on POSIX; an owned process tree on Windows. */
-export async function terminateTree(proc: OwnedProcess): Promise<void> {
+export async function terminateTree(proc: OwnedProcess, env: Record<string, string>): Promise<void> {
   if (process.platform === 'win32') {
     const job = windowsJobs.get(proc.pid)
     if (!job) throw new Error('Windows process has no durable job ownership')
@@ -310,7 +310,7 @@ export async function terminateTree(proc: OwnedProcess): Promise<void> {
       const code = (error as NodeJS.ErrnoException).code
       // The durable owner can finish first. Ignore EPERM only after proving
       // that the group contains no live process, never for a real denial.
-      if (code === 'ESRCH' || (code === 'EPERM' && !groupAlive(proc.pid))) return false
+      if (code === 'ESRCH' || (code === 'EPERM' && !groupAlive(proc.pid, env))) return false
       throw error
     }
   }
@@ -334,7 +334,7 @@ export async function terminateTree(proc: OwnedProcess): Promise<void> {
   } finally {
     clearTimeout(timer)
   }
-  while (groupAlive(proc.pid)) {
+  while (groupAlive(proc.pid, env)) {
     if (performance.now() >= cleanupEnd) throw new Error('Owned descendants survived cleanup budget')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }

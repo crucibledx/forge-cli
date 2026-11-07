@@ -8,12 +8,130 @@ import {collectProducers} from './collect-readiness'
 import {provenanceSchema, reviewSchema} from './evidence-schema'
 import {producerFixture} from './fixtures/producer'
 import type {githubJSON} from './github-evidence'
+import {MAX_SELECTED_PRODUCERS} from './producer-evidence'
 import {producerPayload} from './producer-payload'
 import {PRODUCER_ROLES, REVIEW_ROLES} from './producer-roles'
 import {readiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('producer-currentness')
+it.each(
+  ['code', 'security', 'verifier'].flatMap((role) =>
+    ['new-failure', 'edited-resolution', 'invalid-failure'].map((change) => ({role, change})),
+  ),
+)(
+  'AC-32 changed authenticated $role versions retain only proved adverse authority: $change',
+  async ({role, change}) => {
+    const f = producerFixture(),
+      verifier = f.make(780, 30, true)
+    for (const row of verifier.payload.verifier!.rows) row.evidence = [verifier.uri]
+    const selected = role === 'verifier' ? verifier : f.selected
+    if (change === 'edited-resolution') {
+      if (role === 'verifier') Object.assign(verifier.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+      else
+        f.selected.payload.reviews.find((r) => r.role === role)!.findings = [{...f.blocker, evidence: [selected.uri]}]
+    }
+    const edited = structuredClone(selected)
+    const evidence = change === 'invalid-failure' ? 'checks/nonexistent/changed.log' : selected.uri
+    if (role === 'verifier') {
+      Object.assign(edited.payload.verifier!.rows[1], {
+        result: change === 'edited-resolution' ? 'pass' : 'fail',
+        exit_code: change === 'edited-resolution' ? 0 : 1,
+        evidence: [evidence],
+      })
+    } else
+      edited.payload.reviews.find((r) => r.role === role)!.findings = [
+        {
+          ...f.blocker,
+          status: change === 'edited-resolution' ? 'resolved' : 'open',
+          ...(change === 'edited-resolution' ? {resolution_source_uri: selected.uri} : {}),
+          evidence: [evidence],
+        },
+      ]
+    const sources = [f.selected, verifier],
+      original = f.read(sources)
+    edited.review.body = '```forge-evidence-v1\n' + JSON.stringify(edited.payload) + '\n```'
+    f.bundle.reviews = f.selected.payload.reviews
+    f.bundle.verifier = verifier.payload.verifier
+    const report = await evaluate(f, [], {
+      read: async (context, endpoint) =>
+        endpoint.includes('?')
+          ? sources.map((source) => (source.review.id === edited.review.id ? edited.review : source.review))
+          : original(context, endpoint),
+      rejectedEvidence: 'checks/nonexistent/changed.log',
+    })
+    const proven = change !== 'invalid-failure'
+    expect(report.exit_code).toBe(proven ? 1 : 2)
+    expect(report.reasons.some((r) => r.kind === 'failure')).toBe(proven)
+    if (proven)
+      expect(
+        report.reasons.some(
+          (r) => r.kind === 'failure' && r.subject === (role === 'verifier' ? 'AC-2' : `${role}/${f.blocker.id}`),
+        ),
+      ).toBe(true)
+    expect(report.reasons.some((r) => r.kind === 'blocked' && r.message.includes('changed'))).toBe(true)
+  },
+)
+it.each([false, true])(
+  'AC-32 unavailable initial producer GET cannot abort a valid failed sibling, reverse=%s',
+  async (reverse) => {
+    const f = producerFixture(),
+      failed = f.make(780, 30, true)
+    for (const row of failed.payload.verifier!.rows) row.evidence = [failed.uri]
+    Object.assign(failed.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+    const sources = reverse ? [failed, f.selected] : [f.selected, failed],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (context, endpoint) => {
+      if (endpoint.endsWith('/777')) throw Error('Synthetic selected GET503')
+      return original(context, endpoint)
+    }
+    const unavailable: unknown[] = []
+    const imported = await collectProducers(
+      sources.map((s) => s.uri),
+      f.bundle.context,
+      read,
+      (error) => unavailable.push(error),
+    )
+    expect(unavailable).toHaveLength(1)
+    const records = imported.flatMap((s) => s.records)
+    f.bundle.reviews = records.filter((r) => 'role' in r)
+    f.bundle.verifier = records.find((r) => 'rows' in r) as typeof f.bundle.verifier
+    const report = await evaluate(f, [], {read, candidates: sources.map((s) => s.uri)})
+    expect(report.exit_code).toBe(1)
+    expect(report.ac_results.find((r) => r.ac_id === 'AC-2')!.result).toBe('fail')
+  },
+)
+it.each([false, true])(
+  'AC-32 four routing candidates preserve separate roles and overlapping verifiers, reverse=%s',
+  async (reverse) => {
+    const f = producerFixture(),
+      failed = f.make(780, 30, true),
+      unavailable = f.make(781, 40, true)
+    f.resolved.payload.reviews = f.resolved.payload.reviews.filter((r) => r.role === 'code')
+    for (const source of [failed, unavailable])
+      for (const row of source.payload.verifier!.rows) row.evidence = [source.uri]
+    Object.assign(failed.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+    unavailable.payload.verifier!.completion = 'unavailable'
+    const sources = [f.selected, f.resolved, failed, unavailable],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (context, endpoint) => {
+      if (endpoint.includes('?')) throw Error('Synthetic history503')
+      return original(context, endpoint)
+    }
+    const selected = reverse ? [...sources].reverse() : sources
+    const imported = await collectProducers(
+      selected.map((s) => s.uri),
+      f.bundle.context,
+      read,
+    )
+    const records = imported.flatMap((s) => s.records)
+    f.bundle.reviews = records.filter((r) => 'role' in r)
+    f.bundle.verifier = records.find((r) => 'rows' in r) as typeof f.bundle.verifier
+    const report = await evaluate(f, [], {read, candidates: selected.map((s) => s.uri)})
+    expect(report.exit_code).toBe(1)
+    expect(report.ac_results.find((r) => r.ac_id === 'AC-2')!.result).toBe('fail')
+  },
+)
 type Fixture = ReturnType<typeof producerFixture>
 type Source = ReturnType<Fixture['make']>
 /** Real producer adapter; the selected-run artifact/context ports below are explicitly synthetic. */
@@ -90,7 +208,13 @@ it('AC-32 collection preserves combined current roles and rejects duplicate/exce
     f.selected.payload.reviews,
   )
   await expect(collectProducers([f.selected.uri, f.selected.uri], f.bundle.context, read)).rejects.toThrow('Duplicate')
-  await expect(collectProducers(['a', 'b', 'c', 'd'], f.bundle.context, read)).rejects.toThrow('Too many')
+  await expect(
+    collectProducers(
+      Array.from({length: MAX_SELECTED_PRODUCERS + 1}, (_, i) => String(i)),
+      f.bundle.context,
+      read,
+    ),
+  ).rejects.toThrow('Too many')
 })
 it('AC-32 collection preserves unresolved authenticated records for aggregation, not invalid payloads', async () => {
   const f = producerFixture()
@@ -100,7 +224,7 @@ it('AC-32 collection preserves unresolved authenticated records for aggregation,
   expect((await evaluate(f, [f.selected, f.later, f.resolved])).exit_code).toBe(1)
   const read = f.read([f.selected])
   f.selected.review.body = 'Malformed selected attestation'
-  await expect(collectProducers([f.selected.uri], f.bundle.context, read)).rejects.toThrow()
+  expect(await collectProducers([f.selected.uri], f.bundle.context, read)).toEqual([])
 })
 it.each(['missing-user', 'missing-type', 'invalid-type', 'wrong-app-type'] as const)(
   'AC-32 incomplete actor history cannot leave a stale review ready: %s',

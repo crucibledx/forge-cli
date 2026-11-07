@@ -10,6 +10,33 @@ import {readinessFixture} from './fixtures/readiness'
 import {requiredLaneIds} from './validation-lanes'
 
 const dir = useTmpDir('collector-location')
+it('AC-32 collection errors visibly escape terminal controls before printing untrusted paths', async () => {
+  const root = dir(),
+    control = '\x1b]52;c;YXR0YWNrZXI=\x07'
+  let raw = ''
+  const result = await runPipe(
+    root,
+    [
+      process.execPath,
+      join(import.meta.dir, 'collect-readiness.ts'),
+      '--context',
+      join(root, `missing-${control}.json`),
+      '--out',
+      join(root, 'bundle.json'),
+    ],
+    {
+      inspectRaw: (stdout, stderr) => {
+        raw = stdout + stderr
+      },
+    },
+  )
+  expect(result.exitCode).toBe(2)
+  expect(raw).not.toContain('\x1b')
+  expect(raw).not.toContain('\x07')
+  expect(raw).toContain('\\u001b')
+  expect(raw).toContain('\\u0007')
+  expect(existsSync(join(root, 'bundle.json'))).toBe(false)
+})
 it('AC-32 an existing bundle is allowed past destination checks, not mistaken for source evidence', async () => {
   const context = join(dir(), 'context.json'),
     output = join(dir(), 'readiness-input.json')

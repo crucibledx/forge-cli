@@ -126,7 +126,7 @@ export async function executeCheck(
     observing = false
     clearTimeout(timer)
     try {
-      if (child) await ports.terminate(child)
+      if (child) await ports.terminate(child, sandbox!.env)
     } catch (error) {
       cleanupFailed(error)
     }

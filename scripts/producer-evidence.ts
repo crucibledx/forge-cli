@@ -5,19 +5,24 @@ import type {EvidenceContext, ReviewEvidence, VerifierEvidence} from './evidence
 import {githubJSON} from './github-evidence'
 import {producerPayload} from './producer-payload'
 import type {ProducerRole} from './producer-roles'
-import {PRODUCER_ROLES} from './producer-roles'
 import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 
 type Payload = z.infer<typeof producerPayload>
-export type AuthenticatedVerifier = {record: VerifierEvidence; dismissed: boolean; also_reviewed: boolean}
-export type AuthenticatedReview = {record: ReviewEvidence; dismissed: boolean}
+type HistoryMetadata = {submitted_at?: string; contested?: boolean}
+export type AuthenticatedVerifier = HistoryMetadata & {
+  record: VerifierEvidence
+  dismissed: boolean
+  also_reviewed: boolean
+}
+export type AuthenticatedReview = HistoryMetadata & {record: ReviewEvidence; dismissed: boolean}
 export type ProducerHistory = {reviews: AuthenticatedReview[]; verifiers: AuthenticatedVerifier[]}
+export const MAX_SELECTED_PRODUCERS = 100
 
 /** These are routing references, never verdict authority. Every candidate is authenticated again by the checker. */
 export function producerSelection(value: unknown): string[] {
   if (!Array.isArray(value) || value.some((uri) => typeof uri !== 'string'))
     throw new Error('Invalid producer selection')
-  if (value.length > Object.values(PRODUCER_ROLES).length) throw new Error('Too many selected producers')
+  if (value.length > MAX_SELECTED_PRODUCERS) throw new Error('Too many selected producers')
   if (new Set(value).size !== value.length) throw new Error('Duplicate producer selection')
   return value
 }
@@ -38,7 +43,6 @@ const roleOf = (record: ReturnType<typeof records>[number]): ProducerRole =>
 /** Transport authenticated history on lookup failure; readiness still validates every finding/row's evidence. */
 export class ProducerBlockers extends Error {
   constructor(
-    readonly findings: {subject: string; source_uri: string}[],
     cause?: unknown,
     readonly verifiers: AuthenticatedVerifier[] = [],
     readonly reviews: AuthenticatedReview[] = [],
@@ -114,7 +118,8 @@ function order(a: Review, b: Review) {
   return Date.parse(a.submitted_at) - Date.parse(b.submitted_at) || a.id - b.id
 }
 
-function historyState(history: ReturnType<typeof authenticateReview>[], roles: Set<ProducerRole>) {
+type AuthenticatedSource = ReturnType<typeof authenticateReview> & {contested?: boolean}
+function historyState(history: AuthenticatedSource[], roles: Set<ProducerRole>) {
   const latest = new Map<ProducerRole, number>()
   const open = new Map<string, {subject: string; source_uri: string}>()
   const verifiers: AuthenticatedVerifier[] = []
@@ -122,21 +127,30 @@ function historyState(history: ReturnType<typeof authenticateReview>[], roles: S
   for (const source of [...history].sort((a, b) => order(a.review, b.review)))
     for (const record of records(source.payload)) {
       const currentRole = roleOf(record)
-      if (!roles.has(currentRole)) continue
-      latest.set(currentRole, source.review.id)
+      const metadata = {
+        submitted_at: source.review.submitted_at,
+        ...(source.contested ? {contested: true} : {}),
+      }
       if ('rows' in record)
         verifiers.push({
           record,
           dismissed: source.review.state === 'DISMISSED',
           also_reviewed: source.payload.reviews.length > 0,
+          ...metadata,
         })
-      else reviews.push({record, dismissed: source.review.state === 'DISMISSED'})
+      else reviews.push({record, dismissed: source.review.state === 'DISMISSED', ...metadata})
+      if (!roles.has(currentRole)) continue
+      latest.set(currentRole, source.review.id)
       if ('findings' in record && record.completion === 'complete')
         for (const finding of record.findings) {
           const subject = `${currentRole}/${finding.id}`
           if (finding.severity !== 'blocking') continue
           if (finding.status === 'resolved') {
-            if (source.review.state !== 'DISMISSED' && finding.resolution_source_uri === source.review.html_url)
+            if (
+              !source.contested &&
+              source.review.state !== 'DISMISSED' &&
+              finding.resolution_source_uri === source.review.html_url
+            )
               open.delete(subject)
           } else open.set(subject, {subject, source_uri: source.review.html_url})
         }
@@ -153,7 +167,7 @@ export async function providerProducerState(
   candidates: () => Promise<string[]> = async () => [],
 ) {
   const roles = new Set<ProducerRole>(role ? [role] : [])
-  const history: ReturnType<typeof authenticateReview>[] = []
+  const history: AuthenticatedSource[] = []
   try {
     const unavailable: string[] = []
     let primary: ReturnType<typeof authenticateReview> | undefined
@@ -232,7 +246,7 @@ export async function providerProducerState(
             if (records(shape).length && records(shape).every((record) => record.tested_sha !== context.tested_sha))
               continue
           }
-          const source = authenticateReview(raw, context)
+          const source: AuthenticatedSource = authenticateReview(raw, context)
           if (
             raw.state === 'DISMISSED' &&
             (later || raw.id === selected.review.id) &&
@@ -241,9 +255,12 @@ export async function providerProducerState(
             unavailable.push('Current independent provider review is dismissed')
           listed.set(source.review.id, source)
           const previous = history.find((item) => item.review.id === source.review.id)
-          if (previous && JSON.stringify(previous.review) !== JSON.stringify(source.review))
+          if (previous && JSON.stringify(previous.review) !== JSON.stringify(source.review)) {
             unavailable.push('Selected provider review changed in current listing')
-          else if (!previous) history.push(source)
+            // Both versions are authenticated, but an edited same-ID pass/resolution cannot erase an adverse version.
+            previous.contested = source.contested = true
+            history.push(source)
+          } else if (!previous) history.push(source)
         } catch (error) {
           unavailable.push(String(error))
         }
@@ -263,7 +280,6 @@ export async function providerProducerState(
     if (unavailable.length) throw new Error(`Current provider review unavailable: ${unavailable.join('; ')}`)
     if ([...roles].some((currentRole) => latest.get(currentRole) !== selected.review.id))
       throw new ProducerSuperseded(
-        [...open.values()],
         new Error('Selected producer verdict is superseded by a later exact-revision review'),
         verifiers,
         reviews,
@@ -276,12 +292,12 @@ export async function providerProducerState(
       ),
     )
     const omitted = [...open.values()].filter((finding) => !selectedOpen.has(finding.subject))
-    if (omitted.length) throw new ProducerBlockers(omitted, undefined, verifiers, reviews)
+    if (omitted.length) throw new ProducerBlockers(undefined, verifiers, reviews)
     return {payload: selected.payload, verifiers, reviews}
   } catch (error) {
     if (error instanceof ProducerBlockers) throw error
     // Incomplete history cannot erase failures already proved by the independent app.
-    const {open, verifiers, reviews} = historyState(history, roles)
-    throw new ProducerBlockers([...open.values()], error, verifiers, reviews)
+    const {verifiers, reviews} = historyState(history, roles)
+    throw new ProducerBlockers(error, verifiers, reviews)
   }
 }

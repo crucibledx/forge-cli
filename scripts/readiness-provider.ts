@@ -259,7 +259,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
           throw new Error('Implementation verification must come from a different producer than code/security review')
       } catch (error) {
         // Invalid local sidecars cannot erase different, already authenticated provider records.
-        throw new ProducerBlockers([], error, verifiers, reviews)
+        throw new ProducerBlockers(error, verifiers, reviews)
       }
       return {verifiers, reviews}
     },

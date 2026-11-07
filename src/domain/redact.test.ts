@@ -109,6 +109,22 @@ it.each(['token', 'access_token', 'password', 'secret', 'key', 'auth'])(
   },
 )
 
+it.each(['token', 'access_token', 'password', 'secret', 'key', 'auth'])(
+  'AC-15,30 double quotes never terminate a query credential or its streaming continuation: %s',
+  (key) => {
+    const input = `before https://fixture.invalid/repo?${key}=prefix"DOUBLE_QUOTE_SUFFIX&visible=yes\nordinary-after`
+    for (const output of [redact(input), JSON.stringify(redactData({cause: input}))]) {
+      expect(output).not.toContain('DOUBLE_QUOTE_SUFFIX')
+      expect(output).toContain('&visible=yes')
+      expect(output).toContain('ordinary-after')
+    }
+    expect(
+      redact('DOUBLE_QUOTE_SUFFIX', {
+        credentialPrefixes: redactionContext(`?${key}=prefix"`),
+      }),
+    ).toBe('[redacted]')
+  },
+)
 it('leaves a long invalid scheme candidate unchanged without rescanning every internal word boundary', () => {
   const input = 'a-'.repeat(50000)
   expect(redact(input)).toBe(input)

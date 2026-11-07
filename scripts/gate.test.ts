@@ -273,6 +273,7 @@ it('AC-25,27 actual gate entrypoint persists blocked rows after context failure'
   const root = join(dir(), 'checkout')
   expect((await runPipe(dir(), ['git', 'clone', repository, root])).exitCode).toBe(0)
   await mkdir(join(root, 'scripts'))
+  await copyFile(join(repositoryRoot, 'package.json'), join(root, 'package.json'))
   for (const file of [
     'gate.ts',
     'gate-summary.ts',

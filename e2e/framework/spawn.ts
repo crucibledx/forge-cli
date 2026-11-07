@@ -52,10 +52,11 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   let disposal: Promise<void> | undefined
   const notify = () => listeners.forEach((listener) => listener())
   const ownership = posixOwnership(command)
+  const env = testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env})
   const proc = ownership.wrap(
     Bun.spawn(ownership.command, {
       cwd,
-      env: testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env}),
+      env,
       detached: true,
       ipc: ownership.ipc,
       terminal: {
@@ -93,7 +94,7 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
         clearTimeout(deadline)
         notify()
         try {
-          await terminateTree(proc)
+          await terminateTree(proc, env)
         } finally {
           term.close()
           activeProcesses.delete(owner)

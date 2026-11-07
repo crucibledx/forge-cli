@@ -16,7 +16,8 @@ export interface ProcessOptions {
 export async function runPipe(cwd: string, command: string[], options: ProcessOptions = {}): Promise<CLIResult> {
   const budget = sessionBudget(options.timeoutMs)
   const started = performance.now()
-  const proc = await spawnOwnedPipe(command, cwd, testEnvironment(cwd, options.env))
+  const env = testEnvironment(cwd, options.env)
+  const proc = await spawnOwnedPipe(command, cwd, env)
   const clean = (text: string) => sanitize(text, cwd, options.secrets)
   const stdout = createTranscript(clean, options.secrets)
   const stderr = createTranscript(clean, options.secrets)
@@ -34,7 +35,7 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
       return (disposal ??= (async () => {
         clearTimeout(deadline)
         try {
-          await terminateTree(proc)
+          await terminateTree(proc, env)
         } finally {
           await Promise.allSettled(readers.map((reader) => reader.cancel()))
           activeProcesses.delete(owner)

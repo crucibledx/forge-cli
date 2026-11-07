@@ -22,8 +22,7 @@ const advisory = z
 export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
   const blocked = (reason: string) => ({status: 'blocked' as const, exit_code: 2, reason})
   if (!lockUnchanged) return blocked('Lockfile changed during audit')
-  if (result.timed_out || result.exit_code === null || result.reason)
-    return blocked(result.reason ?? 'Advisory service unavailable')
+  if (result.exit_code === null) return blocked(result.reason ?? 'Advisory service unavailable')
   let data: Record<string, z.infer<typeof advisory>[]>
   try {
     data = z.record(z.string().min(1), z.array(advisory).min(1)).parse(JSON.parse(result.stdout))
@@ -41,8 +40,11 @@ export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
       exit_code: 1,
       reason: 'High/critical dependency advisories, including development dependencies',
       advisories: high,
-      ...(result.stderr.trim() ? {diagnostic: result.stderr.trim()} : {}),
+      ...([result.reason, result.stderr.trim()].some(Boolean)
+        ? {diagnostic: [result.reason, result.stderr.trim()].filter(Boolean).join('; ')}
+        : {}),
     }
+  if (result.timed_out || result.reason) return blocked(result.reason ?? 'Advisory service unavailable')
   if (result.stderr.trim()) return blocked('Unexpected advisory diagnostic; audited package completeness is unproven')
   if (result.exit_code !== 0) return blocked('Audit exited unsuccessfully without a valid blocking advisory')
   return {

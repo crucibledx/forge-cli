@@ -1,18 +1,62 @@
-import {existsSync, readFileSync, writeFileSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {delimiter, join, resolve} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
+import {runPipe} from '../e2e/framework/pipe'
 import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
-import {createTestSandbox} from './test-sandbox'
+import {createTestSandbox, testEnvironment} from './test-sandbox'
 import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {repositoryRoot} from './validation-identity'
 import {commandLog, commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it('AC-19 validation cleanup ps uses the command sandbox, never the launcher startup environment', async () => {
+  if (process.platform === 'win32') return
+  const root = dir(),
+    bin = join(root, 'bin'),
+    observed = join(root, 'ps-environments.txt'),
+    childEnvironment = join(root, 'child-environment.json')
+  mkdirSync(bin)
+  const ps = Bun.which('ps')
+  expect(ps).not.toBeNull()
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+  writeFileSync(
+    join(bin, 'ps'),
+    `#!/bin/sh\nprintf '%s\\t%s\\t%s\\n' "\${CLEANUP_STARTUP_PRIVATE-unset}" "$HOME" "$TMPDIR" >> ${quote(observed)}\nexec ${quote(ps!)} "$@"\n`,
+    {mode: 0o700},
+  )
+  const script = `
+    import {executeCheck} from ${JSON.stringify(join(import.meta.dir, 'validation-process.ts'))}
+    const result = await executeCheck([process.execPath, '-e',
+      ${JSON.stringify(`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(childEnvironment)},JSON.stringify({home:process.env.HOME,temp:process.env.TMPDIR}));setInterval(()=>{},1000)`)}], 750)
+    if (!result.timed_out) process.exitCode = 1
+  `
+  const result = await runPipe(root, [process.execPath, '-e', script], {
+    timeoutMs: 5000,
+    env: {
+      CLEANUP_STARTUP_PRIVATE: 'SYNTHETIC_LAUNCHER_PRIVATE',
+      PATH: [bin, process.env.PATH ?? ''].join(delimiter),
+    },
+  })
+  expect(result.exitCode).toBe(0)
+  const child = JSON.parse(readFileSync(childEnvironment, 'utf8'))
+  expect(child.home).not.toBe(testEnvironment(root).HOME)
+  const snapshots = readFileSync(observed, 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => line.split('\t'))
+    .filter(([, home]) => home === child.home)
+  expect(snapshots.length).toBeGreaterThan(0)
+  for (const [marker, home, temp] of snapshots) {
+    expect(marker).toBe('unset')
+    expect(home).toBe(child.home)
+    expect(temp).toBe(child.temp)
+  }
+})
 it('AC-27 serialized command arguments have a count cap and an explicit omission marker', () => {
   for (const count of [0, 3, 16, 17, 2100]) {
     const command = Array.from({length: count}, (_, index) =>
@@ -51,8 +95,8 @@ it.each(['setup-error', 'setup-string', 'cleanup-error', 'cleanup-string'])(
         if (kind.startsWith('setup')) throw thrown
         return createTestSandbox()
       },
-      terminate: async (child) => {
-        await terminateTree(child)
+      terminate: async (child, env) => {
+        await terminateTree(child, env)
         throw thrown
       },
     })
@@ -188,8 +232,8 @@ it.each(['tree', 'sandbox'] as const)(
               },
             }
           },
-          terminate: async (child) => {
-            await terminateTree(child)
+          terminate: async (child, env) => {
+            await terminateTree(child, env)
             if (kind === 'tree') throw new Error('fixture process-group verification failure')
           },
         },

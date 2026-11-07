@@ -28,6 +28,14 @@ export interface ReadinessProvider {
 }
 const REASON_KINDS = {FAILURE: 'failure', BLOCKED: 'blocked'} as const
 type ReasonKind = (typeof REASON_KINDS)[keyof typeof REASON_KINDS]
+// Merge overlapping lookups in provider submission order, not in the order their endpoints happened to finish.
+function historyOrder(a: AuthenticatedReview | AuthenticatedVerifier, b: AuthenticatedReview | AuthenticatedVerifier) {
+  return (
+    Date.parse(a.submitted_at ?? a.record.provenance.completed_at) -
+      Date.parse(b.submitted_at ?? b.record.provenance.completed_at) ||
+    Number(a.record.provenance.producer_id) - Number(b.record.provenance.producer_id)
+  )
+}
 export async function readiness(value: unknown, pin: string, provider: ReadinessProvider) {
   const bundle = bundleSchema.parse(value),
     context = bundle.context
@@ -200,7 +208,12 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
   }
   // Historical resolutions need the same artifact authority as selected findings, before they can clear a blocker.
   const openFindings = new Map<string, {source_uri: string; evidence: string[]}>()
-  for (const {record, dismissed} of contextValid ? reviewHistory : []) {
+  const contestedSources = new Set(
+    [...reviewHistory, ...verifierHistory]
+      .filter((source) => source.contested)
+      .map((source) => source.record.provenance.source_uri),
+  )
+  for (const {record, dismissed} of contextValid ? reviewHistory.sort(historyOrder) : []) {
     if (
       record.completion !== 'complete' ||
       record.head_sha !== context.head_sha ||
@@ -216,7 +229,11 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       const subject = `${record.role}/${finding.id}`
       if (finding.status === 'open')
         openFindings.set(subject, {source_uri: record.provenance.source_uri, evidence: finding.evidence})
-      else if (!dismissed && finding.resolution_source_uri === record.provenance.source_uri)
+      else if (
+        !dismissed &&
+        !contestedSources.has(record.provenance.source_uri) &&
+        finding.resolution_source_uri === record.provenance.source_uri
+      )
         openFindings.delete(subject)
       else add('blocked', subject, 'Resolution needs this independent producer’s exact-revision confirmation')
     }
@@ -226,7 +243,7 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       add('failure', subject, 'Open blocking finding')
     for (const ref of [finding.source_uri, ...finding.evidence]) currentProducerEvidence.add(ref)
   }
-  for (const {record, dismissed, also_reviewed} of contextValid ? verifierHistory : []) {
+  for (const {record, dismissed, also_reviewed} of contextValid ? verifierHistory.sort(historyOrder) : []) {
     if (
       also_reviewed ||
       record.completion !== 'complete' ||
@@ -243,7 +260,8 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     for (const row of record.rows) {
       if (
         row.result === 'blocked' ||
-        (row.result === 'pass' && (dismissed || row.exit_code !== 0)) ||
+        (row.result === 'pass' &&
+          (dismissed || contestedSources.has(record.provenance.source_uri) || row.exit_code !== 0)) ||
         (row.result === 'fail' && (row.exit_code === 0 || row.exit_code === null))
       )
         continue
