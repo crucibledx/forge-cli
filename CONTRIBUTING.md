@@ -50,8 +50,9 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   `bun run scripts/run-tests.ts -- e2e/framework/contracts/`.
   It sets disposable home/temp/cache roots before any test import and replaces scheduler commands with offline fakes.
   Bun dotenv autoload is disabled before preloads, including nested `bun run` children. Explicit fixture preloads
-  remain supported without restoring repository `.env` credentials. Git identity probes bound parent discovery,
-  so disposable roots may safely be placed inside ignored checkout evidence.
+  remain supported without restoring repository `.env` credentials. Shared sandbox environments bound Git discovery
+  before the canonical sandbox parent, including commands starting at its root and symlink/junction placements.
+  Explicit `git -C` access to fixture repositories still works without reading the enclosing checkout's config.
   Sessions have a 10-second total deadline and a 20-second runner budget. For a 30-second session, select
   `--timeout-ms 40000` before `--`. PTY output is a transcript, not a terminal screen.
   Full/checker/platform entrypoints select40 seconds for the bounded native compiler probe; ordinary session

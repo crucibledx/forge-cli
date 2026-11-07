@@ -75,7 +75,8 @@ Use exact Bun `.bun-version` and `bun install --frozen-lockfile`. Full tests rem
 the disposable launcher. Focused: `bun run scripts/run-tests.ts -- <paths...>`. Never run raw `bun test`.
 The launcher and validation executor disable Bun dotenv autoload before imports. Their isolated environment also
 disables it for nested Bun package scripts; operator `BUN_OPTIONS` are not inherited. Explicit fixture preloads retain
-this protection. Identity probes stop Git discovery at the disposable parent, including temp roots inside a checkout.
+this protection. Every shared sandbox environment stops Git discovery before its canonical parent, including commands
+starting at the sandbox root and symlink/junction bases inside a checkout. Explicit fixture `git -C` access remains valid.
 Default session deadline is 10 seconds with a 20-second test budget; 30-second sessions need
 `--timeout-ms 40000` before `--`. PTY text is a transcript, not a reconstructed screen.
 Full/checker/platform entrypoints allow40 seconds for the30-second native compiler probe, without extending

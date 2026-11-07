@@ -4,6 +4,41 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction afterc7919df, completed review AM
+
+Head `c7919df6b6f4a633b950403e63ff5409c06779f0`, actual merge
+`639e7f3208fc8c07354085f20cb5aa738129ee4b`: CI42368360886 and hosted reviewer42368361337 completed.
+Both independent originals were preserved and published before the explicit source-gate release at
+2026-11-07T12:03:05.689837Z. All406 tracked hashes remained unchanged through release.
+
+The [original verifier](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706681911) retains
+**32pass/0fail/0not-runnable**, full2106/0 across18 complete processes and ten fresh first-outcome contracts1146/0 each.
+These finite passes do not erase the [independent reviewer's F1](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706424806):
+0blocking/1should-fix/0nits, REQUEST CHANGES for shared Git discovery isolation. Its own initial guard/persistence
+was denied before execution; its final406-file guard matched. It ran0 tests/builds/installs and did not reroute denied work.
+
+The [separate actual supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706682996) retains
+collector2/checker2, no bundle, aggregate report or emitted AC statuses. Its0pass/0fail/32not-runnable observations
+are not32 emitted blocked statuses. Verifier staging omitted required `deviations.json`, an evidence-assembly
+limitation, not a demonstrated implementation defect. Genuine structured producer roles also remain unavailable;
+their actual aggregation was not reached. Neither invocation was rerun or its missing inputs silently filled.
+A future fresh-revision verifier must stage all required inputs before its first actual invocation.
+
+| Finding | Accepted correction and regression boundary |
+| --- | --- |
+| Independent reviewer F1 | Bound Git discovery in shared sandbox environments before the canonical sandbox parent, not only in identity probes. Nonsecret enclosing throwaway repositories exercise root/project/nested cwd and direct/symlink-or-junction bases. Removing the boundary is the positive leakage control; both environment APIs reject it while explicit fixture `git -C` remains usable. Remove the probe-only workaround. |
+| Hosted4501518317 | Derive credential value-kind and whitespace unions from const objects and use those constants in comparisons/assignments. Keep serialized continuation bytes unchanged; derive the context recognizer from the same kind registry. Existing scalar/context-cut/streaming privacy and public-text oracles remain unchanged. |
+| Hosted4501518321 | Store open role/ID subjects in a Set, removing duplicated subjects and unread source URIs. Preserve same-ID code/security separation, authenticated resolution/currentness and known-failure precedence. |
+
+Recovery preserved all13276 manifest entries,13277 archive members,11642 regular copies and139 symlinks without
+following links. Three parent observer schema errors remain separate from original outcomes. The original
+usage-only dotenv probe earns no privacy credit; separately named staged probes do not replace it.
+The first AN focused run retains314pass/1fail across both processes. All six new enclosing-config controls passed,
+but the generated nested identity probe used the launcher's environment for a different fixture's cwd. It now
+requests that fixture's normal shared `testEnvironment(cwd)`, retaining both no-identity/no-worktree assertions
+without a probe-specific ceiling. AL's28/4 and actual32blocked, all earlier failures, and all first outcomes remain unchanged. READY is not approval,
+an app-authored attestation, evidence readiness or permission to merge. No historical thread is resolved on pending fixes.
+
 ## Nov7 correction afterb8de477, completed review AL
 
 Head `b8de47737385fa2c1a5f1ec909b0742b5ce20153`, actual merge

@@ -84,13 +84,11 @@ it('unmocked', () => expect(value).toBe(1))\n`,
     writeFileSync(
       fixture,
       `import {it,expect} from 'bun:test'
-import {dirname} from 'node:path'
 import {createBareRepo} from ${JSON.stringify(helper)}
+import {testEnvironment} from ${JSON.stringify(resolve(repositoryRoot, 'scripts/test-sandbox.ts'))}
 it('no identity needed', async () => {
  const cwd = ${JSON.stringify(cwd)}
- // A temp root may itself be inside a checkout. Bound Git discovery without
- // configuring any identity or inheriting the enclosing repository's config.
- const env = {...process.env, GIT_CEILING_DIRECTORIES: dirname(cwd)}
+ const env = testEnvironment(cwd)
  const identity = Bun.spawnSync(['git','config','--get','user.name'], {cwd, env})
  expect(identity.exitCode).not.toBe(0)
  expect(Bun.spawnSync(['git','rev-parse','--is-inside-work-tree'], {cwd, env}).exitCode).not.toBe(0)

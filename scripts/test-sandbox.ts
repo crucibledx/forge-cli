@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, resolve} from 'node:path'
 
@@ -100,6 +100,9 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
       GIT_CONFIG_GLOBAL: gitConfig,
       GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1',
+      // Git ignores a ceiling equal to its starting cwd. Exclude the canonical
+      // parent so discovery stays inside this sandbox, including from its root.
+      GIT_CEILING_DIRECTORIES: dirname(realpathSync(root)),
       GIT_ATTR_NOSYSTEM: '1',
       GIT_TERMINAL_PROMPT: '0',
       GIT_ALLOW_PROTOCOL: 'file',

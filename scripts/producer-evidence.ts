@@ -121,7 +121,7 @@ function order(a: Review, b: Review) {
 type AuthenticatedSource = ReturnType<typeof authenticateReview> & {contested?: boolean}
 function historyState(history: AuthenticatedSource[], roles: Set<ProducerRole>) {
   const latest = new Map<ProducerRole, number>()
-  const open = new Map<string, {subject: string; source_uri: string}>()
+  const open = new Set<string>()
   const verifiers: AuthenticatedVerifier[] = []
   const reviews: AuthenticatedReview[] = []
   for (const source of [...history].sort((a, b) => order(a.review, b.review)))
@@ -153,7 +153,7 @@ function historyState(history: AuthenticatedSource[], roles: Set<ProducerRole>) 
               finding.resolution_source_uri === source.review.html_url
             )
               open.delete(subject)
-          } else open.set(subject, {subject, source_uri: source.review.html_url})
+          } else open.add(subject)
         }
     }
   return {latest, open, verifiers, reviews}
@@ -292,8 +292,8 @@ export async function providerProducerState(
           .map((f) => `${record.role}/${f.id}`),
       ),
     )
-    const omitted = [...open.values()].filter((finding) => !selectedOpen.has(finding.subject))
-    if (omitted.length) throw new ProducerBlockers(undefined, verifiers, reviews)
+    if ([...open].some((subject) => !selectedOpen.has(subject)))
+      throw new ProducerBlockers(undefined, verifiers, reviews)
     return {payload: selected.payload, verifiers, reviews}
   } catch (error) {
     if (error instanceof ProducerBlockers) throw error
