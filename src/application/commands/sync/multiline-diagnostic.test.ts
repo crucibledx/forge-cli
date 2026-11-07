@@ -1,3 +1,4 @@
+import {readdir, readFile, stat} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {protectedBytes, syncFixture} from '@test-helpers/sync-fixture'
@@ -12,6 +13,60 @@ const dir = useTmpDir('multiline-diagnostic')
 afterEach(() => {
   process.exitCode = 0
 })
+
+it.each(['|', '>-', 'plain'].flatMap((scalar) => [false, true].map((dryRun) => ({scalar, dryRun}))))(
+  'AC-15,30 complete scalar source failures preserve private raw reports: $scalar preview=$dryRun',
+  async ({scalar, dryRun}) => {
+    const root = dir(),
+      {context} = await syncFixture(root),
+      before = await protectedBytes(root)
+    const directory = join(root, 'observed-scalar-reports'),
+      reports = createReportService(directory)
+    const first = 'MULTILINE_FIRST_PRIVATE_Q',
+      second = 'MULTILINE_SECOND_PRIVATE_Q'
+    const diagnostic =
+      scalar === 'plain'
+        ? `password: ${first} ${second}\n  ${first}\nvisible=yes`
+        : `password: ${scalar}\n  ${first} ${second}\n  ${first}\nvisible=yes`
+    const output = spyOn(console, 'log').mockImplementation(() => {})
+    let visible = ''
+    try {
+      await runSyncWithDependencies(
+        {dryRun, silent: false, verbose: false},
+        {
+          io: {resolveProjectRoot: () => root, buildContext: async () => context},
+          loadSource: async () => {
+            throw new Error(diagnostic)
+          },
+          reports,
+        },
+      )
+      visible = output.mock.calls.flat().join('\n')
+    } finally {
+      output.mockRestore()
+    }
+    expect(process.exitCode).toBe(1)
+    expect(await protectedBytes(root)).toEqual(before)
+    const latest = await reports.readLatest(),
+      history = await reports.readHistory()
+    expect(latest?.success ?? null).toBe(dryRun ? null : false)
+    expect(history).toHaveLength(dryRun ? 0 : 1)
+    const sinks = [visible]
+    if (!dryRun) {
+      expect(latest?.files.synced).toBe(0)
+      for (const file of await readdir(directory, {recursive: true})) {
+        const path = join(directory, file)
+        if ((await stat(path)).isFile()) sinks.push(await readFile(path, 'utf8'))
+      }
+      expect(sinks.length).toBeGreaterThanOrEqual(3)
+    }
+    for (const sink of sinks) {
+      expect(sink).not.toContain(first)
+      expect(sink).not.toContain(second)
+      expect(sink).toContain('visible=yes')
+    }
+  },
+)
 
 it.each(['password:\n  ', 'password:\r\n\t', 'client_secret=\n\n  '])(
   'AC-15,30 actual source failure redacts multiline values from human output and latest/history: %j',

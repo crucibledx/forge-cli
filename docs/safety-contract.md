@@ -87,9 +87,12 @@ bounded transcript. This is not a terminal screen emulator. Sandbox setup errors
 Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
 are not short-substring matches. Incomplete names remain undecided until their boundary is known.
 Production diagnostics also mask Basic/Bearer values and credential assignments by default, including
-quoted/escaped values, quoted JSON keys, and indented multiline values following unquoted credential keys.
-Streaming continuation retains pending newline/indent syntax; an empty assignment does not hide the next
-unindented public diagnostic. URL userinfo
+quoted/escaped values, quoted JSON keys, and complete YAML plain, literal and folded scalars, including
+multiword and indented continuation lines and doubled single quotes. Generic inline `key=value` diagnostics
+retain their token boundary; indented values after a newline are private through their complete scalar body.
+Streaming continuation retains bounded phase/indent counters and quote syntax, never discarded scalar words.
+An empty assignment does not hide the next unindented public diagnostic. Dedented public lines remain visible
+after nested scalar bodies, including after raw-tail eviction. URL userinfo
 stops at authority boundaries, never query/fragment email data. Query delimiters remain separate; streaming continuation retains syntax, never discarded
 credential bytes. Renderers and emergency recovery diagnostics sanitize each field before terminal
 escaping/trusted formatting and print it once, preserving trusted recovery instructions.
@@ -116,6 +119,10 @@ Labels only prevent attribution drift; executable assertions and independent rev
 `bun run check:lanes -- --out results` runs at most two independent commands concurrently and collects all results.
 Foreign native modules are blocked, not emulated. Local evidence cannot substitute for PR merge validation.
 Exits: 1 for proven failure, 2 for otherwise incomplete evidence, 0 only for complete required successes.
+Assembly validates each partial context and check schema, identity, command and sole expected raw-log path.
+Missing/malformed sidecars become blocked checks without dropping siblings or replacing an existing raw log;
+an independently failed sibling still makes the assembled lane exit1. Only an absent raw log receives a
+bounded blocked placeholder. Confinement and non-collision write errors still fail rather than being suppressed.
 
 CI checks out the event's exact tested SHA. Independent checks continue after sibling failures. Matrix fail-fast
 is disabled. Seven-day bounded sanitized artifacts include failures; the always-run `Deterministic gate` checks

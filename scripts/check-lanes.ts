@@ -4,7 +4,7 @@ import {resolve} from 'node:path'
 import {redact} from '../src/domain/redact'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext, LaneEvidence} from './evidence-schema'
-import {contextSchema, laneSchema} from './evidence-schema'
+import {checkSchema, contextSchema, laneSchema} from './evidence-schema'
 import {repositoryRoot, validationContext} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
 import type {ValidationCheck, ValidationLane} from './validation-lanes'
@@ -28,6 +28,7 @@ async function runCheck(
   budget: number,
   executor: typeof executeCheck,
   blocked?: string,
+  preserveExistingLog = false,
 ) {
   let result: CommandOutcome =
     blocked || budget <= 0
@@ -52,7 +53,13 @@ async function runCheck(
   }
   if (result.reason) result = {...result, reason: commandReason(result.reason)}
   const evidence = logPath(lane.id, check.id)
-  await writeEvidence(resolve(out, evidence), JSON.parse(commandLog(check.command, result)), out)
+  try {
+    await writeEvidence(resolve(out, evidence), JSON.parse(commandLog(check.command, result)), out, {
+      exclusive: preserveExistingLog,
+    })
+  } catch (error) {
+    if (!preserveExistingLog || (error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  }
   const reason =
     result.reason ??
     (blockedExit(result.exit_code, check) ? 'Command reports incomplete/unavailable validation' : undefined)
@@ -126,6 +133,43 @@ export async function runLanes(
   )
   return validationLanes.map((lane) => reports.find((report) => report.lane_id === lane.id)!)
 }
+export async function assembleLane(out: string, context: EvidenceContext, lane: ValidationLane, pin: string) {
+  const checks = []
+  for (const expected of lane.checks) {
+    try {
+      const partial = JSON.parse(await readEvidence(out, resultPath(lane.id, expected.id)))
+      contextSchema.parse(partial.context)
+      if (JSON.stringify(partial.context) !== JSON.stringify(context)) throw new Error('Stale check identity')
+      const check = checkSchema.parse(partial.check)
+      if (
+        check.id !== expected.id ||
+        check.command !== expected.command.join(' ') ||
+        check.evidence.length !== 1 ||
+        check.evidence[0] !== logPath(lane.id, expected.id)
+      )
+        throw new Error('Incorrect independent check identity')
+      if (blockedExit(check.exit_code, expected) && !check.reason) throw new Error('Missing blocked check reason')
+      checks.push(check)
+    } catch {
+      checks.push(
+        await runCheck(out, lane, expected, 0, executeCheck, 'Missing/invalid independent check result', true),
+      )
+    }
+  }
+  const report = assessLane(
+    laneResult(
+      context,
+      lane,
+      checks,
+      checks.reduce((sum, check) => sum + check.duration_ms, 0),
+      process.platform,
+    ),
+    context,
+    pin,
+  )
+  await writeEvidence(resolve(out, `${lane.id}.json`), report, out)
+  return report
+}
 export async function lanesCLI(args: string[]): Promise<number> {
   if (args[0] === '--') args = args.slice(1)
   let out = resolve(repositoryRoot, 'results'),
@@ -152,29 +196,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
   const pin = (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim()
   await writeEvidence(resolve(out, 'context.json'), context, out)
   if (assemble) {
-    const checks = []
-    for (const check of lane.checks) {
-      try {
-        const partial = JSON.parse(await readEvidence(out, resultPath(lane.id, check.id)))
-        contextSchema.parse(partial.context)
-        if (JSON.stringify(partial.context) !== JSON.stringify(context)) throw new Error('Stale check identity')
-        checks.push(partial.check)
-      } catch {
-        checks.push(await runCheck(out, lane, check, 0, executeCheck, 'Missing/invalid independent check result'))
-      }
-    }
-    const report = assessLane(
-      laneResult(
-        context,
-        lane,
-        checks,
-        checks.reduce((sum, check) => sum + check.duration_ms, 0),
-        process.platform,
-      ),
-      context,
-      pin,
-    )
-    await writeEvidence(resolve(out, `${lane.id}.json`), report, out)
+    const report = await assembleLane(out, context, lane, pin)
     return aggregateExit([report])
   }
   if (index === undefined || !Number.isInteger(index) || index < 0 || index > 3)

@@ -4,6 +4,46 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after203424a, completed review AK
+
+Head `203424a35770cde30c96eff16fb617bed676518f`, actual tested merge
+`700e523a38123b1caeabfef1694800eca12c714a`: CI42361083810 passed all ten lanes and the gate;
+hosted reviewer42361084411 completed. Both independent tracks finished and their originals were published
+before the source gate was explicitly released at2026-11-07T10:11:53.570578Z. All402 tracked source hashes
+remained unchanged through that release. The PR stays READY as requested, not as an approval.
+
+The [original verifier report](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705460843)
+retains **30pass/2fail/0not-runnable**, failing AC15/30 on complete YAML scalar privacy.
+The [original readiness supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705461027)
+retains collector0/checker2, all32 rows blocked by missing genuine exact-revision code/security reviews and
+a distinct implementation-verifier attestation. Native Windows genuinely completed292/0 and compiled smoke0;
+that corrects neither AJ's historical timeout nor AK's newly demonstrated scalar leak.
+Full2004/0, security638/0 and ten fresh contracts1064/0 each do not refute the boundary counterexamples.
+
+The [original independent review](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705292994)
+is **1blocking/0should-fix/0nits**, REQUEST CHANGES, from seven read-only cases and no test/build/install runs.
+Its denied initial guard and focused launcher did not execute and were not rerouted. Its final402-file guard
+and parent prelaunch guard are separate evidence, not an invented reviewer initial guard. Hosted review ran
+no suites with pinned Bun1.4.2; its source findings remain actionable.
+
+| Finding | Accepted correction and regression boundary |
+| --- | --- |
+| Independent reviewer / verifier AK-1 | Redact complete YAML plain, literal and folded scalar bodies, including multiword values, continuation lines, nested/list indentation and doubled single quotes. Retain bounded syntax-only continuation state. Domain/context-cut and raw/visible retained-tail checks preserve public dedented lines; ordinary/preview handler and real CLI probes inspect original stdout/stderr and recursive on-disk reports without re-redacting their oracle. |
+| Hosted4501192815 | Run Git identity/worktree probes inside the generated disposable fixture, not the enclosing checkout. Assert the disposable directory is outside any Git worktree; never change repository Git identity. |
+| Hosted4501192819 | Preserve an existing raw check log when its sidecar is missing or malformed. Create a bounded blocked placeholder only for a genuinely absent log; do not suppress confinement or unrelated write errors. |
+| Hosted4501192821 | Validate complete partial contexts/checks, exact IDs/commands and the sole expected evidence path inside assembly recovery. Retain all sibling checks and original raw/sidecar bytes. Missing evidence blocks2, but an independently failed sibling keeps failure1. |
+| Hosted4501192823 | Use the shared `REVIEW_ROLES` registry when collecting role-specific attestations. |
+
+Initial correction failures remain in the local evidence record, including query-suffix/public-line overmasking
+and the backslash-plus-doubled-quote context cut. Original streaming oracles, including public query delimiters
+and the next ordinary word after an inline `key=value` token, are unchanged. An author-added `=` scalar fixture
+was corrected to begin on an indented next line, preserving that original token grammar rather than changing it.
+The first relocated old-revision replay recorded243pass/49fail across292 cases; five failures were generated
+watchdog imports still relative to the copied test's directory. That original remains intact. A new copy changes
+only those import paths and retains248pass/44fail on unchanged AK, plus the original boundary2pass/5fail.
+All eight synthetic registered assembly CLI cases reproduce their expected old-revision failure.
+No frozen acceptance text, dependency, toolchain version, budgets, settings or releases change here.
+
 ## Nov7 correction after774170b, completed review AJ
 
 Head `774170b5d3d9cb20786a261f048e4f123129b5ed`, actual tested merge

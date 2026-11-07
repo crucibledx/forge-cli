@@ -32,6 +32,7 @@ export const testSuites = {
     'src/application/commands/sync/transaction.test.ts',
     'src/application/commands/sync/outcome.test.ts',
     'e2e/commands/sync/safety/diagnostics.test.ts',
+    'e2e/commands/sync/safety/multiline-diagnostic.test.ts',
     'src/application/commands/sync/emergency-terminal.test.ts',
     'src/application/commands/sync/multiline-diagnostic.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
@@ -44,6 +45,7 @@ export const testSuites = {
     'scripts/security-audit.test.ts',
     'scripts/validation-process.test.ts',
     'scripts/check-lanes.test.ts',
+    'scripts/check-lanes-assembly.test.ts',
   ],
   platform: [
     'scripts/setup-failure-evidence.test.ts',

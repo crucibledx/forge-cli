@@ -402,7 +402,7 @@ export async function collectReadiness(context: EvidenceContext, directory: stri
     }
   }
   const lanes = (await Promise.all(requiredLaneIds.map((id) => optional(`${id}.json`)))).filter((lane) => lane !== null)
-  const reviews = (await Promise.all(['code', 'security'].map((role) => optional(`reviews/${role}.json`)))).filter(
+  const reviews = (await Promise.all(REVIEW_ROLES.map((role) => optional(`reviews/${role}.json`)))).filter(
     (review) => review !== null,
   )
   const verifier = await optional('verifier.json'),
