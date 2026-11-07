@@ -13,6 +13,25 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it('AC-15,16,18,30 repeated whitespace evictions remain bounded and retain credential/public boundaries', async () => {
+  const program = `
+    import {createTranscript, TAIL_BYTES} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))}
+    const transcript = createTranscript()
+    const chunk = Buffer.from(' '.repeat(TAIL_BYTES))
+    for (let index = 0; index < 100; index++) transcript.append(chunk)
+    transcript.append(Buffer.from('\\npassword:\\n  FLOOD_PRIVATE_Q\\npublic=FLOOD_PUBLIC_Q\\n'))
+    transcript.finish()
+    for (const text of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+      if (text.includes('FLOOD_PRIVATE_Q') || !text.includes('public=FLOOD_PUBLIC_Q')) throw Error('Boundary mismatch')
+      if (Buffer.byteLength(text) > TAIL_BYTES) throw Error('Unbounded diagnostic')
+    }
+    console.log('whitespace-flood-completed')
+  `
+  const result = await executeCheck([process.execPath, '-e', program], 10000)
+  expect(result.timed_out).toBe(false)
+  expect(result.exit_code).toBe(0)
+  expect(result.stdout).toBe('whitespace-flood-completed\n')
+})
 it.each(
   [
     'password: MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',

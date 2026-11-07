@@ -95,6 +95,8 @@ quoted/escaped values, quoted JSON keys, and complete YAML plain, literal and fo
 multiword and indented continuation lines and doubled single quotes. Generic inline `key=value` diagnostics
 retain their token boundary; indented values after a newline are private through their complete scalar body.
 Streaming continuation retains bounded phase/indent counters and quote syntax, never discarded scalar words.
+Repeated whitespace eviction keeps one complete current-line indentation origin per pending key syntax,
+not every suffix column. Independent watchdogs still verify flood completion and later private/public boundaries.
 An empty assignment does not hide the next unindented public diagnostic. Dedented public lines remain visible
 after nested scalar bodies, including after raw-tail eviction. URL userinfo
 stops at authority boundaries, never query/fragment email data. Query delimiters remain separate; streaming continuation retains syntax, never discarded
@@ -160,6 +162,13 @@ entries as well as sentinel bytes, without installing packages. These are additi
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
 unaudited responses block; no ignores or dependency changes are made by the audit.
+Audit JSON uses a separate private stdout capture, capped at2MiB and decoded as strict UTF-8 before schema
+validation. It is never parsed from redacted/truncated diagnostics: public package names such as `keyv` and
+`path-key` are data, not credential assignments. Only validated field-sanitized findings are published; private
+structured input is not added to command artifacts. Invalid, incomplete and oversized responses remain blocked.
+Known high/critical findings still take precedence over lifecycle warnings or an unavailable exit code.
+Private sandbox roots are replaced before their enclosing repository root, including repository-local roots,
+native/canonical aliases and cleanup errors after disposal.
 Performance checks offline 10/1000-target cold-help/cold-sync/warm-sync outcomes with 30-second invocation limits.
 Timings identify OS/Bun/fixture and are advisory: there is no invented baseline, p95 or latency threshold.
 

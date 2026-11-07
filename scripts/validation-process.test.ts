@@ -2,7 +2,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {delimiter, join, resolve} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
-import {expect, it} from 'bun:test'
+import {describe, expect, it} from 'bun:test'
 
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {runPipe} from '../e2e/framework/pipe'
@@ -10,10 +10,102 @@ import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
 import {createTestSandbox, testEnvironment} from './test-sandbox'
 import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {repositoryRoot} from './validation-identity'
+import type {StructuredCommandOutput} from './validation-process'
 import {commandLog, commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it.each(['split-utf8', 'beyond-tail', 'at-cap', 'over-cap', 'invalid-utf8', 'trailing-garbage', 'empty'])(
+  'AC-27,30 private structured stdout is complete, bounded and independent of diagnostics: %s',
+  async (kind) => {
+    const json = Buffer.from('{"public":"λ","access_token":"STRUCTURED_PRIVATE_Q"}')
+    let chunks: Uint8Array[]
+    if (kind === 'split-utf8') chunks = Array.from(json, (byte) => Uint8Array.of(byte))
+    else if (kind === 'beyond-tail') chunks = [json, Buffer.alloc(TAIL_BYTES + 1, ' ')]
+    else if (kind === 'at-cap') chunks = [json, Buffer.alloc(MAX_EVIDENCE_BYTES - json.length, ' ')]
+    else if (kind === 'over-cap') chunks = [json, Buffer.alloc(MAX_EVIDENCE_BYTES + 1 - json.length, ' ')]
+    else if (kind === 'invalid-utf8') chunks = [Buffer.from('{"public":"'), Uint8Array.of(0xff), Buffer.from('"}')]
+    else if (kind === 'trailing-garbage') chunks = [json, Buffer.from('not-json')]
+    else chunks = []
+    const stream = (values: Uint8Array[]) =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const value of values) controller.enqueue(value)
+          controller.close()
+        },
+      })
+    const structured: StructuredCommandOutput = {data: {public: 'stale-result'}}
+    const result = await executeCheck(
+      ['fixture-structured'],
+      5000,
+      {
+        ...ports,
+        spawn: async () =>
+          ({
+            exited: Promise.resolve(0),
+            signalCode: null,
+            stdout: stream(chunks),
+            stderr: stream([Buffer.from('Bearer STDERR_PRIVATE_Q')]),
+          }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,
+        terminate: async () => {},
+      },
+      structured,
+    )
+    expect(result).toMatchObject({exit_code: 0, timed_out: false})
+    if (['split-utf8', 'beyond-tail', 'at-cap'].includes(kind))
+      expect(structured.data).toEqual({public: 'λ', access_token: 'STRUCTURED_PRIVATE_Q'})
+    else expect(structured.data).toBeUndefined()
+    for (const output of [JSON.stringify(result), commandLog(['fixture-structured'], result)]) {
+      expect(output).not.toContain('STRUCTURED_PRIVATE_Q')
+      expect(output).not.toContain('STDERR_PRIVATE_Q')
+      expect(output).not.toContain('stale-result')
+    }
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(TAIL_BYTES)
+  },
+)
+describe('repository-local private validation roots', () => {
+  const nested = useTmpDir('validation-process-nested', import.meta.dir)
+  it('AC-27 nested native Git paths stay private in both streams and cleanup failures', async () => {
+    const script = `
+      import {dirname, join} from 'node:path'
+      const project = join(dirname(process.env.HOME), 'project')
+      const git = (...args) => Bun.spawnSync(['git', '-C', project, ...args], {stdout:'pipe', stderr:'pipe'})
+      if (git('init', '--quiet').exitCode !== 0) throw Error('Fixture Git init failed')
+      const result = git('rev-parse', '--show-toplevel')
+      if (result.exitCode !== 0) throw Error('Fixture Git path lookup failed')
+      const output = JSON.stringify({path: result.stdout.toString().trim(), repository: process.cwd(), public: 'PUBLIC_NESTED_Q'})
+      process.stdout.write(output); process.stderr.write(output); process.exit(19)
+    `
+    const result = await executeCheck([process.execPath, '-e', script], 5000, {
+      ...ports,
+      createSandbox: (prefix, _base, timeout) => {
+        const sandbox = createTestSandbox(prefix, nested(), timeout)
+        return {
+          ...sandbox,
+          dispose() {
+            sandbox.dispose()
+            throw new Error(`fixture cleanup failure at ${sandbox.root}`)
+          },
+        }
+      },
+    })
+    expect(result).toMatchObject({exit_code: 19, timed_out: false})
+    for (const output of [result.stdout, result.stderr]) {
+      expect(JSON.parse(output)).toEqual({
+        path: join('<sandbox>', 'project'),
+        repository: '<repository>',
+        public: 'PUBLIC_NESTED_Q',
+      })
+      expect(output).not.toContain('forge-validation-')
+    }
+    expect(result.reason).toContain('fixture cleanup failure at <sandbox>')
+    expect(result.reason).not.toContain('forge-validation-')
+    const logged = JSON.parse(commandLog(['fixture-nested-native-path'], result))
+    expect(logged.stdout).toBe(result.stdout)
+    expect(logged.stderr).toBe(result.stderr)
+    expect(logged.reason).toBe(result.reason)
+  })
+})
 it('AC-27 failed command artifacts remove native, escaped and expanded Windows sandbox aliases', async () => {
   const root = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\forge-validation-private-alias`
   const aliases = [

@@ -1,6 +1,10 @@
 import {expect, it} from 'bun:test'
 
+import type {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
+import {terminateTree} from '../e2e/framework/process'
 import {assessAudit} from './security-audit'
+import {createTestSandbox} from './test-sandbox'
+import {executeCheck} from './validation-process'
 
 const clean = {
   signal: null,
@@ -13,6 +17,64 @@ const clean = {
   stdout: '{}',
   stderr: '',
 }
+it.each(
+  ['keyv', 'path-key', 'eslint-visitor-keys'].flatMap((name) =>
+    ['moderate', 'high', 'critical'].map((severity) => ({name, severity})),
+  ),
+)('AC-30 structured $severity audit for $name is not parsed from redacted diagnostics', async ({name, severity}) => {
+  const input = JSON.stringify({
+    [name]: [
+      {
+        id: 1,
+        url: 'https://github.com/advisories/GHSA-abcd-1234-5678',
+        title: 'fixture advisory https://user:ADVISORY_PRIVATE_Q@fixture.invalid/path',
+        severity,
+        vulnerable_versions: '*',
+        cwe: [],
+        cvss: {score: 9, vectorString: null},
+      },
+    ],
+  })
+  const stream = (value: string) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from(value))
+        controller.close()
+      },
+    })
+  const response: {data?: unknown} = {}
+  const result = await executeCheck(
+    ['fixture-audit'],
+    5000,
+    {
+      createSandbox: createTestSandbox,
+      spawn: async () =>
+        ({
+          exited: Promise.resolve(severity === 'moderate' ? 0 : 1),
+          signalCode: null,
+          stdout: stream(input),
+          stderr: stream(''),
+        }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,
+      terminate: async () => {},
+    },
+    response,
+  )
+  expect(result.stdout).not.toContain('ADVISORY_PRIVATE_Q')
+  const report = assessAudit(result, true, response)
+  expect(report.status).toBe(severity === 'moderate' ? 'pass' : 'fail')
+  expect(report.exit_code).toBe(severity === 'moderate' ? 0 : 1)
+  expect(JSON.stringify(report)).not.toContain('ADVISORY_PRIVATE_Q')
+  if (severity === 'moderate') expect(report).toHaveProperty(`advisory_data.${name}`)
+  else
+    expect(report).toHaveProperty('advisories', [
+      {
+        package: name,
+        id: 1,
+        severity,
+        url: 'https://github.com/advisories/GHSA-abcd-1234-5678',
+      },
+    ])
+})
 it.each(['high', 'critical'].flatMap((severity) => [0, 1, null].map((exit_code) => ({severity, exit_code}))))(
   'AC-30 known $severity advisory keeps failure precedence with warnings and exit $exit_code',
   ({severity, exit_code}) => {

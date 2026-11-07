@@ -30,6 +30,11 @@ export interface CommandOutcome {
   reason?: string
 }
 
+/** Private, bounded protocol input. Consumers must validate and sanitize it before publishing. */
+export interface StructuredCommandOutput {
+  data?: unknown
+}
+
 /** Replace known roots even when a native child expands short paths or prints escaped separators. */
 function privatePath(text: string, root: string, label: string, aliases = false): string {
   const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -89,6 +94,7 @@ export async function executeCheck(
   command: string[],
   timeoutMs: number,
   ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree},
+  structured?: StructuredCommandOutput,
 ): Promise<CommandOutcome> {
   const start = performance.now()
   const metadata = commandMetadata()
@@ -103,6 +109,9 @@ export async function executeCheck(
   let exit: number | null = null
   let observing = true
   let reason: string | undefined
+  const structuredBuffer = structured ? Buffer.alloc(MAX_EVIDENCE_BYTES) : undefined
+  let structuredBytes = 0
+  if (structured) delete structured.data
   const cleanupFailed = (error: unknown) => {
     if (exit === 0) exit = null
     reason = [reason, `Cleanup failed: ${String(error)}`].filter(Boolean).join('; ')
@@ -122,9 +131,23 @@ export async function executeCheck(
       repositoryRoot,
       sandbox.env,
     )
+    const stdoutStream = structured
+      ? child.stdout.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              if (structuredBytes <= MAX_EVIDENCE_BYTES) {
+                if (chunk.byteLength <= MAX_EVIDENCE_BYTES - structuredBytes)
+                  structuredBuffer!.set(chunk, structuredBytes)
+                structuredBytes = Math.min(MAX_EVIDENCE_BYTES + 1, structuredBytes + chunk.byteLength)
+              }
+              controller.enqueue(chunk)
+            },
+          }),
+        )
+      : child.stdout
     await Promise.race([
       Promise.all([
-        drainTranscript(child.stdout, stdout, readers),
+        drainTranscript(stdoutStream, stdout, readers),
         drainTranscript(child.stderr, stderr, readers),
         child.exited.then((code) => {
           if (observing) {
@@ -163,11 +186,20 @@ export async function executeCheck(
       cleanupFailed(error)
     }
   }
+  if (structured && structuredBytes <= MAX_EVIDENCE_BYTES) {
+    try {
+      structured.data = JSON.parse(
+        new TextDecoder('utf-8', {fatal: true}).decode(structuredBuffer!.subarray(0, structuredBytes)),
+      )
+    } catch {
+      // Invalid/incomplete/oversized protocol input must not become a clean result.
+    }
+  }
   const clean = (value: string) => {
-    let text = privatePath(stripAnsi(redact(value)), repositoryRoot, '<repository>')
+    let text = stripAnsi(redact(value))
     for (const root of [...privateRoots].sort((a, b) => b.length - a.length))
       text = privatePath(text, root, '<sandbox>', true)
-    return text
+    return privatePath(text, repositoryRoot, '<repository>')
   }
   return {
     ...metadata,
