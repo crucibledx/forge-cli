@@ -37,13 +37,12 @@ export function diagnosticHead(text: string, maximum: number): string {
   while ((bytes[end] & 0xc0) === 0x80) end--
   return bytes.subarray(0, end).toString()
 }
-/** Bound the encoded JSON string, preserving code points and visibly marking truncation. */
+/** Bound the encoded JSON string; >=13 bytes reserves the visible truncation marker and quotes. */
 export function diagnosticJSON(text: string, maximum: number, tail = false): string {
-  if (!Number.isSafeInteger(maximum) || maximum < 2) throw new RangeError('JSON diagnostic budget must be >=2')
+  if (!Number.isSafeInteger(maximum) || maximum < 13) throw new RangeError('JSON diagnostic budget must be >=13')
   if (Buffer.byteLength(JSON.stringify(text)) <= maximum) return text
   const marker = '[truncated]'
   let remaining = maximum - marker.length - 2
-  if (remaining < 0) return ''
   const cost = (point: number) =>
     point < 32
       ? [8, 9, 10, 12, 13].includes(point)

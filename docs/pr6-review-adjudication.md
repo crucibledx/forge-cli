@@ -4,7 +4,55 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted review and independent verification on5de579b
+## Latest hosted and independent assessment on0d1a191
+
+CI42319926566 succeeded00:49:53Z on provider mergef2b82b2 (head0d1a191,
+base3fb78e1; tree8ec9c41 equals head). Hosted reviewer42319927480 finished
+**failure01:34:25Z**, exceeding its40-turn validator cap; original provider log and
+error comment6699779714 are retained. This is not a successful/no-findings review.
+Only after both runs completed did source correction begin. Fresh complete
+two-page inventory:109 threads,109 resolved,0 open; no new review was submitted.
+
+Independent review-z confirmed all six previous corrections, executed finite KMP
+and20000-case JSON-budget oracles, and found three P2 issues (no P0/P1). Its report
+SHA-256 is `919e00d7088d010c4e446ee35874c63e60c96dcea10607c48bc296e5e0671b62`.
+All three are accepted:
+
+| Finding | Correction and regression |
+| --- | --- |
+| Evidence reader buffers before enforcing2MiB | Open the confined file, inspect its own descriptor size before allocating, and read at most2MiB+1 even if it grows after stat. Always close the handle. Empty/Unicode/exact-limit, one-byte-over and64MiB sparse fixtures retain the unchanged cap and recovery behavior. |
+| Command log limits argument size but not count | Slice to16 parts before redaction/serialization and append an explicit omission marker. Zero/ordinary/exact16/17/2100-part regressions retain private bounded streams and original failure metadata within2MiB. |
+| JSON budget below13 silently drops truncation marker | Require a safe-integer budget of at least13 (marker plus JSON quotes). Explicit negative controls replace the old2-byte acceptance; head/tail boundaries and Unicode/escape-budget assertions remain intact. |
+
+Unchanged-merge argument-count/minimum-budget controls reproduce0/2; identical candidate
+controls pass2/0. Correction-focused118/0; complete quality/types/contracts/full1570/0
+in18 invocations/build/compiled0; unchanged20s security380/0; audit0. Full log SHA-256
+`5a687a118b87c4494b8633095bd5b63bfb148eae3a85b59aad1befa2d761c6a0`;
+security `b0e3903660a5e08b63168986e8a2c751192ab1b6028abc71f8eee4b44edfd710`.
+Frozen spec/amendment/lock hashes remain unchanged. These local results do not replace
+fresh exact-revision review or genuine hosted attestations.
+
+Verifier-z original report:29 pass/0 fail/3 blocked, preserved verbatim (JSON SHA-256
+`531c869703fd9f48f4d0c1e5c7fe50b9f4e4b7ef96efc59f5fd1e591d4f5246d`).
+Its separate phase clarification applies the approved amendment: AC-25/32 pass
+implementation/checker self-tests; missing hosted attestations block final aggregation,
+not phase1. Clarified result **31 pass/0 fail/1 blocked (AC-27)**, JSON SHA-256
+`55a7b5d2328dc07fbc58713fea35b2ee7a29021886f5dd82272a855b067b1b6b`.
+No checks were rerun or product files changed for that clarification. AC-27's narrowed
+gap is PR-linked ten-run/timing evidence, now published as supporting material in
+[comment6700271068](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6700271068);
+the implementer has not promoted the independent blocked result.
+
+Independent evidence: full1565/0, security378/0 at unchanged20s, audit0 with moderate
+minimatch retained; ten consecutive no-retry focused714/0 invocations; native237/0
+both OSes and compiled smokes on exact-merge CI;6m39s CI wall, reviewer time separate.
+Y-1/Y-2 re-probes pass; NUL envelopes remain bounded and repetitive secret-prefix
+streams finish promptly. Verifier tooling-only heredoc/report-generator errors are
+disclosed in its original report, not hidden product retries. Genuine app-authored
+code/security/distinct-verifier attestations remain unavailable. PR stays READY only
+at the owner's instruction; no approval, final readiness, settings or release claim.
+
+## Hosted review and independent verification on5de579b
 
 All seven hosted runs completed before source edits: CI42316891062 succeeded00:19:46Z;
 hosted reviewer42316892014 succeeded00:21:23Z with review5808804883 (four P2 findings);

@@ -7,11 +7,39 @@ import {expect, it} from 'bun:test'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
 import {createTestSandbox} from './test-sandbox'
+import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {repositoryRoot} from './validation-identity'
-import {commandMetadata, executeCheck} from './validation-process'
+import {commandLog, commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it('AC-27 serialized command arguments have a count cap and an explicit omission marker', () => {
+  for (const count of [0, 3, 16, 17, 2100]) {
+    const command = Array.from({length: count}, (_, index) =>
+      index < 16 ? 'x'.repeat(1024) : 'https://user:OMITTED_PRIVATE',
+    )
+    const raw = commandLog(command, {
+      ...commandMetadata(),
+      signal: 'SIGTERM',
+      seed: '123',
+      replay: '0:1',
+      exit_code: 19,
+      duration_ms: 1,
+      timed_out: false,
+      stdout: '\0'.repeat(262144) + 'visible-stdout-end',
+      stderr: '\0'.repeat(262144) + 'visible-stderr-end',
+    })
+    const log = JSON.parse(raw)
+    expect(Buffer.byteLength(raw)).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES)
+    expect(log.command.slice(0, 16)).toHaveLength(Math.min(count, 16))
+    expect(log.command).toHaveLength(count > 16 ? 17 : count)
+    if (count > 16) expect(log.command.at(-1)).toBe('<additional arguments omitted>')
+    expect(raw).not.toContain('OMITTED_PRIVATE')
+    expect(log.stdout).toEndWith('visible-stdout-end')
+    expect(log.stderr).toEndWith('visible-stderr-end')
+    expect(log).toMatchObject({signal: 'SIGTERM', cwd: '.', seed: '123', replay: '0:1', exit_code: 19})
+  }
+})
 it.each(['setup-error', 'setup-string', 'cleanup-error', 'cleanup-string'])(
   'AC-15,18,25,27,30 oversized %s keeps a private schema-safe primary reason',
   async (kind) => {

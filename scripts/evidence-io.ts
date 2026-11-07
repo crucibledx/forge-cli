@@ -1,4 +1,4 @@
-import {mkdir, readFile, rename, unlink, writeFile} from 'node:fs/promises'
+import {mkdir, open, rename, unlink, writeFile} from 'node:fs/promises'
 import {basename, dirname, relative, resolve} from 'node:path'
 
 import {createConfinement} from '../src/infrastructure/fs/confinement'
@@ -39,7 +39,21 @@ export async function writeEvidence(path: string, data: unknown): Promise<void> 
 export async function readEvidence(root: string, path: string): Promise<string> {
   const boundary = await createConfinement(root)
   const resolved = await boundary.resolve(path)
-  const bytes = await readFile(resolved)
-  if (bytes.length > MAX_EVIDENCE_BYTES) throw new Error(`Oversized evidence: ${path}`)
-  return bytes.toString('utf8')
+  const file = await open(resolved, 'r')
+  try {
+    const oversized = () => new Error(`Oversized evidence: ${path}`)
+    if ((await file.stat()).size > MAX_EVIDENCE_BYTES) throw oversized()
+    // Bound the read too: a file growing after stat must not bypass the memory cap.
+    const bytes = Buffer.allocUnsafe(MAX_EVIDENCE_BYTES + 1)
+    let length = 0
+    while (length < bytes.length) {
+      const {bytesRead} = await file.read(bytes, length, bytes.length - length, null)
+      if (bytesRead === 0) break
+      length += bytesRead
+    }
+    if (length > MAX_EVIDENCE_BYTES) throw oversized()
+    return bytes.subarray(0, length).toString('utf8')
+  } finally {
+    await file.close()
+  }
 }
