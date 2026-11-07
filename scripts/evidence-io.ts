@@ -21,11 +21,21 @@ export function protectEvidenceOutput(input: string, output: string): void {
     throw new Error('Output cannot overwrite source evidence')
 }
 
-export async function writeEvidence(path: string, data: unknown, root = dirname(path)): Promise<void> {
+export async function writeEvidence(
+  path: string,
+  data: unknown,
+  root = dirname(path),
+  options: {exclusive?: boolean} = {},
+): Promise<void> {
   await mkdir(root, {recursive: true, mode: 0o700})
   const boundary = await createConfinement(root)
   const destination = await boundary.resolve(resolve(path))
   await mkdir(dirname(destination), {recursive: true, mode: 0o700})
+  if (options.exclusive) {
+    // Setup fallbacks need no installed packages and must never replace original evidence.
+    await writeFile(destination, JSON.stringify(data, null, 2) + '\n', {flag: 'wx', mode: 0o600})
+    return
+  }
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`
   await boundary.resolve(temporary)
   try {

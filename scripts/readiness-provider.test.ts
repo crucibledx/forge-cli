@@ -6,8 +6,10 @@ import {expect, it} from 'bun:test'
 
 import type {DeviationEvidence} from './evidence-schema'
 import {sourceUri} from './evidence-schema'
+import {producerFixture} from './fixtures/producer'
 import {readinessFixture} from './fixtures/readiness'
 import {providerArtifact, providerArtifactInJobWindow, providerJob} from './github-evidence'
+import {readiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('provider-artifact')
@@ -346,4 +348,51 @@ it('AC-25 shared provider artifacts reject non-positive IDs consistently', () =>
   const artifact = {id: 1, name: 'quality', expired: false, created_at: '2026-11-04T12:00:00Z'}
   expect(providerArtifact.safeParse(artifact).success).toBe(true)
   for (const id of [0, -1, 1.5]) expect(providerArtifact.safeParse({...artifact, id}).success).toBe(false)
+})
+it('AC-32 artifact503 cannot invalidate independently authenticated gate jobs or producer failures', async () => {
+  const f = producerFixture(),
+    context = f.bundle.context
+  f.selected.payload.reviews[0].findings.push({...f.blocker, evidence: [f.selected.uri]})
+  f.bundle.reviews = f.selected.payload.reviews
+  const read = f.read([f.selected])
+  let artifactCalls = 0
+  const provider = readinessProvider(dir(), {
+    archive: async () => {
+      throw Error('No archive should be reached')
+    },
+    githubJSON: async (selected, endpoint) => {
+      if (endpoint.includes('/pulls/')) return read(selected, endpoint)
+      if (endpoint === '/actions/workflows/ci.yml') return {id: 7, path: '.github/workflows/ci.yml'}
+      if (endpoint.includes('/artifacts?')) {
+        artifactCalls++
+        throw Error('Synthetic artifact HTTP503')
+      }
+      if (endpoint.includes('/jobs?'))
+        return {
+          total_count: 1,
+          jobs: [
+            {
+              ...windowJob,
+              id: Number(f.bundle.gate.provider_id),
+              name: 'Deterministic gate',
+            },
+          ],
+        }
+      return {
+        id: Number(context.run_id),
+        run_attempt: context.run_attempt,
+        head_sha: context.tested_sha,
+        workflow_id: 7,
+        path: '.github/workflows/ci.yml',
+      }
+    },
+  })
+  await expect(provider.gate(f.bundle.gate, context)).resolves.toBeUndefined()
+  expect(artifactCalls).toBe(0)
+  // Synthetic checkout/PR identity only here; genuine clean-merge CLI controls test production context independently.
+  const report = await readiness(f.bundle, Bun.version, {...provider, context: async () => {}})
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === `code/${f.blocker.id}`)).toBe(true)
+  expect(report.reasons.some((r) => r.kind === 'blocked' && r.message.includes('HTTP503'))).toBe(true)
+  expect(artifactCalls).toBe(1)
 })

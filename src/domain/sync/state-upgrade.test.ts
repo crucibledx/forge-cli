@@ -4,6 +4,7 @@ import {detectLocalConflict} from './conflict'
 import {detectDrift, detectFullDrift} from './drift'
 import {reconcileState} from './reconcile'
 import {hashContent} from './state'
+import type {SyncFileStatus} from './types'
 
 const path = '.claude/rules/a.md'
 const state = {
@@ -17,7 +18,7 @@ const target = {
   sourceName: 'new',
   assistantId: 'claude-code',
 }
-const summary = (status: 'skipped' | 'no_change' | 'deleted') => ({
+const summary = (status: SyncFileStatus) => ({
   targetPath: path,
   sourcePath: '',
   assistantId: 'claude-code',

@@ -8,21 +8,19 @@ import {bundleSchema, contextSchema} from './evidence-schema'
 import {githubJSON, providerGate} from './github-evidence'
 import {
   assertProducerRecord,
-  ProducerBlockers,
+  producerSelection,
   ProducerSuperseded,
   providerProducerState,
   providerReport,
 } from './producer-evidence'
 import type {ProducerRole} from './producer-roles'
-import {PRODUCER_ROLES} from './producer-roles'
 import {collectReadiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
 import {repositoryRoot} from './validation-context'
 
 /** One report can remain current for security after its code role has been superseded. */
 export async function collectProducers(sources: string[], context: EvidenceContext, read = githubJSON) {
-  if (sources.length > Object.values(PRODUCER_ROLES).length) throw new Error('Too many selected producers')
-  if (new Set(sources).size !== sources.length) throw new Error('Duplicate producer selection')
+  producerSelection(sources)
   const imported: {markdown: string; records: (ReviewEvidence | VerifierEvidence)[]}[] = []
   const selected = new Map<
     ProducerRole,
@@ -30,7 +28,7 @@ export async function collectProducers(sources: string[], context: EvidenceConte
       record: ReviewEvidence | VerifierEvidence
       source: number
       current: boolean
-      adverse: boolean
+      superseded: boolean
     }
   >()
   for (const uri of sources) {
@@ -38,14 +36,14 @@ export async function collectProducers(sources: string[], context: EvidenceConte
     const source = imported.push({markdown: payload.raw_report_markdown, records: []}) - 1
     for (const record of [...payload.reviews, ...(payload.verifier ? [payload.verifier] : [])]) {
       let current = false,
-        adverse = false
+        superseded = false
       try {
         await providerProducerState(uri, context, read, record.provenance.producer_role)
         current = true
       } catch (error) {
-        if (error instanceof ProducerSuperseded) continue
-        // Collection authenticates records, not passing authority. Aggregation revalidates history and failures.
-        adverse = error instanceof ProducerBlockers
+        // Even a superseded-only selection must reach aggregation. All routing references remain in producers.json;
+        // the checker authenticates every candidate and validates its findings/rows, not this fallback's URI order.
+        superseded = error instanceof ProducerSuperseded
       }
       const role = record.provenance.producer_role,
         previous = selected.get(role)
@@ -53,11 +51,12 @@ export async function collectProducers(sources: string[], context: EvidenceConte
       if (
         !previous ||
         (current && !previous.current) ||
-        (!previous.current &&
-          ((adverse && !previous.adverse) ||
-            (adverse === previous.adverse && uri < previous.record.provenance.source_uri)))
+        (!current &&
+          !previous.current &&
+          ((!superseded && previous.superseded) ||
+            (superseded === previous.superseded && uri < previous.record.provenance.source_uri)))
       )
-        selected.set(role, {record, source, current, adverse})
+        selected.set(role, {record, source, current, superseded})
     }
   }
   for (const {record, source} of selected.values()) imported[source].records.push(record)
@@ -109,9 +108,7 @@ if (import.meta.main) {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
-    if (!Array.isArray(sources) || sources.some((uri) => typeof uri !== 'string'))
-      throw new Error('Invalid producer selection')
-    for (const {records, markdown} of await collectProducers(sources, context)) {
+    for (const {records, markdown} of await collectProducers(producerSelection(sources), context)) {
       for (const record of records) {
         const path = 'role' in record ? `reviews/${record.role}.json` : 'verifier.json'
         try {

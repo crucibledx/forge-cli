@@ -1,7 +1,8 @@
 // No third-party imports: this must run after frozen dependency installation fails.
-import {mkdir, readFile, writeFile} from 'node:fs/promises'
+import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {writeEvidence} from './evidence-io'
 import {checkEvidencePath} from './validation-evidence'
 import {rawValidationContext, repositoryRoot} from './validation-identity'
 import {laneById} from './validation-lanes'
@@ -16,10 +17,8 @@ if (import.meta.main) {
   const checks = []
   for (const check of lane.checks) {
     const ref = checkEvidencePath(lane.id, check.id)
-    await mkdir(join(directory, 'checks', lane.id), {recursive: true})
-    await writeFile(join(directory, ref), JSON.stringify({command: check.command, exit_code: null, reason}) + '\n', {
-      flag: 'wx',
-      mode: 0o600,
+    await writeEvidence(join(directory, ref), {command: check.command, exit_code: null, reason}, repositoryRoot, {
+      exclusive: true,
     })
     checks.push({
       id: check.id,
@@ -30,10 +29,10 @@ if (import.meta.main) {
       reason,
     })
   }
-  await writeFile(join(directory, 'context.json'), JSON.stringify(context) + '\n', {flag: 'wx', mode: 0o600})
-  await writeFile(
+  await writeEvidence(join(directory, 'context.json'), context, repositoryRoot, {exclusive: true})
+  await writeEvidence(
     join(directory, `${lane.id}.json`),
-    JSON.stringify({
+    {
       schema_version: 1,
       head_sha: context.head_sha,
       tested_sha: context.tested_sha,
@@ -45,8 +44,9 @@ if (import.meta.main) {
       bun_version: Bun.version,
       duration_ms: 0,
       checks,
-    }) + '\n',
-    {flag: 'wx', mode: 0o600},
+    },
+    repositoryRoot,
+    {exclusive: true},
   )
   console.error(
     `Installation failed with pinned Bun${(await readFile(join(repositoryRoot, '.bun-version'), 'utf8')).trim()}; ${lane.id} checks blocked`,
