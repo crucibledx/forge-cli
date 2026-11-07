@@ -2,6 +2,20 @@ import {expect, it} from 'bun:test'
 
 import {redact, redactData, redactionContext} from './redact'
 
+it.each([
+  'https://user:X_PRODUCTION_PRIVATE',
+  'https://X_PRODUCTION_PRIVATE',
+  'https://fixture.invalid?to\x1b[31mken=X_PRODUCTION_PRIVATE&visible=yes',
+  'https://fixture.invalid?to\x9b31mken=X_PRODUCTION_PRIVATE&visible=yes',
+])('AC-15,30 production redaction masks unfinished/formatted credentials: %s', (value) => {
+  const input = 'ordinary-before\n' + value + '\nordinary-after'
+  for (const output of [redact(input), JSON.stringify(redactData({error: {cause: input}}))]) {
+    expect(output).not.toContain('X_PRODUCTION_PRIVATE')
+    expect(output).toContain('ordinary-before')
+    expect(output).toContain('ordinary-after')
+    if (value.includes('visible=yes')) expect(output).toContain('visible=yes')
+  }
+})
 it.each(['access_token', 'token', 'password', 'secret', 'key', 'auth'])(
   'AC-15,30 encoded credential query names keep surrounding diagnostics: %s',
   (key) => {

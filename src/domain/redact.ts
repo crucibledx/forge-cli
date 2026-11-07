@@ -1,3 +1,5 @@
+import {createAnsiText} from './ansi-text'
+
 const queryKeys = ['access_token', 'token', 'password', 'secret', 'key', 'auth']
 const queryMarker = `[?&#](?:${queryKeys
   .map((key) =>
@@ -54,7 +56,6 @@ interface RedactionOptions {
   credentialPrefixes?: readonly string[]
   secretPrefix?: string
   assignments?: boolean
-  unfinishedUserinfo?: boolean
   spans?: readonly RedactionSpan[]
 }
 export interface RedactionSpan {
@@ -76,6 +77,46 @@ function mergeSpans(spans: readonly RedactionSpan[], length: number): RedactionS
   return merged
 }
 
+/** Tentative authority privacy is reversible when a path/query/fragment proves its boundary. */
+export function diagnosticAuthoritySpans(text: string, prefixes: readonly string[] = []) {
+  const pending: RedactionSpan[] = [],
+    resolved: RedactionSpan[] = []
+  let continuing = false
+  for (const prefix of ['', ...prefixes]) {
+    const input = prefix + text
+    for (const match of input.matchAll(/(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\//gi)) {
+      const start = match.index + match[0].length
+      let end = start
+      while (end < input.length && !/[/?#\s\p{Cc}]/u.test(input[end])) end++
+      if (end === input.length) continuing = true
+      const destination = end < input.length && '/?#'.includes(input[end]) ? resolved : pending
+      destination.push({start: start - prefix.length, end: end - prefix.length})
+    }
+  }
+  return {pending: mergeSpans(pending, text.length), resolved: mergeSpans(resolved, text.length), continuing}
+}
+
+/** Linear subtraction after sorting, never a Cartesian scan of diagnostic ranges. */
+export function subtractRedactionSpans(
+  spans: readonly RedactionSpan[],
+  excluded: readonly RedactionSpan[],
+  length: number,
+): RedactionSpan[] {
+  const cuts = mergeSpans(excluded, length),
+    result: RedactionSpan[] = []
+  let index = 0
+  for (const span of mergeSpans(spans, length)) {
+    let cursor = span.start
+    while (index < cuts.length && cuts[index].end <= cursor) index++
+    for (let i = index; i < cuts.length && cuts[i].start < span.end; i++) {
+      if (cursor < cuts[i].start) result.push({start: cursor, end: Math.min(span.end, cuts[i].start)})
+      cursor = Math.max(cursor, cuts[i].end)
+    }
+    if (cursor < span.end) result.push({start: cursor, end: span.end})
+  }
+  return result
+}
+
 /** Recognize every span against unchanged input, then mask their union. */
 export function redactionSpans(text: string, options: RedactionOptions = {}): RedactionSpan[] {
   const spans: RedactionSpan[] = []
@@ -94,8 +135,6 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       }
     }
     scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1)
-    if (options.unfinishedUserinfo)
-      scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/@\p{Cc}]*:[^\s/@\p{Cc}]*(?=$|[\s\p{Cc}])/giu)
     scan(queryValue)
     scan(/(Bearer\s+)[a-z\d._~+/-]+=*/gi)
     if (options.assignments) scan(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi)
@@ -126,7 +165,39 @@ export function maskRedactionSpans(text: string, spans: readonly RedactionSpan[]
   return {text: result + text.slice(cursor), spans: merged}
 }
 export function redact(text: string, options: RedactionOptions = {}): string {
-  return maskRedactionSpans(text, redactionSpans(text, options)).text
+  const recognize = (value: string) =>
+    mergeSpans(
+      [
+        ...redactionSpans(value, options),
+        // A complete userinfo delimiter keeps its public host; unfinished authorities remain private.
+        ...diagnosticAuthoritySpans(value, options.credentialPrefixes).pending.filter(
+          ({start, end}) => !value.slice(start, end).includes('@'),
+        ),
+      ],
+      value.length,
+    )
+  const spans = recognize(text)
+  if (/[\u001b\u009b\u009d]/.test(text)) {
+    const segments: {raw: number; visible: number; length: number}[] = []
+    let visible = 0
+    const plain = createAnsiText((start, end) => {
+      segments.push({raw: start, visible, length: end - start})
+      visible += end - start
+    })(text)
+    let index = 0
+    for (const span of recognize(plain)) {
+      while (index < segments.length && segments[index].visible + segments[index].length <= span.start) index++
+      let start: number | undefined,
+        end = 0
+      for (let i = index; i < segments.length && segments[i].visible < span.end; i++) {
+        const segment = segments[i]
+        start ??= segment.raw + Math.max(0, span.start - segment.visible)
+        end = segment.raw + Math.min(segment.length, span.end - segment.visible)
+      }
+      if (start !== undefined) spans.push({start, end})
+    }
+  }
+  return maskRedactionSpans(text, spans).text
 }
 /** Finite syntax-only contexts for concurrent recognizers. Never publish these. */
 export function redactionContext(discarded: string): string[] {
@@ -142,8 +213,6 @@ export function redactionContext(discarded: string): string[] {
   )
   if (assignment) contexts.add(assignment[1] ? 'secret=x' : 'secret=')
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/]*$/i)) contexts.add('https://')
-  if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/@\p{Cc}]*:[^\s/@\p{Cc}]*$/iu))
-    contexts.add('https://x:')
   let partial = ''
   for (const marker of [
     'Bearer',

@@ -4,7 +4,67 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on 0c88fdc
+## Latest hosted and independent review on53829d9
+
+CI42312009504 succeeded23:33:09Z and hosted42312010423 finished23:35:30Z
+(review5808471134). All later triggers completed/skipped23:35:38Z before source edits.
+Post-completion inventory:105 threads,101 resolved,4 open. PR remains ready only at the
+owner's instruction; genuine exact-revision app attestations remain unavailable.
+
+Independent static review-x completed23:30:59.222Z on merge6019664 and the complete18-file
+delta:two P1/two P2 findings. Verifier-x completed23:49:32.575819Z:27 pass/5 fail
+(AC-15/25/27/30/32), four counterexamples. Parent counterexamples additionally block
+unqualified AC-16/18 support. Their green baseline suites never cancel these findings.
+
+| Finding | Candidate correction and committed regression |
+| --- | --- |
+| review-x P1 token-only unfinished userinfo;4498504370 broader follow-up | Treat unfinished authorities conservatively, including colon-free credentials; retain separate tentative spans and confirmed privacy. Exercise live prefixes, formatting, eviction and actual pipe/PTY/validation timeouts. |
+| review-x P1 colon-heavy quadratic recognition/context | Replace the two overlapping-colon patterns with unambiguous scans. Independent child watchdogs cover262144 colons for each recognizer without relaxing the5s watchdog. |
+| review-x P2 ordinary host:port/IPv6 split corruption | Resolve tentative authority privacy at path/query/fragment boundaries without removing confirmed spans. Every UTF8 byte split of three ordinary URLs must equal single-chunk raw/visible diagnostics. |
+| review-x P2 and verifier-x X-3 missing timestamp siblings | Transport optional unknown temporal fields, then enforce strict finite ISO/ordered timestamps per selected row. Missing/object/null fields block only their selected lane; both actual consumers retain independent failed/successful siblings. |
+|4498755028 | Share the bounded sanitized pipe/PTY failure envelope. Retain observed signal/exit, command/arguments, relative cwd and invocation-time supplied seed/replay; individually bound fields before JSON serialization. |
+|4498755040 | Derive canonical incoming and output paths from repositoryRoot inside both gate entrypoints. Production accepts context/pin plus injected I/O/provider ports, not invariant path parameters. Test adapters assert canonical paths before redirecting I/O. |
+| verifier-x X-1 production persisted privacy | Move the existing ANSI state machine into pure domain code and project visible credential spans back to unchanged raw input. Production redact/redactData now mask unfinished userinfo and ANSI-fragmented credentials. Real handler subprocess regressions inspect unfiltered stdout plus actual latest/history/JSONL and unchanged protected bytes. |
+| verifier-x X-2 oversized setup/cleanup reason | Sanitize the complete reason before preserving a UTF8-bounded16000-byte primary summary, including Error/non-Error setup and cleanup. Normalize caught lane reasons before retained JSON/schema validation, preserving every sibling and independent known failure. |
+| verifier-x X-4 direct public PTY wait error | Use the same private bounded envelope for local-wait, total-deadline and exited-child rejections. Cover credential/ANSI/long-known-secret requests, positive transcript/context and zero remaining owned processes; avoid embedding an already formatted failure twice. |
+
+Parent original controls0/8 become8/0 with only the canonical gate I/O adapter changed.
+Expanded focused332/1 had one newly authored fixture using nonexistent lane ID agent;
+the correct registered agent-cli ID passes the entire lane file9/0. Earlier candidate
+failures remain retained:193/4 and221/2 exposed genuine projection/context/empty-cwd
+regressions that were fixed;241/1 was Bun treating an empty-array it.each value as a
+done callback, corrected with wrapped values. Production correction-focused271/0 and
+candidate copies of the verifier's persisted/adversarial controls pass. Original verifier
+files are never edited or executed to overwrite their evidence.
+
+Complete final quality/types/contracts/full1554/0 in18 isolated batches/build/compiled0.
+Default20s security370/0 across22 files, expanded to production/domain, compatibility and
+lane-overflow regressions; no timeout or case/assertion is relaxed. Audit0 retains the
+moderate minimatch advisory explicitly, with no high/critical finding or dependency change.
+Full log SHA-256 `12f3966ac3b5b4b3cdd1a4707ef5697bef2b82666c36a271d33f799140237885`;
+security `c87a45c7fd6fa57a060e503c5b6d476b3a9f5e05f04f17d1d80420376605adfb`.
+Full readiness replay must run on a clean pinned merge: copied verifier controls initially
+retain the old merge identity (14/12); adapting only that identity still correctly refuses
+the dirty author checkout (14/12). Neither run is a production timestamp counterexample
+or a pass. Preserve both receipts and rerun the same cases on a clean candidate merge.
+
+Verifier-x independently ran full1496/0 once, ten fresh650/0 contract batches without
+retries, default security297/0, human60/0, live audit0 and authenticated11 new original
+CI ZIPs/21 logs. Actual native237/0 on both OSes and three-OS compiled help/version
+succeeded. Its original temporal fixture had three bad positive URI bindings; temporal-v2
+corrects only that URI and retains the three genuine missing-timestamp negatives.
+Deliberate property negative/replay failures remain expected negatives, not stability retries.
+Actual collect0/checkblocked2 lacks genuine code/security/distinct-verifier app attestations.
+
+Static review-x report SHA-256 `251fcd819bb211cc3fda430bd68a31f5fec3a6d232add1a5b163fb3104f89fdd`.
+Verifier-x original report `e742cb4cf5a06779197d4a1f3ff268b2cde58588e3b296518eae4026e22472e3`;
+text `efec64aa4d4c4857a3b0a7fec4db3361978c9666a4211af0a81f4389fff244ca`;
+manifest `e3781a50f56270f4d1c6e701e709ac36127b6b9e858c282e38225b8b426bc13c`.
+These are finite independent implementation reports, not hosted app approvals.
+Next candidate needs fresh exact-merge review/all32 verification and every hosted check,
+including the hosted reviewer's final comments, before any further correction or clearance.
+
+## Hosted and independent review on 0c88fdc
 
 CI42307687363 completed successfully22:58:43Z; hosted42307688599 completed22:59:32Z.
 All checks finished before further source edits. Hosted review added two findings; static

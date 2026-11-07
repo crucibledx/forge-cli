@@ -8,14 +8,14 @@ export const providerJob = z.object({
   name: z.string(),
   status: z.string(),
   conclusion: z.string().nullable(),
-  started_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
+  started_at: z.unknown().optional(),
+  completed_at: z.unknown().optional(),
 })
 export const providerArtifact = z.object({
   id: z.number().int().positive(),
   name: z.string(),
   expired: z.boolean(),
-  created_at: z.string(),
+  created_at: z.unknown().optional(),
 })
 
 const providerTimestamp = z.iso.datetime({offset: true})

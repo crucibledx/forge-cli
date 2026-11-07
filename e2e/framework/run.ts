@@ -1,15 +1,9 @@
 import {CLI_ENTRY} from './constants'
+import {sessionFailure} from './failure'
 import {runPipe} from './pipe'
+import {SESSION_MS} from './process'
 import type {CLIResult, CLISession} from './spawn'
 import {spawnInteractive} from './spawn'
-
-function completed(result: CLIResult): CLIResult {
-  if (result.timedOut)
-    throw new Error(
-      `Command deadline exceeded (exit ${result.exitCode}):\n${result.stdout || result.output}\n${result.stderr}`,
-    )
-  return result
-}
 
 // ─── Non-interactive command runner ──────────────────────────────────────────
 
@@ -24,7 +18,24 @@ export async function runCommand(
   env: Record<string, string> = {},
   execute = runPipe,
 ): Promise<CLIResult> {
-  return completed(await execute(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env}))
+  const argv = [process.execPath, 'run', CLI_ENTRY, command, ...args]
+  const replay = {seed: env.FC_SEED ?? process.env.FC_SEED ?? null, replay: env.FC_PATH ?? process.env.FC_PATH ?? null}
+  const result = await execute(cwd, argv, {env})
+  if (result.timedOut)
+    throw sessionFailure(
+      [new Error('Command deadline exceeded')],
+      {
+        command: argv,
+        cwd,
+        exit: result.exitCode,
+        signal: result.signal,
+        timedOut: true,
+        timeoutMs: SESSION_MS,
+        ...replay,
+      },
+      `${result.stdout || result.output}\n${result.stderr}`,
+    )
+  return result
 }
 
 export async function driveSession(cli: CLISession, drive: (cli: CLISession) => Promise<void>): Promise<CLIResult> {
@@ -41,7 +52,8 @@ export async function driveSession(cli: CLISession, drive: (cli: CLISession) => 
         )
       }),
     ])
-    result = completed(await cli.waitForExit())
+    result = await cli.waitForExit()
+    if (result.timedOut) throw new Error('Command deadline exceeded while waiting for session exit')
   } catch (error) {
     errors.push(error)
   } finally {

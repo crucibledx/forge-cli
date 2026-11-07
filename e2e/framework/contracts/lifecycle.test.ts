@@ -23,6 +23,44 @@ function dead(pid: number): boolean {
 
 describe('BR-09 lifecycle contracts (AC-18)', () => {
   const dir = useTmpDir('lifecycle')
+  it.each(
+    ['exit', 'local-wait', 'total-deadline'].flatMap((mode) =>
+      [
+        'https://x:X_WAIT_PRIVATE',
+        'https://fixture.invalid?to\x1b[31mken=X_WAIT_PRIVATE',
+        'KNOWN_' + 'X_WAIT_PRIVATE'.repeat(80),
+      ].map((wanted) => ({mode, wanted})),
+    ),
+  )('AC-15,18,27,30 direct PTY $mode rejection is a bounded private diagnostic', async ({mode, wanted}) => {
+    if (process.platform === 'win32') return
+    const cli = spawnPty(
+      dir(),
+      [
+        process.execPath,
+        '-e',
+        "console.log('visible-wait-marker');" + (mode === 'exit' ? '' : 'setInterval(()=>{},1000)'),
+      ],
+      {timeoutMs: mode === 'total-deadline' ? 1000 : 5000, secrets: [wanted.startsWith('KNOWN_') ? wanted : '']},
+    )
+    let error: Error | undefined
+    try {
+      await cli.waitForText('visible-wait-marker')
+      await cli.waitForText(wanted, mode === 'local-wait' ? 100 : undefined)
+    } catch (value) {
+      error = value as Error
+    } finally {
+      await cli.dispose()
+    }
+    expect(error).toBeInstanceOf(Error)
+    for (const value of [error!.message, error!.stack!]) {
+      expect(value).not.toContain('X_WAIT_PRIVATE')
+      expect(value).toContain('visible-wait-marker')
+      expect(Buffer.byteLength(value)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+    const context = JSON.parse(error!.message.split('\nSession: ')[1].split('\nTranscript tail:')[0])
+    expect(context.cwd).toBe('.')
+    expect(activeProcesses.size).toBe(0)
+  })
   it.each([
     'assertion',
     'non-error',
