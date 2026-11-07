@@ -3,9 +3,10 @@ import {resolve} from 'node:path'
 
 import {z} from 'zod'
 
+import {redact, redactData} from '../src/domain/redact'
 import {hashContent} from '../src/domain/sync/state'
 import {repositoryRoot} from './validation-identity'
-import type {CommandOutcome} from './validation-process'
+import type {CommandOutcome, StructuredCommandOutput} from './validation-process'
 import {executeCheck} from './validation-process'
 
 const advisory = z
@@ -19,19 +20,21 @@ const advisory = z
     cvss: z.object({score: z.number().min(0).max(10), vectorString: z.string().nullable()}).strict(),
   })
   .strict()
-export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
-  const blocked = (reason: string) => ({status: 'blocked' as const, exit_code: 2, reason})
+export function assessAudit(result: CommandOutcome, lockUnchanged: boolean, structured?: StructuredCommandOutput) {
+  const blocked = (reason: string) => ({status: 'blocked' as const, exit_code: 2, reason: redact(reason)})
   if (!lockUnchanged) return blocked('Lockfile changed during audit')
   let data: Record<string, z.infer<typeof advisory>[]>
   try {
-    data = z.record(z.string().min(1), z.array(advisory).min(1)).parse(JSON.parse(result.stdout))
+    data = z
+      .record(z.string().min(1), z.array(advisory).min(1))
+      .parse(structured ? structured.data : JSON.parse(result.stdout))
   } catch {
     return blocked('Invalid advisory JSON or unaudited-package result')
   }
   const high = Object.entries(data).flatMap(([name, advisories]) =>
     advisories
       .filter((item) => ['high', 'critical'].includes(item.severity))
-      .map((item) => ({package: name, id: item.id, severity: item.severity, url: item.url})),
+      .map((item) => ({package: redact(name), id: item.id, severity: item.severity, url: item.url})),
   )
   if (high.length)
     return {
@@ -43,13 +46,11 @@ export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
         Boolean,
       )
         ? {
-            diagnostic: [
-              result.reason,
-              result.stderr.trim(),
-              result.exit_code === null ? 'Process exit unavailable' : '',
-            ]
-              .filter(Boolean)
-              .join('; '),
+            diagnostic: redact(
+              [result.reason, result.stderr.trim(), result.exit_code === null ? 'Process exit unavailable' : '']
+                .filter(Boolean)
+                .join('; '),
+            ),
           }
         : {}),
     }
@@ -61,15 +62,16 @@ export function assessAudit(result: CommandOutcome, lockUnchanged: boolean) {
     status: 'pass' as const,
     exit_code: 0,
     reason: 'Complete advisory response, no high/critical findings; lower-severity findings remain visible',
-    advisory_data: data,
+    advisory_data: Object.fromEntries(Object.entries(data).map(([name, items]) => [redact(name), redactData(items)])),
   }
 }
 async function audit() {
   const lock = resolve(repositoryRoot, 'bun.lock')
   const hash = async () => hashContent(await readFile(lock))
   const before = await hash()
-  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], 60000)
-  return assessAudit(result, before === (await hash()))
+  const structured: StructuredCommandOutput = {}
+  const result = await executeCheck(['bun', 'audit', '--json', '--audit-level=high'], 60000, undefined, structured)
+  return assessAudit(result, before === (await hash()), structured)
 }
 if (import.meta.main) {
   try {

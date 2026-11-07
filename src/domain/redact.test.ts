@@ -52,6 +52,23 @@ it.each([
       if (input.includes(publicText) && cut <= input.indexOf(publicText)) expect(output).toContain(publicText)
   }
 })
+it.each([' '.repeat(16), '\t'.repeat(16), '- '.repeat(8)])(
+  'AC-15,16,30 repeated indentation retains one complete origin, not every discarded suffix: %j',
+  (chunk) => {
+    let contexts: string[] = []
+    for (let index = 0; index < 100; index++) {
+      contexts = redactionContext(chunk, contexts)
+      expect(contexts.length).toBeLessThanOrEqual(2)
+      expect(contexts.every((value) => value.length < 128)).toBe(true)
+    }
+    const indent = chunk.length * 100
+    const remainder = `password:\n${' '.repeat(indent + 2)}INDENT_PRIVATE_Q\n${' '.repeat(indent)}public=yes\nvisible=yes`
+    const output = redact(remainder, {credentialPrefixes: contexts})
+    expect(output).not.toContain('INDENT_PRIVATE_Q')
+    expect(output).toContain('public=yes')
+    expect(output).toContain('visible=yes')
+  },
+)
 it('AC-15,30 discarded long scalar bodies and indentation use bounded syntax-only state', () => {
   const indentation = ' '.repeat(4096)
   const value = `root:\n${indentation}password: |\n${indentation}  ${'SCALAR_PRIVATE_Q '.repeat(20000)}\n${indentation}public=yes\n`

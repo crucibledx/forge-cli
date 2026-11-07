@@ -557,8 +557,7 @@ export function redact(text: string, options: RedactionOptions = {}): string {
   }
   return maskRedactionSpans(text, spans).text
 }
-/** Finite syntax-only contexts for concurrent recognizers. Never publish these. */
-export function redactionContext(discarded: string): string[] {
+function discardedContext(discarded: string): string[] {
   const contexts = new Set<string>()
   const state = valueState(discarded)
   const retainValue = (continuation: string | undefined, quoted: boolean) => {
@@ -650,6 +649,27 @@ export function redactionContext(discarded: string): string[] {
   // A raw tail starting mid-name cannot establish a fresh exact short alias.
   if (finalMatch(discarded, /[a-z\d_.%+-]$/i)) contexts.add('_')
   return [...contexts]
+}
+
+/** Advance concurrent recognizers without retaining duplicate origins of the same current-line syntax. */
+export function redactionContext(discarded: string, prefixes: readonly string[] = []): string[] {
+  const contexts = new Set<string>()
+  const keys = new Map<string, {indent: number; context: string}>()
+  for (const prefix of ['', ...prefixes]) {
+    for (const context of discardedContext(prefix + discarded)) {
+      const state = valueState(context)
+      if (state?.kind !== VALUE_KINDS.KEY) {
+        contexts.add(context)
+        continue
+      }
+      const syntax = context.slice(state.length)
+      // A fresh suffix of an already observed whitespace line is not another
+      // indentation origin. Keep the complete observed column for this syntax.
+      if (!keys.has(syntax) || keys.get(syntax)!.indent < state.indent)
+        keys.set(syntax, {indent: state.indent, context})
+    }
+  }
+  return [...contexts, ...[...keys.values()].map(({context}) => context)]
 }
 
 export function redactData<T>(value: T): T {

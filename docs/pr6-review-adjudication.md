@@ -4,6 +4,47 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after29eb4d0, completed review AO
+
+Head `29eb4d0babf6956c60cdd7bf4ccd9c6f736f6cb8`, actual merge
+`f302c890ea720795a4dbead207b5e8d1cb6efc00`: CI42376236452 and hosted reviewer42376237254 both completed
+successfully. Both independent originals and all hosted evidence were preserved and published before the
+explicit source-freeze release at2026-11-07T13:57:29.454181Z. All406 tracked files matched in all three worktrees.
+
+The [complete verifier original, part1/9](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707832655)
+retains **27pass/5fail/0not-runnable**, failing AC14/19/25/27/30. All351529 original Markdown bytes are published
+as9 reversible base64 fragments with per-fragment and whole-file digests, all independently decoded/read back.
+The first plaintext attempt changed literal escape spellings in storage and remains preserved, not claimed
+byte-exact. The complete [actual supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707835634)
+and [exact terminal return](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707835968) use the same
+lossless transport. Their decoded original bytes are unchanged, not replacement summaries.
+
+Original full2149pass/1fail completed all18 processes; default-policy security769/1 completed both processes.
+All ten fresh first contract invocations1181/1 failed at the same nested-root path assertion. These failures
+are not inherited-credential leaks and are not erased by all10 successful hosted lanes, native Windows/macOS
+326/0 each or the native Linux build. Separate actual collector0/checker2 emitted32 blocked AC statuses,
+10 blocked lanes and34 reasons: production artifact retrieval was unavailable and authenticated exact-revision
+code/security/distinct-verifier records were missing. All11 authentic provider ZIPs were independently preserved
+but never substituted into or retried through the actual collector. Historical AN and AM results stay unchanged.
+
+The [independent reviewer's original](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707508074)
+retains0blocking/1should-fix/0nits, a static whitespace-state growth trace, tests/builds/installs0.
+Its denied test launch never executed or was retried. Hosted P2
+[4501906082](https://github.com/crucibledx/forge-cli/pull/6#discussion_r4501906082) identified advisory JSON
+corruption by diagnostic redaction; that probe used unpinned Bun1.2.11, not the required1.4.2.
+
+| Finding | AP correction and retained boundary |
+| --- | --- |
+| Verifier AC14/19/25/27/30 | Replace longest private sandbox roots before the enclosing repository, preserving native aliases, both streams and cleanup errors after disposal. The original real-Git assertion is unchanged; an explicit repository-local-root regression now covers the same failure. |
+| Independent reviewer | Advance syntax contexts together and compact repeated origins of the same current-line key syntax. Retain complete indentation, other concurrent recognizers and credential/public boundaries. A real100-eviction watchdog proves completion without changing ordinary deadlines. |
+| Hosted4501906082 | Capture bounded private structured stdout before diagnostic redaction/truncation, reject invalid UTF-8/JSON or overflow, validate the original advisory schema and sanitize published fields. Keep high/critical failure precedence and public package identities; never expose raw protocol bytes in command artifacts. |
+
+The first new regression run retained223pass/11fail: one whitespace watchdog timeout, nine public-package
+advisory cases and one repository-local native-path failure. The first corrected five-file run retained361/0.
+No assertion was weakened or terminal verifier resumed. Further validation, unchanged negative controls,
+fresh hosted native checks and both new independent originals remain required before final owner review.
+READY and local reports are not app attestations or permission to merge; no historical thread is resolved here.
+
 ## Nov7 correction afterb2ecee3, completed review AN
 
 Head `b2ecee32ebc8897a48e868d6ea3d83af6d7a59a6`, actual merge

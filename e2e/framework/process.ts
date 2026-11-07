@@ -154,7 +154,7 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
           }),
         ),
       ]
-      contexts = [...new Set([...contexts, ''].flatMap((prefix) => redactionContext(prefix + discarded)))]
+      contexts = redactionContext(discarded, contexts)
       secretPrefix = redactionSecretPrefix(secretPrefix + discarded, secrets)
       const retained = bytes.subarray(start).toString()
       offset += raw.length - retained.length
