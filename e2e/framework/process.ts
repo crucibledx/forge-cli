@@ -302,33 +302,38 @@ export async function terminateTree(proc: OwnedProcess, env: Record<string, stri
     }
     return
   }
-  const signal = (value: NodeJS.Signals | 0) => {
-    try {
-      process.kill(-proc.pid, value)
-      return true
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      // The durable owner can finish first. Ignore EPERM only after proving
-      // that the group contains no live process, never for a real denial.
-      if (code === 'ESRCH' || (code === 'EPERM' && !groupAlive(proc.pid, env))) return false
-      throw error
+  const cleanupEnd = performance.now() + 2000
+  const signal = async (value: NodeJS.Signals | 0) => {
+    for (;;) {
+      try {
+        process.kill(-proc.pid, value)
+        return true
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === 'ESRCH') return false
+        if (code !== 'EPERM') throw error
+        // Darwin can report EPERM before an exiting orphan appears as a zombie.
+        // Retry inside the SAME cleanup budget; a live denial must still fail.
+        if (!groupAlive(proc.pid, env)) return false
+        if (performance.now() >= cleanupEnd) throw error
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
     }
   }
-  if (!signal(0)) {
-    await proc.exited
-    return
+  if ((await signal(0)) && (await signal('SIGTERM'))) {
+    // Always escalate the group, even if its leader exited before descendants.
+    await new Promise((resolve) => setTimeout(resolve, Math.min(500, Math.max(0, cleanupEnd - performance.now()))))
+    await signal('SIGKILL')
   }
-  signal('SIGTERM')
-  // Always escalate the group, even if its leader exited before its descendants.
-  await new Promise((resolve) => setTimeout(resolve, 500))
-  signal('SIGKILL')
-  const cleanupEnd = performance.now() + 1500
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     await Promise.race([
       proc.exited,
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Owned process did not reap within cleanup budget')), 1500)
+        timer = setTimeout(
+          () => reject(new Error('Owned process did not reap within cleanup budget')),
+          Math.max(1, cleanupEnd - performance.now()),
+        )
       }),
     ])
   } finally {

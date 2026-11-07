@@ -8,7 +8,7 @@ import type {ProducerRole} from './producer-roles'
 import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 
 type Payload = z.infer<typeof producerPayload>
-type HistoryMetadata = {submitted_at?: string; contested?: boolean}
+type HistoryMetadata = {submitted_at?: string; contested?: boolean; version_sha256?: string}
 export type AuthenticatedVerifier = HistoryMetadata & {
   record: VerifierEvidence
   dismissed: boolean
@@ -129,6 +129,7 @@ function historyState(history: AuthenticatedSource[], roles: Set<ProducerRole>) 
       const currentRole = roleOf(record)
       const metadata = {
         submitted_at: source.review.submitted_at,
+        version_sha256: hashContent(JSON.stringify(source.review)),
         ...(source.contested ? {contested: true} : {}),
       }
       if ('rows' in record)

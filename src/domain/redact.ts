@@ -1,25 +1,35 @@
 import {createAnsiText} from './ansi-text'
 
-const queryKeys = ['access_token', 'token', 'password', 'secret', 'key', 'auth']
-const queryMarker = `[?&#](?:${queryKeys
-  .map((key) =>
-    [...key]
-      .map(
-        (char) =>
-          `(?:${char}|${[...new Set([char, char.toUpperCase()])].map((value) => '%' + value.charCodeAt(0).toString(16)).join('|')})`,
-      )
-      .join(''),
-  )
-  .join('|')})=`
-const queryValue = new RegExp(`(${queryMarker})[^&#\\s]+`, 'gi')
-const unfinishedQuery = new RegExp(`${queryMarker}[^&#\\s]*$`, 'i')
-const queryStart = new RegExp(queryMarker, 'gi')
+// Credential fragments cover compound/provider-specific names, not an exhaustive
+// allowlist of six exact query keys. Decode names before matching, never values.
+const queryKeys = [
+  'token',
+  'password',
+  'passwd',
+  'pwd',
+  'secret',
+  'key',
+  'auth',
+  'credential',
+  'bearer',
+  'jwt',
+  'signature',
+  'session',
+]
+const queryStart = /[?&#]([^?&#=\s]+)=/g
 const assignmentStart = /(?:token|password|secret|authorization)[=:]/gi
 
-function lastMarkerSuffix(text: string, marker: RegExp): string {
+function credentialQueryKey(name: string): boolean {
+  const decoded = name
+    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .toLowerCase()
+  return queryKeys.some((key) => decoded.includes(key))
+}
+
+function lastMarkerSuffix(text: string, marker: RegExp, accept = (_match: RegExpExecArray) => true): string {
   marker.lastIndex = 0
   let start = -1
-  for (let match = marker.exec(text); match; match = marker.exec(text)) start = match.index
+  for (let match = marker.exec(text); match; match = marker.exec(text)) if (accept(match)) start = match.index
   return start < 0 ? '' : text.slice(start)
 }
 
@@ -30,25 +40,12 @@ function finalMatch(text: string, pattern: RegExp): RegExpExecArray | null {
 }
 
 function unfinishedQueryName(text: string): string {
-  const match = finalMatch(text, /[?&#]((?:[a-z_]|%[a-f\d]{2})*(?:%[a-f\d]?)?)$/i)
+  const match = finalMatch(text, /[?&#]([^?&#=\s]*)$/)
   if (!match) return ''
-  const partial = /%[a-f\d]?$/i.exec(match[1])?.[0] ?? ''
-  const name = match[1]
-    .slice(0, match[1].length - partial.length)
-    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
-    .toLowerCase()
-  const possible = queryKeys.some((key) => {
-    if (!key.startsWith(name)) return false
-    if (!partial) return true
-    const next = key[name.length]
-    return (
-      next &&
-      [next, next.toUpperCase()].some((char) =>
-        char.charCodeAt(0).toString(16).startsWith(partial.slice(1).toLowerCase()),
-      )
-    )
-  })
-  return possible ? match[0].toLowerCase() : ''
+  if (credentialQueryKey(match[1])) return '?token'
+  // Retain enough syntax for a fragment split anywhere in percent encoding.
+  // Arbitrary provider prefixes may be evicted without retaining unbounded keys.
+  return '?q' + match[1].slice(-3 * Math.max(...queryKeys.map((key) => key.length)))
 }
 
 interface RedactionOptions {
@@ -162,7 +159,16 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       }
     }
     scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1)
-    scan(queryValue)
+    queryStart.lastIndex = 0
+    for (let match = queryStart.exec(credentialText); match; match = queryStart.exec(credentialText)) {
+      if (!credentialQueryKey(match[1])) continue
+      const start = match.index + match[0].length
+      let end = start
+      while (end < credentialText.length && !/[&#\s]/.test(credentialText[end])) end++
+      add(start - credentialPrefix.length, end - credentialPrefix.length)
+      // Do not rescan nested query-looking bytes already covered by this span.
+      queryStart.lastIndex = end
+    }
     scan(/(Bearer\s+)[a-z\d._~+/-]+=*/gi)
     if (options.assignments) scan(/((?:token|password|secret|authorization)[=:]\s*)[^\s&]+/gi)
   }
@@ -227,7 +233,13 @@ export function redact(text: string, options: RedactionOptions = {}): string {
 /** Finite syntax-only contexts for concurrent recognizers. Never publish these. */
 export function redactionContext(discarded: string): string[] {
   const contexts = new Set<string>()
-  if (finalMatch(lastMarkerSuffix(discarded, queryStart), unfinishedQuery)) contexts.add('?token=x')
+  if (
+    finalMatch(
+      lastMarkerSuffix(discarded, queryStart, (match) => credentialQueryKey(match[1])),
+      /^[?&#][^?&#=\s]+=[^&#\s]*$/,
+    )
+  )
+    contexts.add('?token=x')
   const queryName = unfinishedQueryName(discarded)
   if (queryName) contexts.add(queryName)
   const bearer = finalMatch(discarded, /Bearer\s+([a-z\d._~+/-]*=*)$/i)
@@ -267,10 +279,7 @@ export function redactData<T>(value: T): T {
   if (Array.isArray(value)) return value.map(redactData) as T
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, data]) => [
-        key,
-        /^(?:password|token|secret|authorization|access_token)$/i.test(key) ? '[redacted]' : redactData(data),
-      ]),
+      Object.entries(value).map(([key, data]) => [key, credentialQueryKey(key) ? '[redacted]' : redactData(data)]),
     ) as T
   }
   return value

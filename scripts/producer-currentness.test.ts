@@ -15,6 +15,112 @@ import {readiness} from './readiness'
 import {readinessProvider} from './readiness-provider'
 
 const dir = useTmpDir('producer-currentness')
+it.each([false, true])(
+  'AC-32 role participation is bound to each authenticated version, originally combined=%s',
+  async (combined) => {
+    const f = producerFixture(),
+      old = f.make(780, 30, true)
+    if (combined) old.payload.reviews = f.make(780, 30).payload.reviews.filter((r) => r.role === 'code')
+    Object.assign(old.payload.verifier!.rows[1], {result: 'fail', exit_code: 1, evidence: [old.uri]})
+    const edited = structuredClone(old)
+    edited.payload.reviews = f.make(780, 30).payload.reviews.filter((r) => r.role === 'code')
+    Object.assign(edited.payload.verifier!.rows[1], {result: 'pass', exit_code: 0})
+    f.read([f.selected, old])
+    edited.review.body = '```forge-evidence-v1\n' + JSON.stringify(edited.payload) + '\n```'
+    f.bundle.reviews = f.selected.payload.reviews
+    f.bundle.verifier = edited.payload.verifier
+    let lookup = 0
+    const report = await evaluate(f, [], {
+      read: async (_context, endpoint) => {
+        if (endpoint.endsWith('/777')) lookup++
+        const sources = [f.selected, lookup > 1 ? edited : old]
+        if (endpoint.includes('?')) return sources.map((source) => source.review)
+        const source = sources.find((item) => endpoint.endsWith('/' + item.review.id))
+        if (!source) throw Error('Unknown synthetic review')
+        return source.review
+      },
+    })
+    expect(report.exit_code).toBe(combined ? 2 : 1)
+    expect(report.reasons.some((reason) => reason.kind === 'failure' && reason.subject === 'AC-2')).toBe(!combined)
+  },
+)
+
+it('AC-32 removing a role between lookups cannot combine two different versions into approval', async () => {
+  const f = producerFixture(),
+    verifier = f.make(780, 30, true)
+  const edited = structuredClone(f.selected)
+  edited.payload.reviews = edited.payload.reviews.filter((record) => record.role === 'security')
+  f.read([f.selected, verifier])
+  edited.review.body = '```forge-evidence-v1\n' + JSON.stringify(edited.payload) + '\n```'
+  f.bundle.reviews = [f.selected.payload.reviews[0], edited.payload.reviews[0]]
+  f.bundle.verifier = verifier.payload.verifier
+  let lookup = 0
+  const report = await evaluate(f, [], {
+    read: async (_context, endpoint) => {
+      if (endpoint.endsWith('/777')) lookup++
+      const sources = [lookup > 1 ? edited : f.selected, verifier]
+      if (endpoint.includes('?')) return sources.map((source) => source.review)
+      const source = sources.find((item) => endpoint.endsWith('/' + item.review.id))
+      if (!source) throw Error('Unknown synthetic review')
+      return source.review
+    },
+  })
+  expect(report.exit_code).toBe(2)
+  expect(report.reasons.some((reason) => reason.message.includes('Conflicting authenticated producer versions'))).toBe(
+    true,
+  )
+  expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(false)
+})
+
+it.each(
+  ['code', 'security', 'verifier'].flatMap((role) =>
+    ['edited-resolution', 'invalid-evidence', 'stable-pass'].map((change) => ({role, change})),
+  ),
+)('AC-32 all role lookups share same-ID version authority: $role/$change', async ({role, change}) => {
+  const f = producerFixture(),
+    verifier = f.make(780, 30, true)
+  for (const row of verifier.payload.verifier!.rows) row.evidence = [verifier.uri]
+  const selected = role === 'verifier' ? verifier : f.selected
+  const evidence = change === 'invalid-evidence' ? 'checks/nonexistent/old.log' : selected.uri
+  if (change !== 'stable-pass') {
+    if (role === 'verifier')
+      Object.assign(selected.payload.verifier!.rows[1], {result: 'fail', exit_code: 1, evidence: [evidence]})
+    else selected.payload.reviews.find((r) => r.role === role)!.findings = [{...f.blocker, evidence: [evidence]}]
+  }
+  const edited = structuredClone(selected)
+  if (role === 'verifier')
+    Object.assign(edited.payload.verifier!.rows[1], {result: 'pass', exit_code: 0, evidence: [edited.uri]})
+  else if (change !== 'stable-pass')
+    edited.payload.reviews.find((r) => r.role === role)!.findings = [
+      {
+        ...f.blocker,
+        status: 'resolved',
+        resolution_source_uri: edited.uri,
+        evidence: [edited.uri],
+      },
+    ]
+  const sources = [f.selected, verifier]
+  f.read(sources)
+  edited.review.body = '```forge-evidence-v1\n' + JSON.stringify(edited.payload) + '\n```'
+  f.bundle.reviews = role === 'verifier' ? f.selected.payload.reviews : edited.payload.reviews
+  f.bundle.verifier = role === 'verifier' ? edited.payload.verifier : verifier.payload.verifier
+  let lookup = 0
+  const read: typeof githubJSON = async (_context, endpoint) => {
+    if (endpoint.endsWith('/777')) lookup++
+    const current = sources.map((source) => (source.review.id === edited.review.id && lookup > 1 ? edited : source))
+    if (endpoint.includes('?')) return current.map((source) => source.review)
+    const match = current.find((source) => endpoint.endsWith('/' + source.review.id))
+    if (!match) throw Error('Unknown synthetic review')
+    return match.review
+  }
+  const report = await evaluate(f, [], {read, rejectedEvidence: 'checks/nonexistent/old.log'})
+  expect(report.exit_code).toBe(change === 'stable-pass' ? 0 : change === 'invalid-evidence' ? 2 : 1)
+  const subject = role === 'verifier' ? 'AC-2' : `${role}/${f.blocker.id}`
+  expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === subject)).toBe(change === 'edited-resolution')
+  if (change === 'edited-resolution' && role === 'verifier')
+    expect(report.ac_results.find((row) => row.ac_id === 'AC-2')!.result).toBe('fail')
+})
+
 it.each(
   ['code', 'security', 'verifier'].flatMap((role) =>
     ['new-failure', 'edited-resolution', 'invalid-failure'].map((change) => ({role, change})),

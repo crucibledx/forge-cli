@@ -2,6 +2,43 @@ import {expect, it} from 'bun:test'
 
 import {redact, redactData, redactionContext, redactionSecretPrefix, redactionSpans} from './redact'
 
+it.each([
+  'private_token',
+  'client_secret',
+  'api_key',
+  'oauthToken',
+  'signing-key',
+  'nested.session.id',
+  'providerCredential',
+])('AC-15,30 compound credential query names survive no plain/encoded stream boundary: %s', (key) => {
+  const secret = 'COMPOUND_QUERY_PRIVATE'
+  for (const name of [key, [...key].map((char) => '%' + char.charCodeAt(0).toString(16)).join('')]) {
+    const input = `https://fixture.invalid?${name}=${secret}&visible=yes`
+    expect(redact(input)).toBe(input.replace(secret, '[redacted]'))
+    expect(redactData({url: input, [key]: secret})).toEqual({
+      url: input.replace(secret, '[redacted]'),
+      [key]: '[redacted]',
+    })
+    const secretStart = input.indexOf(secret),
+      secretEnd = secretStart + secret.length
+    for (let cut = 0; cut < secretEnd; cut++) {
+      const spans = redactionSpans(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})
+      expect(spans.some((span) => span.start <= Math.max(0, secretStart - cut) && span.end >= secretEnd - cut)).toBe(
+        true,
+      )
+    }
+  }
+  const prefix = '?' + 'provider_'.repeat(10000) + 'tok%6'
+  const contexts = redactionContext(prefix)
+  expect(contexts.every((value) => value.length < 128)).toBe(true)
+  expect(redact('5n=' + secret + '&visible=yes', {credentialPrefixes: contexts})).toBe('5n=[redacted]&visible=yes')
+})
+it('AC-15,30 a public redirect value cannot conceal a nested credential query', () => {
+  expect(
+    redact('https://fixture.invalid?redirect=https://nested.invalid?client_secret=NESTED_PRIVATE&visible=yes'),
+  ).toBe('https://fixture.invalid?redirect=https://nested.invalid?client_secret=[redacted]&visible=yes')
+})
+
 it('AC-15,18,30 known-secret matching and eviction state agree with an independent overlapping-prefix oracle', () => {
   const values = ['']
   for (let size = 1; size <= 4; size++)

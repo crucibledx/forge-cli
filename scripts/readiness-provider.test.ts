@@ -291,6 +291,12 @@ it.each([
   'wrong-fragment',
   'wrong-hash',
   'wrong-timestamp',
+  'dismissed',
+  'pending',
+  'missing-state',
+  'unknown-state',
+  'commented-review',
+  'changes-requested-review',
 ])('AC-32 authenticates the actual owner review approval URI: %s', async (kind) => {
   const context = readinessFixture().context
   const record: DeviationEvidence = {
@@ -320,6 +326,20 @@ it.each([
       expect(endpoint).toBe(comment ? '/issues/comments/777' : '/pulls/99/reviews/777')
       return {
         user: {login: kind === 'wrong-owner' ? 'not-owner' : 'NazarUsik'},
+        state:
+          kind === 'dismissed'
+            ? 'DISMISSED'
+            : kind === 'pending'
+              ? 'PENDING'
+              : kind === 'missing-state'
+                ? undefined
+                : kind === 'unknown-state'
+                  ? 'WITHDRAWN'
+                  : kind === 'commented-review'
+                    ? 'COMMENTED'
+                    : kind === 'changes-requested-review'
+                      ? 'CHANGES_REQUESTED'
+                      : 'APPROVED',
         submitted_at: kind === 'wrong-timestamp' ? '2026-11-03T12:00:00Z' : record.approval.approved_at,
         body:
           '```forge-deviation-v1\n' +
@@ -334,7 +354,7 @@ it.each([
       }
     },
   })
-  if (['exact', 'pr-comment', 'issue-comment'].includes(kind))
+  if (['exact', 'pr-comment', 'issue-comment', 'commented-review', 'changes-requested-review'].includes(kind))
     await expect(provider.deviation(record, context)).resolves.toBeUndefined()
   else await expect(provider.deviation(record, context)).rejects.toThrow()
   expect(calls).toBe(kind === 'wrong-fragment' ? 0 : 1)

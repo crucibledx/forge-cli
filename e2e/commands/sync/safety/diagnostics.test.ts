@@ -14,6 +14,52 @@ import {testEnvironment} from '../../../../scripts/test-sandbox'
 import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
+it.each(
+  ['private_token', 'client_secret', '%61pi_key'].flatMap((key) =>
+    ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({key, mode})),
+  ),
+)('AC-15,30 actual offline Git $key values cannot leak to debug/raw/report artifacts: $mode', async ({key, mode}) => {
+  const root = dir(),
+    secret = 'COMPOUND_OFFLINE_GIT_PRIVATE'
+  await config(root, [
+    {
+      name: 'compound-credential-source',
+      type: 'git',
+      url: pathToFileURL(join(root, 'missing-local-bare')).href + `?${key}=${secret}`,
+      branch: 'main',
+    },
+  ])
+  const before = await protectedBytes(root)
+  let raw = ''
+  const result = await runPipe(
+    root,
+    [
+      process.execPath,
+      CLI_ENTRY,
+      '--log-level',
+      'debug',
+      'sync',
+      ...(mode.includes('silent') ? ['--silent'] : []),
+      ...(mode.includes('preview') ? ['--dry-run'] : []),
+    ],
+    {
+      inspectRaw: (stdout, stderr) => {
+        raw = stdout + stderr
+      },
+    },
+  )
+  expect(result.exitCode).toBe(1)
+  expect(await protectedBytes(root)).toEqual(before)
+  if (mode.includes('silent')) expect(raw).toBe('')
+  const home = testEnvironment(root).HOME
+  expect(raw + (await readTree(join(home, '.crucible/forge')))).not.toContain(secret)
+  if (mode.includes('preview')) expect(await readTree(join(home, '.crucible/forge/reports'))).toBe('')
+  else {
+    const latest = JSON.parse(await readFile(join(home, '.crucible/forge/reports/latest.json'), 'utf8'))
+    expect(latest.success).toBe(false)
+    expect(latest.synced ?? latest.files.synced).toBe(0)
+  }
+})
 it.each(['apply', 'silent', 'preview', 'silent-preview'])(
   'AC-15,30 real offline Git double-quote query credentials stay private in every stream and artifact: %s',
   async (mode) => {

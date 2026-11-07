@@ -4,6 +4,56 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after1613d02, completed review AF
+
+Frozen head `1613d02bb08c7547b03f2827e98eabe66ba42625`, hosted tested merge
+`f32393991597d1333aa1bdd3dbfd3d322a866f2c`, ordered base/head parents
+`3fb78e1b471e3665567d5e737a8f340b781e996d` and that head,
+tree `1e0be20374dcde1c378cf3bb7e8195cf895701a4`.
+All hosted checks including completed reviewer42343259499 and BOTH independent tracks finished before edits.
+The after-both inventory at `2026-11-07T06:00:14.478014Z` contains137 threads,121 resolved/16 open.
+All400 tracked hashes remained unchanged through the wait, recovery and original-evidence publication.
+Owner pending reviews5804867331/5804867332 remain untouched.
+
+The immutable independent verifier result is **27pass/5fail/0not-runnable**, failed AC16/18/26/27/32.
+Markdown SHA256 `a2e505c101efa494bee2bb1cbbc61e868cf061ae16e31d8d0c21e559f819a22b`,
+JSON `e7331fbbc4c98aba2a390c5b9fb7e8fee446b4ba15a8ea6a9898559ca29aadec`.
+The empty task return was recovered from1326 intact regular files,1324 sealed inventory entries checked,
+not rerun or reinterpreted. Its original fresh contracts run03 failed891/1 with native macOS cleanup EPERM;
+the other nine passed892/0. Ten unit processes passed774/0 each. No retry erases the failing run.
+Raw failing contract SHA256 `30814db8ecb440f676caf5a2e666f890e90cd21a884f6591c64a8bd765055ef1`.
+This proves a cleanup/result failure, not a surviving descendant.
+
+Independent reviewer AF requested changes: **1blocking/2should-fix**.
+Returned Markdown SHA256 `b9cf32f38b44d4dff0fbe5df130aa3b107e4757d68050876d999abcde7cef968`.
+Focused execution and file persistence were confirmation-denied before launch; two read-only probes actually ran.
+Exact returned text and system logs were archived, not falsely represented as reviewer-created report files.
+The bounded review was not an exhaustive204-file audit or app-authored approval.
+Verifier AC15/30 passed finite original tests; that does not refute the separate query-credential and null-exit
+counterexamples or authorize changing either independent original verdict.
+
+[Supporting publication6703117195](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6703117195)
+precedes correction edits. It retains all32 original rows/commands/raw hashes, all20 original process records,
+exact deliberately failing property replay, native282/0 per OS and all21 JSON/raw pairs from11 ZIPs/63 members.
+Parent verified ZIP/provider digest/member and per-check context/command/exit/hash integrity.
+CI created-to-gate406s and393s lane envelope/longest are one sample, not p95 or an LLM SLA.
+Hosted green native jobs do not cancel the original local failure.
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| AF-S1 P1 | Match decoded credential fragments within compound/provider-specific query names, not only six exact names. Preserve finite cross-chunk key context and linear scans; ordinary/encoded/raw/tail and12 actual offline Git debug CLI modes cover the reported names. |
+| AF-C1 P2 | Carry authenticated complete provider-object version hashes across all role lookups. Globally contested identities cannot clear adverse evidence or establish passing authority, including deleted roles and changed role participation. Invalid failure evidence remains blocked, not invented failure. |
+| AF-C2 P2 | Validate captured advisory JSON before inspecting a null exit. Valid high/critical findings retain failure1 and lifecycle diagnostics; invalid/absent/clean null-exit results remain blocked. Lock changes still invalidate binding. |
+| Hosted4500317453 / AF-3 | Use the same credential-redact/terminal-escape boundary for readiness stderr as collection; actual CLI raw ESC/BEL and C1 negative controls preserve readable paths without active controls. |
+| Hosted4500317455 / AF-2 | Authenticate submitted, non-dismissed owner review state and exact structured decision. Pending/missing/unknown states fail; submitted review decisions and authenticated comment approvals remain supported. |
+| AF-1 | Retry transient Darwin EPERM only inside the existing two-second cleanup budget and prove the group dead or actually deliver the signal. Real live denial and unverifiable process snapshots still fail. Deterministic TERM/KILL transition tests accompany actual leader-exit/descendant tests; no raised suite deadline or blanket EPERM suppression. |
+
+Original reports above stay immutable. New correction tests and clean-merge controls are separate evidence,
+not retroactive AF passes. Every next push restarts the ALL-hosted-including-reviewer AND BOTH-independent freeze.
+Missing genuine exact-revision app-authored code/security/distinct-verifier attestations still block readiness;
+tests, READY UI, resolved conversations and this document do not supply them. No frozen acceptance, dependency,
+lock, version, settings, owner approval, main push, merge, tag or release changes.
+
 ## Nov7 correction afterf8d7dc0, completed review AE
 
 Frozen subject: head `f8d7dc046a737e94840218f972c10af462a91fb3`,

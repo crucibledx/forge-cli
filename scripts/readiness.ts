@@ -2,6 +2,7 @@ import {readFile, unlink} from 'node:fs/promises'
 import {resolve} from 'node:path'
 
 import {redact} from '../src/domain/redact'
+import {terminalText} from '../src/infrastructure/cli/terminal-text'
 import {protectEvidenceOutput, readEvidence, writeEvidence} from './evidence-io'
 import type {
   DeviationEvidence,
@@ -213,6 +214,24 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       .filter((source) => source.contested)
       .map((source) => source.record.provenance.source_uri),
   )
+  const observedVersions = new Map<string, string>()
+  for (const source of [...reviewHistory, ...verifierHistory]) {
+    const uri = source.record.provenance.source_uri
+    const key = source.version_sha256 ? uri : `${uri}/${source.record.provenance.producer_role}`
+    const version =
+      source.version_sha256 ??
+      JSON.stringify([
+        source.record,
+        source.dismissed,
+        source.submitted_at,
+        'also_reviewed' in source ? source.also_reviewed : undefined,
+      ])
+    const previous = observedVersions.get(key)
+    if (previous !== undefined && previous !== version) contestedSources.add(uri)
+    observedVersions.set(key, version)
+  }
+  for (const uri of contestedSources)
+    add('blocked', uri, 'Conflicting authenticated producer versions cannot clear adverse evidence')
   for (const {record, dismissed} of contextValid ? reviewHistory.sort(historyOrder) : []) {
     if (
       record.completion !== 'complete' ||
@@ -243,18 +262,23 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       add('failure', subject, 'Open blocking finding')
     for (const ref of [finding.source_uri, ...finding.evidence]) currentProducerEvidence.add(ref)
   }
-  for (const {record, dismissed, also_reviewed} of contextValid ? verifierHistory.sort(historyOrder) : []) {
+  for (const {record, dismissed, also_reviewed, version_sha256} of contextValid
+    ? verifierHistory.sort(historyOrder)
+    : []) {
+    // The production hash binds this version's own role participation. A later
+    // edited report cannot retroactively make its prior independent failure vanish.
     if (
       also_reviewed ||
       record.completion !== 'complete' ||
       record.head_sha !== context.head_sha ||
       record.tested_sha !== context.tested_sha ||
       record.provenance.producer_role !== 'verifier' ||
-      reviewed.some(
-        (review) =>
-          review.provenance.actor === record.provenance.actor &&
-          review.provenance.producer_id === record.provenance.producer_id,
-      )
+      (!version_sha256 &&
+        reviewed.some(
+          (review) =>
+            review.provenance.actor === record.provenance.actor &&
+            review.provenance.producer_id === record.provenance.producer_id,
+        ))
     )
       continue
     for (const row of record.rows) {
@@ -354,7 +378,7 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider):
     return report.exit_code
   } catch (error) {
     if (cleanupAllowed) await unlink(output).catch(() => {})
-    console.error(redact(`Readiness blocked: ${error instanceof Error ? error.message : String(error)}`))
+    console.error(terminalText(`Readiness blocked: ${error instanceof Error ? error.message : String(error)}`))
     return 2
   }
 }

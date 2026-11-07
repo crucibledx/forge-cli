@@ -195,11 +195,18 @@ The routing list admits at most100 unique producer URIs, so overlapping old/new 
 without granting any URI verdict authority. A changed authenticated same-ID report retains both versions'
 adverse findings/rows, but neither version's pass/resolution can clear a failure. This contested identity applies
 across overlapping role lookups; history is merged in provider submission order, not lookup order.
+Each authenticated source carries the complete parsed provider object's version hash, so cross-lookup changes
+to role participation or other records are contested even when one role's record remains byte-identical.
+Verifier independence is bound to that authenticated version's own role participation; a later edit cannot
+retroactively erase an earlier independently proved failure. Neither contested version grants passing authority.
 failure1 takes precedence over blocked2. Provider report/artifact outages and invalid remote payloads are
 reported as unavailable without discarding independently authenticated siblings. Collection emits a schema-valid
 partial bundle and the checker reauthenticates it; collection success is never a readiness verdict.
 Malformed local bundles, invalid routing lists, conflicting source sidecars and unsafe output paths still stop collection.
-Untrusted collection diagnostics are credential-redacted and visibly terminal-escaped.
+Untrusted collection and readiness error diagnostics are credential-redacted and visibly terminal-escaped.
+Deviation approval requires an exact owner-authored structured decision. A review must be submitted and
+non-dismissed; pending, missing, unknown or withdrawn states cannot approve it. Authenticated issue/PR comments
+retain the separate explicit-decision route. A general PR review state alone never grants a deviation.
 Tests preserve the actual
 collector-then-checker boundary in both URI orders, without extending the strict bundle schema or bootstrapping readiness.
 Injected emergency-handler subprocess tests live beside the application sync tests and remain in contracts,

@@ -12,6 +12,35 @@ import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './r
 import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('readiness')
+it.each(['\x1b]52;c;YXR0YWNrZXI=\x07', '\x9d52;c;YXR0YWNrZXI=\x9c'])(
+  'AC-32 missing-input terminal controls are inert in actual registered readiness stderr: %j',
+  async (control) => {
+    let raw = ''
+    const result = await runPipe(
+      dir(),
+      [
+        process.execPath,
+        'run',
+        join(import.meta.dir, 'check-readiness.ts'),
+        '--input',
+        join(dir(), 'missing-' + control + '-é.json'),
+        '--output',
+        join(dir(), 'report.json'),
+      ],
+      {
+        inspectRaw: (_stdout, stderr) => {
+          raw = stderr
+        },
+      },
+    )
+    expect(result.exitCode).toBe(2)
+    expect(raw).toContain('Readiness blocked')
+    expect(raw).toContain('-é.json')
+    expect(raw).not.toMatch(/[\u001b\u0007\u009d\u009c]/)
+    expect(raw).toContain(control.startsWith('\x1b') ? '\\u001b' : '\\u009d')
+  },
+)
+
 it('AC-32 readiness defaults/pin use repository authority, never a variable CLI root or cwd', async () => {
   expect(readinessCLI.length).toBe(2)
   expect(readinessInputPath.length).toBe(1)
