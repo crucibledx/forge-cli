@@ -13,7 +13,7 @@ const clean = {
   stdout: '{}',
   stderr: '',
 }
-it.each(['high', 'critical'].flatMap((severity) => [0, 1].map((exit_code) => ({severity, exit_code}))))(
+it.each(['high', 'critical'].flatMap((severity) => [0, 1, null].map((exit_code) => ({severity, exit_code}))))(
   'AC-30 known $severity advisory keeps failure precedence with warnings and exit $exit_code',
   ({severity, exit_code}) => {
     const stdout = JSON.stringify({
@@ -32,15 +32,22 @@ it.each(['high', 'critical'].flatMap((severity) => [0, 1].map((exit_code) => ({s
     const report = assessAudit({...clean, stdout, exit_code, stderr: 'Skipped unaudited package'}, true)
     expect(report.status).toBe('fail')
     expect(report.exit_code).toBe(1)
-    expect(report).toHaveProperty('diagnostic', 'Skipped unaudited package')
+    expect(report).toHaveProperty(
+      'diagnostic',
+      'Skipped unaudited package' + (exit_code === null ? '; Process exit unavailable' : ''),
+    )
   },
 )
 it('AC-30 accepts an explicit complete empty advisory result without changing dependency policy', () => {
   expect(assessAudit(clean, true).status).toBe('pass')
 })
-it.each(['high', 'critical'].flatMap((severity) => [false, true].map((timed_out) => ({severity, timed_out}))))(
-  'AC-30 observed $severity audit failure survives lifecycle diagnostics, timed_out=$timed_out',
-  ({severity, timed_out}) => {
+it.each(
+  ['high', 'critical'].flatMap((severity) =>
+    [false, true].flatMap((timed_out) => [1, null].map((exit_code) => ({severity, timed_out, exit_code}))),
+  ),
+)(
+  'AC-30 observed $severity audit failure survives lifecycle diagnostics, timed_out=$timed_out, exit=$exit_code',
+  ({severity, timed_out, exit_code}) => {
     const stdout = JSON.stringify({
       'dev-only': [
         {
@@ -55,11 +62,14 @@ it.each(['high', 'critical'].flatMap((severity) => [false, true].map((timed_out)
       ],
     })
     const result = assessAudit(
-      {...clean, stdout, exit_code: 1, timed_out, reason: 'Cleanup failed: fixture EBUSY', stderr: 'fixture warning'},
+      {...clean, stdout, exit_code, timed_out, reason: 'Cleanup failed: fixture EBUSY', stderr: 'fixture warning'},
       true,
     )
     expect(result).toMatchObject({status: 'fail', exit_code: 1})
-    expect(result).toHaveProperty('diagnostic', 'Cleanup failed: fixture EBUSY; fixture warning')
+    expect(result).toHaveProperty(
+      'diagnostic',
+      'Cleanup failed: fixture EBUSY; fixture warning' + (exit_code === null ? '; Process exit unavailable' : ''),
+    )
   },
 )
 it('AC-30 lifecycle incompleteness still blocks an otherwise clean audit', () => {

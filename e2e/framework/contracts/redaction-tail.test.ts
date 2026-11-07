@@ -18,7 +18,7 @@ it.each(['redact', 'sanitize'])(
   async (kind) => {
     const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
     const credential = 'DOUBLE_QUOTE_TAIL_SUFFIX'
-    for (const key of ['token', '%74oken']) {
+    for (const key of ['token', '%74oken', 'private_token', 'client_%73ecret', 'api_key']) {
       const value = `https://fixture.invalid?${key}=prefix"${credential}&visible=yes\n`
       for (let cut = 1; cut < value.indexOf('&visible'); cut++) {
         const transcript = createTranscript(clean)

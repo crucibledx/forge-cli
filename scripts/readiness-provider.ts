@@ -299,8 +299,11 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
           created_at: z.string().optional(),
           submitted_at: z.string().optional(),
           issue_url: z.string().optional(),
+          state: z.string().optional(),
         })
         .parse(await ports.githubJSON(context, endpoint))
+      if (review && !['APPROVED', 'COMMENTED', 'CHANGES_REQUESTED'].includes(original.state ?? ''))
+        throw new Error('Owner review approval is missing, dismissed or withdrawn')
       if (original.issue_url && !original.issue_url.endsWith(`/issues/${context.pr_number}`))
         throw new Error('Approval comment belongs to another issue')
       const timestamp = original.submitted_at ?? original.created_at
