@@ -83,13 +83,15 @@ bounded transcript. This is not a terminal screen emulator. Sandbox setup errors
 Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
 are not short-substring matches. Incomplete names remain undecided until their boundary is known.
 Production diagnostics also mask Basic/Bearer values and credential assignments by default, including
-quoted/escaped values. Query delimiters remain separate; streaming continuation retains syntax, never discarded
-credential bytes. Renderers sanitize each field before terminal escaping/trusted formatting and print it once.
+quoted/escaped values and quoted JSON keys (including escaped names and multiline separators). URL userinfo
+stops at authority boundaries, never query/fragment email data. Query delimiters remain separate; streaming continuation retains syntax, never discarded
+credential bytes. Renderers and emergency recovery diagnostics sanitize each field before terminal
+escaping/trusted formatting and print it once, preserving trusted recovery instructions.
 Owned-session public exit/drain waits also observe disposal completion: persistent cleanup denial must reject
 within the existing cleanup budget even if exit notification never arrives, not wait for the outer test timeout.
 Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.
 CI records its lane clock before checkout, shares remaining time across independent steps, and reserves90 seconds
-inside the unchanged ten-minute job limit for bounded cleanup, evidence assembly and upload. Missing, malformed,
+inside the unchanged shared ten-minute lane budget for bounded cleanup, evidence assembly and upload. Missing, malformed,
 future or exhausted clock evidence blocks command execution rather than granting a new full budget.
 
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,

@@ -107,9 +107,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
           JSON.stringify(check.blocked_exits ?? []) === JSON.stringify(blocked ? [2] : [])
         )
       }), `${lane.id}: required ordered check contract changed`)
-    require(lane.timeout_ms > 0 &&
-      lane.timeout_ms <= 600000 &&
-      lane.fixture_scope.trim(), `${lane.id}: invalid timeout/scope`)
+    require(lane.fixture_scope.trim(), `${lane.id}: invalid scope`)
     require(lane.checks.length &&
       lane.checks.every(
         (check) =>
@@ -138,7 +136,9 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   require(ci.jobs?.lanes?.['timeout-minutes'] <= 10 &&
     ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
   const startBudget = ci.jobs?.lanes?.steps?.[0]
-  require(ci.jobs?.lanes?.['timeout-minutes'] * 60000 === LANE_BUDGET_MS &&
+  require(LANE_BUDGET_MS > 0 &&
+    LANE_BUDGET_MS <= 600000 &&
+    ci.jobs?.lanes?.['timeout-minutes'] * 60000 === LANE_BUDGET_MS &&
     CI_EVIDENCE_RESERVE_MS >= 60000 &&
     startBudget?.name === 'Start lane budget' &&
     startBudget.shell === 'bash' &&

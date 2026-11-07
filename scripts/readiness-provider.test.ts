@@ -1,4 +1,4 @@
-import {mkdir, writeFile} from 'node:fs/promises'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -22,6 +22,87 @@ const windowJob = {
   completed_at: '2026-11-04T12:01:00Z',
 }
 const windowArtifact = {id: 2, name: 'e2e', expired: false, created_at: '2026-11-04T12:00:30Z'}
+it.each([
+  'current',
+  'changed-base',
+  'changed-merge',
+  'missing-context',
+  'malformed-context',
+  'archive-outage',
+  'wrong-window',
+  'raw-mismatch',
+  'local-log-missing',
+  'direct-tested',
+])('AC-25,32 a failed gate must prove the executed merge, not just the PR source head: %s', async (mode) => {
+  const bundle = readinessFixture(),
+    context = bundle.context,
+    lane = bundle.lanes[0],
+    ref = lane.checks[0].evidence[0]
+  bundle.gate.conclusion = 'failure'
+  await mkdir(join(dir(), 'checks/quality'), {recursive: true})
+  await writeFile(join(dir(), ref), mode === 'raw-mismatch' ? 'changed local bytes' : 'original check')
+  if (mode === 'local-log-missing') await rm(join(dir(), ref))
+  const originalContext = {...context}
+  if (mode === 'changed-base') originalContext.base_sha = 'd'.repeat(40)
+  if (mode === 'changed-base' || mode === 'changed-merge') originalContext.tested_sha = 'e'.repeat(40)
+  const files = new Map([
+    ['context.json', Buffer.from(mode === 'malformed-context' ? '{invalid' : JSON.stringify(originalContext))],
+    ['quality.json', Buffer.from(JSON.stringify(lane))],
+    [ref, Buffer.from('original check')],
+  ])
+  if (mode === 'missing-context') files.delete('context.json')
+  const provider = readinessProvider(dir(), {
+    archive: async () => {
+      if (mode === 'archive-outage') throw Error('Synthetic archive unavailable')
+      return files
+    },
+    githubJSON: async (_context, endpoint) => {
+      if (endpoint === '/actions/workflows/ci.yml') return {id: 7, path: '.github/workflows/ci.yml'}
+      if (endpoint.includes('/jobs?'))
+        return {
+          total_count: 2,
+          jobs: [
+            {...windowJob, id: 99999, name: 'quality'},
+            {...windowJob, id: Number(bundle.gate.provider_id), name: 'Deterministic gate', conclusion: 'failure'},
+          ],
+        }
+      if (endpoint.includes('/artifacts?'))
+        return {
+          total_count: 1,
+          artifacts: [
+            {
+              id: 100,
+              name: `validation-${context.run_id}-${context.run_attempt}-quality`,
+              expired: false,
+              created_at: mode === 'wrong-window' ? '2026-11-04T12:02:00Z' : windowArtifact.created_at,
+              digest: `sha256:${'d'.repeat(64)}`,
+              workflow_run: {id: Number(context.run_id)},
+            },
+          ],
+        }
+      if (endpoint.startsWith('/pulls/')) return []
+      return {
+        id: Number(context.run_id),
+        run_attempt: context.run_attempt,
+        head_sha: mode === 'direct-tested' ? context.tested_sha : context.head_sha,
+        workflow_id: 7,
+        path: '.github/workflows/ci.yml',
+      }
+    },
+  })
+  const authenticated = ['current', 'direct-tested', 'raw-mismatch', 'local-log-missing'].includes(mode)
+  if (authenticated) await expect(provider.gate(bundle.gate, context)).resolves.toBeUndefined()
+  else await expect(provider.gate(bundle.gate, context)).rejects.toThrow('execution revision')
+  // Only checkout/live-PR validation is synthetic here. Provider execution/artifact checks remain real.
+  const report = await readiness(bundle, Bun.version, {...provider, context: async () => {}})
+  expect(report.exit_code).toBe(authenticated ? 1 : 2)
+  expect(report.reasons.some((reason) => reason.kind === 'failure' && reason.subject === 'Deterministic gate')).toBe(
+    authenticated,
+  )
+  if (!authenticated) expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(false)
+  if (mode === 'raw-mismatch' || mode === 'local-log-missing')
+    await expect(provider.artifact(ref, context, lane)).rejects.toThrow()
+})
 it.each([undefined, null, 0, {}, [], true].map((value) => ({value})))(
   'AC-25,27,32 missing/wrong-type window timestamp rejects %j',
   ({value}) => {

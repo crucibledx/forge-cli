@@ -13,6 +13,20 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each(['?', '#'].flatMap((delimiter) => ['redact', 'sanitize'].map((kind) => ({delimiter, kind}))))(
+  'AC-15,16,30 public URI $delimiter email data remains unchanged across chunks: $kind',
+  ({delimiter, kind}) => {
+    const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+    const value = `https://fixture.invalid${delimiter}contact=user@example.invalid&visible=yes\n`
+    for (let cut = 0; cut <= value.length; cut++) {
+      const transcript = createTranscript(clean)
+      transcript.append(Buffer.from(value.slice(0, cut)))
+      transcript.append(Buffer.from(value.slice(cut)))
+      transcript.finish()
+      expect(transcript.diagnostic()).toBe(value)
+    }
+  },
+)
 it.each(
   [
     'Basic PRIVATE_CREDENTIAL_Q',
@@ -21,6 +35,9 @@ it.each(
     'password=PRIVATE_CREDENTIAL_Q',
     'client_secret="prefix PRIVATE_CREDENTIAL_Q suffix"',
     'api_key="prefix\\"PRIVATE_CREDENTIAL_Q suffix"',
+    'remote: {"access_token":"PRIVATE_CREDENTIAL_Q"}',
+    'remote: {"access_\\u0074oken":"PRIVATE_CREDENTIAL_Q"}',
+    'remote: {"access_token"\n:\n"PRIVATE_CREDENTIAL_Q"}',
   ].flatMap((value) => ['redact', 'sanitize'].map((kind) => ({value, kind}))),
 )('AC-15,16,30 auth/assignment credentials survive no chunk or raw-tail cut: $value $kind', ({value, kind}) => {
   const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())

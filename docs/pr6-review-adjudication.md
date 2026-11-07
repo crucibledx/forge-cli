@@ -4,6 +4,40 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after992e794, completed review AI
+
+Head `992e7942ba7defcb61413a734e63d7616a922d74`, hosted merge
+`1225aa664cb0b50f0136020897a345e934876f13`: CI42354252532 and hosted reviewer42354253043 completed.
+Both independent tracks completed, and their original reports were published before subsequent source edits.
+The [complete supporting record](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6704559084)
+preserves the verifier's original **32pass/0fail/0not-runnable implementation checks**, ten fresh stability runs,
+and separate actual readiness **blocked2**. All32 actual readiness rows were blocked by missing genuine
+exact-revision code/security reviews and a distinct verifier attestation. These outcomes are not interchangeable.
+
+The independent reviewer requested changes: **1blocking/2should-fix/0nits**, with zero test/build/install runs and
+two dependency-free probes. Its installation request was blocked before execution and was not rerouted.
+The hosted reviewer also ran no tests because its Bun/dependencies did not match the pinned toolchain.
+Their findings remain valid despite finite verifier passes.
+
+| Candidate | Accepted correction |
+| --- | --- |
+| AI-S1 and hosted4500854132 | Recognize quoted credential keys, including JSON Unicode escapes, percent encoding, spaces and multiline separators. Streaming continuation retains only bounded quote/key syntax, not discarded values. Real Git diagnostics cover human output, debug logs and latest/history reports. |
+| AI-C1 | Stop URL userinfo at authority delimiters, never query/fragment email data. Add public boundary controls without changing the historical regex-equivalence oracles. |
+| AI-C2 | Sanitize each emergency recovery path before composing trusted guidance. Inject actual apply/compensation failures with a credential-looking path and assert all recovery instructions survive. |
+| Hosted4500854138 | A failed gate cannot gain failure authority from the PR source head alone. Require the provider's exact tested SHA or an authenticated same-run sibling artifact proving the exact original context, job window and ZIP bytes/digest. Local log copies are not prerequisites for that proof; lane citations still require exact raw-byte matches. Stale/unavailable proof blocks; independently authenticated producer failures remain failures. |
+| Hosted4500854142 | Remove the behaviorless E2E ANSI forwarding module; import the shared domain parser directly. |
+| Hosted4500854145 | Remove duplicated per-lane timeout values. Use the shared lane budget in execution and assessment, preserving elapsed setup/check accounting and the90-second evidence reserve. |
+
+Initial full validation found one physical-key test reading the now-private JSON `key` field through sanitized
+diagnostics. Its unchanged backspace expectation now checks the unredacted assertion cursor, with additional assertions that diagnostic
+output masks that field. No physical-key fixture or full quoted-query/public-suffix oracle was weakened.
+
+The previous cycle's final seal observer failed before push, although the actual checks had already completed.
+Its metadata-only seal recovery happened after push and remains explicitly labeled post-push. This correction
+must complete and verify its candidate seal before pushing; no original result or chronology is rewritten.
+The PR remains ready for owner review, not an authenticated readiness approval. No frozen contract, dependency,
+version, release or branch-rule change is part of these corrections.
+
 ## Nov7 correction aftera896736, completed review AH
 
 Head `a896736cd19db62113a395ea9f124f5921ce8199`, actual hosted tested merge

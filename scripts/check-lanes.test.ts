@@ -197,13 +197,12 @@ it('AC-18,25,27 retained lane logs contain actual runner signal, relative cwd an
   }
 })
 it('AC-25,27 CI checks share elapsed setup/check time and leave cleanup/evidence headroom', () => {
-  const lane = validationLanes[0],
-    start = 1800000000000
+  const start = 1800000000000
   const marker = String(start / 1000)
-  expect(remainingCIBudget(lane, marker, start)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS)
-  expect(remainingCIBudget(lane, marker, start + 120000)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 120000)
-  expect(remainingCIBudget(lane, marker, start + LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 1500)).toBe(1500)
-  expect(remainingCIBudget(lane, marker, start + LANE_BUDGET_MS)).toBe(0)
+  expect(remainingCIBudget(marker, start)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS)
+  expect(remainingCIBudget(marker, start + 120000)).toBe(LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 120000)
+  expect(remainingCIBudget(marker, start + LANE_BUDGET_MS - CI_EVIDENCE_RESERVE_MS - 1500)).toBe(1500)
+  expect(remainingCIBudget(marker, start + LANE_BUDGET_MS)).toBe(0)
   for (const invalid of [
     undefined,
     '',
@@ -213,7 +212,7 @@ it('AC-25,27 CI checks share elapsed setup/check time and leave cleanup/evidence
     '999999999999999999999999',
     String(start / 1000 + 1),
   ])
-    expect(remainingCIBudget(lane, invalid, start)).toBe(0)
+    expect(remainingCIBudget(invalid, start)).toBe(0)
 })
 it('AC-25 thrown setup outcomes retain all sibling logs and proven failure precedence', async () => {
   const context = validationContext()

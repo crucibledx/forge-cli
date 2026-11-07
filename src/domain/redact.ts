@@ -17,8 +17,15 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
-const assignmentStart = /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*[=:]/gi
+const assignmentStart =
+  /(?<![a-z\d_.%+\\-])(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*)[=:]/gi
 const authStart = /(?:Bearer|Basic)\s+/gi
+
+function assignmentKey(name: string) {
+  return name
+    .replace(/\\u([a-f\d]{4})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .replace(/\\(["'\\/])/g, '$1')
+}
 
 function credentialQueryKey(name: string, complete = true): boolean {
   const decoded = name
@@ -38,12 +45,13 @@ function* credentialAssignments(text: string) {
     while (query && query.index + query[0].length <= match.index) query = names.next().value
     // Query values have their own delimiter rules, including literal quotes.
     if (query && query.index <= match.index) continue
-    if (credentialQueryKey(match[1])) yield match
+    if (credentialQueryKey(assignmentKey(match[1] ?? match[2] ?? match[3])))
+      yield {index: match.index, length: match[0].length, quoted: match[3] === undefined}
   }
 }
 
-function credentialValue(text: string, start: number, authorization = false, token = false) {
-  while (start < text.length && /[ \t]/.test(text[start])) start++
+function credentialValue(text: string, start: number, authorization = false, token = false, multiline = false) {
+  while (start < text.length && (multiline ? /[ \t\r\n]/ : /[ \t]/).test(text[start])) start++
   let end = start
   if (authorization) {
     const scheme = /^(?:Basic|Bearer)[ \t]+/i.exec(text.slice(start))
@@ -63,6 +71,43 @@ function credentialValue(text: string, start: number, authorization = false, tok
   }
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/[\s&]/.test(text[end]))) end++
   return {start, end, continuation: end === text.length ? (end > start ? 'x' : '') : undefined}
+}
+
+/** Keep quote/key syntax and keyword states, never an arbitrary discarded value. */
+function quotedKeyContext(text: string): string {
+  let quote = '',
+    start = 0,
+    escaped = false,
+    closed: {quote: string; name: string} | undefined
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]
+    if (!quote) {
+      if (char === '"' || char === "'") {
+        quote = char
+        start = index + 1
+        closed = undefined
+      } else if (!/[ \t\r\n]/.test(char)) closed = undefined
+    } else if (char === quote && !escaped) {
+      closed = {quote, name: text.slice(start, index)}
+      quote = ''
+    } else escaped = char === '\\' && !escaped
+  }
+  if (!quote)
+    return closed && credentialQueryKey(assignmentKey(closed.name)) ? `${closed.quote}secret${closed.quote}` : ''
+  const name = text.slice(start)
+  const encoding = finalMatch(name, /\\(?:u[a-f\d]{0,3})?$/i)?.[0] ?? finalMatch(name, /%[a-f\d]?$/i)?.[0] ?? ''
+  const decoded = assignmentKey(encoding ? name.slice(0, -encoding.length) : name)
+    .replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .toLowerCase()
+  if (credentialQueryKey(decoded, false)) return quote + 'secret'
+  let partial = ''
+  for (const key of queryKeys)
+    for (let size = key.length; size > partial.length; size--)
+      if (decoded.endsWith(key.slice(0, size))) {
+        partial = key.slice(0, size)
+        break
+      }
+  return quote + (decoded.length > partial.length ? 'q' : '') + partial + encoding
 }
 
 function lastMarkerSuffix(text: string, marker: RegExp, accept = (_match: RegExpExecArray) => true): string {
@@ -205,7 +250,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     }
     const lastAt = credentialText.lastIndexOf('@')
     if (lastAt >= 0 && credentialText.includes('://'))
-      scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/]+@/gi, 1, credentialText.slice(0, lastAt + 1))
+      scan(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/?#]+@/gi, 1, credentialText.slice(0, lastAt + 1))
     queryStart.lastIndex = 0
     for (let match = queryStart.exec(credentialText); match; match = queryStart.exec(credentialText)) {
       if (!credentialQueryKey(match[1])) continue
@@ -228,7 +273,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       for (const match of credentialAssignments(credentialText)) {
         if (match.index < covered) continue
         if (!credentialPrefix && match.index === 0 && options.credentialPrefixes?.includes('_')) continue
-        const value = credentialValue(credentialText, match.index + match[0].length, true)
+        const value = credentialValue(credentialText, match.index + match.length, true, false, match.quoted)
         covered = value.end
         add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
       }
@@ -313,10 +358,12 @@ export function redactionContext(discarded: string): string[] {
   covered = -1
   for (const match of credentialAssignments(discarded)) {
     if (match.index < covered) continue
-    const value = credentialValue(discarded, match.index + match[0].length, true)
+    const value = credentialValue(discarded, match.index + match.length, true, false, match.quoted)
     covered = value.end
-    if (value.continuation !== undefined) contexts.add('secret=' + value.continuation)
+    if (value.continuation !== undefined) contexts.add((match.quoted ? '"secret":' : 'secret=') + value.continuation)
   }
+  const quotedKey = quotedKeyContext(discarded)
+  if (quotedKey) contexts.add(quotedKey)
   const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
   if (pendingName && credentialQueryKey(pendingName[1], false)) contexts.add('secret')
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')

@@ -15,9 +15,16 @@ import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
 it.each(
-  ['basic', 'proxy-basic', 'password', 'quoted-key'].flatMap((kind) =>
-    ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({kind, mode})),
-  ),
+  [
+    'basic',
+    'proxy-basic',
+    'password',
+    'quoted-key',
+    'json-token',
+    'json-secret',
+    'json-unicode',
+    'json-pretty',
+  ].flatMap((kind) => ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({kind, mode}))),
 )(
   'AC-15,30 actual offline Git SSH stderr keeps $kind private in raw/log/latest/history: $mode',
   async ({kind, mode}) => {
@@ -29,6 +36,10 @@ it.each(
       'proxy-basic': `remote: Proxy-Authorization: Basic ${secret}`,
       password: `remote: password=${secret}`,
       'quoted-key': `remote: api_key="prefix ${secret} suffix"`,
+      'json-token': 'remote: ' + JSON.stringify({access_token: secret}),
+      'json-secret': 'remote: ' + JSON.stringify({client_secret: `prefix ${secret} suffix`}),
+      'json-unicode': `remote: {"access_\\u0074oken":${JSON.stringify(secret)}}`,
+      'json-pretty': 'remote: ' + JSON.stringify({access_token: secret}, null, 2),
     }
     const marker = join(fixture, 'invoked'),
       ssh = join(fixture, 'ssh.ts')

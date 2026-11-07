@@ -19,6 +19,13 @@ it.each([
   'api_key="prefix\\"PRIVATE_CREDENTIAL_Q suffix"',
   "passwd : 'prefix PRIVATE_CREDENTIAL_Q suffix'",
   '%73ig=PRIVATE_CREDENTIAL_Q',
+  'remote: {"access_token":"PRIVATE_CREDENTIAL_Q"}',
+  'remote: {"client secret":"prefix PRIVATE_CREDENTIAL_Q suffix"}',
+  'remote: {"access_\\u0074oken":"PRIVATE_CREDENTIAL_Q"}',
+  'remote: {"api%5fkey":"PRIVATE_CREDENTIAL_Q"}',
+  'remote: {"access_token"\n:\n  "PRIVATE_CREDENTIAL_Q"}',
+  'remote: {"client\'s_secret":"PRIVATE_CREDENTIAL_Q"}',
+  "remote: {'password' = 'PRIVATE_CREDENTIAL_Q'}",
 ])('AC-15,30 production diagnostic credentials remain private at every context cut: %s', (value) => {
   const secret = 'PRIVATE_CREDENTIAL_Q'
   const input = value + '\nvisible=yes'
@@ -31,10 +38,32 @@ it.each([
     if (cut <= input.indexOf('visible=yes')) expect(output).toContain('visible=yes')
   }
 })
+it.each([
+  'https://fixture.invalid?contact=user@example.invalid&visible=yes',
+  'https://fixture.invalid#contact=user@example.invalid&visible=yes',
+  'https://fixture.invalid/repo?contact=user@example.invalid&visible=yes',
+  'https://fixture.invalid?contact=one@a.invalid&other=two@b.invalid',
+])('AC-15,30 query/fragment email addresses are public, never URI userinfo: %s', (input) => {
+  expect(redact(input)).toBe(input)
+  for (let cut = 0; cut <= input.length; cut++)
+    expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(input.slice(cut))
+  const privateURL = input.replace('https://', 'https://user:PRIVATE_CREDENTIAL_Q@')
+  expect(redact(privateURL)).toBe(input.replace('https://', 'https://[redacted]@'))
+})
 it.each(['design', 'signal', 'signed_at', 'foosig'])(
   'AC-15,30 ordinary assignment %s is not a short-alias credential',
   (key) => {
     const input = `${key}=PUBLIC_VALUE\nvisible=yes`
+    for (let cut = 0; cut <= input.length; cut++)
+      expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(
+        input.slice(cut),
+      )
+  },
+)
+it.each(['design', 'signal', 'signed_at', 'foosig'])(
+  'AC-15,30 quoted ordinary key %s stays public at every cut',
+  (key) => {
+    const input = `{"${key}":"PUBLIC_VALUE"}\nvisible=yes`
     for (let cut = 0; cut <= input.length; cut++)
       expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(
         input.slice(cut),

@@ -284,9 +284,7 @@ export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepare
     if (error instanceof TransactionError && error.unrestored.length) {
       // Presentation suppression must never hide a manual recovery requirement.
       console.error(
-        terminalText(
-          `Recovery required; unrestored/untrusted paths: ${error.unrestored.join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
-        ),
+        `Recovery required; unrestored/untrusted paths: ${error.unrestored.map(terminalText).join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.map(terminalText).join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
       )
     }
     throw error

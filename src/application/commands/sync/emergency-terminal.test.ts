@@ -52,6 +52,7 @@ const vectors = [
   {name: 'CSI', raw: '\x1b[2J', escaped: '\\u001b[2J'},
   {name: 'C1 CSI', raw: '\u009b2J', escaped: '\\u009b2J'},
   {name: 'bidi', raw: '\u202e', escaped: '\\u202e'},
+  {name: 'credential-looking path', raw: 'api_key="AI_PATH_PRIVATE', escaped: 'api_key=[redacted]'},
 ]
 for (const vector of vectors)
   for (const silent of [false, true])
@@ -96,6 +97,10 @@ for (const vector of vectors)
         })
         expect(result.exitCode).toBe(1)
         expect(stderr).toContain('Recovery required')
+        expect(stderr).toContain('Preserve files/backups and recovery temporaries:')
+        expect(stderr).toContain('Restore target/config/state from one known-good snapshot, then dry-run.')
+        expect(stderr).toContain('Do not retry writes using untrusted metadata.')
+        expect(stderr).not.toContain('AI_PATH_PRIVATE')
         expect(stderr.toLowerCase()).toContain(vector.escaped.toLowerCase())
         expect(stdout + stderr).not.toMatch(
           /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Bidi_Control}\u2028\u2029]/u,
