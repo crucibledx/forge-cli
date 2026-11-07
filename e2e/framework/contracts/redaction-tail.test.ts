@@ -14,6 +14,19 @@ import {spawnPty} from '../spawn'
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
 it.each([
+  {bytes: 600000, budget: 1000},
+  {bytes: 1200000, budget: 7000},
+])(
+  'AC-15,18,30 repetitive known-secret continuation stays inside independent $budget ms watchdog',
+  async ({bytes, budget}) => {
+    const program = `import {createTranscript} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))};const t=createTranscript(x=>x,['a'.repeat(${bytes})+'Z']);t.append(Buffer.from('a'.repeat(${bytes})));t.append(Buffer.from('b'));if(!t.visibleDiagnostic().endsWith('b'))throw Error('ordinary suffix lost');console.log('continuation-completed')`
+    const result = await executeCheck([process.execPath, '-e', program], budget)
+    expect(result.timed_out).toBe(false)
+    expect(result.exit_code).toBe(0)
+    expect(result.stdout).toContain('continuation-completed')
+  },
+)
+it.each([
   `https://${liveSecret}`,
   `ht\x1b[31mtps://${liveSecret}\x1b[0m`,
   `\x1b]8;;https://fixture.invalid/docs\x1b\\https://${liveSecret}\x1b]8;;\x1b\\`,

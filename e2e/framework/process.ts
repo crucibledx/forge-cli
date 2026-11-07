@@ -4,6 +4,7 @@ import {
   maskRedactionSpans,
   redact,
   redactionContext,
+  redactionSecretPrefix,
   redactionSpans,
   subtractRedactionSpans,
 } from '../../src/domain/redact'
@@ -35,6 +36,49 @@ export function diagnosticHead(text: string, maximum: number): string {
   let end = Math.min(bytes.length, maximum)
   while ((bytes[end] & 0xc0) === 0x80) end--
   return bytes.subarray(0, end).toString()
+}
+/** Bound the encoded JSON string, preserving code points and visibly marking truncation. */
+export function diagnosticJSON(text: string, maximum: number, tail = false): string {
+  if (!Number.isSafeInteger(maximum) || maximum < 2) throw new RangeError('JSON diagnostic budget must be >=2')
+  if (Buffer.byteLength(JSON.stringify(text)) <= maximum) return text
+  const marker = '[truncated]'
+  let remaining = maximum - marker.length - 2
+  if (remaining < 0) return ''
+  const cost = (point: number) =>
+    point < 32
+      ? [8, 9, 10, 12, 13].includes(point)
+        ? 2
+        : 6
+      : point === 34 || point === 92
+        ? 2
+        : point < 128
+          ? 1
+          : point < 2048
+            ? 2
+            : point >= 0xd800 && point <= 0xdfff
+              ? 6
+              : point <= 0xffff
+                ? 3
+                : 4
+  let index = tail ? text.length : 0
+  while (tail ? index > 0 : index < text.length) {
+    let start = tail ? index - 1 : index
+    if (
+      tail &&
+      start > 0 &&
+      text.charCodeAt(start) >= 0xdc00 &&
+      text.charCodeAt(start) <= 0xdfff &&
+      text.charCodeAt(start - 1) >= 0xd800 &&
+      text.charCodeAt(start - 1) <= 0xdbff
+    )
+      start--
+    const point = text.codePointAt(start)!,
+      size = cost(point)
+    if (size > remaining) break
+    remaining -= size
+    index = tail ? start : index + (point > 0xffff ? 2 : 1)
+  }
+  return tail ? marker + text.slice(index) : text.slice(0, index) + marker
 }
 function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''
@@ -79,16 +123,7 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
         ),
       ]
       contexts = [...new Set([...contexts, ''].flatMap((prefix) => redactionContext(prefix + discarded)))]
-      const prefix = secretPrefix + discarded
-      secretPrefix = ''
-      for (const secret of secrets) {
-        for (let size = Math.min(secret.length - 1, prefix.length); size > secretPrefix.length; size--) {
-          if (prefix.endsWith(secret.slice(0, size))) {
-            secretPrefix = secret.slice(0, size)
-            break
-          }
-        }
-      }
+      secretPrefix = redactionSecretPrefix(secretPrefix + discarded, secrets)
       const retained = bytes.subarray(start).toString()
       offset += raw.length - retained.length
       raw = retained

@@ -2,8 +2,9 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {CLI_ENTRY} from '../constants'
+import {sessionFailure} from '../failure'
 import {runPipe} from '../pipe'
-import {TAIL_BYTES} from '../process'
+import {diagnosticJSON, TAIL_BYTES} from '../process'
 import {runCommand, runInitSession} from '../run'
 import type {CLIResult, CLISession} from '../spawn'
 
@@ -17,6 +18,49 @@ const timedOut = {
 }
 const execute = async () => timedOut
 const dir = useTmpDir('compatibility-failure')
+it('AC-15,27 escaped diagnostic budgets follow actual JSON bytes without breaking Unicode', () => {
+  for (const unit of ['a', '"', '\\', '\b', '\t', '\n', '\r', '\f', '\0', '\x01', 'é', 'λ', '😀', '\ud800', '\udc00'])
+    for (const budget of [2, 16, 32, 127, 1024])
+      for (const tail of [false, true]) {
+        const input = unit.repeat(80),
+          output = diagnosticJSON(input, budget, tail)
+        expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(budget)
+        expect(JSON.parse(JSON.stringify(output))).toBe(output)
+        if (Buffer.byteLength(JSON.stringify(input)) <= budget) expect(output).toBe(input)
+        if (unit === '😀')
+          expect(output).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u)
+      }
+})
+it('AC-15,27 failure metadata stays parseable in message AND stack, including escaped and private fields', () => {
+  for (const value of ['https://user:STACK_PRIVATE', '\x01'.repeat(4000)])
+    for (const text of (() => {
+      const error = sessionFailure(
+        [new Error('primary-cause\n' + 'Y'.repeat(TAIL_BYTES))],
+        {
+          command: [process.execPath, 'fixture.ts', ...Array(14).fill(value)],
+          cwd: dir(),
+          exit: null,
+          signal: 'SIGTERM',
+          timedOut: true,
+          timeoutMs: 10000,
+          seed: value,
+          replay: value,
+        },
+        '\0'.repeat(TAIL_BYTES) + '\nvisible-final-marker',
+      )
+      return [error.message, error.stack!]
+    })()) {
+      expect(Buffer.byteLength(text)).toBeLessThanOrEqual(TAIL_BYTES)
+      expect(text).not.toContain('STACK_PRIVATE')
+      expect(text).toContain('primary-cause')
+      expect(text).toContain('visible-final-marker')
+      const context = JSON.parse(text.split('\nSession: ')[1].split('\nTranscript tail:')[0])
+      expect(context).toMatchObject({cwd: '.', exit: null, signal: 'SIGTERM', timedOut: true, timeoutMs: 10000})
+      expect(context.command).toHaveLength(16)
+      expect(context.seed).not.toBeNull()
+      expect(context.replay).not.toBeNull()
+    }
+})
 it.each(['snapshot', 'large-output', 'large-arguments', 'real'])(
   'AC-15,18,27,30 pipe timeout keeps bounded private invocation metadata: %s',
   async (kind) => {

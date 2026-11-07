@@ -3,14 +3,20 @@ import {deflateRawSync} from 'node:zlib'
 import {expect, it} from 'bun:test'
 
 import {artifactFiles} from './artifact-archive'
+import {commandLog, commandMetadata} from './validation-process'
 
-function zip(names = ['checks/e2e/test-e2e.log'], method = 0, flags = 0, mode = 0) {
+function zip(
+  names = ['checks/e2e/test-e2e.log'],
+  method = 0,
+  flags = 0,
+  mode = 0,
+  body = Buffer.from('selected evidence'),
+) {
   const locals: Buffer[] = [],
     entries: Buffer[] = []
   let offset = 0
   for (const name of names) {
     const filename = Buffer.from(name),
-      body = Buffer.from('selected evidence'),
       compressed = method === 8 ? deflateRawSync(body) : body
     const header = Buffer.alloc(30),
       central = Buffer.alloc(46)
@@ -42,6 +48,32 @@ function zip(names = ['checks/e2e/test-e2e.log'], method = 0, flags = 0, mode = 
   end.writeUInt32LE(offset, 16)
   return Buffer.concat([...locals, directory, end])
 }
+it.each([0, 8])(
+  'AC-25,27 serialized diagnostic maximum authenticates ZIP method %s without raising limits',
+  (method) => {
+    const text = '\0'.repeat(256 * 1024)
+    const log = commandLog(['bun', 'run', 'test:unit'], {
+      ...commandMetadata(),
+      seed: text,
+      replay: text,
+      stdout: text + 'visible-out',
+      stderr: text + 'visible-err',
+      reason: 'primary failure ' + text,
+      exit_code: 1,
+      duration_ms: 1,
+      timed_out: false,
+    })
+    expect(Buffer.byteLength(log)).toBeLessThanOrEqual(2 * 1024 * 1024)
+    const archived = artifactFiles(zip(['checks/business/test-unit.log'], method, 0, 0, Buffer.from(log)))
+    const parsed = JSON.parse(archived.get('checks/business/test-unit.log')!.toString())
+    expect(parsed).toMatchObject({command: ['bun', 'run', 'test:unit'], exit_code: 1, cwd: '.', signal: null})
+    expect(parsed.stdout).toEndWith('visible-out')
+    expect(parsed.stderr).toEndWith('visible-err')
+    expect(parsed.seed).toEndWith('[truncated]')
+    expect(parsed.replay).toEndWith('[truncated]')
+    expect(parsed.reason).toStartWith('primary failure ')
+  },
+)
 it.each([0, 8])('reads selected e2e artifact bytes with ZIP method %s without extracting paths', (method) => {
   expect(artifactFiles(zip(undefined, method)).get('checks/e2e/test-e2e.log')?.toString()).toBe('selected evidence')
 })

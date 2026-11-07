@@ -2,10 +2,17 @@ import stripAnsi from 'strip-ansi'
 
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {createTranscript, diagnosticHead, drainTranscript, terminateTree} from '../e2e/framework/process'
-import {redact} from '../src/domain/redact'
+import {
+  createTranscript,
+  diagnosticHead,
+  diagnosticJSON,
+  drainTranscript,
+  terminateTree,
+} from '../e2e/framework/process'
+import {redact, redactData} from '../src/domain/redact'
 import type {TestSandbox} from './test-sandbox'
 import {createTestSandbox} from './test-sandbox'
+import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {repositoryRoot} from './validation-identity'
 
 export interface CommandOutcome {
@@ -27,6 +34,20 @@ export function commandReason(value: string): string {
     diagnosticHead(stripAnsi(redact(value)).replaceAll(repositoryRoot, '<repository>'), 16000) ||
     'Validation unavailable'
   )
+}
+
+/** Sanitize fields before JSON; budget escaped strings within both evidence consumers' cap. */
+export function commandLog(command: readonly string[], result: CommandOutcome): string {
+  const data = redactData({command: [...command], ...result})
+  data.command = data.command.map((part) => diagnosticJSON(part, 1024))
+  data.cwd = diagnosticJSON(data.cwd, 1024)
+  if (data.signal !== null) data.signal = diagnosticJSON(data.signal, 1024)
+  data.stdout = diagnosticJSON(data.stdout, MAX_EVIDENCE_BYTES / 4, true)
+  data.stderr = diagnosticJSON(data.stderr, MAX_EVIDENCE_BYTES / 4, true)
+  for (const key of ['seed', 'replay'] as const)
+    if (data[key] !== null) data[key] = diagnosticJSON(data[key], MAX_EVIDENCE_BYTES / 8)
+  if (data.reason) data.reason = commandReason(data.reason)
+  return JSON.stringify(data)
 }
 
 /** Snapshot only allowlisted replay inputs, before setup or cleanup can change them. */

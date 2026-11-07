@@ -12,6 +12,7 @@ import type {
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
+import {repositoryRoot} from './validation-identity'
 import {acceptanceIds, laneById, requiredLaneIds} from './validation-lanes'
 import {assessLane, failedExit} from './validation-policy'
 
@@ -194,16 +195,16 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
   }
 }
 /** Select from flag/value pairs exactly as the strict CLI parser does. */
-export function readinessInputPath(args: string[], root: string): string {
-  let input = resolve(root, 'results/readiness-input.json')
+export function readinessInputPath(args: string[]): string {
+  let input = resolve(repositoryRoot, 'results/readiness-input.json')
   for (let index = args[0] === '--' ? 1 : 0; index < args.length; index += 2)
     if (args[index] === '--input' && args[index + 1]) input = resolve(args[index + 1])
   return input
 }
-export async function readinessCLI(args: string[], provider: ReadinessProvider, root: string): Promise<number> {
+export async function readinessCLI(args: string[], provider: ReadinessProvider): Promise<number> {
   if (args[0] === '--') args = args.slice(1)
-  const input = readinessInputPath(args, root)
-  let output = resolve(root, 'results/readiness.json')
+  const input = readinessInputPath(args)
+  let output = resolve(repositoryRoot, 'results/readiness.json')
   let cleanupAllowed = false
   try {
     while (args.length) {
@@ -228,7 +229,11 @@ export async function readinessCLI(args: string[], provider: ReadinessProvider, 
     }
     cleanupAllowed = true
     const value = JSON.parse(await readFile(input, 'utf8'))
-    const report = await readiness(value, (await readFile(resolve(root, '.bun-version'), 'utf8')).trim(), provider)
+    const report = await readiness(
+      value,
+      (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim(),
+      provider,
+    )
     await writeEvidence(output, report)
     console.log(`${report.verdict}: ${report.reasons.length} reasons`)
     return report.exit_code
