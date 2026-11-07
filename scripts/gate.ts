@@ -17,10 +17,10 @@ export const artifactName = (context: EvidenceContext, lane: string) =>
   `validation-${context.run_id}-${context.run_attempt}-${lane}`
 export async function deterministicGate(
   context: EvidenceContext,
-  incoming: string,
   pin: string,
   jobs: z.infer<typeof providerJob>[],
   artifacts: z.infer<typeof providerArtifact>[],
+  read = readEvidence,
 ) {
   const rows = []
   for (const definition of validationLanes) {
@@ -36,8 +36,8 @@ export async function deterministicGate(
         throw new Error('Missing/duplicate/expired selected-run artifact')
       if (!providerArtifactInJobWindow(artifact[0], job[0]))
         throw new Error('Artifact is not from the selected job execution window')
-      const folder = resolve(incoming, artifactName(context, definition.id))
-      const raw = JSON.parse(await readEvidence(folder, `${definition.id}.json`))
+      const folder = resolve(repositoryRoot, 'results/incoming', artifactName(context, definition.id))
+      const raw = JSON.parse(await read(folder, `${definition.id}.json`))
       const lane = assessLane(raw, context, pin)
       if (lane.status !== 'pass') throw new Error(`Lane reported ${lane.status}`)
       for (const check of lane.checks)
@@ -45,7 +45,7 @@ export async function deterministicGate(
           evidencePath.parse(ref)
           if (!ref.startsWith(`checks/${definition.id}/`))
             throw new Error('Evidence is not owned by this lane artifact')
-          if (!(await readEvidence(folder, ref)).trim()) throw new Error('Empty check evidence')
+          if (!(await read(folder, ref)).trim()) throw new Error('Empty check evidence')
         }
       status = 'pass'
       evidence = lane
@@ -73,23 +73,21 @@ export async function deterministicGate(
 /** Keep independent provider responses even when a sibling lookup is unavailable. */
 export async function runGate(
   context: EvidenceContext,
-  incoming: string,
   pin: string,
-  output: string,
-  read = githubJSON,
+  ports = {githubJSON, readEvidence, writeEvidence},
 ) {
   const [jobs, artifacts] = await Promise.allSettled([
-    read(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`).then(
-      (raw) => z.object({total_count: z.number().max(100), jobs: z.array(providerJob)}).parse(raw).jobs,
-    ),
-    providerArtifacts(context, read),
+    ports
+      .githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`)
+      .then((raw) => z.object({total_count: z.number().max(100), jobs: z.array(providerJob)}).parse(raw).jobs),
+    providerArtifacts(context, ports.githubJSON),
   ])
   const result = await deterministicGate(
     context,
-    incoming,
     pin,
     jobs.status === 'fulfilled' ? jobs.value : [],
     artifacts.status === 'fulfilled' ? artifacts.value : [],
+    ports.readEvidence,
   )
   const summary = {
     ...result,
@@ -98,18 +96,13 @@ export async function runGate(
       ...(artifacts.status === 'rejected' ? ['Provider artifacts unavailable or invalid'] : []),
     ],
   }
-  await writeEvidence(output, summary)
+  await ports.writeEvidence(resolve(repositoryRoot, 'results/gate-summary.json'), summary)
   return summary
 }
 if (import.meta.main) {
   try {
     const context = validationContext()
-    const result = await runGate(
-      context,
-      resolve(repositoryRoot, 'results/incoming'),
-      (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim(),
-      resolve(repositoryRoot, 'results/gate-summary.json'),
-    )
+    const result = await runGate(context, (await readFile(resolve(repositoryRoot, '.bun-version'), 'utf8')).trim())
     for (const lane of result.lanes)
       console.log(`${lane.lane_id}: ${lane.status}${lane.reason ? ` (${lane.reason})` : ''}`)
     process.exitCode = result.conclusion === 'success' ? 0 : 1

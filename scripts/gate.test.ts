@@ -1,5 +1,5 @@
 import {copyFile, mkdir, symlink, writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
+import {basename, join, resolve} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
@@ -7,13 +7,41 @@ import {expect, it} from 'bun:test'
 import {SKILL_DEPLOY} from '../e2e/fixtures/sources'
 import {createBareRepo} from '../e2e/framework/git'
 import {runPipe} from '../e2e/framework/pipe'
-import {writeEvidence} from './evidence-io'
+import {readEvidence, writeEvidence} from './evidence-io'
+import type {EvidenceContext} from './evidence-schema'
 import {readinessFixture} from './fixtures/readiness'
-import {artifactName, deterministicGate, runGate} from './gate'
+import {artifactName, deterministicGate as actualDeterministicGate, runGate as actualRunGate} from './gate'
+import {githubJSON} from './github-evidence'
 import {repositoryRoot} from './validation-context'
 import {validationLanes} from './validation-lanes'
 
 const dir = useTmpDir('gate')
+// Only I/O is replaced. Both production entrypoints derive and expose their canonical paths.
+function fixtureReader(incoming: string): typeof readEvidence {
+  return async (folder, ref) => {
+    expect(folder).toBe(resolve(repositoryRoot, 'results/incoming', basename(folder)))
+    return readEvidence(join(incoming, basename(folder)), ref)
+  }
+}
+function deterministicGate(
+  context: EvidenceContext,
+  incoming: string,
+  pin: string,
+  jobs: Parameters<typeof actualDeterministicGate>[2],
+  artifacts: Parameters<typeof actualDeterministicGate>[3],
+) {
+  return actualDeterministicGate(context, pin, jobs, artifacts, fixtureReader(incoming))
+}
+function runGate(context: EvidenceContext, incoming: string, pin: string, output: string, read = githubJSON) {
+  return actualRunGate(context, pin, {
+    githubJSON: read,
+    readEvidence: fixtureReader(incoming),
+    writeEvidence: async (path, data) => {
+      expect(path).toBe(resolve(repositoryRoot, 'results/gate-summary.json'))
+      await writeEvidence(output, data)
+    },
+  })
+}
 async function fixture(kind: string) {
   const bundle = readinessFixture(),
     jobs = [],
@@ -62,34 +90,44 @@ async function fixture(kind: string) {
   }
   return {bundle, jobs, artifacts}
 }
-it.each(['artifact', 'start', 'end', 'reversed'])(
-  'AC-25,27,32 malformed timestamp %s blocks only its row and preserves known sibling failure',
-  async (kind) => {
-    const {bundle, jobs, artifacts} = await fixture('complete')
-    if (kind === 'artifact') artifacts[0].created_at = 'not-an-ISO-date'
-    if (kind === 'start') jobs[0].started_at = 'not-an-ISO-date'
-    if (kind === 'end') jobs[0].completed_at = 'not-an-ISO-date'
-    if (kind === 'reversed') jobs[0].started_at = '2026-11-04T10:02:00Z'
-    jobs[1].conclusion = 'failure'
-    const direct = await deterministicGate(bundle.context, dir(), Bun.version, jobs, artifacts)
-    expect(direct.lanes[0].status).toBe('blocked')
-    expect(direct.lanes[1].status).toBe('fail')
-    expect(direct.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
-    const result = await runGate(
-      bundle.context,
-      dir(),
-      Bun.version,
-      join(dir(), 'summary.json'),
-      async (_context, endpoint) =>
-        endpoint.includes('/jobs?') ? {total_count: jobs.length, jobs} : {total_count: artifacts.length, artifacts},
-    )
-    expect(result.conclusion).toBe('failure')
-    expect(result.lanes[0].status).toBe('blocked')
-    expect(result.lanes[1].status).toBe('fail')
-    expect(result.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
-    expect(result.provider_errors).toEqual([])
-  },
-)
+it.each([
+  'artifact',
+  'start',
+  'end',
+  'reversed',
+  ...['missing', 'typed', 'null'].flatMap((kind) => ['artifact', 'start', 'end'].map((field) => `${kind}-${field}`)),
+])('AC-25,27,32 malformed timestamp %s blocks only its row and preserves known sibling failure', async (kind) => {
+  const {bundle, jobs, artifacts} = await fixture('complete')
+  if (kind === 'artifact') artifacts[0].created_at = 'not-an-ISO-date'
+  if (kind === 'start') jobs[0].started_at = 'not-an-ISO-date'
+  if (kind === 'end') jobs[0].completed_at = 'not-an-ISO-date'
+  if (kind === 'reversed') jobs[0].started_at = '2026-11-04T10:02:00Z'
+  const [defect, field] = kind.split('-')
+  if (['missing', 'typed', 'null'].includes(defect)) {
+    const target = field === 'artifact' ? artifacts[0] : jobs[0]
+    const key = field === 'artifact' ? 'created_at' : field === 'start' ? 'started_at' : 'completed_at'
+    if (defect === 'missing') Reflect.deleteProperty(target, key)
+    else Reflect.set(target, key, defect === 'null' ? null : {invalid: 'timestamp'})
+  }
+  jobs[1].conclusion = 'failure'
+  const direct = await deterministicGate(bundle.context, dir(), Bun.version, jobs, artifacts)
+  expect(direct.lanes[0].status).toBe('blocked')
+  expect(direct.lanes[1].status).toBe('fail')
+  expect(direct.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
+  const result = await runGate(
+    bundle.context,
+    dir(),
+    Bun.version,
+    join(dir(), 'summary.json'),
+    async (_context, endpoint) =>
+      endpoint.includes('/jobs?') ? {total_count: jobs.length, jobs} : {total_count: artifacts.length, artifacts},
+  )
+  expect(result.conclusion).toBe('failure')
+  expect(result.lanes[0].status).toBe('blocked')
+  expect(result.lanes[1].status).toBe('fail')
+  expect(result.lanes.filter((lane) => lane.status === 'pass')).toHaveLength(8)
+  expect(result.provider_errors).toEqual([])
+})
 it.each([99, 100, 199])('AC-25,27 complete attempt10 remains valid after %s historical uploads', async (count) => {
   const {bundle, jobs, artifacts} = await fixture('attempt10')
   const all = [

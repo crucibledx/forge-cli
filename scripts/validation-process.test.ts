@@ -5,13 +5,37 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {terminateTree} from '../e2e/framework/process'
+import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
 import {createTestSandbox} from './test-sandbox'
 import {repositoryRoot} from './validation-identity'
 import {commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it.each(['setup-error', 'setup-string', 'cleanup-error', 'cleanup-string'])(
+  'AC-15,18,25,27,30 oversized %s keeps a private schema-safe primary reason',
+  async (kind) => {
+    const message = 'primary unavailable https://user:X_SETUP_PRIVATE\n' + 'é'.repeat(TAIL_BYTES * 2)
+    const thrown = kind.endsWith('string') ? message : new Error(message)
+    const result = await executeCheck([process.execPath, '-e', "console.log('visible-child')"], 5000, {
+      ...ports,
+      createSandbox: () => {
+        if (kind.startsWith('setup')) throw thrown
+        return createTestSandbox()
+      },
+      terminate: async (child) => {
+        await terminateTree(child)
+        throw thrown
+      },
+    })
+    expect(result.reason).toContain('primary unavailable')
+    expect(result.reason).not.toContain('X_SETUP_PRIVATE')
+    expect(Buffer.byteLength(result.reason!)).toBeLessThanOrEqual(16000)
+    expect(JSON.stringify(result)).not.toContain('X_SETUP_PRIVATE')
+    expect(result.exit_code).toBeNull()
+    if (kind.startsWith('cleanup')) expect(result.stdout).toContain('visible-child')
+  },
+)
 it.each(['observed-signal', 'cleanup-signal', 'late-signal'])(
   'AC-18,25,27 captures signal and supplied replay before cleanup: %s',
   async (kind) => {

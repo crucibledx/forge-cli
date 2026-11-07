@@ -20,6 +20,76 @@ const windowJob = {
   completed_at: '2026-11-04T12:01:00Z',
 }
 const windowArtifact = {id: 2, name: 'e2e', expired: false, created_at: '2026-11-04T12:00:30Z'}
+it.each([undefined, null, 0, {}, [], true].map((value) => ({value})))(
+  'AC-25,27,32 missing/wrong-type window timestamp rejects %j',
+  ({value}) => {
+    expect(providerArtifactInJobWindow({...windowArtifact, created_at: value}, windowJob)).toBe(false)
+    expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, started_at: value})).toBe(false)
+    expect(providerArtifactInJobWindow(windowArtifact, {...windowJob, completed_at: value})).toBe(false)
+  },
+)
+it.each(['artifact', 'start', 'end'].flatMap((field) => ['missing', 'typed', 'null'].map((kind) => ({field, kind}))))(
+  'AC-25,27,32 actual provider preserves valid sibling when $field is $kind',
+  async ({field, kind}) => {
+    const bundle = readinessFixture(),
+      context = bundle.context
+    const good = bundle.lanes.find((lane) => lane.lane_id === 'e2e')!
+    const bad = bundle.lanes.find((lane) => lane.lane_id === 'quality')!
+    const ref = 'checks/e2e/test-e2e.log'
+    good.checks[0].evidence = [ref]
+    const badRef = `checks/quality/${bad.checks[0].id.replaceAll(':', '-')}.log`
+    bad.checks[0].evidence = [badRef]
+    await mkdir(join(dir(), 'checks/e2e'), {recursive: true})
+    await writeFile(join(dir(), ref), 'original sibling log')
+    const files = new Map([
+      ['context.json', Buffer.from(JSON.stringify(context))],
+      ['e2e.json', Buffer.from(JSON.stringify(good))],
+      [ref, Buffer.from('original sibling log')],
+    ])
+    const jobs = ['quality', 'e2e'].map((name, index) => ({
+      id: index + 1,
+      name,
+      status: 'completed',
+      conclusion: 'success',
+      started_at: windowJob.started_at,
+      completed_at: windowJob.completed_at,
+    }))
+    const artifacts = ['quality', 'e2e'].map((name, index) => ({
+      id: index + 100,
+      name: `validation-${context.run_id}-${context.run_attempt}-${name}`,
+      expired: false,
+      created_at: windowArtifact.created_at,
+      digest: `sha256:${'d'.repeat(64)}`,
+      workflow_run: {id: Number(context.run_id)},
+    }))
+    const target = field === 'artifact' ? artifacts[0] : jobs[0]
+    const key = field === 'artifact' ? 'created_at' : field === 'start' ? 'started_at' : 'completed_at'
+    if (kind === 'missing') Reflect.deleteProperty(target, key)
+    else Reflect.set(target, key, kind === 'null' ? null : {invalid: 'timestamp'})
+    let archives = 0
+    const provider = readinessProvider(dir(), {
+      archive: async () => {
+        archives++
+        return files
+      },
+      githubJSON: async (_context, endpoint) => {
+        if (endpoint.includes('/jobs?')) return {total_count: jobs.length, jobs}
+        if (endpoint.includes('/artifacts?')) return {total_count: artifacts.length, artifacts}
+        if (endpoint === '/actions/workflows/ci.yml') return {id: 7, path: '.github/workflows/ci.yml'}
+        return {
+          id: Number(context.run_id),
+          run_attempt: context.run_attempt,
+          head_sha: context.tested_sha,
+          workflow_id: 7,
+          path: '.github/workflows/ci.yml',
+        }
+      },
+    })
+    await expect(provider.artifact(ref, context, good)).resolves.toBeUndefined()
+    await expect(provider.artifact(badRef, context, bad)).rejects.toThrow('window mismatch')
+    expect(archives).toBe(1)
+  },
+)
 it.each([
   'not-an-ISO-date',
   'NaN',

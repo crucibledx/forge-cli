@@ -14,9 +14,11 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'src/domain/redact.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'e2e/framework/contracts/redaction-tail.test.ts',
     'e2e/framework/contracts/lifecycle.test.ts',
+    'e2e/framework/contracts/compatibility.test.ts',
     'e2e/commands/sync/safety/permissions.test.ts',
     'src/infrastructure/fs/confinement.test.ts',
     'src/infrastructure/fs/transaction.test.ts',
@@ -33,6 +35,7 @@ export const testSuites = {
     'e2e/contracts/security.test.ts',
     'scripts/security-audit.test.ts',
     'scripts/validation-process.test.ts',
+    'scripts/check-lanes.test.ts',
   ],
   platform: [
     'src/infrastructure/fs/transaction-permissions.test.ts',

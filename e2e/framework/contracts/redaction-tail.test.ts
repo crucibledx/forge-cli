@@ -14,6 +14,9 @@ import {spawnPty} from '../spawn'
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
 it.each([
+  `https://${liveSecret}`,
+  `ht\x1b[31mtps://${liveSecret}\x1b[0m`,
+  `\x1b]8;;https://fixture.invalid/docs\x1b\\https://${liveSecret}\x1b]8;;\x1b\\`,
   `https://user:${liveSecret}`,
   `https://us\x1b[31mer:${liveSecret}\x1b[0m`,
   `ht\x1b[31mtps://user:${liveSecret}\x1b[0m`,
@@ -47,40 +50,49 @@ it.each([
     assertLive(stopped)
   }
 })
-it('AC-15,16,27,30 unfinished userinfo retains its syntax after every secret-only eviction', () => {
-  const transcript = createTranscript()
-  transcript.append(Buffer.from('https://user:' + 'Z'.repeat(TAIL_BYTES + 32)))
-  for (let round = 0; round < 3; round++) {
-    transcript.append(Buffer.from('Z'.repeat(TAIL_BYTES + 16)))
-    transcript.finish()
-    expect(transcript.text()).toContain('Z')
-    for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) expect(output).not.toContain('Z')
-  }
-  transcript.append(Buffer.from('Z@fixture.invalid\nordinary-after'))
-  expect(transcript.visibleDiagnostic()).not.toContain('Z')
-  expect(transcript.visibleDiagnostic()).toContain('ordinary-after')
-})
+it.each(['https://user:', 'https://'])(
+  'AC-15,16,27,30 unfinished %s retains syntax after every secret-only eviction',
+  (prefix) => {
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(prefix + 'Z'.repeat(TAIL_BYTES + 32)))
+    for (let round = 0; round < 3; round++) {
+      transcript.append(Buffer.from('Z'.repeat(TAIL_BYTES + 16)))
+      transcript.finish()
+      expect(transcript.text()).toContain('Z')
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) expect(output).not.toContain('Z')
+    }
+    transcript.append(Buffer.from('Z@fixture.invalid\nordinary-after'))
+    expect(transcript.visibleDiagnostic()).not.toContain('Z')
+    expect(transcript.visibleDiagnostic()).toContain('ordinary-after')
+  },
+)
 it.each(['https://fixture.invalid/docs', 'https://fixture.invalid:8080/docs', 'http://[::1]:8080/docs'])(
   'AC-15,16,30 complete non-credential URLs retain ordinary text: %s',
   (value) => {
-    const transcript = createTranscript()
-    transcript.append(Buffer.from(value))
-    transcript.finish()
-    expect(transcript.visibleDiagnostic()).toBe(value)
+    const bytes = Buffer.from(value)
+    for (let cut = 0; cut <= bytes.length; cut++) {
+      const transcript = createTranscript()
+      transcript.append(bytes.subarray(0, cut))
+      transcript.append(bytes.subarray(cut))
+      transcript.finish()
+      expect(transcript.visibleDiagnostic()).toBe(value)
+      expect(stripAnsi(transcript.diagnostic())).toBe(value)
+    }
   },
 )
-it.each(['pipe', 'pty', 'validation'] as const)(
+it.each(['pipe', 'pty', 'validation', 'token-pipe', 'token-pty', 'token-validation'] as const)(
   'AC-15,16,27,30 actual %s failure before userinfo completion remains private',
   async (kind) => {
-    if (kind === 'pty' && process.platform === 'win32') return
-    const value = 'visible-before\nhttps://user:' + liveSecret
+    const mode = kind.replace('token-', '')
+    if (mode === 'pty' && process.platform === 'win32') return
+    const value = 'visible-before\n' + (kind.startsWith('token-') ? 'https://' : 'https://user:') + liveSecret
     const command = [
       process.execPath,
       '-e',
       `process.stdout.write(${JSON.stringify(value)});process.stderr.write(${JSON.stringify(value)});setInterval(()=>{},1000)`,
     ]
     let views: string[]
-    if (kind === 'pty') {
+    if (mode === 'pty') {
       const cli = spawnPty(dir(), command)
       let failure: Error | undefined
       try {
@@ -96,9 +108,9 @@ it.each(['pipe', 'pty', 'validation'] as const)(
       views = [failure!.message, failure!.stack!]
     } else {
       const result =
-        kind === 'pipe' ? await runPipe(dir(), command, {timeoutMs: 500}) : await executeCheck(command, 500)
+        mode === 'pipe' ? await runPipe(dir(), command, {timeoutMs: 500}) : await executeCheck(command, 500)
       expect(
-        kind === 'pipe'
+        mode === 'pipe'
           ? (result as Awaited<ReturnType<typeof runPipe>>).timedOut
           : (result as Awaited<ReturnType<typeof executeCheck>>).timed_out,
       ).toBe(true)
@@ -108,6 +120,16 @@ it.each(['pipe', 'pty', 'validation'] as const)(
       expect(output).not.toContain(liveSecret)
       expect(output).toContain('visible-before')
     }
+  },
+)
+it.each(['diagnostic', 'context'])(
+  'AC-15,18,30 colon-heavy %s remains bounded under independent watchdog',
+  async (operation) => {
+    const program = `import {createTranscript} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))};import {redactionContext} from ${JSON.stringify(join(import.meta.dir, '../../../src/domain/redact.ts'))};const value='https://'+':'.repeat(262144)+'/';${operation === 'context' ? 'redactionContext(value)' : 'createTranscript().append(Buffer.from(value))'};console.log('completed');`
+    const result = await executeCheck([process.execPath, '-e', program], 5000)
+    expect(result.timed_out).toBe(false)
+    expect(result.exit_code).toBe(0)
+    expect(result.stdout).toContain('completed')
   },
 )
 it.each([

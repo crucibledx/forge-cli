@@ -2,7 +2,7 @@ import stripAnsi from 'strip-ansi'
 
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {createTranscript, drainTranscript, terminateTree} from '../e2e/framework/process'
+import {createTranscript, diagnosticHead, drainTranscript, terminateTree} from '../e2e/framework/process'
 import {redact} from '../src/domain/redact'
 import type {TestSandbox} from './test-sandbox'
 import {createTestSandbox} from './test-sandbox'
@@ -19,6 +19,14 @@ export interface CommandOutcome {
   stdout: string
   stderr: string
   reason?: string
+}
+
+/** Recognize complete private input before reserving a bounded lane-schema-safe primary summary. */
+export function commandReason(value: string): string {
+  return (
+    diagnosticHead(stripAnsi(redact(value)).replaceAll(repositoryRoot, '<repository>'), 16000) ||
+    'Validation unavailable'
+  )
 }
 
 /** Snapshot only allowlisted replay inputs, before setup or cleanup can change them. */
@@ -108,7 +116,7 @@ export async function executeCheck(
     }
   }
   const clean = (value: string) => {
-    const text = redact(stripAnsi(value)).replaceAll(repositoryRoot, '<repository>')
+    const text = stripAnsi(redact(value)).replaceAll(repositoryRoot, '<repository>')
     return sandbox ? text.replaceAll(sandbox.root, '<sandbox>') : text
   }
   return {
@@ -118,6 +126,6 @@ export async function executeCheck(
     timed_out: timedOut,
     stdout: clean(stdout.visibleDiagnostic()),
     stderr: clean(stderr.visibleDiagnostic()),
-    ...(reason ? {reason: clean(reason)} : {}),
+    ...(reason ? {reason: commandReason(clean(reason))} : {}),
   }
 }

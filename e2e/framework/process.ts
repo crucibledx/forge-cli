@@ -1,5 +1,12 @@
 import type {RedactionSpan} from '../../src/domain/redact'
-import {maskRedactionSpans, redact, redactionContext, redactionSpans} from '../../src/domain/redact'
+import {
+  diagnosticAuthoritySpans,
+  maskRedactionSpans,
+  redact,
+  redactionContext,
+  redactionSpans,
+  subtractRedactionSpans,
+} from '../../src/domain/redact'
 import {createAnsiText} from './ansi-text'
 import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
@@ -14,7 +21,8 @@ export function sessionBudget(timeoutMs = SESSION_MS): number {
 }
 
 export function sanitize(text: string, cwd: string, secrets: string[] = []): string {
-  return redact(text, {secrets, assignments: true}).replaceAll(cwd, '<project>')
+  const cleaned = redact(text, {secrets, assignments: true})
+  return cwd ? cleaned.replaceAll(cwd, '<project>') : cleaned
 }
 export function diagnosticTail(text: string, maximum = TAIL_BYTES): string {
   const bytes = Buffer.from(text)
@@ -32,19 +40,25 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''
   let offset = 0
   let contexts: string[] = []
+  let authorityContexts: string[] = []
   let secretPrefix = ''
   let diagnostic = ''
   let protectedSpans: RedactionSpan[] = []
+  let tentativeSpans: RedactionSpan[] = []
   const options = () => ({
     credentialPrefixes: contexts,
     secretPrefix,
     secrets,
     assignments: true,
-    unfinishedUserinfo: true,
   })
-  function add(text: string, spans: RedactionSpan[]): void {
+  function add(text: string, spans: RedactionSpan[], pending: RedactionSpan[], resolved: RedactionSpan[]): void {
     raw += text
-    const masked = maskRedactionSpans(raw, spans)
+    const confirmed = maskRedactionSpans(raw, spans).spans
+    const tentative = maskRedactionSpans(raw, [
+      ...subtractRedactionSpans(tentativeSpans, resolved, raw.length),
+      ...pending,
+    ]).spans
+    const masked = maskRedactionSpans(raw, [...confirmed, ...tentative])
     diagnostic = diagnosticTail(clean(masked.text))
     const previousOffset = offset
     const bytes = Buffer.from(raw)
@@ -52,6 +66,18 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
       let start = bytes.length - TAIL_BYTES
       while ((bytes[start] & 0xc0) === 0x80) start++
       const discarded = bytes.subarray(0, start).toString()
+      // Query/fragment contexts are useful to confirmed recognizers, not evidence of an unfinished authority.
+      authorityContexts = [
+        ...new Set(
+          [...authorityContexts, ''].flatMap((prefix) => {
+            const input = prefix + discarded
+            return [
+              ...(diagnosticAuthoritySpans(input).continuing ? ['https://'] : []),
+              ...redactionContext(input).filter((value) => ['x', 'https:', 'https:/'].includes(value)),
+            ]
+          }),
+        ),
+      ]
       contexts = [...new Set([...contexts, ''].flatMap((prefix) => redactionContext(prefix + discarded)))]
       const prefix = secretPrefix + discarded
       secretPrefix = ''
@@ -70,7 +96,10 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
     // A projected range remains private until this view evicts it, even when
     // formatting makes its source view evict the corresponding bytes first.
     const removed = offset - previousOffset
-    protectedSpans = masked.spans
+    protectedSpans = confirmed
+      .map(({start, end}) => ({start: Math.max(0, start - removed), end: end - removed}))
+      .filter(({start, end}) => start < end)
+    tentativeSpans = tentative
       .map(({start, end}) => ({start: Math.max(0, start - removed), end: end - removed}))
       .filter(({start, end}) => start < end)
   }
@@ -81,6 +110,7 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
     },
     append: add,
     spans: (text: string) => redactionSpans(raw + text, {...options(), spans: protectedSpans}),
+    authorities: (text: string) => diagnosticAuthoritySpans(raw + text, authorityContexts),
     text() {
       return raw
     },
@@ -137,8 +167,15 @@ export function createTranscript(clean: (text: string) => string = (text) => tex
       visibleSpans = visible.spans(plain)
     const rawUnion = [...rawSpans, ...project(visibleSpans, 'visible', 'raw')],
       visibleUnion = [...visibleSpans, ...project(rawSpans, 'raw', 'visible')]
-    raw.append(text, rawUnion)
-    visible.append(plain, visibleUnion)
+    const rawAuthorities = raw.authorities(text),
+      visibleAuthorities = visible.authorities(plain)
+    // Project every range before either view advances its eviction offset.
+    const rawPending = [...rawAuthorities.pending, ...project(visibleAuthorities.pending, 'visible', 'raw')],
+      visiblePending = [...visibleAuthorities.pending, ...project(rawAuthorities.pending, 'raw', 'visible')],
+      rawResolved = [...rawAuthorities.resolved, ...project(visibleAuthorities.resolved, 'visible', 'raw')],
+      visibleResolved = [...visibleAuthorities.resolved, ...project(rawAuthorities.resolved, 'raw', 'visible')]
+    raw.append(text, rawUnion, rawPending, rawResolved)
+    visible.append(plain, visibleUnion, visiblePending, visibleResolved)
     segments = segments.filter(
       (segment) => segment.raw + segment.length > raw.offset && segment.visible + segment.length > visible.offset,
     )

@@ -11,7 +11,7 @@ import type {ValidationCheck, ValidationLane} from './validation-lanes'
 import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, laneById, validationLanes} from './validation-lanes'
 import {aggregateExit, assessLane, blockedExit, failedExit} from './validation-policy'
 import type {CommandOutcome} from './validation-process'
-import {commandMetadata, executeCheck} from './validation-process'
+import {commandMetadata, commandReason, executeCheck} from './validation-process'
 
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
@@ -50,6 +50,7 @@ async function runCheck(
       result.reason = `Validator setup/execution unavailable: ${String(error)}`
     }
   }
+  if (result.reason) result = {...result, reason: commandReason(result.reason)}
   const evidence = logPath(lane.id, check.id)
   await mkdir(resolve(out, 'checks', lane.id), {recursive: true, mode: 0o700})
   await writeFile(resolve(out, evidence), redact(JSON.stringify({command: check.command, ...result})) + '\n', {

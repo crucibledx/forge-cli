@@ -12,6 +12,36 @@ import {aggregateExit, assessLane} from './validation-policy'
 import {commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('lane-fixtures')
+it('AC-15,25,27,30 oversized thrown reason retains every sibling and independently known failure', async () => {
+  const reports = await runLanes(
+    dir(),
+    validationContext(),
+    async (command) => {
+      if (command.at(-1) === 'format:check')
+        throw new Error('primary validator unavailable https://user:X_LANE_PRIVATE\n' + 'é'.repeat(300000))
+      return {
+        ...commandMetadata(),
+        exit_code: command.at(-1) === 'test:unit' ? 1 : 0,
+        duration_ms: 1,
+        timed_out: false,
+        stdout: 'visible sibling',
+        stderr: '',
+      }
+    },
+    'linux',
+  )
+  expect(reports).toHaveLength(validationLanes.length)
+  expect(aggregateExit(reports)).toBe(1)
+  expect(reports.find((lane) => lane.lane_id === 'business')!.status).toBe('fail')
+  expect(reports.find((lane) => lane.lane_id === 'agent-cli')!.status).toBe('pass')
+  const check = reports.find((lane) => lane.lane_id === 'quality')!.checks[0]
+  expect(check.reason).toContain('primary validator unavailable')
+  expect(Buffer.byteLength(check.reason!)).toBeLessThanOrEqual(16000)
+  const retained = await readFile(join(dir(), check.evidence[0]), 'utf8')
+  expect(retained).not.toContain('X_LANE_PRIVATE')
+  expect(JSON.stringify(reports)).not.toContain('X_LANE_PRIVATE')
+  expect(Buffer.byteLength(retained)).toBeLessThan(262144)
+})
 it('AC-18,25,27 retained lane logs contain actual runner signal, relative cwd and selected replay', async () => {
   if (process.platform === 'win32') return
   const saved = {seed: process.env.FC_SEED, replay: process.env.FC_PATH}

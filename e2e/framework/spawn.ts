@@ -1,21 +1,12 @@
 import './teardown'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
-import {repositoryRoot} from '../../scripts/validation-identity'
 import {CLI_ENTRY} from './constants'
+import {sessionFailure} from './failure'
 import {ENTER} from './keys'
 import type {ProcessOptions} from './pipe'
 import {posixOwnership} from './posix-owner'
-import {
-  activeProcesses,
-  createTranscript,
-  diagnosticHead,
-  diagnosticTail,
-  sanitize,
-  sessionBudget,
-  TAIL_BYTES,
-  terminateTree,
-} from './process'
+import {activeProcesses, createTranscript, sanitize, sessionBudget, terminateTree} from './process'
 
 export interface CLIResult {
   stdout: string
@@ -48,6 +39,10 @@ export interface CLISession {
 export function spawnPty(cwd: string, command: string[], options: ProcessOptions = {}): CLISession {
   if (process.platform === 'win32') throw new Error('PTY journeys require a native POSIX runner')
   const budget = sessionBudget(options.timeoutMs)
+  const replay = {
+    seed: options.env?.FC_SEED ?? process.env.FC_SEED ?? null,
+    replay: options.env?.FC_PATH ?? process.env.FC_PATH ?? null,
+  }
   const transcript = createTranscript((text) => sanitize(text, cwd, options.secrets), options.secrets)
   const listeners = new Set<() => void>()
   let cursor = 0
@@ -75,65 +70,21 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
   )
   const term = proc.terminal!
   const getOutput = () => transcript.visibleDiagnostic()
-  const failure = (errors: readonly unknown[]) => {
-    const safe = (text: string, leadingBytes?: number) => {
-      const view = createTranscript((value) => {
-        const cleaned = sanitize(value, cwd, options.secrets)
-          .replaceAll(repositoryRoot, '<repository>')
-          .replaceAll(process.execPath, '<runtime>')
-        return leadingBytes === undefined ? cleaned : diagnosticHead(cleaned, leadingBytes)
-      }, options.secrets)
-      view.append(Buffer.from(text))
-      // The entire input is recognized before clipping; capture its leading view before tail eviction is rendered again.
-      const leading = view.visibleDiagnostic()
-      view.finish()
-      return leadingBytes === undefined ? view.visibleDiagnostic() : leading
-    }
-    const messages = errors.map((error) => (error instanceof Error ? error.message : String(error)))
-    const summaries = diagnosticHead(
-      messages
-        .map(
-          (message, index) =>
-            `${errors[index] instanceof Error ? safe(errors[index].name, 64) + ': ' : ''}${safe(message, 1024)}`,
-        )
-        .join('\n'),
-      TAIL_BYTES / 8,
-    )
-    const detailBudget = Math.floor(TAIL_BYTES / 8 / Math.max(1, errors.length))
-    const details = diagnosticTail(
-      errors
-        .map((error, index) =>
-          diagnosticTail(
-            safe(error instanceof Error ? (error.stack ?? messages[index]) : messages[index]),
-            detailBudget,
-          ),
-        )
-        .join('\n'),
-      TAIL_BYTES / 8,
-    )
-    const context = diagnosticTail(
-      JSON.stringify({
-        command: command.map((part, index) =>
-          index && ['-e', '--eval', '-p', '--print'].includes(command[index - 1]) ? '<inline program>' : safe(part),
-        ),
-        cwd: '.',
+  const failure = (errors: readonly unknown[]) =>
+    sessionFailure(
+      errors,
+      {
+        command,
+        cwd,
         exit: proc.signalCode ? null : proc.exitCode,
         signal: proc.signalCode ? String(proc.signalCode) : null,
         timedOut,
         timeoutMs: budget,
-        seed: process.env.FC_SEED === undefined ? null : safe(process.env.FC_SEED),
-        replay: process.env.FC_PATH === undefined ? null : safe(process.env.FC_PATH),
-      }),
-      TAIL_BYTES / 8,
+        ...replay,
+      },
+      getOutput(),
+      options.secrets,
     )
-    // Preserve the original stack as sanitized text, not an unredacted cause object.
-    const error = new Error(
-      `${summaries}\nDetails:\n${details}\nSession: ${context}\nTranscript tail:\n${diagnosticTail(getOutput(), TAIL_BYTES / 2)}`,
-    )
-    if (errors[0] instanceof Error) error.name = safe(errors[0].name, 64)
-    error.stack = safe(error.stack ?? error.message)
-    return error
-  }
   const mark = () => transcript.offset + transcript.text().length
   const owner = {
     dispose() {
@@ -185,30 +136,13 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
           cursor = Math.max(cursor, offset + index + text.length)
           finish()
         } else if (exited || closed || timedOut) {
-          finish(
-            new Error(
-              sanitize(
-                `PTY ${timedOut ? 'deadline expired' : 'exited/closed'} waiting for ${JSON.stringify(text.slice(0, 200))}\n${getOutput()}`,
-                cwd,
-                options.secrets,
-              ),
-            ),
-          )
+          finish(failure([new Error(`PTY ${timedOut ? 'deadline expired' : 'exited/closed'} waiting for "${text}"`)]))
         }
       }
       listeners.add(check)
       if (timeoutMs !== undefined) {
         timer = setTimeout(
-          () =>
-            finish(
-              new Error(
-                sanitize(
-                  `PTY wait expired for ${JSON.stringify(text.slice(0, 200))}\n${getOutput()}`,
-                  cwd,
-                  options.secrets,
-                ),
-              ),
-            ),
+          () => finish(failure([new Error(`PTY wait expired for "${text}"`)])),
           sessionBudget(timeoutMs),
         )
       }
