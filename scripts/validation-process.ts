@@ -1,3 +1,5 @@
+import {existsSync, realpathSync} from 'node:fs'
+
 import stripAnsi from 'strip-ansi'
 
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
@@ -28,10 +30,29 @@ export interface CommandOutcome {
   reason?: string
 }
 
+/** Replace known roots even when a native child expands short paths or prints escaped separators. */
+function privatePath(text: string, root: string, label: string, aliases = false): string {
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const flags = process.platform === 'win32' || /^[a-z]:[\\/]/i.test(root) ? 'gi' : 'g'
+  const variants = [root, root.replaceAll('\\', '/'), root.replaceAll('/', '\\')]
+  for (const value of new Set(variants.flatMap((value) => [value, JSON.stringify(value).slice(1, -1)])))
+    text = text.replace(new RegExp(escape(value), flags), label)
+  if (aliases && /^[a-z]:[\\/]/i.test(root)) {
+    // The random per-command leaf binds this to our private root, not arbitrary
+    // public paths. No filesystem lookup is possible after sandbox disposal.
+    const leaf = root.split(/[\\/]/).at(-1)!
+    text = text.replace(
+      new RegExp(String.raw`[a-z]:[\\/]+[^:\r\n"]*?[\\/]+${escape(leaf)}(?=[\\/\s"']|$)`, 'gi'),
+      label,
+    )
+  }
+  return text
+}
+
 /** Recognize complete private input before reserving a bounded lane-schema-safe primary summary. */
 export function commandReason(value: string): string {
   return (
-    diagnosticHead(stripAnsi(redact(value)).replaceAll(repositoryRoot, '<repository>'), 16000) ||
+    diagnosticHead(privatePath(stripAnsi(redact(value)), repositoryRoot, '<repository>'), 16000) ||
     'Validation unavailable'
   )
 }
@@ -72,6 +93,7 @@ export async function executeCheck(
   const start = performance.now()
   const metadata = commandMetadata()
   let sandbox: TestSandbox | undefined
+  const privateRoots = new Set<string>()
   const stdout = createTranscript(redact),
     stderr = createTranscript(redact)
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
@@ -87,6 +109,8 @@ export async function executeCheck(
   }
   try {
     sandbox = ports.createSandbox('forge-validation-', undefined, Math.min(30000, Math.max(1, timeoutMs)))
+    privateRoots.add(sandbox.root)
+    if (existsSync(sandbox.root)) privateRoots.add(realpathSync(sandbox.root))
     if (performance.now() - start >= timeoutMs) {
       timedOut = true
       throw new Error('Command deadline exceeded during sandbox setup')
@@ -140,8 +164,10 @@ export async function executeCheck(
     }
   }
   const clean = (value: string) => {
-    const text = stripAnsi(redact(value)).replaceAll(repositoryRoot, '<repository>')
-    return sandbox ? text.replaceAll(sandbox.root, '<sandbox>') : text
+    let text = privatePath(stripAnsi(redact(value)), repositoryRoot, '<repository>')
+    for (const root of [...privateRoots].sort((a, b) => b.length - a.length))
+      text = privatePath(text, root, '<sandbox>', true)
+    return text
   }
   return {
     ...metadata,

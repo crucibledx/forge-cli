@@ -21,6 +21,11 @@ it.each(
     'root:\n  password: |2-\n    MULTI_FIRST_Q MULTI_SECOND_Q\n    MULTI_THIRD_Q\n  public=yes',
     "password: 'MULTI_FIRST_Q''MULTI_SECOND_Q'",
     "password: 'MULTI_FIRST_Q\\''MULTI_SECOND_Q'",
+    'password=prefix&MULTI_FIRST_Q&MULTI_SECOND_Q',
+    'api_keys:\n- MULTI_FIRST_Q\n- MULTI_SECOND_Q',
+    'root:\n  api_keys:\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
+    'api_keys:\n- MULTI_FIRST_Q\n-not-a-sequence\npublic=yes',
+    'api_keys:\n-not-a-sequence\npublic=yes',
   ].flatMap((value) => ['redact', 'sanitize'].map((kind) => ({value, kind}))),
 )('AC-15,16,30 full scalar privacy survives chunks, eviction and finalization: $value $kind', ({value, kind}) => {
   const input = value + '\nvisible=yes\n'
@@ -31,6 +36,7 @@ it.each(
       for (const secret of secrets) expect(output).not.toContain(secret)
       expect(output).toContain('visible=yes')
       if (input.includes('public=yes')) expect(output).toContain('public=yes')
+      if (input.includes('-not-a-sequence')) expect(output).toContain('-not-a-sequence')
     }
   }
   for (let cut = 0; cut <= input.length; cut++) {

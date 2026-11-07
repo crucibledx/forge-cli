@@ -213,6 +213,10 @@ blockers retain known-failure exit1, even when later history pages are unavailab
 oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
 Raw report-byte authentication is separate from current-verdict selection.
 Unknown/missing actor metadata and malformed older same-revision app reports are unavailable, not silently skipped.
+An older empty `COMMENTED` shell may be ignored only after validating its actor, head, timestamp, canonical review
+URI and complete review schema. It cannot be the selected ID or newer output. This exception does not cover
+nonempty Markdown, malformed attestation blocks, approvals, change requests, dismissals or any authenticated
+historical verdict. Supporting prose is never promoted to passing authority; uncertain history still blocks.
 Human dismissal never clears an app-authored blocker; a dismissed passing review cannot authorize readiness.
 Authenticated verifier failures survive history outages and obsolete selections only after each row's nonzero
 exit, evidence, revision, completed producer and independence are validated. A later passing row clears a prior

@@ -4,6 +4,49 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction afterb2ecee3, completed review AN
+
+Head `b2ecee32ebc8897a48e868d6ea3d83af6d7a59a6`, actual merge
+`e1de989c7b7cfb0586d736e128dcb7ad7505002e`: CI42371774471 failed and hosted reviewer42371774822 completed.
+Both independent originals were preserved and published before the explicit source-gate release at
+2026-11-07T12:51:24.948500Z. All406 tracked hashes remained unchanged through release.
+
+The [original verifier](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707167020) retains
+**29pass/3fail/0not-runnable**, failing AC19/26/27, with full2112/0 and ten fresh first-outcome contracts1152/0 each.
+The [actual supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6707167336) retains collector0/checker1,
+32 emitted blocked AC statuses, and separate0pass/0fail/32not-runnable authenticated observations.
+The [reviewer's original](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706926495) retains0blocking/0should-fix/0nits,
+bounded approval with execution limitations:0 tests/builds/installs. Its denied focused launch never executed or
+was rerouted. Neither that approval nor local passes erase the hosted failures.
+
+Authentic Windows platform318pass/6fail completed both runner processes without a timeout. The six shared-Git
+tests reached successful enclosing-config/worktree rejection and explicit-fixture access, then failed comparing
+equivalent8.3/full path spellings. They did not reach both environment APIs in every case. Expanded private paths
+also survived failed-command sanitization. Windows build/compiled checks passed; the gate failed.
+
+| Finding | Correction and retained boundary |
+| --- | --- |
+| Hosted4501690078 | Reject a canonical Git-ceiling parent containing the native path-list delimiter before exposing the environment. Direct and linked bases both clean up the newly created sandbox on rejection. |
+| Hosted4501690082 | Standalone unquoted assignments own ampersands until whitespace. Query recognizers retain their separate delimiter rules, including evicted prefixes; unchanged public query-suffix oracles remain required. |
+| Hosted4501690087 | Recognize credential YAML sequences at the first item's observed indentation. Bounded syntax-only states cover root/nested lists, CRLF and standalone item markers. A dash alone stays public until its following whitespace proves list syntax, preserving `-not-a-sequence` across chunks. |
+| Verifier AC19/26 | Prove explicit fixture identity using unique marker bytes read through Git's returned worktree path, not equality of equivalent native path spellings. Both environment APIs still reject enclosing discovery and allow explicit fixture repositories. |
+| Verifier AC27 | Capture lexical/canonical sandbox roots before disposal, mask escaped/native paths, and recognize expanded Windows parents through the unique random leaf. Bound the drive-path matcher so it cannot consume another quoted/public path. Test failed stdout, stderr and serialized command artifacts; the real Git-path test is native only on its executing OS. |
+| Hosted4501690074 | Narrow acceptance: only an older, fully validated, empty `COMMENTED` review is non-authoritative history. Validate actor/head/time/URI/schema and retain byte bounds. Selected IDs, newer output, other review states, nonempty prose and malformed attestations still fail closed. The original malformed-older-history test remains unchanged. |
+
+The broader request to ignore arbitrary older Markdown is not implemented: absent a structured verdict or an
+explicit authenticated supporting-only distinction, nonempty prose is indistinguishable from the original
+malformed-history counterexample. It remains supporting material, never a completed verdict, but an uncertain
+history cannot establish approval. This narrow adjudication does not claim all prose-only histories now recover
+or resolve the original conversation. Authenticated historical blockers, same-ID edits, role-specific currentness,
+supersession, independent row evidence and known-failure precedence remain mandatory.
+
+AO first outcomes are preserved:319pass/19fail before implementation;478/14 after the first redaction fix
+(nested list/public-query overcapture);27/1 on the added native Git-path test;193/4 on public dash chunk tests.
+The two older-empty positive controls also first failed before their provider correction.
+No original failure was replaced or relabelled passing. Full validation, unchanged negative controls, hosted
+native checks and both fresh independent originals are still required. READY is not evidence readiness, an
+app-authored attestation or permission to merge. No historical thread is resolved on pending evidence.
+
 ## Nov7 correction afterc7919df, completed review AM
 
 Head `c7919df6b6f4a633b950403e63ff5409c06779f0`, actual merge

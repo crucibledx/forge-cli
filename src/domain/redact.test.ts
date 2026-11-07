@@ -23,6 +23,12 @@ it.each([
   'root:\n  "api%5fkey": |\n    MULTI_FIRST_Q MULTI_SECOND_Q\n    MULTI_THIRD_Q\n  public=yes',
   "password: 'MULTI_FIRST_Q''MULTI_SECOND_Q'",
   "password: 'MULTI_FIRST_Q\\''MULTI_SECOND_Q'",
+  'password=prefix&MULTI_FIRST_Q&MULTI_SECOND_Q',
+  'client_secret=prefix&MULTI_FIRST_Q;MULTI_SECOND_Q',
+  'api_keys:\n- MULTI_FIRST_Q\n- MULTI_SECOND_Q',
+  'api_keys:\r\n- MULTI_FIRST_Q\r\n-\r\n  MULTI_SECOND_Q',
+  'root:\n  api_keys:\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
+  '- api_keys:\n  - MULTI_FIRST_Q\n  - MULTI_SECOND_Q\n  public=yes',
 ])('AC-15,30 complete scalar credentials remain private at every context cut: %j', (value) => {
   const input = `${value}\nvisible=yes\n`
   for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
@@ -92,7 +98,7 @@ it.each([
     if (cut <= input.indexOf('visible=yes')) expect(output).toContain('visible=yes')
   }
 })
-it.each(['password:', 'password=', 'client_secret:'])(
+it.each(['password:', 'password=', 'client_secret:', 'api_keys:'])(
   'AC-15,30 an empty %s never consumes an unindented next public diagnostic',
   (prefix) => {
     for (const separator of ['\n', '\r\n', '\n\n']) {
@@ -105,6 +111,14 @@ it.each(['password:', 'password=', 'client_secret:'])(
     }
   },
 )
+it('AC-15,30 an indentless sequence ends before a public non-sequence dash word', () => {
+  const input = 'api_keys:\n- MULTI_FIRST_Q\n-not-a-sequence\nvisible=yes'
+  for (let cut = 0; cut <= input.length; cut++) {
+    const output = redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})
+    if (cut <= input.indexOf('-not-a-sequence')) expect(output).toContain('-not-a-sequence')
+    if (cut <= input.indexOf('visible=yes')) expect(output).toContain('visible=yes')
+  }
+})
 it.each([
   'https://fixture.invalid?contact=user@example.invalid&visible=yes',
   'https://fixture.invalid#contact=user@example.invalid&visible=yes',
