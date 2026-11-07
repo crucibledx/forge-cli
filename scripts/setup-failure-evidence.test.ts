@@ -20,6 +20,7 @@ async function withoutDependencies(name: string) {
   expect((await runPipe(dir(), ['git', 'clone', repository, root])).exitCode).toBe(0)
   for (const file of [
     '.bun-version',
+    'package.json',
     'scripts/setup-failure-evidence.ts',
     'scripts/gate-setup-failure.ts',
     'scripts/gate-summary.ts',
@@ -57,6 +58,19 @@ it('AC-25 rejects removal of the installation-failure evidence path', () => {
     (step: {name?: string}) => step.name !== 'Preserve installation-failure evidence',
   )
   expect(validateContracts(input)).toContain('Dependency-free installation-failure evidence missing')
+})
+it('AC-25 dependency-free local identity follows package repository metadata', async () => {
+  const root = await withoutDependencies('relocated-package')
+  const file = join(root, 'package.json'),
+    metadata = JSON.parse(await readFile(file, 'utf8'))
+  metadata.repository.url = 'git+https://github.com/relocated-owner/relocated-forge.git'
+  await writeFile(file, JSON.stringify(metadata))
+  const result = await runPipe(root, [process.execPath, 'scripts/setup-failure-evidence.ts', '--lane', 'business'], {
+    env: {GITHUB_ACTIONS: 'false'},
+  })
+  expect(result.exitCode).toBe(0)
+  expect((await Bun.file(join(root, 'results/context.json')).json()).repository).toBe('relocated-owner/relocated-forge')
+  expect(existsSync(join(root, 'node_modules'))).toBe(false)
 })
 it.each([false, true])(
   'AC-25,27 gate setup fallback persists ten blocked rows without dependencies, invalid-context=%s',

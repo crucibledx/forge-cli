@@ -4,6 +4,76 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction afterf8d7dc0, completed review AE
+
+Frozen subject: head `f8d7dc046a737e94840218f972c10af462a91fb3`,
+provider merge `54e9166ade4115ea6f67121a4d1fb78134582d85`,
+base `3fb78e1b471e3665567d5e737a8f340b781e996d`,
+tree `13da3229a360058d989d57e03f06aaf957d1daed`.
+All thirteen hosted workflows/checks/statuses, including hosted reviewer42340013917,
+and BOTH independent tracks completed before source edits. The complete after-both inventory
+at `2026-11-07T05:13:48.829428Z` contains135 threads,121 resolved and14 open.
+Four open threads concern already-pushed AD fixes; ten new hosted findings plus
+independent AE-C2 yield eleven distinct new correction categories. Owner pending reviews remain untouched.
+
+The original independent verifier result is **28pass/4fail/0not-runnable**,
+with AC15/19/30/32 failed, not clearance. Its empty tool return was recovered from1711 intact
+regular files, byte-exactly. Original Markdown SHA256
+`5b2c59df60431bb48c3ba628699fbe34bf21d1577987b3abc4fd6538e1539daa`,
+JSON `8f38469acab99cd95bc3ae216956a88c5bf1be12af76abbfb19503a5e680287c`,
+sidecar `391305f4fa86d6b5b0e17c697b65f1a5c104bbdc79329ffeb9912981288cd7c8`.
+[Supporting publication6702693367](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6702693367)
+retains the original32-row table, ten fresh768/0 unit runs and ten fresh865/0 contracts runs,
+raw hashes/UTC/commands, wrong-oracle property replay, native281/0 per OS and all21 check-record
+digests from11 selected-run archives/63 members. These overlapping suites are not unique-test totals.
+CI created-through-gate469s, maximum lane455s, lane envelope456s, queue2s and gate9s
+are one observation, not p95 or an LLM SLA.
+
+Independent reviewer AE returned **0blocking/2P2 should-fix**, not clearance.
+AE-C1 reproduced changed same-ID listing authority loss; AE-C2 reproduced collection-time
+initial GET503 aborting before a valid failed sibling in both URI orders.
+Focused test/file-creation/persistence operations were denied; static checks and bounded read-only
+synthetic-provider probes ran. The original returned report was sealed as returned text,
+not falsely represented as an original disk artifact:
+Markdown `1ce7a4dd813e9f9e3b45be4a9eea1f818706ce5d049afe4ef10edb6f00af830f`,
+code JSON `3b873e4e81ec85b8856c15bbfdc2127c1250418f6fdc141a846bbdc6502e2c99`,
+security JSON `11c93e395181ae42422e9f5574096fdef2502beb8750a35c84897c69f6c47600`.
+This targeted review was not an exhaustive204-file audit or app-authored approval.
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| Hosted4500186397 | A double quote is part of a query credential, not its terminator. All six keys, encoded names, streaming context, retained tails and four actual offline Git CLI modes are covered. |
+| Hosted4500186401 | Pass the command sandbox environment explicitly into process-group probing, for pipe, PTY and validation cleanup. A fresh launcher with a startup-only private marker and real ps wrapper proves probe HOME/temp match the command and exclude the marker. |
+| Hosted4500186403 | Collect schema-valid partial evidence after remote artifact/gate/attestation unavailability. Reauthentication and failure1-before-blocked2 remain the checker's job; output/source guards stay strict. |
+| Hosted4500186406 | A valid high/critical advisory and observed command exit establish failure1 despite cleanup/deadline diagnostics. Null exit, invalid output, changed lock and incomplete clean audits remain blocked. |
+| Hosted4500186410 / AE-C1 | Transport both authenticated changed same-ID versions, mark the identity contested across all overlapping lookups, retain valid adverse evidence, and forbid edited pass/resolution authority. Invalid claimed adverse evidence remains blocked2. |
+| Hosted4500186413 | Permit up to100 unique bounded routing references, retaining older security/newer code/failed and unavailable verifier candidates. Four-candidate outage cases run in both URI orders. |
+| Hosted4500186415 | Reuse terminalText for collection diagnostics. Raw output tests assert OSC52 ESC/BEL become visible escapes. |
+| Hosted4500186417 | Remove the unread ProducerBlockers findings field/argument; readiness independently validates transported finding history. |
+| Hosted4500186419 | Remove unused signalCode from OwnedProcess's required interface; concrete process consumers retain their actual signal observation. |
+| Hosted4500186430 | Derive local repository identity from package repository metadata. Dependency-free copies include package.json; a relocated-package regression proves the identity follows it. |
+| AE-C2 | Isolate initial report GET/authentication failure per selected URI, preserve all routing candidates, and collect valid sibling verdicts in both orders. |
+
+Initial new regressions were180pass/2fail: overlapping verifier history could still clear a contested
+code/security resolution. These original failed assertions remain in the raw log. Contested identity is
+now aggregated across every history lookup before clearing authority is considered; unchanged assertions
+then pass182/0. Lifecycle/collector/gate checks pass87/0 and types exit0.
+These are local supporting checks, not revised original verifier verdicts or new exact-revision approval.
+The first new tail fixture was104/2 because its visibility assertion ran after appending five bytes had legitimately
+evicted an ampersand at the exact retention boundary. Visibility is now checked before that eviction; every
+credential-privacy assertion remains unchanged, including after finalization and the subsequent append.
+Final full validation passes **1760/0 across18 isolated processes,463/0 security at the unchanged20-second default,
+282/0 local native-platform**. Format/lint/types/contracts, audit, build and actual compiled help/version exit0.
+Moderate minimatch remains disclosed; no dependency/version/frozen contract changes.
+On the unchanged clean baseline merge117eb57,24 actual collector/registered-checker controls reproduce
+**12pass/12fail**, including changed code/security/verifier listings, initial GET503 in both orders, four candidate
+outages, artifact503, gate503 and OSC52 diagnostics. Offline fetch alone is replaced; production context,
+clean checkout, ordered-parent and live PR/run/workflow validation remain active. Original raw log SHA256
+`8864016ec07098c4b1038de3f82ffd8eb879ea55dfb55be6822c8197498e2ae0`.
+The same assertions must pass on the corrected clean two-parent merge before the next branch push.
+Every push requires all hosted checks including reviewer and BOTH fresh independent
+tracks to finish before further source edits. Keep READY without implying authenticated readiness.
+
 ## Nov7 correction aftere1c9bfd, completed review AD
 
 Frozen subject: head `e1c9bfd29884151cca0b31ea36e127781cc0ab9e`,

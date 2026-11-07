@@ -85,10 +85,9 @@ it('AC-32 resolving a code finding cannot clear a security finding with the same
     throw Error('Expected independent security blocker')
   } catch (error) {
     expect(error).toBeInstanceOf(ProducerBlockers)
-    expect((error as ProducerBlockers).findings).toContainEqual({
-      subject: 'security/later-blocker',
-      source_uri: f.later.uri,
-    })
+    expect((error as ProducerBlockers).reviews).toContainEqual(
+      expect.objectContaining({record: f.later.payload.reviews[1]}),
+    )
   }
 })
 it('AC-32 newer verifier reports supersede only verifier selection and retain known failing ACs', async () => {

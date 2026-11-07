@@ -191,7 +191,16 @@ An incomplete/invalid claimed failure cannot suppress a different candidate's va
 this includes an unavailable primary review, an edited sidecar, or a non-independent routing record.
 Producer independence uses authenticated identities and the app report's own role participation, not merely
 claimed local review IDs or missing local review sidecars.
-failure1 takes precedence over blocked2. Invalid payloads still block collection. Tests preserve the actual
+The routing list admits at most100 unique producer URIs, so overlapping old/new role producers are retained
+without granting any URI verdict authority. A changed authenticated same-ID report retains both versions'
+adverse findings/rows, but neither version's pass/resolution can clear a failure. This contested identity applies
+across overlapping role lookups; history is merged in provider submission order, not lookup order.
+failure1 takes precedence over blocked2. Provider report/artifact outages and invalid remote payloads are
+reported as unavailable without discarding independently authenticated siblings. Collection emits a schema-valid
+partial bundle and the checker reauthenticates it; collection success is never a readiness verdict.
+Malformed local bundles, invalid routing lists, conflicting source sidecars and unsafe output paths still stop collection.
+Untrusted collection diagnostics are credential-redacted and visibly terminal-escaped.
+Tests preserve the actual
 collector-then-checker boundary in both URI orders, without extending the strict bundle schema or bootstrapping readiness.
 Injected emergency-handler subprocess tests live beside the application sync tests and remain in contracts,
 security and platform selections. They do not claim to invoke the real CLI entrypoint.

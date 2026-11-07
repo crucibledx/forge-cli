@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 
+import packageMetadata from '../package.json'
 import type {EvidenceContext} from './evidence-schema'
 import {requiredLaneIds} from './validation-lanes'
 
@@ -34,7 +35,7 @@ export function rawValidationContext(): EvidenceContext {
   return {
     schema_version: 1,
     kind: 'local',
-    repository: 'crucibledx/forge-cli',
+    repository: new URL(packageMetadata.repository.url.replace(/^git\+/, '')).pathname.slice(1).replace(/\.git$/, ''),
     head_sha: tested,
     tested_sha: tested,
     run_id: crypto.randomUUID(),

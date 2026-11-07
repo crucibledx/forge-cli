@@ -1,6 +1,8 @@
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
+import {pathToFileURL} from 'node:url'
 
+import {protectedBytes} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 import {parse, stringify} from 'yaml'
@@ -12,6 +14,42 @@ import {testEnvironment} from '../../../../scripts/test-sandbox'
 import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
+it.each(['apply', 'silent', 'preview', 'silent-preview'])(
+  'AC-15,30 real offline Git double-quote query credentials stay private in every stream and artifact: %s',
+  async (mode) => {
+    const root = dir()
+    await config(root, [
+      {
+        name: 'offline-credential-source',
+        type: 'git',
+        url: pathToFileURL(join(root, 'missing-bare')).href + '?token=prefix"DOUBLE_QUOTE_GIT_SUFFIX',
+        branch: 'main',
+      },
+    ])
+    const before = await protectedBytes(root)
+    let raw = ''
+    const result = await runPipe(
+      root,
+      [
+        process.execPath,
+        CLI_ENTRY,
+        'sync',
+        ...(mode.includes('silent') ? ['--silent'] : []),
+        ...(mode.includes('preview') ? ['--dry-run'] : []),
+      ],
+      {
+        inspectRaw: (stdout, stderr) => {
+          raw = stdout + stderr
+        },
+      },
+    )
+    expect(result.exitCode).toBe(1)
+    expect(await protectedBytes(root)).toEqual(before)
+    if (mode.includes('silent')) expect(raw).toBe('')
+    const artifacts = await readTree(join(testEnvironment(root).HOME, '.crucible/forge'))
+    expect(raw + artifacts).not.toContain('DOUBLE_QUOTE_GIT_SUFFIX')
+  },
+)
 it.each(
   ['osc52', 'osc-title', 'erase-screen', 'c1-osc'].flatMap((kind) => [false, true].map((preview) => ({kind, preview}))),
 )(

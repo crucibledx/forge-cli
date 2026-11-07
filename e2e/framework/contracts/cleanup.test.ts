@@ -20,12 +20,13 @@ it.each(['zombie-only', 'live-denial', 'unverifiable'])(
     } as ReturnType<typeof Bun.spawnSync>)
     const proc = {pid, exited: Promise.resolve(0)} as OwnedProcess
     try {
-      if (kind === 'zombie-only') await expect(terminateTree(proc)).resolves.toBeUndefined()
+      if (kind === 'zombie-only') await expect(terminateTree(proc, {})).resolves.toBeUndefined()
       else
-        await expect(terminateTree(proc)).rejects.toThrow(
+        await expect(terminateTree(proc, {})).rejects.toThrow(
           kind === 'live-denial' ? 'permission denied' : 'Cannot verify',
         )
       expect(snapshot).toHaveBeenCalled()
+      expect(snapshot.mock.calls[0][1]).toEqual({env: {}, stdout: 'pipe', stderr: 'pipe'})
     } finally {
       signal.mockRestore()
       snapshot.mockRestore()
