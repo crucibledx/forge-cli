@@ -96,7 +96,7 @@ export const validationLanes: readonly ValidationLane[] = [
     id: 'security',
     timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'offline attack sentinels; public advisory metadata is the only network exception',
-    ac_ids: ['AC-9', 'AC-10', 'AC-11', 'AC-12', 'AC-13', 'AC-15', 'AC-23', 'AC-30'],
+    ac_ids: ['AC-9', 'AC-10', 'AC-11', 'AC-12', 'AC-13', 'AC-15', 'AC-23', 'AC-25', 'AC-30'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-08', 'BR-10'],
     checks: [run('test:security', [2]), run('check:security-audit', [2])],
   },

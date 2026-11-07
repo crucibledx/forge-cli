@@ -1,3 +1,6 @@
+import {writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
+
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
@@ -17,8 +20,9 @@ type Source = ReturnType<Fixture['make']>
 async function evaluate(
   f: Fixture,
   sources: Source[],
-  options: {read?: typeof githubJSON; rejectedEvidence?: string} = {},
+  options: {read?: typeof githubJSON; rejectedEvidence?: string; candidates?: string[]; consulted?: string[]} = {},
 ) {
+  if (options.candidates) await writeFile(join(dir(), 'producers.json'), JSON.stringify(options.candidates))
   const provider = readinessProvider(dir(), {
     githubJSON: options.read ?? f.read(sources),
     archive: async () => {
@@ -30,6 +34,7 @@ async function evaluate(
     gate: async () => {},
     deviation: async () => {},
     artifact: async (ref, context) => {
+      options.consulted?.push(ref)
       if (ref === options.rejectedEvidence) throw Error('Unavailable independent row evidence')
       if (ref.startsWith('https:')) await provider.artifact(ref, context)
     },
@@ -316,7 +321,7 @@ it.each(['reviews-first', 'verifier-first'] as const)(
   },
 )
 it.each(['a-b', 'b-a'] as const)(
-  'AC-32 uncertain duplicate roles retain an adverse authenticated candidate for row validation: %s',
+  'AC-32 uncertain duplicate roles validate every selected candidate, not the routing fallback: %s',
   async (order) => {
     const f = producerFixture()
     f.resolved.payload.reviews = f.resolved.payload.reviews.filter((r) => r.role === 'code')
@@ -334,7 +339,232 @@ it.each(['a-b', 'b-a'] as const)(
       read,
     )
     f.bundle.reviews = imported.flatMap((source) => source.records).filter((record) => 'role' in record)
-    expect(f.bundle.reviews.find((r) => r.role === 'code')!.provenance.source_uri).toBe(f.resolved.uri)
-    expect((await evaluate(f, [], {read})).exit_code).toBe(1)
+    expect(f.bundle.reviews.find((r) => r.role === 'code')!.provenance.source_uri).toBe(f.selected.uri)
+    const report = await evaluate(f, [], {read, candidates: selected.map((s) => s.uri)})
+    expect(report.exit_code).toBe(1)
+    expect(report.evidence).toContain(f.resolved.uri)
   },
 )
+it.each(['code', 'security'] as const)(
+  'AC-32 collection retains a superseded-only %s routing record so newer blockers reach aggregation',
+  async (role) => {
+    const f = producerFixture()
+    f.later.payload.reviews.find((r) => r.role === role)!.findings = [{...f.blocker, evidence: [f.later.uri]}]
+    const sources = [f.selected, f.later],
+      read = f.read(sources)
+    const imported = await collectProducers([f.selected.uri], f.bundle.context, read)
+    f.bundle.reviews = imported.flatMap((s) => s.records).filter((r) => 'role' in r)
+    expect(f.bundle.reviews).toHaveLength(2)
+    const report = await evaluate(f, sources)
+    expect(report.exit_code).toBe(1)
+    expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === `${role}/${f.blocker.id}`)).toBe(true)
+    expect(report.evidence).toContain(f.later.uri)
+  },
+)
+it.each(['a-v', 'v-a'].flatMap((order) => ['incomplete', 'missing-evidence'].map((invalid) => ({order, invalid}))))(
+  'AC-32 $order history outage preserves valid AC-2 failure behind $invalid AC-1 candidate',
+  async ({order, invalid}) => {
+    const f = producerFixture(),
+      unavailable = f.make(780, 30, true),
+      failed = f.make(781, 40, true)
+    Object.assign(unavailable.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+    if (invalid === 'incomplete') unavailable.payload.verifier!.completion = 'unavailable'
+    else unavailable.payload.verifier!.rows[0].evidence = ['checks/nonexistent/unavailable.log']
+    Object.assign(failed.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+    const sources = [f.selected, unavailable, failed],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (context, endpoint) => {
+      if (endpoint.includes('?')) throw Error('Synthetic history503')
+      return original(context, endpoint)
+    }
+    const selected = order === 'a-v' ? sources : [...sources].reverse()
+    const imported = await collectProducers(
+      selected.map((s) => s.uri),
+      f.bundle.context,
+      read,
+    )
+    const records = imported.flatMap((s) => s.records)
+    f.bundle.reviews = records.filter((r) => 'role' in r)
+    f.bundle.verifier = records.find((r) => 'rows' in r) as typeof f.bundle.verifier
+    expect(f.bundle.verifier!.provenance.source_uri).toBe(unavailable.uri)
+    const report = await evaluate(f, [], {
+      read,
+      candidates: selected.map((s) => s.uri),
+      rejectedEvidence: 'checks/nonexistent/unavailable.log',
+    })
+    expect(report.exit_code).toBe(1)
+    expect(report.ac_results.find((r) => r.ac_id === 'AC-2')!.result).toBe('fail')
+    expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === 'AC-1')).toBe(false)
+    expect(report.evidence).toContain(failed.uri)
+  },
+)
+it.each(
+  ['code', 'security'].flatMap((role) =>
+    [false, true].flatMap((outage) => [false, true].map((missing) => ({role, outage, missing}))),
+  ),
+)(
+  'AC-32 historical $role resolution evidence is authenticated before clearing, outage=$outage missing=$missing',
+  async ({role, outage, missing}) => {
+    const f = producerFixture(),
+      consulted: string[] = []
+    f.selected.payload.reviews.find((r) => r.role === role)!.findings.push({...f.blocker, evidence: [f.selected.uri]})
+    for (const review of f.later.payload.reviews) review.findings = []
+    const evidence = missing ? 'checks/nonexistent/resolution.log' : f.later.uri
+    f.later.payload.reviews
+      .find((r) => r.role === role)!
+      .findings.push({
+        ...f.blocker,
+        status: 'resolved',
+        resolution_source_uri: f.later.uri,
+        evidence: [evidence],
+      })
+    f.bundle.reviews = f.resolved.payload.reviews
+    const sources = [f.selected, f.later, f.resolved],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (context, endpoint) => {
+      if (outage && endpoint.includes('?')) throw Error('Synthetic history503')
+      return original(context, endpoint)
+    }
+    const report = await evaluate(f, [], {
+      read,
+      candidates: sources.map((s) => s.uri),
+      consulted,
+      rejectedEvidence: 'checks/nonexistent/resolution.log',
+    })
+    expect(consulted).toContain(evidence)
+    expect(report.exit_code).toBe(missing ? 1 : outage ? 2 : 0)
+    expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === `${role}/${f.blocker.id}`)).toBe(missing)
+    if (missing) {
+      expect(report.evidence).toContain(f.selected.uri)
+      expect(report.reasons.some((r) => r.kind === 'blocked' && r.subject === evidence)).toBe(true)
+    }
+  },
+)
+it('AC-32 unauthenticated historical finding evidence cannot create known failure authority', async () => {
+  const f = producerFixture()
+  f.selected.payload.reviews[0].findings.push({...f.blocker, evidence: ['unavailable.log']})
+  f.bundle.reviews = f.resolved.payload.reviews
+  const report = await evaluate(f, [f.selected, f.resolved], {rejectedEvidence: 'unavailable.log'})
+  expect(report.exit_code).toBe(2)
+  expect(report.reasons.some((r) => r.kind === 'failure')).toBe(false)
+})
+it.each([false, true])(
+  'AC-32 a verifier sharing a historical/candidate review producer remains non-independent, outage=%s',
+  async (outage) => {
+    const f = producerFixture(),
+      combined = f.make(780, 30, true)
+    combined.payload.reviews = f.make(780, 30).payload.reviews
+    Object.assign(combined.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+    f.bundle.reviews = f.selected.payload.reviews
+    f.bundle.verifier = combined.payload.verifier
+    const sources = [f.selected, combined],
+      original = f.read(sources)
+    const read: typeof githubJSON = async (context, endpoint) => {
+      if (outage && endpoint.includes('?')) throw Error('Synthetic history503')
+      return original(context, endpoint)
+    }
+    const report = await evaluate(f, [], {read, candidates: sources.map((s) => s.uri)})
+    expect(report.exit_code).toBe(2)
+    expect(report.reasons.some((r) => r.kind === 'failure')).toBe(false)
+    expect(report.reasons.some((r) => r.subject === 'verifier' && r.message.includes('different producer'))).toBe(true)
+  },
+)
+it.each([false, true])(
+  'AC-32 invalid candidate selection blocks approval but cannot erase a valid selected blocker: %s',
+  async (blocking) => {
+    const f = producerFixture()
+    if (blocking) f.selected.payload.reviews[0].findings.push({...f.blocker, evidence: [f.selected.uri]})
+    f.bundle.reviews = f.selected.payload.reviews
+    await writeFile(join(dir(), 'producers.json'), '{"not":"a selection array"}')
+    const report = await evaluate(f, [f.selected])
+    expect(report.exit_code).toBe(blocking ? 1 : 2)
+    expect(report.reasons.some((r) => r.kind === 'failure')).toBe(blocking)
+  },
+)
+it.each([
+  'valid',
+  'same-producer-primary',
+  'unavailable-primary',
+  'edited-sidecar',
+  'no-valid-candidate',
+  'stale-candidate',
+] as const)('AC-32 candidate failure authority survives invalid routing primary: %s', async (mode) => {
+  const f = producerFixture(),
+    bad = f.make(780, 30, true),
+    good = f.make(781, 40, true)
+  Object.assign(bad.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+  bad.payload.verifier!.completion = 'unavailable'
+  Object.assign(good.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+  let sources = [f.selected, bad, good]
+  if (mode === 'same-producer-primary') {
+    f.selected.payload.verifier = f.make(777, 0, true).payload.verifier
+    Object.assign(f.selected.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+    sources = [f.selected, good]
+    f.bundle.verifier = f.selected.payload.verifier
+  } else f.bundle.verifier = mode === 'unavailable-primary' ? bad.payload.verifier : good.payload.verifier
+  if (mode === 'no-valid-candidate') {
+    sources = [f.selected, bad]
+    f.bundle.verifier = bad.payload.verifier
+  }
+  if (mode === 'stale-candidate') {
+    good.payload.verifier!.tested_sha = 'f'.repeat(40)
+    f.bundle.verifier = bad.payload.verifier
+  }
+  for (const source of sources) for (const row of source.payload.verifier?.rows ?? []) row.evidence = [source.uri]
+  if (mode === 'edited-sidecar') {
+    f.bundle.verifier = structuredClone(good.payload.verifier)
+    f.bundle.verifier!.rows[0].exit_code = 1
+  }
+  f.bundle.reviews = f.selected.payload.reviews
+  const original = f.read(sources)
+  const read: typeof githubJSON = async (context, endpoint) => {
+    if (mode === 'unavailable-primary' && endpoint.endsWith('/780')) throw Error('Synthetic selected GET503')
+    if (
+      ['same-producer-primary', 'unavailable-primary', 'no-valid-candidate', 'stale-candidate'].includes(mode) &&
+      endpoint.includes('?')
+    )
+      throw Error('Synthetic history503')
+    return original(context, endpoint)
+  }
+  const report = await evaluate(f, [], {read, candidates: sources.map((s) => s.uri)})
+  const known = !['no-valid-candidate', 'stale-candidate'].includes(mode)
+  expect(report.exit_code).toBe(known ? 1 : 2)
+  expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === 'AC-2')).toBe(known)
+  expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === 'AC-1')).toBe(false)
+})
+it('AC-32 edited review sidecars cannot hide the authenticated provider blocker', async () => {
+  const f = producerFixture()
+  f.selected.payload.reviews[0].findings.push({...f.blocker, evidence: [f.selected.uri]})
+  f.bundle.reviews = structuredClone(f.selected.payload.reviews)
+  f.bundle.reviews[0].findings = []
+  const report = await evaluate(f, [f.selected])
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons.some((r) => r.kind === 'failure' && r.subject === `code/${f.blocker.id}`)).toBe(true)
+  expect(report.reasons.some((r) => r.kind === 'blocked' && r.message.includes('exact structured verdict'))).toBe(true)
+})
+it.each([false, true])(
+  'AC-32 verifier cannot reuse its own code producer when review sidecars are missing: %s',
+  async (noReviews) => {
+    const f = producerFixture(),
+      combined = f.make(780, 30, true)
+    combined.payload.reviews = f.make(780, 30).payload.reviews.filter((r) => r.role === 'code')
+    Object.assign(combined.payload.verifier!.rows[0], {result: 'fail', exit_code: 1})
+    f.bundle.reviews = noReviews ? [] : f.selected.payload.reviews.filter((r) => r.role === 'security')
+    f.bundle.verifier = combined.payload.verifier
+    const report = await evaluate(f, [f.selected, combined])
+    expect(report.exit_code).toBe(2)
+    expect(report.reasons.some((r) => r.kind === 'failure')).toBe(false)
+  },
+)
+it('AC-32 forged review producer ID cannot suppress a genuinely independent verifier failure', async () => {
+  const f = producerFixture(),
+    failed = f.make(780, 30, true)
+  Object.assign(failed.payload.verifier!.rows[1], {result: 'fail', exit_code: 1})
+  const forged = structuredClone(f.selected.payload.reviews[0])
+  forged.provenance = {...failed.payload.verifier!.provenance, producer_role: 'code'}
+  f.bundle.reviews = [forged, f.selected.payload.reviews[1]]
+  f.bundle.verifier = failed.payload.verifier
+  const report = await evaluate(f, [f.selected, failed])
+  expect(report.exit_code).toBe(1)
+  expect(report.ac_results.find((r) => r.ac_id === 'AC-2')!.result).toBe('fail')
+})

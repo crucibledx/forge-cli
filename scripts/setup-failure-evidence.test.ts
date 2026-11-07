@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
-import {copyFile, mkdir} from 'node:fs/promises'
-import {join} from 'node:path'
+import {copyFile, mkdir, readdir, readFile, symlink, writeFile} from 'node:fs/promises'
+import {dirname, join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
@@ -14,21 +14,29 @@ import {repositoryRoot} from './validation-context'
 import {assessLane} from './validation-policy'
 
 const dir = useTmpDir('setup-failure')
-it('AC-25 preserves original blocked check/context/lane evidence without installed packages', async () => {
+async function withoutDependencies(name: string) {
   const repository = await createBareRepo(dir(), {'skills/deploy.md': SKILL_DEPLOY})
-  const root = join(dir(), 'no-dependencies')
+  const root = join(dir(), name)
   expect((await runPipe(dir(), ['git', 'clone', repository, root])).exitCode).toBe(0)
-  await mkdir(join(root, 'scripts/registry'), {recursive: true})
   for (const file of [
-    'setup-failure-evidence.ts',
-    'validation-identity.ts',
-    'validation-lanes.ts',
-    'validation-evidence.ts',
-    'registry/suites.ts',
-  ])
-    await copyFile(join(repositoryRoot, 'scripts', file), join(root, 'scripts', file))
-  await copyFile(join(repositoryRoot, '.bun-version'), join(root, '.bun-version'))
+    '.bun-version',
+    'scripts/setup-failure-evidence.ts',
+    'scripts/gate-setup-failure.ts',
+    'scripts/gate-summary.ts',
+    'scripts/evidence-io.ts',
+    'scripts/validation-identity.ts',
+    'scripts/validation-lanes.ts',
+    'scripts/validation-evidence.ts',
+    'src/infrastructure/fs/confinement.ts',
+  ]) {
+    await mkdir(dirname(join(root, file)), {recursive: true})
+    await copyFile(join(repositoryRoot, file), join(root, file))
+  }
   expect(existsSync(join(root, 'node_modules'))).toBe(false)
+  return root
+}
+it('AC-25 preserves original blocked check/context/lane evidence without installed packages', async () => {
+  const root = await withoutDependencies('no-dependencies')
   const result = await runPipe(root, [process.execPath, 'scripts/setup-failure-evidence.ts', '--lane', 'business'], {
     env: {GITHUB_ACTIONS: 'false'},
   })
@@ -53,12 +61,7 @@ it('AC-25 rejects removal of the installation-failure evidence path', () => {
 it.each([false, true])(
   'AC-25,27 gate setup fallback persists ten blocked rows without dependencies, invalid-context=%s',
   async (invalid) => {
-    const repository = await createBareRepo(dir(), {'skills/deploy.md': SKILL_DEPLOY})
-    const root = join(dir(), 'no-gate-dependencies')
-    expect((await runPipe(dir(), ['git', 'clone', repository, root])).exitCode).toBe(0)
-    await mkdir(join(root, 'scripts'))
-    for (const file of ['gate-setup-failure.ts', 'gate-summary.ts', 'validation-identity.ts', 'validation-lanes.ts'])
-      await copyFile(join(repositoryRoot, 'scripts', file), join(root, 'scripts', file))
+    const root = await withoutDependencies('no-gate-dependencies')
     const event = join(root, 'event.json')
     await Bun.write(event, JSON.stringify({repository: {full_name: 'wrong/repository'}}))
     const result = await runPipe(root, [process.execPath, 'scripts/gate-setup-failure.ts'], {
@@ -83,4 +86,53 @@ it('AC-25,27 rejects removal of the dependency-free gate setup fallback', () => 
     (step: {name?: string}) => step.name !== 'Preserve gate installation-failure evidence',
   )
   expect(validateContracts(input)).toContain('Dependency-free gate installation-failure evidence missing')
+})
+it.each([
+  {entry: 'setup-failure-evidence.ts', link: 'results'},
+  {entry: 'setup-failure-evidence.ts', link: 'results/checks'},
+  {entry: 'setup-failure-evidence.ts', link: 'results/checks/security'},
+  {entry: 'gate-setup-failure.ts', link: 'results'},
+])('AC-25,26 fallback $entry rejects native junction $link without ANY outside writes', async ({entry, link}) => {
+  const root = await withoutDependencies('linked-fallback'),
+    outside = join(dir(), 'outside'),
+    sentinel = join(outside, 'sentinel')
+  await mkdir(outside)
+  await writeFile(sentinel, 'outside sentinel')
+  await mkdir(dirname(join(root, link)), {recursive: true})
+  await symlink(outside, join(root, link), 'junction')
+  const before = await readdir(outside)
+  const result = await runPipe(
+    root,
+    [process.execPath, `scripts/${entry}`, ...(entry === 'setup-failure-evidence.ts' ? ['--lane', 'security'] : [])],
+    {env: {GITHUB_ACTIONS: 'false'}},
+  )
+  expect(result.exitCode).not.toBe(0)
+  expect(await readdir(outside)).toEqual(before)
+  expect(await readFile(sentinel, 'utf8')).toBe('outside sentinel')
+  expect(existsSync(join(outside, 'security'))).toBe(false)
+  expect(existsSync(join(root, 'node_modules'))).toBe(false)
+})
+it.each([
+  'results/checks/security/test-security.log',
+  'results/context.json',
+  'results/security.json',
+  'results/gate-summary.json',
+])('AC-25,26 dependency-free fallback preserves existing evidence exclusively: %s', async (path) => {
+  const root = await withoutDependencies('exclusive-fallback'),
+    existing = join(root, path)
+  await mkdir(dirname(existing), {recursive: true})
+  await writeFile(existing, 'original evidence sentinel')
+  const gate = path.endsWith('gate-summary.json')
+  const result = await runPipe(
+    root,
+    [
+      process.execPath,
+      gate ? 'scripts/gate-setup-failure.ts' : 'scripts/setup-failure-evidence.ts',
+      ...(gate ? [] : ['--lane', 'security']),
+    ],
+    {env: {GITHUB_ACTIONS: 'false'}},
+  )
+  expect(result.exitCode).not.toBe(0)
+  expect(await readFile(existing, 'utf8')).toBe('original evidence sentinel')
+  expect(existsSync(join(root, 'node_modules'))).toBe(false)
 })

@@ -15,7 +15,13 @@ import {
   providerJob,
   requiredCIWorkflow,
 } from './github-evidence'
-import {assertProducerRecord, providerProducerState, providerReport} from './producer-evidence'
+import {
+  assertProducerRecord,
+  ProducerBlockers,
+  producerSelection,
+  providerProducerState,
+  providerReport,
+} from './producer-evidence'
 import type {ProducerRole} from './producer-roles'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
@@ -71,34 +77,40 @@ async function archive(context: EvidenceContext, id: number, digest: string) {
 export function readinessProvider(evidenceRoot: string, ports = {githubJSON, archive}): ReadinessProvider {
   const sessions = new Map<string, ReturnType<typeof providerReport>>()
   const source = (uri: string, context: EvidenceContext) => {
-    if (!sessions.has(uri)) sessions.set(uri, providerReport(uri, context, ports.githubJSON))
-    return sessions.get(uri)!
+    const key = JSON.stringify([context, uri])
+    if (!sessions.has(key)) sessions.set(key, providerReport(uri, context, ports.githubJSON))
+    return sessions.get(key)!
   }
+  let candidates: Promise<string[]> | undefined
+  const selectedSources = () =>
+    (candidates ??= (async () => {
+      try {
+        return producerSelection(JSON.parse(await readEvidence(evidenceRoot, 'producers.json')))
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+        throw error
+      }
+    })())
   const verdicts = new Map<string, ReturnType<typeof providerProducerState>>()
   const verdict = (uri: string, context: EvidenceContext, role: ProducerRole) => {
-    const key = `${uri}/${role}`
-    if (!verdicts.has(key)) verdicts.set(key, providerProducerState(uri, context, ports.githubJSON, role))
+    const key = JSON.stringify([context, uri, role])
+    if (!verdicts.has(key))
+      verdicts.set(key, providerProducerState(uri, context, ports.githubJSON, role, selectedSources))
     return verdicts.get(key)!
   }
-  const runs = new Map<
-    string,
-    Promise<{jobs: z.infer<typeof jobSchema>[]; artifacts: z.infer<typeof artifactSchema>[]}>
-  >()
+  const runs = new Map<string, Promise<void>>()
+  const jobLists = new Map<string, Promise<z.infer<typeof jobSchema>[]>>()
+  const artifactLists = new Map<string, Promise<z.infer<typeof artifactSchema>[]>>()
   const archives = new Map<number, ReturnType<typeof archive>>()
-  const selected = (context: EvidenceContext) => {
-    const key = `${context.repository}/${context.run_id}/${context.run_attempt}`
+  const runIdentity = (context: EvidenceContext) => {
+    const key = JSON.stringify(context)
     if (!runs.has(key))
       runs.set(
         key,
         (async () => {
           if (!/^\d+$/.test(context.run_id)) throw new Error('Local evidence has no authenticated native CI run')
-          const [run, jobs, artifacts, workflow] = await Promise.all([
+          const [run, workflow] = await Promise.all([
             ports.githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}`),
-            ports.githubJSON(
-              context,
-              `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`,
-            ),
-            providerArtifacts(context, ports.githubJSON),
             requiredCIWorkflow(context, ports.githubJSON),
           ])
           const identity = z
@@ -121,13 +133,32 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
               : !context.workflow_ref?.startsWith(`${context.repository}/${workflow.path}@`))
           )
             throw new Error('Provider workflow identity mismatch')
-          return {
-            jobs: z.object({total_count: z.number().max(100), jobs: z.array(jobSchema)}).parse(jobs).jobs,
-            artifacts: z.array(artifactSchema).parse(artifacts),
-          }
         })(),
       )
     return runs.get(key)!
+  }
+  const selectedJobs = async (context: EvidenceContext) => {
+    await runIdentity(context)
+    const key = JSON.stringify(context)
+    if (!jobLists.has(key))
+      jobLists.set(
+        key,
+        ports
+          .githubJSON(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`)
+          .then((jobs) => z.object({total_count: z.number().max(100), jobs: z.array(jobSchema)}).parse(jobs).jobs),
+      )
+    return jobLists.get(key)!
+  }
+  const selected = async (context: EvidenceContext) => {
+    await runIdentity(context)
+    const key = JSON.stringify(context)
+    if (!artifactLists.has(key))
+      artifactLists.set(
+        key,
+        providerArtifacts(context, ports.githubJSON).then((items) => z.array(artifactSchema).parse(items)),
+      )
+    const [jobs, artifacts] = await Promise.all([selectedJobs(context), artifactLists.get(key)!])
+    return {jobs, artifacts}
   }
   const provider: ReadinessProvider = {
     async context(context) {
@@ -154,7 +185,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
           parents[1] !== context.head_sha
         )
           throw new Error('Tested merge parents differ from the selected PR/base')
-        await selected(context)
+        await runIdentity(context)
         await currentPullRequest(context, ports.githubJSON)
       }
     },
@@ -217,12 +248,23 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         throw new Error('Local artifact differs from authenticated provider bytes')
     },
     async producer(record, context) {
-      const {payload, verifiers} = await verdict(record.provenance.source_uri, context, record.provenance.producer_role)
-      assertProducerRecord(payload, record)
-      return verifiers
+      const {payload, verifiers, reviews} = await verdict(
+        record.provenance.source_uri,
+        context,
+        record.provenance.producer_role,
+      )
+      try {
+        assertProducerRecord(payload, record)
+        if ('rows' in record && payload.reviews.length)
+          throw new Error('Implementation verification must come from a different producer than code/security review')
+      } catch (error) {
+        // Invalid local sidecars cannot erase different, already authenticated provider records.
+        throw new ProducerBlockers([], error, verifiers, reviews)
+      }
+      return {verifiers, reviews}
     },
     async gate(record, context) {
-      const {jobs} = await selected(context)
+      const jobs = await selectedJobs(context)
       const gate = jobs.filter((job) => job.name === 'Deterministic gate')
       if (
         gate.length !== 1 ||

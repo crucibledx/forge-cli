@@ -114,6 +114,10 @@ After a frozen-install failure, a dependency-free Bun entrypoint records the ori
 unexecuted check logs before the always-run upload. It does not require packages that failed to install.
 The gate has its own dependency-free fallback: all ten rows remain blocked and its summary stays nonpassing.
 Unavailable context is null, and downloaded lane records are not promoted to authenticated results.
+Both fallbacks use the dependency-free shared evidence writer with the repository as their original root.
+Every destination, including `results` and nested check directories, is checked before mkdir; exclusive creation
+preserves existing context/lane/check/gate evidence. Native junction controls check unchanged outside directory
+entries as well as sentinel bytes, without installing packages. These are additional evidence-security checks.
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
@@ -136,6 +140,8 @@ Each check must cite its own `checks/<lane>/<check>.log`. The production provide
 digest, original context and lane JSON, check bytes, completed job and citing lane.
 The selected run must also match the provider ID and canonical path of the independently required `ci.yml`
 workflow, with the exact PR-merge workflow reference. A supplied bundle cannot nominate a different workflow.
+Checkout/merge/live-PR and run/workflow identity are authenticated independently of job/artifact availability.
+An unavailable artifact listing blocks the affected evidence, not an independently authenticated producer failure.
 Authenticated failed/unavailable lane artifacts remain collectable for all-results diagnostics; a non-successful job cannot authenticate a passing
 lane. Producer reports cannot replace
 CI check logs, and one lane's log cannot stand in for another. Collection obtains the real selected gate job and
@@ -162,6 +168,8 @@ role verdict is stale; unrelated heads, integrated revisions, actors and roles c
 finding persists until a later same-role app-authored review explicitly resolves its ID with that review's
 authenticated URI, completed verdict and non-dismissed provider review. Unavailable findings cannot establish
 failure authority, and unavailable/dismissed resolutions cannot clear a completed historical blocker.
+Every historical finding's referenced evidence is authenticated before opening or clearing that blocker.
+Missing resolution evidence retains the prior proved failure and an explicit blocked-evidence diagnostic.
 Omitting the finding from a newer passing report is not resolution. New authenticated
 blockers retain known-failure exit1, even when later history pages are unavailable; missing/invalid/duplicate/
 oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
@@ -174,9 +182,17 @@ failure only with its own valid evidence, not an incomplete or dismissed verdict
 Producer payloads reject duplicate roles. Collection imports each current role independently, so newer code can
 combine with still-current older security without importing the superseded code record.
 Collection assembles authenticated records even when current history is unavailable or proves failures; it
-does not grant passing authority. The readiness checker revalidates history and verifier rows, retaining
-failure1 over blocked2. An uncertain duplicate role prefers an authenticated adverse candidate deterministically;
-invalid payloads still block collection. Tests preserve the actual collector-then-checker boundary in both URI orders.
+does not grant passing authority. An obsolete record is retained as a routing fallback if no selected replacement
+exists, rather than dropping its role and hiding newer historical blockers.
+All bounded unique routing references stay in `producers.json`. The checker authenticates every selected candidate
+before history lookup and retains their records through per-finding/per-row evidence, completion, revision, exit
+and producer-independence validation. A representative bundle sidecar or URI sort is not adverse-verdict authority.
+An incomplete/invalid claimed failure cannot suppress a different candidate's valid failing AC during an outage;
+this includes an unavailable primary review, an edited sidecar, or a non-independent routing record.
+Producer independence uses authenticated identities and the app report's own role participation, not merely
+claimed local review IDs or missing local review sidecars.
+failure1 takes precedence over blocked2. Invalid payloads still block collection. Tests preserve the actual
+collector-then-checker boundary in both URI orders, without extending the strict bundle schema or bootstrapping readiness.
 Injected emergency-handler subprocess tests live beside the application sync tests and remain in contracts,
 security and platform selections. They do not claim to invoke the real CLI entrypoint.
 

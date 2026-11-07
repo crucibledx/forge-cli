@@ -12,7 +12,7 @@ import type {
   VerifierEvidence,
 } from './evidence-schema'
 import {bundleSchema} from './evidence-schema'
-import type {AuthenticatedVerifier} from './producer-evidence'
+import type {AuthenticatedReview, AuthenticatedVerifier, ProducerHistory} from './producer-evidence'
 import {ProducerBlockers} from './producer-evidence'
 import {REVIEW_ROLES} from './producer-roles'
 import {repositoryRoot} from './validation-identity'
@@ -22,7 +22,7 @@ import {assessLane, failedExit} from './validation-policy'
 export interface ReadinessProvider {
   context(context: EvidenceContext): Promise<void>
   artifact(ref: string, context: EvidenceContext, citingLane?: LaneEvidence): Promise<void>
-  producer(record: ReviewEvidence | VerifierEvidence, context: EvidenceContext): Promise<void | AuthenticatedVerifier[]>
+  producer(record: ReviewEvidence | VerifierEvidence, context: EvidenceContext): Promise<void | ProducerHistory>
   deviation(record: DeviationEvidence, context: EvidenceContext): Promise<void>
   gate(record: ReadinessBundle['gate'], context: EvidenceContext): Promise<void>
 }
@@ -34,6 +34,8 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
   const reasons: {kind: ReasonKind; subject: string; message: string}[] = []
   const currentProducerEvidence = new Set<string>()
   const verifierHistory: AuthenticatedVerifier[] = []
+  const reviewHistory: AuthenticatedReview[] = []
+  const authenticatedReviews: ReviewEvidence[] = []
   const add = (kind: ReasonKind, subject: string, message: string) => reasons.push({kind, subject, message})
   const authenticate = async (subject: string, action: () => Promise<unknown>) => {
     try {
@@ -41,14 +43,18 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       return true
     } catch (error) {
       if (error instanceof ProducerBlockers) {
-        for (const finding of error.findings) {
-          add('failure', finding.subject, 'Open blocking finding')
-          currentProducerEvidence.add(finding.source_uri)
-        }
         verifierHistory.push(...error.verifiers)
+        reviewHistory.push(...error.reviews)
       }
       add('blocked', subject, redact(error instanceof Error ? error.message : String(error)))
       return false
+    }
+  }
+  const authenticateProducer = async (record: ReviewEvidence | VerifierEvidence) => {
+    const history = await provider.producer(record, context)
+    if (history) {
+      verifierHistory.push(...history.verifiers)
+      reviewHistory.push(...history.reviews)
     }
   }
   const identity = (record: {head_sha: string; tested_sha: string}, subject: string) => {
@@ -115,12 +121,12 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       contextValid &&
       identity(review, role) &&
       review.provenance.producer_role === role &&
-      (await authenticate(role, () => provider.producer(review, context)))
+      (await authenticate(role, () => authenticateProducer(review)))
+    if (valid) authenticatedReviews.push(review)
     if (!valid) add('blocked', role, 'Unverified producer/revision')
     if (review.completion !== 'complete') add('blocked', role, 'Independent review unavailable')
     for (const finding of review.findings) {
-      if (valid && review.completion === 'complete' && finding.severity === 'blocking' && finding.status !== 'resolved')
-        add('failure', `${role}/${finding.id}`, 'Open blocking finding')
+      let findingValid = valid && review.completion === 'complete'
       if (
         finding.severity === 'blocking' &&
         finding.status === 'resolved' &&
@@ -132,13 +138,17 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
           'Resolution needs this independent producer’s exact-revision confirmation',
         )
       for (const ref of finding.evidence)
-        await authenticate(`${role}/${finding.id}`, () => provider.artifact(ref, context))
+        findingValid =
+          (await authenticate(`${role}/${finding.id}`, () => provider.artifact(ref, context))) && findingValid
+      if (findingValid && finding.severity === 'blocking' && finding.status === 'open')
+        add('failure', `${role}/${finding.id}`, 'Open blocking finding')
     }
   }
+  const reviewed = [...authenticatedReviews, ...reviewHistory.map(({record}) => record)]
   const verifier = bundle.verifier
   if (!verifier) add('blocked', 'verifier', 'Missing independent implementation-check attestation')
   else {
-    const independent = !bundle.reviews.some(
+    const independent = !reviewed.some(
       (review) =>
         review.provenance.producer_id === verifier.provenance.producer_id &&
         review.provenance.actor === verifier.provenance.actor,
@@ -151,12 +161,10 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
       )
     const valid =
       contextValid &&
-      independent &&
       identity(verifier, 'verifier') &&
       verifier.provenance.producer_role === 'verifier' &&
-      (await authenticate('verifier', async () => {
-        verifierHistory.push(...((await provider.producer(verifier, context)) ?? []))
-      }))
+      (await authenticate('verifier', () => authenticateProducer(verifier))) &&
+      independent
     if (!valid || verifier.completion !== 'complete')
       add('blocked', 'verifier', 'Unavailable/unverified implementation-check producer')
     for (const row of verifier.rows) {
@@ -186,20 +194,46 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     if (!artifacts.has(ref))
       artifacts.set(
         ref,
-        provider.artifact(ref, context).then(
-          () => true,
-          () => false,
-        ),
+        authenticate(ref, () => provider.artifact(ref, context)),
       )
     return artifacts.get(ref)!
   }
-  for (const {record, dismissed} of contextValid ? verifierHistory : []) {
+  // Historical resolutions need the same artifact authority as selected findings, before they can clear a blocker.
+  const openFindings = new Map<string, {source_uri: string; evidence: string[]}>()
+  for (const {record, dismissed} of contextValid ? reviewHistory : []) {
     if (
       record.completion !== 'complete' ||
       record.head_sha !== context.head_sha ||
       record.tested_sha !== context.tested_sha ||
+      record.provenance.producer_role !== record.role
+    )
+      continue
+    for (const finding of record.findings) {
+      if (finding.severity !== 'blocking') continue
+      let proven = true
+      for (const ref of finding.evidence) proven = (await verifiedArtifact(ref)) && proven
+      if (!proven) continue
+      const subject = `${record.role}/${finding.id}`
+      if (finding.status === 'open')
+        openFindings.set(subject, {source_uri: record.provenance.source_uri, evidence: finding.evidence})
+      else if (!dismissed && finding.resolution_source_uri === record.provenance.source_uri)
+        openFindings.delete(subject)
+      else add('blocked', subject, 'Resolution needs this independent producer’s exact-revision confirmation')
+    }
+  }
+  for (const [subject, finding] of openFindings) {
+    if (!reasons.some((reason) => reason.kind === 'failure' && reason.subject === subject))
+      add('failure', subject, 'Open blocking finding')
+    for (const ref of [finding.source_uri, ...finding.evidence]) currentProducerEvidence.add(ref)
+  }
+  for (const {record, dismissed, also_reviewed} of contextValid ? verifierHistory : []) {
+    if (
+      also_reviewed ||
+      record.completion !== 'complete' ||
+      record.head_sha !== context.head_sha ||
+      record.tested_sha !== context.tested_sha ||
       record.provenance.producer_role !== 'verifier' ||
-      bundle.reviews.some(
+      reviewed.some(
         (review) =>
           review.provenance.actor === record.provenance.actor &&
           review.provenance.producer_id === record.provenance.producer_id,

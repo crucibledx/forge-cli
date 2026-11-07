@@ -4,6 +4,95 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction aftere1c9bfd, completed review AD
+
+Frozen subject: head `e1c9bfd29884151cca0b31ea36e127781cc0ab9e`,
+provider merge `eb3e334ed01f155662b52029f2d66e4deb6eed8a`, base `3fb78e1`,
+tree `52f729dc89c7cd97fa56626e29eb62b88683d369` (equal to head).
+All seven hosted workflows/checks/statuses, including reviewer42336305716,
+and BOTH independent tracks completed before source edits. A fresh full
+after-both inventory confirms125 threads:121 resolved,4 new open. Owner pending
+reviews5804867331/5804867332 remain untouched. New threads remain open until
+their fixes are pushed and verified; READY UI is not readiness.
+
+Verifier-ad completed `2026-11-07T04:16:18.520348Z` with original
+**30pass/0fail/2 publication-only not-runnable (AC20,27)**. Its empty tool return
+did not mean clearance:1835 intact regular files were recovered byte-exactly;
+three dependency/negative-control symlinks were recorded without following them.
+Original Markdown SHA256 `2fe85c49173ed77ab74f5acc65f3c427a7ad20ae4ae5f00b54283e1858024e1c`,
+JSON `0dafca6f0dc9bbdef2f1c62288e29ad40d3af07fca8c975c57dfa31879a80771`,
+sidecar `00eb786c8d8044408b7135b16cd5f31135f23fee0e20ace2f57ee76302d23434`.
+Its finite AC32 synthetic passes did not cover or cancel the new counterexamples.
+
+[Supporting publication6702180695](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6702180695)
+retains ten fresh827/0 no-retry contract processes (8270/0 total), UTC/durations/raw
+digests, deliberate property defect and exact replay, native265/0 per OS and actual
+compiled probes. Parent independently recounted every raw run and authenticated
+11 selected-run ZIPs/63 inner files/21 raw logs plus21 per-check JSON records.
+CI created-through-gate466s; execution-through-gate464s; parallel lanes454s;
+gate queue2s/execution8s. Hosted reviewer queue2s/execution327s/wall330s.
+These single observations are not p95 or an LLM SLA. Publication never promotes
+the original30/0/2 verdict or creates genuine app-authored approval.
+
+Review-ad returned AD-1 P1 blocking and AD-2/AD-3 P2 should-fix (nonblocking
+in the original assessment). Original file persistence was absent/interrupted;
+resuming the same session recovered returned text only, normalized with one
+trailing LF by the parent, not original persisted-file digests or an exhaustive audit.
+Returned Markdown `cd578e222d872fe25a07ebd3356e6d45e10a66ab82f3297d25d07bc8736ea911`,
+code supporting JSON `4222cf9f7af34193c6c3b773280e08a864299fbdf2184241917de1e8957ce051`,
+security supporting JSON `8ead8f0ff68091d88d967b4c99672596bd0fb0f3825eb354267b67b7cbe6a173`.
+Official focused execution/file creation was denied; read-only synthetic probes
+did run. Unavailable supporting provenance is not fabricated app authority.
+
+### Seven accepted categories
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| AD-1 P1 | Transport authenticated historical review records on success, supersession and history failure, just like verifier history. Readiness authenticates each finding's evidence before opening or resolving a blocker. An invalid historical resolution retains the prior completed same-role failure plus a blocked-evidence diagnostic; incomplete/dismissed/wrong-URI/omitted resolutions never clear it. |
+| AD-2 P2, nonblocking original | Preserve every bounded selected producer reference through checker validation, using the existing producers.json rather than relaxing the strict bundle. Authenticate candidates before history lookup, so an initial503 cannot hide valid AC2 failure behind an incomplete or invalid-evidence AC1 claim in another candidate. Both URI orders retain valid failure1 and reject invalid failure authority. |
+| AD-3 P2 security, nonblocking original | Both dependency-free fallbacks reuse the shared dependency-free rooted writer, using the original repository boundary and exclusive creation. Results/checks/lane junctions cannot create even an empty outside directory; existing context/lane/check/gate bytes remain unchanged. No installed packages or rewritten frozen BR07 are required. |
+| Hosted4499992716 | Retain a superseded-only role as a routing fallback when no selected replacement exists. The checker can then discover and validate the newer independent blocker instead of silently receiving no review roles. |
+| Hosted4499992724 | Separate checkout/merge/live-PR/run/workflow identity from jobs/artifact acquisition; gate jobs do not depend on artifact listing. A503 blocks artifacts but cannot invalidate an otherwise authentic independent finding. Wrong live PR identity remains blocked2 without failure authority. |
+| Hosted4499992728 | Move only the three injected runSyncWithDependencies credential subprocess cases beside application emergency tests. Real CLI cases stay E2E; security/contracts membership is retained, with native overlap also exercising the moved cases. |
+| Hosted4499992735 | Reuse const-derived SyncFileStatus in the domain upgrade helper instead of a handwritten literal union. |
+
+Original parent controls on unchanged e1c9bfd remain **6pass/6fail**:
+raw SHA256 `43727cc8b4ee829a5435637bb0a6cd825c76b53948f17bb839d16d7e472043be`.
+All runtime counterexamples were reproduced, including actual clean-merge
+collector/registered-checker and dependency-free outside-write controls.
+Both convention findings were source-confirmed. Originals remain unmodified.
+
+The original superseded-only CLI fixture cited fixtures/check.log, which is not
+a production-provider artifact. A separately named validated baseline changes
+only that finding reference to its authenticated app-review URI, library imports
+to the unchanged clean candidate, and observation filenames. Every assertion is
+unchanged; it again reproduces6pass/6fail on e1c9bfd. Raw SHA256
+`7912fd236669976b3e3a4bbdccdaaa4fb4fd5f982711c99f056785d1fed97b28`.
+The original invalid-reference control is not silently relabeled as valid proof.
+
+Initial focused301/1 was a new fixture's duplicate finding ID, rejected by the
+unchanged strict schema before it could represent a valid superseding review.
+Replacing that duplicate with the intended single finding, without weakening
+assertions, gives302/0 across nine files. First full validation1717/0 and security444/0
+passed. Stronger AD2 probes then exposed three residual invalid-primary paths
+(3pass/3fail), plus three independence cases (73pass/3fail); these logs remain
+retained. Missing primary GETs and mismatched local sidecars now transport all
+available authenticated histories. A non-independent routing record does not
+prevent validating a different verifier. Independence uses authenticated review
+identities and source-bound role participation, never untrusted claimed IDs or
+the absence of local review sidecars. Invalid candidates still cannot establish
+known failure. Hardened authority-focused checks pass273/0, including the six
+unchanged ignored probe assertions; typecheck exits0.
+
+Final validation passes **1727/0 full suite across18 isolated invocations,
+444/0 security with its unchanged20-second default,281/0 local native-platform**.
+Format/lint/types/contracts, high/critical audit, build and actual compiled
+help/version all exit0. Moderate minimatch remains visible; no dependency
+or version changes. Local macOS is not Windows evidence. Genuine clean-merge
+production pipeline replay remains required before push, followed by fresh
+hosted/native and BOTH independent tracks on the new exact revision.
+No frozen acceptance, settings, merge or release changes are authorized.
+
 ## Nov7 correction after938b48d, completed review AC
 
 Frozen subject: head938b48db37b0a34c43576644973628c48acab8da,

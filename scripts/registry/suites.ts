@@ -14,6 +14,7 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/domain/redact.test.ts',
     'src/infrastructure/cli/terminal-text.test.ts',
@@ -43,6 +44,7 @@ export const testSuites = {
     'scripts/check-lanes.test.ts',
   ],
   platform: [
+    'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/application/commands/sync/emergency-terminal.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
