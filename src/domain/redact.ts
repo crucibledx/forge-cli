@@ -117,6 +117,33 @@ export function subtractRedactionSpans(
   return result
 }
 
+/** KMP keeps full matches and suffix state linear, including repetitive fixture secrets. */
+function matchSecret(text: string, secret: string, found?: (start: number) => void) {
+  const fallback = new Uint32Array(secret.length)
+  for (let index = 1, matched = 0; index < secret.length; index++) {
+    while (matched && secret[index] !== secret[matched]) matched = fallback[matched - 1]
+    if (secret[index] === secret[matched]) matched++
+    fallback[index] = matched
+  }
+  let matched = 0
+  for (let index = 0; index < text.length; index++) {
+    while (matched && (matched === secret.length || text[index] !== secret[matched])) matched = fallback[matched - 1]
+    if (text[index] === secret[matched]) matched++
+    if (matched === secret.length) found?.(index + 1 - matched)
+  }
+  return {matched, proper: matched === secret.length ? fallback[matched - 1] : matched}
+}
+/** Retain only a known proper-prefix suffix, never discarded arbitrary stream bytes. */
+export function redactionSecretPrefix(text: string, secrets: readonly string[]): string {
+  let prefix = ''
+  for (const secret of secrets) {
+    if (!secret) continue
+    const size = matchSecret(text, secret).proper
+    if (size > prefix.length) prefix = secret.slice(0, size)
+  }
+  return prefix
+}
+
 /** Recognize every span against unchanged input, then mask their union. */
 export function redactionSpans(text: string, options: RedactionOptions = {}): RedactionSpan[] {
   const spans: RedactionSpan[] = []
@@ -144,13 +171,11 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   const secretText = secretPrefix + text
   for (const secret of options.secrets ?? []) {
     if (!secret) continue
-    for (let at = secretText.indexOf(secret); at >= 0; at = secretText.indexOf(secret, at + 1)) {
-      add(at - secretPrefix.length, at + secret.length - secretPrefix.length)
-    }
+    const {matched} = matchSecret(secretText, secret, (at) =>
+      add(at - secretPrefix.length, at + secret.length - secretPrefix.length),
+    )
     // Conservatively hide an incomplete known continuation at the raw boundary.
-    for (let size = Math.min(secret.length - 1, secretPrefix.length); size > 0; size--) {
-      if (secretPrefix.endsWith(secret.slice(0, size)) && secret.slice(size).startsWith(text)) add(0, text.length)
-    }
+    if (matched > text.length) add(0, text.length)
   }
   return mergeSpans(spans, text.length)
 }

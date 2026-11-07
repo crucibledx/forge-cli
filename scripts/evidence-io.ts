@@ -2,6 +2,7 @@ import {mkdir, readFile, rename, unlink, writeFile} from 'node:fs/promises'
 import {basename, dirname, relative, resolve} from 'node:path'
 
 import {createConfinement} from '../src/infrastructure/fs/confinement'
+import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {requiredLaneIds} from './validation-lanes'
 
 /** Both output CLIs must protect the same original evidence before any writes or cleanup. */
@@ -39,6 +40,6 @@ export async function readEvidence(root: string, path: string): Promise<string> 
   const boundary = await createConfinement(root)
   const resolved = await boundary.resolve(path)
   const bytes = await readFile(resolved)
-  if (bytes.length > 2 * 1024 * 1024) throw new Error(`Oversized evidence: ${path}`)
+  if (bytes.length > MAX_EVIDENCE_BYTES) throw new Error(`Oversized evidence: ${path}`)
   return bytes.toString('utf8')
 }

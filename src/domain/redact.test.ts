@@ -1,6 +1,41 @@
 import {expect, it} from 'bun:test'
 
-import {redact, redactData, redactionContext} from './redact'
+import {redact, redactData, redactionContext, redactionSecretPrefix, redactionSpans} from './redact'
+
+it('AC-15,18,30 known-secret matching and eviction state agree with an independent overlapping-prefix oracle', () => {
+  const values = ['']
+  for (let size = 1; size <= 4; size++)
+    for (let bits = 0; bits < 2 ** size; bits++)
+      values.push(bits.toString(2).padStart(size, '0').replaceAll('0', 'a').replaceAll('1', 'b'))
+  const secrets = ['a', 'aa', 'ab', 'aba', 'aab', 'abab', 'aaaaZ']
+  for (const prefix of [...values, 'λ😀λ', '😀λ😀', 'ababababab']) {
+    let suffix = ''
+    for (const secret of secrets)
+      for (let size = 1; size < secret.length && size <= prefix.length; size++)
+        if (prefix.endsWith(secret.slice(0, size)) && size > suffix.length) suffix = secret.slice(0, size)
+    expect(redactionSecretPrefix(prefix, [...secrets, ''])).toBe(suffix)
+    for (const text of values)
+      for (const secret of secrets) {
+        const expected = new Set<number>(),
+          input = prefix + text
+        for (let at = 0; at < input.length; at++)
+          if (input.slice(at, at + secret.length) === secret)
+            for (
+              let index = Math.max(0, at - prefix.length);
+              index < Math.min(text.length, at + secret.length - prefix.length);
+              index++
+            )
+              expected.add(index)
+        for (let size = 1; size < secret.length && size <= prefix.length; size++)
+          if (prefix.endsWith(secret.slice(0, size)) && secret.slice(size).startsWith(text))
+            for (let index = 0; index < text.length; index++) expected.add(index)
+        const actual = redactionSpans(text, {secretPrefix: prefix, secrets: [secret]}).flatMap(({start, end}) =>
+          Array.from({length: end - start}, (_, index) => start + index),
+        )
+        expect(actual).toEqual([...expected].sort((a, b) => a - b))
+      }
+  }
+})
 
 it.each([
   'https://user:X_PRODUCTION_PRIVATE',

@@ -1,5 +1,5 @@
 import {repositoryRoot} from '../../scripts/validation-identity'
-import {createTranscript, diagnosticHead, diagnosticTail, sanitize, TAIL_BYTES} from './process'
+import {createTranscript, diagnosticHead, diagnosticJSON, diagnosticTail, sanitize, TAIL_BYTES} from './process'
 
 interface SessionContext {
   command: readonly string[]
@@ -65,7 +65,7 @@ export function sessionFailure(
     .map((part, index) =>
       index && ['-e', '--eval', '-p', '--print'].includes(context.command[index - 1])
         ? '<inline program>'
-        : safe(part, 1024),
+        : diagnosticJSON(safe(part, 1024), 1024),
     )
   if (context.command.length > command.length) command.push('<additional arguments omitted>')
   // Bound fields before serialization, so truncation cannot remove keys or break the envelope.
@@ -73,15 +73,18 @@ export function sessionFailure(
     ...context,
     command,
     cwd: '.',
-    signal: context.signal === null ? null : safe(context.signal, 64),
-    seed: context.seed === null ? null : safe(context.seed, 1024),
-    replay: context.replay === null ? null : safe(context.replay, 1024),
+    signal: context.signal === null ? null : diagnosticJSON(safe(context.signal, 64), 64),
+    seed: context.seed === null ? null : diagnosticJSON(safe(context.seed, 1024), 1024),
+    replay: context.replay === null ? null : diagnosticJSON(safe(context.replay, 1024), 1024),
   })
   const error = new Error(
     `${summaries}\nDetails:\n${details}\nSession: ${metadata}\nTranscript tail:\n${diagnosticTail(safe(output), TAIL_BYTES / 2)}`,
   )
   if (errors[0] instanceof Error) error.name = safe(errors[0].name, 64)
-  error.stack = safe(error.stack ?? error.message)
+  // The message's fields are already private. Re-redacting its JSON can consume delimiters.
+  const frames = safe((new Error().stack ?? '').split('\n').slice(1).join('\n'))
+  const prefix = `${error.name}: ${error.message}\n`
+  error.stack = prefix + diagnosticTail(frames, Math.max(0, TAIL_BYTES - Buffer.byteLength(prefix)))
   formattedFailures.set(error, {summary: summaries, details})
   return error
 }

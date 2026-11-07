@@ -4,7 +4,44 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent review on53829d9
+## Latest hosted review and independent verification on5de579b
+
+All seven hosted runs completed before source edits: CI42316891062 succeeded00:19:46Z;
+hosted reviewer42316892014 succeeded00:21:23Z with review5808804883 (four P2 findings);
+five later triggers completed/skipped00:21:28Z. Fresh two-page inventory:109 threads,
+101 resolved,8 open. PR remains ready only at the owner's instruction; genuine
+app-authored exact-revision code/security/distinct-verifier attestations remain unavailable.
+
+Independent static review-y completed on merge8094dea (head5de579b/treef567682, parents
+verified): no actionable P0/P1/P2 findings across the complete22-file delta, frozen spec,
+readiness contract and related callers. Static only: no execution, writes or remote calls.
+Parent-archived report `results/pr6-review24/review-y-returned.md`, SHA-256
+`302a837be640d6d1ee939d66878b5d0758ae15fe4490f1f429d8af12918df3a8`.
+Independent verifier-y completed00:34:54Z: **31 pass/1 fail** (AC-27), findings Y-1/Y-2.
+Its own full1554/0, ten fresh704-case contract invocations without retries, default
+security, live audit0, and authenticated original CI evidence (11 ZIPs/21 check logs,
+digests and checkout bindings verified, wall feedback383s against the600s target) do not
+cancel the two counterexamples. Actual readiness collect0/checkblocked2 still lacks genuine
+hosted producer attestations. Report SHA-256
+`4a6bc15aabc8d28d386f916bcba3a6775f1041219d1c678ee461483fd1f04908`; manifest
+`d38475aa5fcc81d813f0ba1d33d680a44d15a82978140d6d35280fb255c55dee`.
+
+| Finding | Correction and regression |
+| --- | --- |
+|4499030237 | Full known-secret matches, live continuation checks and evicted-prefix state now use one KMP matcher; no overlapping prefix/continuation rescans. Independent brute-force oracle covers every overlapping-prefix/bit-string combination plus Unicode; repetitive600000-byte/1s and1200000-byte/7s session cases run under independent watchdogs with ordinary suffixes preserved. |
+|4499030246 and verifier-y Y-1 | Retained check logs sanitize individual fields before JSON serialization, never redact serialized JSON. Actual `https://u:...`, token-only and query-token child output plus pre-redacted `https://[redacted]` stdout keep parseable logs with command/signal/cwd/seed/replay/exit/streams and all ten sibling reports. Verifier-y's unchanged retained-json control replays6/0 with the stack control. |
+|4499030259 | Shared `MAX_EVIDENCE_BYTES` (2MiB) is enforced at the writer through escape-aware byte budgeting of each serialized string field: streamed stdout/stderr retain tails with a visible truncation marker; command/cwd/signal stay1KiB; seed/replay stay within an eighth each; the reason keeps its16KiB primary summary. A worst-case NUL-per-stream actual executor log and both ZIP methods authenticate through the unchanged reader/archive limits; reader limits were not raised. |
+|4499030263 | `readinessCLI(args, provider)` and `readinessInputPath(args)` derive defaults and the Bun pin from the existing repositoryRoot authority; only tests redirect through absolute disposable paths and the provider port. Regressions prove default path independence from process cwd and a fixture-local .bun-version never substituting for the repository pin. |
+| verifier-y Y-2 (public failure stack) | Failure metadata fields are bounded before serialization; `error.stack` keeps the already-private message envelope byte-identical and appends only sanitized frames within the total256KiB budget, never re-redacting the serialized Session JSON. Pipe and PTY message AND stack controls, escaped and credential arguments, keep valid parseable context. |
+
+Unchanged-head reproductions are preserved: original seven controls1/6 (the600000-byte/7s
+case passed in4.18s on pinned Bun1.4.2 and is not misreported as a negative), additional
+watchdogs0/2, and a fresh exact-merge recapture1/6. Corrected focused395/0 covers all
+prior and new controls including the independent matcher oracle, escape budgets, retained
+envelope authentication and canonical readiness authority. No case, assertion, deadline or
+budget was weakened.
+
+## Hosted and independent review on53829d9
 
 CI42312009504 succeeded23:33:09Z and hosted42312010423 finished23:35:30Z
 (review5808471134). All later triggers completed/skipped23:35:38Z before source edits.

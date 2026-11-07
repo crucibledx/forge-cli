@@ -1,6 +1,7 @@
 import {inflateRawSync} from 'node:zlib'
 
 import {evidencePath} from './evidence-schema'
+import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 
 /** Read selected provider ZIPs without extracting paths or running archive tools. */
 export function artifactFiles(bytes: Buffer): Map<string, Buffer> {
@@ -41,7 +42,7 @@ export function artifactFiles(bytes: Buffer): Map<string, Buffer> {
     cursor += 46 + nameLength + extra + comment
     evidencePath.parse(name.endsWith('/') ? name.slice(0, -1) : name)
     if (name.endsWith('/')) continue
-    if (files.has(name) || size > 2 * 1024 * 1024 || (total += size) > 20 * 1024 * 1024 || ![0, 8].includes(method))
+    if (files.has(name) || size > MAX_EVIDENCE_BYTES || (total += size) > 20 * 1024 * 1024 || ![0, 8].includes(method))
       throw new Error('Unsupported/duplicate/oversized artifact member')
     if (local + 30 > central || bytes.readUInt32LE(local) !== 0x04034b50)
       throw new Error('Invalid local artifact header')
@@ -51,7 +52,7 @@ export function artifactFiles(bytes: Buffer): Map<string, Buffer> {
     if (bytes.subarray(local + 30, local + 30 + localName).toString() !== name || data + compressed > central)
       throw new Error('Artifact member mismatch')
     const body = bytes.subarray(data, data + compressed)
-    const uncompressed = method === 0 ? body : inflateRawSync(body, {maxOutputLength: 2 * 1024 * 1024})
+    const uncompressed = method === 0 ? body : inflateRawSync(body, {maxOutputLength: MAX_EVIDENCE_BYTES})
     if (uncompressed.length !== size) throw new Error('Truncated artifact member')
     files.set(name, uncompressed)
   }

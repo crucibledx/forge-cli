@@ -5,6 +5,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {remainingCIBudget, runLanes} from './check-lanes'
+import {readEvidence} from './evidence-io'
 import {laneSchema} from './evidence-schema'
 import {validationContext} from './validation-context'
 import {CI_EVIDENCE_RESERVE_MS, LANE_BUDGET_MS, PLATFORMS, validationLanes} from './validation-lanes'
@@ -12,6 +13,86 @@ import {aggregateExit, assessLane} from './validation-policy'
 import {commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('lane-fixtures')
+it.each(['raw', 'already-private'])(
+  'AC-15,25,27 retained %s URL diagnostics remain structured and keep all fields',
+  async (kind) => {
+    const reports = await runLanes(
+      dir(),
+      validationContext(),
+      async (command) => ({
+        ...commandMetadata(),
+        exit_code: command.at(-1) === 'format:check' ? 1 : 0,
+        duration_ms: 1,
+        timed_out: false,
+        signal: 'SIGTERM',
+        seed: '123',
+        replay: '0:1',
+        stdout: kind === 'raw' ? 'https://user:LOG_PRIVATE' : 'https://[redacted]',
+        stderr: 'visible-error-marker',
+      }),
+      'linux',
+    )
+    expect(reports).toHaveLength(10)
+    expect(aggregateExit(reports)).toBe(1)
+    expect(reports.find((lane) => lane.lane_id === 'business')!.status).toBe('pass')
+    const ref = reports.find((lane) => lane.lane_id === 'quality')!.checks[0].evidence[0]
+    const raw = await readEvidence(dir(), ref)
+    expect(raw).not.toContain('LOG_PRIVATE')
+    expect(JSON.parse(raw)).toMatchObject({
+      command: ['bun', 'run', 'format:check'],
+      signal: 'SIGTERM',
+      cwd: '.',
+      seed: '123',
+      replay: '0:1',
+      exit_code: 1,
+      duration_ms: 1,
+      timed_out: false,
+      stdout: 'https://[redacted]',
+      stderr: 'visible-error-marker',
+    })
+  },
+)
+it('AC-25,27 actual escaped stdout/stderr log fits unchanged readers and retains a proven failed check', async () => {
+  const result = await executeCheck(
+    [
+      process.execPath,
+      '-e',
+      "process.stdout.write('\\0'.repeat(262144)+'visible-stdout-end');process.stderr.write('\\0'.repeat(262144)+'visible-stderr-end');process.exitCode=1",
+    ],
+    5000,
+  )
+  expect(result.exit_code).toBe(1)
+  const reports = await runLanes(
+    dir(),
+    validationContext(),
+    async (command) =>
+      command.at(-1) === 'format:check'
+        ? result
+        : {
+            ...commandMetadata(),
+            exit_code: 0,
+            duration_ms: 1,
+            timed_out: false,
+            stdout: 'ordinary sibling',
+            stderr: '',
+          },
+    'linux',
+  )
+  expect(reports).toHaveLength(10)
+  expect(aggregateExit(reports)).toBe(1)
+  expect(reports.find((lane) => lane.lane_id === 'quality')!.status).toBe('fail')
+  expect(reports.find((lane) => lane.lane_id === 'business')!.status).toBe('pass')
+  const ref = reports.find((lane) => lane.lane_id === 'quality')!.checks[0].evidence[0]
+  const raw = await readEvidence(dir(), ref),
+    log = JSON.parse(raw)
+  expect(Buffer.byteLength(raw)).toBeLessThanOrEqual(2 * 1024 * 1024)
+  expect(log.exit_code).toBe(1)
+  expect(log.stdout).toContain('[truncated]')
+  expect(log.stderr).toContain('[truncated]')
+  expect(log.stdout).toEndWith('visible-stdout-end')
+  expect(log.stderr).toEndWith('visible-stderr-end')
+  expect(log).toMatchObject({cwd: '.', signal: null, seed: null, replay: null, timed_out: false})
+})
 it('AC-15,25,27,30 oversized thrown reason retains every sibling and independently known failure', async () => {
   const reports = await runLanes(
     dir(),

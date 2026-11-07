@@ -9,8 +9,24 @@ import {runPipe} from '../e2e/framework/pipe'
 import {writeEvidence} from './evidence-io'
 import {fixtureProvider, readinessFixture} from './fixtures/readiness'
 import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './readiness'
+import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('readiness')
+it('AC-32 readiness defaults/pin use repository authority, never a variable CLI root or cwd', async () => {
+  expect(readinessCLI.length).toBe(2)
+  expect(readinessInputPath.length).toBe(1)
+  expect(readinessInputPath([])).toBe(join(repositoryRoot, 'results/readiness-input.json'))
+  const {bundle, provider} = await fixture()
+  await writeFile(join(dir(), '.bun-version'), '0.0.0')
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json')
+  await writeEvidence(input, bundle)
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(0)
+  const program = `import {readinessInputPath} from ${JSON.stringify(join(import.meta.dir, 'readiness.ts'))};console.log(readinessInputPath([]))`
+  const result = await runPipe(dir(), [process.execPath, '-e', program])
+  expect(result.exitCode).toBe(0)
+  expect(result.stdout.trim()).toBe(join(repositoryRoot, 'results/readiness-input.json'))
+})
 it('AC-25,32 authenticated TypeScript exit2 is failure even with unavailable sibling evidence', async () => {
   const {bundle, provider} = await fixture()
   const lane = bundle.lanes.find((item) => item.lane_id === 'quality')!
@@ -102,7 +118,7 @@ it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches own
   await writeEvidence(input, bundle)
   await writeFile(
     entry,
-    `import {readinessCLI} from ${JSON.stringify(join(import.meta.dir, 'readiness.ts'))}\nimport {fixtureProvider} from ${JSON.stringify(join(import.meta.dir, 'fixtures/readiness.ts'))}\nconst input=JSON.parse(await Bun.file(${JSON.stringify(input)}).text());process.exitCode=await readinessCLI(Bun.argv.slice(2),fixtureProvider(${JSON.stringify(dir())},input),${JSON.stringify(dir())})\n`,
+    `import {readinessCLI} from ${JSON.stringify(join(import.meta.dir, 'readiness.ts'))}\nimport {fixtureProvider} from ${JSON.stringify(join(import.meta.dir, 'fixtures/readiness.ts'))}\nconst input=JSON.parse(await Bun.file(${JSON.stringify(input)}).text());process.exitCode=await readinessCLI(Bun.argv.slice(2),fixtureProvider(${JSON.stringify(dir())},input))\n`,
   )
   const result = await runPipe(dir(), [process.execPath, entry, '--input', input, '--output', output])
   expect(result.exitCode).toBe(0)
@@ -135,9 +151,9 @@ it('AC-32 repeated input flags select one shared evidence root and bundle', asyn
   await writeEvidence(old, {invalid: 'old bundle must not be selected'})
   await writeEvidence(current, bundle)
   const args = ['--', '--input', old, '--input', current, '--output', output]
-  expect(readinessInputPath(args, dir())).toBe(current)
-  expect(readinessInputPath(['--input', '--input', '--output', output], dir())).toBe(join(process.cwd(), '--input'))
-  expect(await readinessCLI(args, provider, dir())).toBe(0)
+  expect(readinessInputPath(args)).toBe(current)
+  expect(readinessInputPath(['--input', '--input', '--output', output])).toBe(join(process.cwd(), '--input'))
+  expect(await readinessCLI(args, provider)).toBe(0)
   expect(JSON.parse(await Bun.file(output).text()).verdict).toBe('ready-for-owner-review')
 })
 it.each([
@@ -248,7 +264,7 @@ it('AC-32 malformed/missing AC records and output failures exit 2, remove stale 
   bundle.verifier!.rows.pop()
   await writeEvidence(input, bundle)
   await writeEvidence(output, {schema_version: 1, verdict: 'ready-for-owner-review', ac_results: [], lane_results: []})
-  expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
   expect(existsSync(output)).toBe(false)
   await writeEvidence(input, readinessFixture())
   await writeFile(join(dir(), 'blocked-parent'), 'not a directory')
@@ -256,10 +272,9 @@ it('AC-32 malformed/missing AC records and output failures exit 2, remove stale 
     await readinessCLI(
       ['--input', input, '--output', join(dir(), 'blocked-parent/report.json')],
       fixtureProvider(dir(), readinessFixture()),
-      dir(),
     ),
   ).toBe(2)
-  expect(await readinessCLI(['--input', input, '--output', input], provider, dir())).toBe(2)
+  expect(await readinessCLI(['--input', input, '--output', input], provider)).toBe(2)
   expect(existsSync(input)).toBe(true)
 })
 it.each(['session-substitution', 'cross-lane', 'wrong-check'])(
@@ -402,10 +417,10 @@ it.each(['verifier.json', 'reviews/code.json', 'checks/quality/lint.log', 'custo
     const original = JSON.stringify(bundle.verifier)
     await writeFile(output, original)
     await writeEvidence(input, bundle)
-    expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
     expect(await Bun.file(output).text()).toBe(original)
     await writeFile(input, 'invalid input')
-    expect(await readinessCLI(['--input', input, '--output', output], provider, dir())).toBe(2)
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
     expect(await Bun.file(output).text()).toBe(original)
   },
 )
