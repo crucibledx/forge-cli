@@ -11,6 +11,30 @@ import {getSyncStatePath, loadSyncState, parseSyncState, writeSyncState} from '.
 const getDir = useTmpDir('sync_state')
 const legacyPath = '.claude/rules/a.md'
 const legacy = {lastSync: '', files: {[legacyPath]: {hash: hashContent('desired'), sourceName: 'old'}}}
+it.each([false, true].flatMap((current) => [false, true].map((malformed) => ({current, malformed}))))(
+  'AC-6 rejects raw own __proto__ state keys before record parsing, current=$current malformed=$malformed',
+  ({current, malformed}) => {
+    const entry = {
+      hash: hashContent('retained'),
+      sourceName: 'unknown-owner',
+      ...(current ? {baseline: 'installed'} : {}),
+    }
+    const input = JSON.parse(
+      `{"lastSync":"","files":{"__proto__":${malformed ? 'null' : JSON.stringify(entry)}}${current ? ',"version":2' : ''}}`,
+    )
+    const before = JSON.stringify(input)
+    expect(Object.hasOwn(input.files, '__proto__')).toBe(true)
+    expect(() => parseSyncState(input)).toThrow('Unsupported tracked state path: __proto__')
+    expect(JSON.stringify(input)).toBe(before)
+    expect(Object.getPrototypeOf(input.files)).toBe(Object.prototype)
+  },
+)
+it.each(['constructor', 'prototype'])('AC-6 keeps ordinary unknown-owner state keys: %s', (path) => {
+  const entry = {hash: hashContent('retained'), sourceName: 'unknown-owner', baseline: 'installed' as const}
+  const input = JSON.parse(`{"version":2,"lastSync":"","files":{${JSON.stringify(path)}:${JSON.stringify(entry)}}}`)
+  expect(Object.keys(parseSyncState(input).files)).toEqual([path])
+  expect(parseSyncState(input).files[path]).toEqual(entry)
+})
 it('AC-6 parses legacy state without mutating its input', () => {
   expect(parseSyncState(legacy).files[legacyPath].baseline).toBe('legacy-unknown')
   expect(legacy.files[legacyPath]).not.toHaveProperty('baseline')

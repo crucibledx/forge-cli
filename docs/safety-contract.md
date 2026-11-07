@@ -39,6 +39,9 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   preserve them. When compensation is incomplete, metadata named in the emergency is **untrusted**.
 - Legacy Windows backslash keys normalize to slash-separated state keys in memory before planning/status.
   Competing canonical keys fail rather than overwrite one another; case/NFC aliases still fail the full graph.
+- Raw own `__proto__` file keys are unsupported and reject the whole legacy/v2 state before record parsing.
+  They must not disappear silently, whether malformed or carrying unknown ownership. Rejection preserves
+  protected bytes during apply/preview; ordinary `constructor` and `prototype` keys remain supported.
 - Newly generated backups are private, including under umask022. Reusing an existing identical backup does not
   change its permissions. Status resolves upstream content for configured disabled assistants as well as enabled
   ones; disabling an assistant does not imply that its source disappeared.
@@ -79,6 +82,9 @@ text, projecting sensitive visible spans back across formatting; assertion curso
 bounded transcript. This is not a terminal screen emulator. Sandbox setup errors produce blocked check records.
 Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
 are not short-substring matches. Incomplete names remain undecided until their boundary is known.
+Production diagnostics also mask Basic/Bearer values and credential assignments by default, including
+quoted/escaped values. Query delimiters remain separate; streaming continuation retains syntax, never discarded
+credential bytes. Renderers sanitize each field before terminal escaping/trusted formatting and print it once.
 Owned-session public exit/drain waits also observe disposal completion: persistent cleanup denial must reject
 within the existing cleanup budget even if exit notification never arrives, not wait for the outer test timeout.
 Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.

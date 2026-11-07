@@ -33,6 +33,13 @@ const currentSchema = z
   .strict()
 
 export function parseSyncState(input: unknown): SyncState {
+  // Zod's record parser skips this own key before validating its value.
+  // Refuse the entire state rather than silently losing retained ownership.
+  if (input && typeof input === 'object' && 'files' in input) {
+    const files = input.files
+    if (files && typeof files === 'object' && Object.hasOwn(files, '__proto__'))
+      throw new Error('Unsupported tracked state path: __proto__')
+  }
   const current = input && typeof input === 'object' && 'version' in input
   const parsed: SyncState = current ? currentSchema.parse(input) : legacySchema.parse(input)
   const files: SyncState['files'] = {}

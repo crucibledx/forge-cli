@@ -15,6 +15,78 @@ import {command, config, readTree} from './helpers'
 
 const dir = useTmpDir('raw-diagnostics')
 it.each(
+  ['basic', 'proxy-basic', 'password', 'quoted-key'].flatMap((kind) =>
+    ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({kind, mode})),
+  ),
+)(
+  'AC-15,30 actual offline Git SSH stderr keeps $kind private in raw/log/latest/history: $mode',
+  async ({kind, mode}) => {
+    const root = dir(),
+      fixture = dir()
+    const secret = Buffer.from('offline:PRIVATE_CREDENTIAL_Q').toString('base64')
+    const messages: Record<string, string> = {
+      basic: `remote: Authorization: Basic ${secret}`,
+      'proxy-basic': `remote: Proxy-Authorization: Basic ${secret}`,
+      password: `remote: password=${secret}`,
+      'quoted-key': `remote: api_key="prefix ${secret} suffix"`,
+    }
+    const marker = join(fixture, 'invoked'),
+      ssh = join(fixture, 'ssh.ts')
+    await writeFile(
+      ssh,
+      `import {appendFileSync} from 'node:fs';appendFileSync(${JSON.stringify(marker)},'called\\n');console.error(${JSON.stringify(messages[kind] + '\nSSH_PUBLIC_FAILURE')});process.exit(1)`,
+    )
+    await config(root, [{name: 'offline-ssh-error', type: 'git', url: 'ssh://fixture.invalid/repo', branch: 'main'}])
+    const before = await protectedBytes(root)
+    let raw = ''
+    const result = await runPipe(
+      root,
+      [
+        process.execPath,
+        CLI_ENTRY,
+        '--log-level',
+        'debug',
+        'sync',
+        ...(mode.includes('silent') ? ['--silent'] : []),
+        ...(mode.includes('preview') ? ['--dry-run'] : []),
+      ],
+      {
+        // Permit only this transport, whose entire SSH command is our owned offline
+        // program. Git never invokes a network client or resolves the fixture host.
+        env: {
+          GIT_ALLOW_PROTOCOL: 'ssh',
+          GIT_SSH_COMMAND: `${JSON.stringify(process.execPath)} ${JSON.stringify(ssh)}`,
+          GIT_SSH_VARIANT: 'ssh',
+        },
+        inspectRaw: (stdout, stderr) => {
+          raw = stdout + stderr
+        },
+      },
+    )
+    expect(result.exitCode).toBe(1)
+    expect({invoked: await Bun.file(marker).exists(), raw}).toMatchObject({invoked: true})
+    expect(await readFile(marker, 'utf8')).toContain('called')
+    expect(await protectedBytes(root)).toEqual(before)
+    if (mode.includes('silent')) expect(raw).toBe('')
+    else expect(raw).toContain('SSH_PUBLIC_FAILURE')
+    const home = testEnvironment(root).HOME,
+      reports = join(home, '.crucible/forge/reports')
+    const artifacts = await readTree(join(home, '.crucible/forge'))
+    expect(raw + artifacts).not.toContain(secret)
+    expect(artifacts).toContain('SSH_PUBLIC_FAILURE')
+    if (mode.includes('preview')) expect(await readTree(reports)).toBe('')
+    else {
+      const latest = await readFile(join(reports, 'latest.json'), 'utf8')
+      const history = await readTree(join(reports, 'history'))
+      expect(JSON.parse(latest).success).toBe(false)
+      expect(JSON.parse(latest).files.synced).toBe(0)
+      expect(latest).toContain('SSH_PUBLIC_FAILURE')
+      expect(history).toContain('SSH_PUBLIC_FAILURE')
+      expect(latest + history).not.toContain(secret)
+    }
+  },
+)
+it.each(
   ['private_token', 'client_secret', '%61pi_key', 'sig', '%73ig', 'SIG'].flatMap((key) =>
     ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({key, mode})),
   ),
