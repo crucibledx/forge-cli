@@ -13,6 +13,48 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each(
+  [
+    'password: MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',
+    'password: |\n  MULTI_FIRST_Q MULTI_SECOND_Q\n\n  MULTI_THIRD_Q',
+    'password: >-\r\n\tMULTI_FIRST_Q MULTI_SECOND_Q\r\n\tMULTI_THIRD_Q',
+    'root:\n  password: |2-\n    MULTI_FIRST_Q MULTI_SECOND_Q\n    MULTI_THIRD_Q\n  public=yes',
+    "password: 'MULTI_FIRST_Q''MULTI_SECOND_Q'",
+    "password: 'MULTI_FIRST_Q\\''MULTI_SECOND_Q'",
+  ].flatMap((value) => ['redact', 'sanitize'].map((kind) => ({value, kind}))),
+)('AC-15,16,30 full scalar privacy survives chunks, eviction and finalization: $value $kind', ({value, kind}) => {
+  const input = value + '\nvisible=yes\n'
+  const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
+  const secrets = ['MULTI_FIRST_Q', 'MULTI_SECOND_Q', 'MULTI_THIRD_Q'].filter((secret) => input.includes(secret))
+  const assertPrivate = (tail: ReturnType<typeof createTranscript>) => {
+    for (const output of [tail.diagnostic(), tail.visibleDiagnostic()]) {
+      for (const secret of secrets) expect(output).not.toContain(secret)
+      expect(output).toContain('visible=yes')
+      if (input.includes('public=yes')) expect(output).toContain('public=yes')
+    }
+  }
+  for (let cut = 0; cut <= input.length; cut++) {
+    const tail = createTranscript(clean)
+    tail.append(Buffer.from(input.slice(0, cut)))
+    tail.append(Buffer.from(input.slice(cut)))
+    assertPrivate(tail)
+    tail.finish()
+    assertPrivate(tail)
+  }
+  const end = Math.max(...secrets.map((secret) => input.indexOf(secret) + secret.length))
+  for (let cut = 1; cut <= end; cut++) {
+    const tail = createTranscript(clean)
+    tail.append(Buffer.from(input + 'x'.repeat(TAIL_BYTES + cut - input.length)))
+    for (const secret of secrets) expectPrivateTail(tail, input, secret, cut)
+    assertPrivate(tail)
+    tail.finish()
+    for (const secret of secrets) expectPrivateTail(tail, input, secret, cut)
+    assertPrivate(tail)
+    tail.append(Buffer.from('\nPUBLIC_AFTER_SCALAR'))
+    expect(tail.visibleDiagnostic()).toEndWith('PUBLIC_AFTER_SCALAR')
+  }
+})
+
 it.each(['?', '#'].flatMap((delimiter) => ['redact', 'sanitize'].map((kind) => ({delimiter, kind}))))(
   'AC-15,16,30 public URI $delimiter email data remains unchanged across chunks: $kind',
   ({delimiter, kind}) => {

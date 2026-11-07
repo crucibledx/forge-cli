@@ -86,8 +86,10 @@ it('unmocked', () => expect(value).toBe(1))\n`,
       `import {it,expect} from 'bun:test'
 import {createBareRepo} from ${JSON.stringify(helper)}
 it('no identity needed', async () => {
- const identity = Bun.spawnSync(['git','config','--get','user.name'])
+ const cwd = ${JSON.stringify(dir())}
+ const identity = Bun.spawnSync(['git','config','--get','user.name'], {cwd})
  expect(identity.exitCode).not.toBe(0)
+ expect(Bun.spawnSync(['git','rev-parse','--is-inside-work-tree'], {cwd}).exitCode).not.toBe(0)
  expect(await createBareRepo(${JSON.stringify(dir())}, {'skills/deploy.md':'# Deploy skill'})).toBeTruthy()
 })\n`,
     )

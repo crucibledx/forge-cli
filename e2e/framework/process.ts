@@ -132,8 +132,10 @@ function diagnosticView(clean: (text: string) => string, secrets: string[]) {
       ...subtractRedactionSpans(tentativeSpans, resolved, raw.length),
       ...pending,
     ]).spans
-    const masked = maskRedactionSpans(raw, [...confirmed, ...tentative])
-    diagnostic = diagnosticTail(clean(masked.text))
+    // Clean public gaps, not reconstructed assignments whose indentation/query
+    // prefix may already be evicted. Confirmed private spans keep their context.
+    const masked = maskRedactionSpans(raw, [...confirmed, ...tentative], clean)
+    diagnostic = diagnosticTail(masked.text)
     const previousOffset = offset
     const bytes = Buffer.from(raw)
     if (bytes.length > TAIL_BYTES) {

@@ -10,6 +10,55 @@ import {
 } from './redact'
 
 it.each([
+  'password: MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',
+  'password=\n  MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',
+  'password: MULTI_FIRST_Q&MULTI_SECOND_Q\n  MULTI_THIRD_Q',
+  'password:\n  MULTI_FIRST_Q MULTI_SECOND_Q\n\n  MULTI_THIRD_Q',
+  'password:\r\n\tMULTI_FIRST_Q MULTI_SECOND_Q\r\n\tMULTI_THIRD_Q',
+  ...['|', '|-', '|+', '|2', '|2-', '>', '>-', '>+', '>2+'].map(
+    (scalar) => `password: ${scalar}\n  MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q`,
+  ),
+  'root:\n  password: |\n    MULTI_FIRST_Q MULTI_SECOND_Q\n    MULTI_THIRD_Q\n  public=yes',
+  'root:\n  - password: >-\n      MULTI_FIRST_Q MULTI_SECOND_Q\n      MULTI_THIRD_Q\n    public=yes',
+  'root:\n  "api%5fkey": |\n    MULTI_FIRST_Q MULTI_SECOND_Q\n    MULTI_THIRD_Q\n  public=yes',
+  "password: 'MULTI_FIRST_Q''MULTI_SECOND_Q'",
+  "password: 'MULTI_FIRST_Q\\''MULTI_SECOND_Q'",
+])('AC-15,30 complete scalar credentials remain private at every context cut: %j', (value) => {
+  const input = `${value}\nvisible=yes\n`
+  for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+    for (const secret of ['MULTI_FIRST_Q', 'MULTI_SECOND_Q', 'MULTI_THIRD_Q']) expect(output).not.toContain(secret)
+    expect(output).toContain('visible=yes')
+    if (input.includes('public=yes')) expect(output).toContain('public=yes')
+  }
+  for (let cut = 0; cut <= input.length; cut++) {
+    const contexts = redactionContext(input.slice(0, cut))
+    expect(contexts.every((context) => context.length < 128)).toBe(true)
+    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+    for (const secret of ['MULTI_FIRST_Q', 'MULTI_SECOND_Q', 'MULTI_THIRD_Q']) {
+      const start = input.indexOf(secret),
+        end = start + secret.length
+      if (start < 0 || cut >= end) continue
+      const surviving = secret.slice(Math.max(0, cut - start))
+      expect({cut, surviving, leaked: output.includes(surviving)}).toEqual({cut, surviving, leaked: false})
+      expect(contexts.join('')).not.toContain(secret)
+    }
+    for (const publicText of ['public=yes', 'visible=yes'])
+      if (input.includes(publicText) && cut <= input.indexOf(publicText)) expect(output).toContain(publicText)
+  }
+})
+it('AC-15,30 discarded long scalar bodies and indentation use bounded syntax-only state', () => {
+  const indentation = ' '.repeat(4096)
+  const value = `root:\n${indentation}password: |\n${indentation}  ${'SCALAR_PRIVATE_Q '.repeat(20000)}\n${indentation}public=yes\n`
+  for (const cut of [4105, 4118, 8230, 10000, value.indexOf('public=yes') - 2048]) {
+    const contexts = redactionContext(value.slice(0, cut))
+    expect(contexts.every((context) => context.length < 128 && !context.includes('SCALAR_PRIVATE_Q'))).toBe(true)
+    const output = redact(value.slice(cut), {credentialPrefixes: contexts})
+    expect(output).not.toContain('SCALAR_PRIVATE_Q')
+    expect(output).toContain('public=yes')
+  }
+})
+
+it.each([
   'Basic PRIVATE_CREDENTIAL_Q',
   'Authorization: Basic PRIVATE_CREDENTIAL_Q',
   'Proxy-Authorization: Basic PRIVATE_CREDENTIAL_Q',
