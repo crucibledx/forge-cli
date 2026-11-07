@@ -1,8 +1,18 @@
 import './teardown'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
+import {sessionFailure} from './failure'
 import {spawnOwnedPipe} from './owned-pipe'
-import {createTranscript, drainTranscript, ownSession, sanitize, sessionBudget, terminateTree} from './process'
+import {
+  createTranscript,
+  diagnosticTail,
+  drainTranscript,
+  ownSession,
+  sanitize,
+  sessionBudget,
+  TAIL_BYTES,
+  terminateTree,
+} from './process'
 import type {CLIResult} from './spawn'
 
 export interface ProcessOptions {
@@ -44,20 +54,44 @@ export async function runPipe(cwd: string, command: string[], options: ProcessOp
     },
     Math.max(1, budget - (performance.now() - started)),
   )
+  const errors: unknown[] = []
   try {
     await Promise.race([proc.exited, owner.finished])
     // A descendant may hold pipes open; the total deadline still owns the drain.
     await Promise.race([drains, owner.finished])
     options.inspectRaw?.(stdout.rawText(), stderr.rawText())
-    return {
-      stdout: stdout.diagnostic(),
-      stderr: stderr.diagnostic(),
-      output: stdout.visibleDiagnostic(),
-      exitCode: proc.signalCode ? null : proc.exitCode,
-      signal: proc.signalCode ? String(proc.signalCode) : null,
-      timedOut,
-    }
+  } catch (error) {
+    errors.push(error)
   } finally {
-    await owner.dispose()
+    try {
+      await owner.dispose()
+    } catch (error) {
+      if (!errors.includes(error)) errors.push(error)
+    }
   }
+  const result = {
+    stdout: stdout.diagnostic(),
+    stderr: stderr.diagnostic(),
+    output: stdout.visibleDiagnostic(),
+    exitCode: proc.signalCode ? null : proc.exitCode,
+    signal: proc.signalCode ? String(proc.signalCode) : null,
+    timedOut,
+  }
+  if (errors.length)
+    throw sessionFailure(
+      errors,
+      {
+        command,
+        cwd,
+        exit: result.exitCode,
+        signal: result.signal,
+        timedOut,
+        timeoutMs: budget,
+        seed: env.FC_SEED ?? null,
+        replay: env.FC_PATH ?? null,
+      },
+      `stdout:\n${diagnosticTail(stdout.visibleDiagnostic(), TAIL_BYTES / 8)}\nstderr:\n${diagnosticTail(stderr.visibleDiagnostic(), TAIL_BYTES / 8)}`,
+      options.secrets,
+    )
+  return result
 }

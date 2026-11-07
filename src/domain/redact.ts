@@ -50,8 +50,27 @@ function* credentialAssignments(text: string) {
   }
 }
 
-function credentialValue(text: string, start: number, authorization = false, token = false, multiline = false) {
-  while (start < text.length && (multiline ? /[ \t\r\n]/ : /[ \t]/).test(text[start])) start++
+function credentialValue(
+  text: string,
+  start: number,
+  authorization = false,
+  token = false,
+  whitespace: 'horizontal' | 'quoted' | 'assignment' = 'horizontal',
+) {
+  while (start < text.length && (whitespace === 'quoted' ? /[ \t\r\n]/ : /[ \t]/).test(text[start])) start++
+  let pendingWhitespace = ''
+  if (whitespace === 'assignment' && /[\r\n]/.test(text[start] ?? '')) {
+    let cursor = start,
+      indented = false
+    while (cursor < text.length && /[ \t\r\n]/.test(text[cursor])) {
+      indented = !/[\r\n]/.test(text[cursor])
+      cursor++
+    }
+    // An indented continuation is a value; an unindented next diagnostic is not.
+    if (cursor < text.length && !indented) return {start, end: start, continuation: undefined}
+    if (cursor === text.length) pendingWhitespace = indented ? '\n ' : '\n'
+    start = cursor
+  }
   let end = start
   if (authorization) {
     const scheme = /^(?:Basic|Bearer)[ \t]+/i.exec(text.slice(start))
@@ -70,7 +89,7 @@ function credentialValue(text: string, start: number, authorization = false, tok
     return {start, end, continuation: quote + 'x' + (escaped ? '\\' : '')}
   }
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/[\s&]/.test(text[end]))) end++
-  return {start, end, continuation: end === text.length ? (end > start ? 'x' : '') : undefined}
+  return {start, end, continuation: end === text.length ? (end > start ? 'x' : pendingWhitespace) : undefined}
 }
 
 /** Keep quote/key syntax and keyword states, never an arbitrary discarded value. */
@@ -138,12 +157,42 @@ interface RedactionOptions {
   secrets?: readonly string[]
   credentialPrefixes?: readonly string[]
   secretPrefix?: string
-  assignments?: boolean
   spans?: readonly RedactionSpan[]
 }
 export interface RedactionSpan {
   start: number
   end: number
+}
+export interface RedactionSegment {
+  raw: number
+  visible: number
+  length: number
+}
+
+/** Project ordered spans through monotonic UTF-16 segments, accounting for independent view eviction. */
+export function projectRedactionSpans(
+  spans: readonly RedactionSpan[],
+  segments: readonly RedactionSegment[],
+  from: 'raw' | 'visible',
+  to: 'raw' | 'visible',
+  offsets = {raw: 0, visible: 0},
+): RedactionSpan[] {
+  const projected: RedactionSpan[] = []
+  let index = 0
+  for (const span of spans) {
+    const first = offsets[from] + span.start,
+      last = offsets[from] + span.end
+    while (index < segments.length && segments[index][from] + segments[index].length <= first) index++
+    let start: number | undefined,
+      end = 0
+    for (let i = index; i < segments.length && segments[i][from] < last; i++) {
+      const segment = segments[i]
+      start ??= segment[to] + Math.max(0, first - segment[from])
+      end = segment[to] + Math.min(segment.length, last - segment[from])
+    }
+    if (start !== undefined) projected.push({start: start - offsets[to], end: end - offsets[to]})
+  }
+  return projected
 }
 
 function mergeSpans(spans: readonly RedactionSpan[], length: number): RedactionSpan[] {
@@ -269,14 +318,19 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
     }
     covered = -1
-    if (options.assignments !== false)
-      for (const match of credentialAssignments(credentialText)) {
-        if (match.index < covered) continue
-        if (!credentialPrefix && match.index === 0 && options.credentialPrefixes?.includes('_')) continue
-        const value = credentialValue(credentialText, match.index + match.length, true, false, match.quoted)
-        covered = value.end
-        add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
-      }
+    for (const match of credentialAssignments(credentialText)) {
+      if (match.index < covered) continue
+      if (!credentialPrefix && match.index === 0 && options.credentialPrefixes?.includes('_')) continue
+      const value = credentialValue(
+        credentialText,
+        match.index + match.length,
+        true,
+        false,
+        match.quoted ? 'quoted' : 'assignment',
+      )
+      covered = value.end
+      add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
+    }
   }
 
   const secretPrefix = options.secretPrefix ?? ''
@@ -315,24 +369,13 @@ export function redact(text: string, options: RedactionOptions = {}): string {
     )
   const spans = recognize(text)
   if (/[\u001b\u009b\u009d]/.test(text)) {
-    const segments: {raw: number; visible: number; length: number}[] = []
+    const segments: RedactionSegment[] = []
     let visible = 0
     const plain = createAnsiText((start, end) => {
       segments.push({raw: start, visible, length: end - start})
       visible += end - start
     })(text)
-    let index = 0
-    for (const span of recognize(plain)) {
-      while (index < segments.length && segments[index].visible + segments[index].length <= span.start) index++
-      let start: number | undefined,
-        end = 0
-      for (let i = index; i < segments.length && segments[i].visible < span.end; i++) {
-        const segment = segments[i]
-        start ??= segment.raw + Math.max(0, span.start - segment.visible)
-        end = segment.raw + Math.min(segment.length, span.end - segment.visible)
-      }
-      if (start !== undefined) spans.push({start, end})
-    }
+    for (const span of projectRedactionSpans(recognize(plain), segments, 'visible', 'raw')) spans.push(span)
   }
   return maskRedactionSpans(text, spans).text
 }
@@ -358,7 +401,13 @@ export function redactionContext(discarded: string): string[] {
   covered = -1
   for (const match of credentialAssignments(discarded)) {
     if (match.index < covered) continue
-    const value = credentialValue(discarded, match.index + match.length, true, false, match.quoted)
+    const value = credentialValue(
+      discarded,
+      match.index + match.length,
+      true,
+      false,
+      match.quoted ? 'quoted' : 'assignment',
+    )
     covered = value.end
     if (value.continuation !== undefined) contexts.add((match.quoted ? '"secret":' : 'secret=') + value.continuation)
   }

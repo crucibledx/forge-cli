@@ -41,6 +41,45 @@ describe('BR-09 pipe contracts (AC-16)', () => {
     expect(raw).toContain('raw-sentinel')
     expect(result.stdout).not.toContain('raw-sentinel')
   })
+  it('AC-18 inspection failure retains original error, both drained streams and observed nonzero exit', async () => {
+    let failure: Error | undefined
+    try {
+      await runPipe(
+        dir(),
+        [
+          process.execPath,
+          '-e',
+          "console.log('STDOUT_REASON token=PIPE_PRIVATE');console.error('STDERR_REASON');process.exit(7)",
+        ],
+        {
+          env: {FC_SEED: '123', FC_PATH: '0:1'},
+          inspectRaw: () => {
+            throw new Error('original assertion token=PIPE_PRIVATE')
+          },
+        },
+      )
+    } catch (error) {
+      failure = error as Error
+    }
+    expect(failure).toBeInstanceOf(Error)
+    for (const text of [failure!.message, failure!.stack!]) {
+      expect(text).toContain('original assertion')
+      expect(text).toContain('STDOUT_REASON')
+      expect(text).toContain('STDERR_REASON')
+      expect(text).not.toContain('PIPE_PRIVATE')
+      expect(text).not.toContain(dir())
+      expect(Buffer.byteLength(text)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+    const context = JSON.parse(failure!.message.split('\nSession: ')[1].split('\nTranscript tail:')[0])
+    expect(context).toMatchObject({
+      exit: 7,
+      signal: null,
+      timedOut: false,
+      timeoutMs: 10000,
+      seed: '123',
+      replay: '0:1',
+    })
+  })
   it('preserves literal argv and closes target stdin, including the Windows job bootstrap', async () => {
     const values = ['', 'a b', 'literal"quote', 'C:\\space here\\', '$HOME', '`literal`', '🌍']
     const result = await runPipe(dir(), [process.execPath, fixture, 'argv', ...values])

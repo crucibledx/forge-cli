@@ -38,6 +38,10 @@ it.each(
     'remote: {"access_token":"PRIVATE_CREDENTIAL_Q"}',
     'remote: {"access_\\u0074oken":"PRIVATE_CREDENTIAL_Q"}',
     'remote: {"access_token"\n:\n"PRIVATE_CREDENTIAL_Q"}',
+    'password:\n  PRIVATE_CREDENTIAL_Q',
+    'password:\r\n\tPRIVATE_CREDENTIAL_Q',
+    'password=\n\n  PRIVATE_CREDENTIAL_Q',
+    'client_secret:\n  "prefix PRIVATE_CREDENTIAL_Q suffix"',
   ].flatMap((value) => ['redact', 'sanitize'].map((kind) => ({value, kind}))),
 )('AC-15,16,30 auth/assignment credentials survive no chunk or raw-tail cut: $value $kind', ({value, kind}) => {
   const clean = kind === 'redact' ? redact : (text: string) => sanitize(text, dir())
@@ -63,6 +67,24 @@ it.each(
     expect(transcript.diagnostic()).toContain('visible=yes')
   }
 })
+it.each(['password:\n', 'password=\r\n', 'client_secret:\n\n'])(
+  'AC-15,16,30 empty assignment continuation preserves the next unindented public line: %j',
+  (prefix) => {
+    const value = prefix + 'PUBLIC_AFTER_EMPTY\nvisible=yes\n'
+    for (let cut = 0; cut <= value.length; cut++) {
+      const transcript = createTranscript()
+      transcript.append(Buffer.from(value.slice(0, cut)))
+      transcript.append(Buffer.from(value.slice(cut)))
+      transcript.finish()
+      expect(transcript.visibleDiagnostic()).toBe(value)
+    }
+    const retained = createTranscript()
+    retained.append(Buffer.from('x'.repeat(TAIL_BYTES) + prefix))
+    retained.append(Buffer.from('PUBLIC_AFTER_EMPTY\nvisible=yes\n'))
+    retained.finish()
+    expect(retained.visibleDiagnostic()).toEndWith('PUBLIC_AFTER_EMPTY\nvisible=yes\n')
+  },
+)
 it.each(['sig', '%73ig', 'SIG', '%53%49%47'].flatMap((key) => ['redact', 'sanitize'].map((kind) => ({key, kind}))))(
   'AC-15,16,30 SAS $key credentials survive no chunk or retained-tail boundary: $kind',
   ({key, kind}) => {

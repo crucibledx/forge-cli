@@ -168,18 +168,26 @@ export function spawnPty(cwd: string, command: string[], options: ProcessOptions
     waitForText: (text, timeoutMs, from) => step(wait(text, timeoutMs, from)),
     dispose: owner.dispose,
     async waitForExit() {
+      const errors: unknown[] = []
       try {
         await Promise.race([exit, owner.finished])
-        return {
-          output: getOutput(),
-          stdout: '',
-          stderr: '',
-          exitCode: proc.signalCode ? null : proc.exitCode,
-          signal: proc.signalCode ? String(proc.signalCode) : null,
-          timedOut,
-        }
+      } catch (error) {
+        errors.push(error)
       } finally {
-        await owner.dispose()
+        try {
+          await owner.dispose()
+        } catch (error) {
+          if (!errors.includes(error)) errors.push(error)
+        }
+      }
+      if (errors.length) throw failure(errors)
+      return {
+        output: getOutput(),
+        stdout: '',
+        stderr: '',
+        exitCode: proc.signalCode ? null : proc.exitCode,
+        signal: proc.signalCode ? String(proc.signalCode) : null,
+        timedOut,
       }
     },
   }

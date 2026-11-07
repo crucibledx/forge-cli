@@ -1,14 +1,53 @@
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {dirname, join, resolve} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
 
 import {runPipe} from '../e2e/framework/pipe'
 import {useTmpDir} from '../src/test-helpers/tmp'
 import type {createTestSandbox} from './test-sandbox'
+import {testEnvironment} from './test-sandbox'
 
 describe('isolated launcher regressions (BR-09,10)', () => {
   const dir = useTmpDir('launcher-contracts')
+  it.each([true, false])(
+    'AC-25 observed failed=%s retains failure precedence when actual sandbox removal fails',
+    async (failed) => {
+      if (process.platform === 'win32') return
+      const record = join(dir(), 'cleanup-record.json')
+      const fixture = join(dir(), 'cleanup.test.ts')
+      writeFileSync(
+        fixture,
+        `
+import {it, expect} from 'bun:test'
+import {mkdirSync, writeFileSync, chmodSync} from 'node:fs'
+import {join, dirname} from 'node:path'
+it('known observed test outcome', () => {
+ const denied = join(process.env.TMPDIR, 'cannot-remove')
+ mkdirSync(denied)
+ writeFileSync(join(denied, 'sentinel'), 'owned cleanup fixture')
+ writeFileSync(${JSON.stringify(record)}, JSON.stringify({sandbox: dirname(process.env.TMPDIR), denied}))
+ chmodSync(denied, 0o500)
+ expect(${failed}).toBe(false)
+})
+`,
+      )
+      try {
+        const result = await runPipe(dir(), [process.execPath, resolve(import.meta.dir, 'run-tests.ts'), '--', fixture])
+        expect(result.timedOut).toBe(false)
+        expect(result.exitCode).toBe(failed ? 1 : 2)
+        expect(result.stderr).toContain(failed ? '1 fail' : '1 pass')
+        expect(result.stderr).toMatch(/EACCES|EPERM|ENOTEMPTY/)
+      } finally {
+        if (existsSync(record)) {
+          const owned = JSON.parse(readFileSync(record, 'utf8'))
+          expect(dirname(owned.sandbox)).toBe(testEnvironment(dir()).TMPDIR)
+          if (existsSync(owned.denied)) chmodSync(owned.denied, 0o700)
+          rmSync(owned.sandbox, {recursive: true, force: true})
+        }
+      }
+    },
+  )
   it('AC-25 suite selection uses the registry and still rejects unknown flags/suites', async () => {
     const launcher = resolve(import.meta.dir, 'run-tests.ts')
     for (const args of [['--suite', 'unknown'], ['--arbitrary'], ['--suite', 'unit', 'extra']]) {

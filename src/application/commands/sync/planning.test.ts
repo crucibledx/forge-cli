@@ -20,6 +20,8 @@ const target = (targetPath: string, content = 'incoming') => ({
 const collisions = [
   ['case alias', '.claude/rules/A.md', '.claude/rules/a.md'],
   ['NFC alias', '.claude/rules/café.md', '.claude/rules/cafe\u0301.md'],
+  ['intermediate case directory alias', '.claude/skills/Foo/a.md', '.claude/skills/foo/b.md'],
+  ['intermediate NFC directory alias', '.claude/skills/café/a.md', '.claude/skills/cafe\u0301/b.md'],
   ['file ancestor', '.claude/rules/node', '.claude/rules/node/leaf.md'],
   ['state metadata', '.crucible/sync-state.json'],
   ['config metadata', '.crucible/forge.config.yaml'],

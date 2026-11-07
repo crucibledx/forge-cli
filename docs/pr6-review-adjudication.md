@@ -4,6 +4,47 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction after774170b, completed review AJ
+
+Head `774170b5d3d9cb20786a261f048e4f123129b5ed`, actual tested merge
+`769c9bc573e39513044ce66d191d15d119d09af7`: CI42358017361 failed native Windows and the deterministic gate;
+the other nine lanes passed. Hosted reviewer42358018050 completed. Both independent tracks finished before edits.
+The verifier returned no terminal text; its originals were recovered without rerun/resume or outcome rewriting.
+All458 regular files,455 manifest members and456 archive members were byte-verified; all400 source hashes
+remained unchanged through recovery, public publication and final all-hosted inventory. Source edits began only
+after the explicit source-gate release at2026-11-07T09:30:01.935812Z.
+
+The [full original verifier report](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705068084)
+retains **25pass/7fail/0not-runnable implementation checks**, failing AC10/12/15/18/25/26/30.
+The [original supplement and provenance](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705068295)
+retain actual collector0/checker1, NOT READY: the authenticated failed gate takes priority over missing app
+code/security/distinct-verifier attestations. This is not the prior AI blocked2 outcome.
+Parent rechecked all18 full-suite footers1967/0, security610/0 with unchanged default20s, macOS platform286/0,
+and ten fresh first-outcome contracts1042/0 each with disjoint sandbox sets, no retries.
+The first parent footer observer failed because it searched stderr alone for Bun's stdout headers; only parsing
+of the original bytes was corrected. Original verifier tooling failures and the exact property replay remain intact.
+
+The [original independent review](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6704912997)
+is **0blocking/1should-fix/0nits**, SHOULD FIX, with zero tests/builds/installs and one injected-I/O probe.
+Two denied operations did not execute and were not rerouted. Finite AC8/9 passes do not refute its directory-alias
+counterexample. Hosted review ran no Bun suites because its toolchain was1.2.11 rather than pinned1.4.2.
+
+| Finding | Accepted correction and regression boundary |
+| --- | --- |
+| Independent reviewer P2 | Validate portable identities of every intermediate directory. Reject case/NFC aliases before writes, preserving identically spelled shared parents. Real CLI fresh-root preview/apply cases require the same refusal and unchanged protected bytes, even with a valid neighbor. |
+| Hosted4501052107 / verifier AJ-1 | Redact unquoted indented multiline credential values and retain finite newline/indent continuation state. Cover LF/CRLF, scalar/nested diagnostics, every stream/context/retained-tail cut and actual human/latest/history source failures; preserve public next-line diagnostics after empty assignments. |
+| Hosted4501052114 / verifier AJ-2 | Preserve drained output, invocation/exit/signal/timeout/replay context and original errors when pipe cleanup fails. Apply the same failure envelope to direct PTY exit waits. Persistent live-group EPERM tests restore native signalling and reap their real children. |
+| Hosted4501052118 / verifier AJ-3 | Keep observed failed-test exit1 after actual sandbox removal failure. A passing batch with incomplete cleanup still exits2. Preserve cleanup diagnostics and any prior error separately. |
+| Hosted4501052121 | Import configuration I/O through its existing public barrel. |
+| Hosted4501052135 | Remove the invariant assignment-redaction option and redundant true callers. |
+| Hosted4501052139 | Share one offset-aware span projector between domain ANSI redaction and streaming raw/visible views; compare both directions and independently evicted offsets with a per-code-unit oracle. |
+| Failed native Windows / verifier AJ-4 | Avoid writing the large compiled scheduler executable for command-free fixtures. Both command-environment access paths materialize independent byte copies before use. Preserve isolated pre-import compilation, real scheduler create/query checks, mutation/disposal independence and all original budgets/coverage. Real native Windows completion remains unproven until hosted validation. |
+
+Windows platform recorded188 observed passes/0 observed failures but timed out after465498ms, with no complete
+footer; compiled smoke did not execute. This is not a suite pass. Local macOS cannot establish Windows acceptance.
+The PR stays READY as requested, not approval. No source edits preceded complete original publication and final
+inventory; no frozen acceptance contract, dependency, setting, version or release changes are authorized here.
+
 ## Nov7 correction after992e794, completed review AI
 
 Head `992e7942ba7defcb61413a734e63d7616a922d74`, hosted merge

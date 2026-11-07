@@ -26,6 +26,11 @@ it.each([
   'remote: {"access_token"\n:\n  "PRIVATE_CREDENTIAL_Q"}',
   'remote: {"client\'s_secret":"PRIVATE_CREDENTIAL_Q"}',
   "remote: {'password' = 'PRIVATE_CREDENTIAL_Q'}",
+  'password:\n  PRIVATE_CREDENTIAL_Q',
+  'password:\r\n\tPRIVATE_CREDENTIAL_Q',
+  'password=\n\n  PRIVATE_CREDENTIAL_Q',
+  'client_secret:\n  "prefix PRIVATE_CREDENTIAL_Q suffix"',
+  'api%5fkey:\r\n  PRIVATE_CREDENTIAL_Q',
 ])('AC-15,30 production diagnostic credentials remain private at every context cut: %s', (value) => {
   const secret = 'PRIVATE_CREDENTIAL_Q'
   const input = value + '\nvisible=yes'
@@ -38,6 +43,19 @@ it.each([
     if (cut <= input.indexOf('visible=yes')) expect(output).toContain('visible=yes')
   }
 })
+it.each(['password:', 'password=', 'client_secret:'])(
+  'AC-15,30 an empty %s never consumes an unindented next public diagnostic',
+  (prefix) => {
+    for (const separator of ['\n', '\r\n', '\n\n']) {
+      const input = `${prefix}${separator}PUBLIC_AFTER_EMPTY\nvisible=yes`
+      expect(redact(input)).toBe(input)
+      for (let cut = 0; cut <= input.length; cut++)
+        expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(
+          input.slice(cut),
+        )
+    }
+  },
+)
 it.each([
   'https://fixture.invalid?contact=user@example.invalid&visible=yes',
   'https://fixture.invalid#contact=user@example.invalid&visible=yes',
