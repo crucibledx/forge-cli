@@ -4,7 +4,98 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
-## Latest hosted and independent assessment on77e7464
+## Nov7 correction after064aa83, completed review AB
+
+Frozen subject: head064aa836c1eaf8f6d8c03f8edd09dff0941d09bc, tested provider
+merge5cd7c754b4a06fe38b3d522387323456511319f4, base3fb78e1, treea227282
+(equal to head). All seven original hosted runs completed before correction:
+CI42328927091 success02:28:44Z; reviewer42328927926 success02:29:14Z with
+four new P2 findings (review5809506675). Full two-page inventory115 threads,
+111 resolved,4 open. Review-ab completed02:28:41.114Z. Verifier-ab completed
+02:41:09.440Z and returned no tool message; its original files were recovered
+from the clean exact-merge worktree and archived byte-for-byte.
+
+Original verifier verdict remains **26pass /4fail (AC6,9,14,32) /2 publication-only
+not-runnable (AC20,27)**. Native macOS independently established the physical
+sigma/final-sigma alias, conflicting installed state and changing repeat-sync bytes.
+Frozen credential/report/silent rows were not rewritten to claim terminal-control
+coverage: emergency terminal injection remains an additional security blocker.
+Markdown SHA256 `cf3fadda1a976b0cc62028d2cff32228b823129ffbd7cfb8eaf542a6dee9735e`,
+JSON `4c748d9e768336024c54461d4c24422da3952b19e2e11d1dd24d0251e56d0b87`,
+sidecar `9cff5a8c2f56dc930dcc96c57e802aba90ca1ef65f90718a8c0ff87918a7ba6b`.
+
+[Supporting publication6701270332](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6701270332)
+contains the current ten fresh753/0 contract processes (7530/0 total), actual
+starts/durations/raw hashes, deliberate property defect and exact replay, selected
+CI/native ZIP and check-byte provenance, and queue/workflow/reviewer timings.
+Parent independently recounted and hashed all ten logs. The recorder's original
+escaped-regex/newline bookkeeping error was normalized without rerunning tests or
+changing raw bytes. This publication does not modify or promote the original
+verdict, resolve findings or supply app identity. Review-ab's focused-test and
+report-write denials were not retried or counted passing; its returned text and
+sidecar were parent-archived, not falsely described as original persisted files.
+
+### Eight accepted findings and candidate corrections
+
+| Finding | Correction and regression boundary |
+| --- | --- |
+| Review-ab/AB-1 P1, same emergency defect as verifier-ab/AB-2 | Unconditional incomplete-recovery stderr now uses the shared credential-redaction-before-terminal-escaping boundary. It remains mandatory in silent mode, including failed report storage. Real resolver/planner/transaction/command subprocess tests cover OSC52/BEL, CSI, C1 and bidi across normal/silent and writable/failed reports. |
+| Review-ab/AB-2 P2 (nonblocking in its original sidecar, accepted anyway) | Authenticated verifier history accompanies a valid verdict or history error. Readiness independently checks completed exact-revision/distinct producers, row evidence and nonzero exits before preserving a known failing AC as exit1. Invalid/forged/stale/missing-evidence/zero-or-null-exit claims stay blocked2. Only a separately evidenced current pass clears an older failure; blocked, incomplete, dismissed or invalid pass rows do not. |
+| Hosted4499622342, verifier-ab/AB-5 | Collector imports current records separately per role. Older current security can combine with newer code in either URI order; only a typed obsolete-role error is skipped. Invalid histories and unresolved blockers are not silently discarded. Combined current roles still work; duplicate/excessive URI selections fail closed. |
+| Hosted4499622346, verifier-ab/AB-4 | Strict producer payload rejects duplicate code or security roles before any passing entry can hide the same payload's blocker. Complete real-adapter synthetic readiness is blocked2; valid distinct-role positives remain available. |
+| Hosted4499622351, verifier-ab/AB-3 | Portable comparison performs conservative Unicode case folding plus NFC, equating sigma/final sigma, long s and expanding pairs. It never rewrites actual paths/state keys. Native CLI apply/preview and silent variants reject before any protected change, including a second identical attempt; ordinary Unicode spelling, installed hashes and repeat remain valid. |
+| Hosted4499622354 | One const role object supplies the derived union, schema enums, provider annotations and shared test-fixture role lists. Explicit golden values and schema/authority correspondence are tested. This is a contributor-policy correction, not an invented runtime bug. |
+| Verifier-ab/AB-1, independently parent-reproduced | Missing/invalid actor metadata cannot be silently treated as an unrelated human. Malformed metadata/report history is unavailable. Per-item diagnostics still allow later independently authenticated blockers to establish failure precedence. |
+| Retained dismissal hypothesis, now parent-confirmed | A valid older dismissed app report still carries unresolved blockers. Human dismissal is not independent resolution. Dismissed passing/current reviews remain unavailable; only a later same-role app report with its exact resolution URI clears the blocker. |
+
+Original unchanged-head parent controls are retained separately: review-ab4pass/4fail,
+hosted2pass/5fail (including actual offline collector in both URI orders), and
+actor/dismissal4pass/3fail. Their raw-log SHA256 values are respectively
+`be9b0b19172138769e93896446cf204f9ac47692a24ac3477ebd5528db156164`,
+`d94519a812c81d061770bfe9c97b182606f50f684c8c8f8bfb098ad26510ade4`,
+`dc7abd56e8e680235326976c8d228391cf65ca7b163f5cfb15a5838256082f37`.
+Candidate copies preserve every original assertion and change only observation
+output names/import locations:15/0. Actual collector replay on the new clean
+merge remains a pre-push requirement.
+
+Expanded producer regressions62/0 (36 new plus26 existing); portable/native/
+emergency regressions30/0. The initial emergency mock failed14pass/16fail because
+it incorrectly classified generated `.bak` snapshots as directories, never reaching
+commit. Correcting that infrastructure fixture and explicitly requiring apply,
+compensation and report attempts produced30/0 with unchanged safety assertions.
+Initial readonly/producer-return type errors and explicit test-title AC mapping
+errors were corrected; types and contract validation then passed. Security's
+20-second default budget is unchanged; both native suite selections include the new
+emergency and Unicode tests.
+
+The first full candidate run produced1671pass/1fail: the gate CLI test's explicit
+copied dependency list omitted the new shared role module, so the fixture could not
+load before reaching its context-failure assertion. Adding that production dependency
+to the copied fixture, without changing assertions, passes41/0. A full rerun is
+required before commit. The independent verifier's original real-native and real
+incomplete-compensation probes also replay2/0, with only imports/observation names
+changed. Its success-only installed-state/repeat observations remain preserved as
+original unsafe-case evidence; the replacement regression requires rejection before
+first or second writes, never successful installation of an aliased plan.
+
+Full candidate validation: **1672/0 full suite (18 isolated invocations),423/0
+security (26 files, unchanged20-second default), original controls15/0 and stronger
+independent native/emergency replay2/0**. Types, lint, format, contracts, audit,
+build and compiled help/version all exit0; moderate minimatch remains disclosed.
+The initial full1671/1 is retained separately, not hidden as a retry. Build/help
+output was captured by the original tool while only version stdout was redirected;
+a faithful capture JSON preserves both without rerunning the successful command.
+This is local candidate evidence, not independent clearance or actual readiness.
+Frozen
+spec/amendment/lock hashes remain unchanged. PR remains READY by owner instruction,
+never as readiness evidence. Four new hosted threads stay open until the correction
+is pushed and verified. Fresh exact-provider-merge independent review/verification,
+every hosted check including the reviewer, and a complete post-completion inventory
+remain required after the next push. Local reports, prose-only automation and
+resolved threads do not supply genuine exact-revision code/security/distinct-verifier
+app attestations; actual phase2 readiness remains unavailable.
+
+## Historical hosted and independent assessment on77e7464
 
 Head77e7464, provider-tested merge7c7fbf5, base3fb78e1, tree85880bf (equal to head):
 CI42325266537 succeeded01:47:23Z; hosted reviewer42325267237 completed successfully

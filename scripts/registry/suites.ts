@@ -29,6 +29,8 @@ export const testSuites = {
     'src/application/commands/sync/transaction.test.ts',
     'src/application/commands/sync/outcome.test.ts',
     'e2e/commands/sync/safety/diagnostics.test.ts',
+    'e2e/commands/sync/safety/emergency-terminal.test.ts',
+    'e2e/commands/sync/safety/native-unicode-alias.test.ts',
     'e2e/commands/sync/safety/planning.test.ts',
     'e2e/commands/sync/safety/confinement.test.ts',
     'e2e/commands/sync/safety/silent.test.ts',
@@ -40,6 +42,8 @@ export const testSuites = {
     'scripts/check-lanes.test.ts',
   ],
   platform: [
+    'e2e/commands/sync/safety/emergency-terminal.test.ts',
+    'e2e/commands/sync/safety/native-unicode-alias.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
     'src/infrastructure/source/git/shared-cache.test.ts',
     'e2e/commands/sync/safety/permissions.test.ts',

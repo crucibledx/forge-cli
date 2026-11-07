@@ -1,5 +1,6 @@
 import {z} from 'zod'
 
+import {PRODUCER_ROLES, REVIEW_ROLES} from './producer-roles'
 import {acceptanceIds, PLATFORMS, requiredLaneIds} from './validation-lanes'
 
 export const sha = z.string().regex(/^[a-f0-9]{40}$/)
@@ -103,7 +104,7 @@ export const laneSchema = z
 export type LaneEvidence = z.infer<typeof laneSchema>
 export const provenanceSchema = z
   .object({
-    producer_role: z.enum(['code', 'security', 'verifier']),
+    producer_role: z.enum(PRODUCER_ROLES),
     actor: z.union([id, z.literal('factory-droid[bot]')]),
     source_uri: sourceUri,
     report_sha256: digest,
@@ -123,7 +124,7 @@ const findingSchema = z
 export const reviewSchema = z
   .object({
     schema_version: z.literal(1),
-    role: z.enum(['code', 'security']),
+    role: z.enum(REVIEW_ROLES),
     head_sha: sha,
     tested_sha: sha,
     completion: z.enum(['complete', 'unavailable']),

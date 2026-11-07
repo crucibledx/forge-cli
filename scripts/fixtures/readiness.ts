@@ -1,5 +1,7 @@
 import {readEvidence} from '../evidence-io'
 import type {ReadinessBundle} from '../evidence-schema'
+import type {ProducerRole} from '../producer-roles'
+import {REVIEW_ROLES} from '../producer-roles'
 import type {ReadinessProvider} from '../readiness'
 import {checkEvidencePath} from '../validation-evidence'
 import {acceptanceIds, requiredLaneIds, validationLanes} from '../validation-lanes'
@@ -7,7 +9,7 @@ import {acceptanceIds, requiredLaneIds, validationLanes} from '../validation-lan
 export function readinessFixture(): ReadinessBundle {
   const head = 'a'.repeat(40),
     tested = 'b'.repeat(40)
-  const provenance = (role: 'code' | 'security' | 'verifier') => ({
+  const provenance = (role: ProducerRole) => ({
     producer_role: role,
     actor: 'independent-fixture',
     source_uri: `factory-session://11111111-1111-4111-8111-111111111111/${role === 'code' ? '22222222-2222-4222-8222-222222222222' : role === 'security' ? '33333333-3333-4333-8333-333333333333' : '44444444-4444-4444-8444-444444444444'}`,
@@ -49,7 +51,7 @@ export function readinessFixture(): ReadinessBundle {
         evidence: [checkEvidencePath(lane.id, check.id)],
       })),
     })),
-    reviews: (['code', 'security'] as const).map((role) => ({
+    reviews: REVIEW_ROLES.map((role) => ({
       schema_version: 1,
       role,
       head_sha: head,

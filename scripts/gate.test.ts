@@ -280,6 +280,7 @@ it('AC-25,27 actual gate entrypoint persists blocked rows after context failure'
     'validation-identity.ts',
     'evidence-io.ts',
     'evidence-schema.ts',
+    'producer-roles.ts',
     'github-evidence.ts',
     'validation-lanes.ts',
     'validation-policy.ts',

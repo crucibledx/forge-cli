@@ -9,7 +9,13 @@ export const producerPayload = z
       .string()
       .min(1)
       .max(256 * 1024),
-    reviews: z.array(reviewSchema).max(2),
+    reviews: z
+      .array(reviewSchema)
+      .max(2)
+      .refine(
+        (reviews) => new Set(reviews.map((review) => review.role)).size === reviews.length,
+        'Duplicate review roles',
+      ),
     verifier: verifierSchema.nullable(),
   })
   .strict()

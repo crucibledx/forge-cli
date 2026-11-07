@@ -28,6 +28,8 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   conflict policy as updates. Untracked files and generated backups are not discovered for cleanup.
 - Different existing backups, target/backup/metadata collisions, file ancestors, and separator/case/Unicode-NFC
   aliases block the complete plan on every OS. Move the conflicting file deliberately before retrying a dry-run.
+  Conservative Unicode case folding also rejects native sigma/final-sigma and expanding case equivalents.
+  This comparison never rewrites actual destination spelling or persisted state keys.
 - Config stays version `"1"`. State upgrades to version 2 only in a committed transaction. Loading old state does
   not write it: legacy hashes remain `legacy-unknown` until installation or byte-identical desired content verifies
   them. `local-wins` never invents an installed baseline.
@@ -159,11 +161,20 @@ authenticated URI. Omitting the finding from a newer passing report is not resol
 blockers retain known-failure exit1, even when later history pages are unavailable; missing/invalid/duplicate/
 oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
 Raw report-byte authentication is separate from current-verdict selection.
+Unknown/missing actor metadata and malformed older same-revision app reports are unavailable, not silently skipped.
+Human dismissal never clears an app-authored blocker; a dismissed passing review cannot authorize readiness.
+Authenticated verifier failures survive history outages and obsolete selections only after each row's nonzero
+exit, evidence, revision, completed producer and independence are validated. A later passing row clears a prior
+failure only with its own valid evidence, not an incomplete or dismissed verdict. Invalid claims stay blocked2.
+Producer payloads reject duplicate roles. Collection imports each current role independently, so newer code can
+combine with still-current older security without importing the superseded code record.
 
 Human renderer fields are credential-redacted before escaping terminal control characters, including OSC/CSI,
 C0/C1, bidi controls and line separators. Trusted renderer styling and structural newlines are added afterward.
 Escaping presentation does not rewrite stored paths or user files. Tests inspect actual raw pipe output in
 ordinary sync and preview, not a transcript sanitizer that could hide an emitted clipboard/title control.
+The same boundary protects unconditional emergency stderr, including silent mode and simultaneous report-storage
+failure. Recovery guidance remains mandatory; terminal escaping happens only after credential redaction.
 
 This adapter does not make the existing review service emit such an attestation. If the existing independently
 operated review/verifier cannot provide it, readiness stays **blocked**. Normally keep the PR draft; an explicit owner
