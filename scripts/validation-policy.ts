@@ -2,7 +2,7 @@ import type {EvidenceContext, LaneEvidence} from './evidence-schema'
 import {laneSchema} from './evidence-schema'
 import {checkEvidencePath} from './validation-evidence'
 import type {ValidationCheck} from './validation-lanes'
-import {laneById} from './validation-lanes'
+import {LANE_BUDGET_MS, laneById} from './validation-lanes'
 
 export const blockedExit = (exit: number | null, check: ValidationCheck) =>
   exit === null || Boolean(check.blocked_exits?.includes(exit))
@@ -18,8 +18,7 @@ export function assessLane(value: unknown, context: EvidenceContext, pin: string
   if (lane.bun_version !== pin) throw new Error(`${lane.lane_id}: incorrect Bun pin`)
   if (definition.platform && lane.runner_os !== definition.platform && lane.status === 'pass')
     throw new Error(`${lane.lane_id}: foreign-native execution cannot pass`)
-  if (lane.duration_ms > definition.timeout_ms && lane.status === 'pass')
-    throw new Error(`${lane.lane_id}: deadline exceeded`)
+  if (lane.duration_ms > LANE_BUDGET_MS && lane.status === 'pass') throw new Error(`${lane.lane_id}: deadline exceeded`)
   if (lane.checks.length !== definition.checks.length) throw new Error(`${lane.lane_id}: incomplete checks`)
   for (const expected of definition.checks) {
     const actual = lane.checks.find((check) => check.id === expected.id)

@@ -15,11 +15,11 @@ import {commandLog, commandMetadata, commandReason, executeCheck} from './valida
 
 const logPath = checkEvidencePath
 const resultPath = (lane: string, check: string) => `${logPath(lane, check)}.json`
-export function remainingCIBudget(lane: ValidationLane, startedAt: string | undefined, now = Date.now()): number {
+export function remainingCIBudget(startedAt: string | undefined, now = Date.now()): number {
   if (!startedAt || !/^\d+$/.test(startedAt)) return 0
   const start = Number(startedAt) * 1000
   if (!Number.isSafeInteger(start) || start <= 0 || start > now) return 0
-  return Math.max(0, Math.min(lane.timeout_ms, LANE_BUDGET_MS) - (now - start) - CI_EVIDENCE_RESERVE_MS)
+  return Math.max(0, LANE_BUDGET_MS - (now - start) - CI_EVIDENCE_RESERVE_MS)
 }
 async function runCheck(
   out: string,
@@ -117,9 +117,7 @@ export async function runLanes(
             ? `Requires native ${lane.platform}; this host is ${platform}`
             : undefined
         for (const check of lane.checks)
-          checks.push(
-            await runCheck(out, lane, check, lane.timeout_ms - (performance.now() - start), executor, blocked),
-          )
+          checks.push(await runCheck(out, lane, check, LANE_BUDGET_MS - (performance.now() - start), executor, blocked))
         const report = laneResult(context, lane, checks, performance.now() - start, platform)
         await writeEvidence(resolve(out, `${lane.id}.json`), report, out)
         reports.push(report)
@@ -187,7 +185,7 @@ export async function lanesCLI(args: string[]): Promise<number> {
     out,
     lane,
     check,
-    remainingCIBudget(lane, process.env.FORGE_LANE_STARTED_AT),
+    remainingCIBudget(process.env.FORGE_LANE_STARTED_AT),
     executeCheck,
     lane.platform && lane.platform !== process.platform ? `Requires native ${lane.platform}` : undefined,
   )

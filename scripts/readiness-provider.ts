@@ -26,7 +26,7 @@ import type {ProducerRole} from './producer-roles'
 import type {ReadinessProvider} from './readiness'
 import {actualHead, repositoryRoot} from './validation-context'
 import {checkEvidencePath} from './validation-evidence'
-import {laneById} from './validation-lanes'
+import {laneById, validationLanes} from './validation-lanes'
 
 const jobSchema = providerJob
 const artifactSchema = providerArtifact.extend({
@@ -98,7 +98,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
       verdicts.set(key, providerProducerState(uri, context, ports.githubJSON, role, selectedSources))
     return verdicts.get(key)!
   }
-  const runs = new Map<string, Promise<void>>()
+  const runs = new Map<string, Promise<string>>()
   const jobLists = new Map<string, Promise<z.infer<typeof jobSchema>[]>>()
   const artifactLists = new Map<string, Promise<z.infer<typeof artifactSchema>[]>>()
   const archives = new Map<number, ReturnType<typeof archive>>()
@@ -133,6 +133,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
               : !context.workflow_ref?.startsWith(`${context.repository}/${workflow.path}@`))
           )
             throw new Error('Provider workflow identity mismatch')
+          return identity.head_sha
         })(),
       )
     return runs.get(key)!
@@ -159,6 +160,36 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
       )
     const [jobs, artifacts] = await Promise.all([selectedJobs(context), artifactLists.get(key)!])
     return {jobs, artifacts}
+  }
+  const laneExecution = async (lane: ReturnType<typeof laneById>, context: EvidenceContext) => {
+    const {jobs, artifacts} = await selected(context)
+    const job = jobs.filter((job) => job.name === lane.id),
+      artifact = artifacts.filter((artifact) => artifact.name === artifactName(context, lane.id))
+    if (
+      job.length !== 1 ||
+      job[0].status !== 'completed' ||
+      !['success', 'failure', 'cancelled', 'timed_out'].includes(job[0].conclusion ?? '') ||
+      artifact.length !== 1 ||
+      artifact[0].expired ||
+      artifact[0].workflow_run.id !== Number(context.run_id)
+    )
+      throw new Error('Artifact origin unavailable or mismatched')
+    if (!providerArtifactInJobWindow(artifact[0], job[0])) throw new Error('Artifact run-attempt/job window mismatch')
+    if (!archives.has(artifact[0].id))
+      archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
+    const files = await archives.get(artifact[0].id)!
+    const originalLaneBytes = files.get(`${lane.id}.json`)
+    if (!originalLaneBytes) throw new Error('Authenticated lane verdict missing')
+    const originalLane = laneSchema.parse(JSON.parse(originalLaneBytes.toString()))
+    if (originalLane.lane_id !== lane.id || (job[0].conclusion !== 'success' && originalLane.status === 'pass'))
+      throw new Error('Provider job cannot authenticate a passing lane verdict')
+    const originalContext = files.get('context.json')
+    if (
+      !originalContext ||
+      JSON.stringify(contextSchema.parse(JSON.parse(originalContext.toString()))) !== JSON.stringify(context)
+    )
+      throw new Error('Authenticated artifact context is stale/mixed')
+    return {files, originalLane}
   }
   const provider: ReadinessProvider = {
     async context(context) {
@@ -214,35 +245,9 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
         throw new Error('Artifact is not owned by the citing lane/check')
       if (!lane.checks.some((check) => ref === checkEvidencePath(lane.id, check.id)))
         throw new Error('Unknown check artifact')
-      const {jobs, artifacts} = await selected(context)
-      const job = jobs.filter((job) => job.name === lane.id),
-        artifact = artifacts.filter((artifact) => artifact.name === artifactName(context, lane.id))
-      if (
-        job.length !== 1 ||
-        job[0].status !== 'completed' ||
-        !['success', 'failure', 'cancelled', 'timed_out'].includes(job[0].conclusion ?? '') ||
-        artifact.length !== 1 ||
-        artifact[0].expired ||
-        artifact[0].workflow_run.id !== Number(context.run_id)
-      )
-        throw new Error('Artifact origin unavailable or mismatched')
-      if (!providerArtifactInJobWindow(artifact[0], job[0])) throw new Error('Artifact run-attempt/job window mismatch')
-      if (!archives.has(artifact[0].id))
-        archives.set(artifact[0].id, ports.archive(context, artifact[0].id, artifact[0].digest))
-      const files = await archives.get(artifact[0].id)!
-      const originalLaneBytes = files.get(`${lane.id}.json`)
-      if (!originalLaneBytes) throw new Error('Authenticated lane verdict missing')
-      const originalLane = laneSchema.parse(JSON.parse(originalLaneBytes.toString()))
-      if (originalLane.lane_id !== lane.id || (job[0].conclusion !== 'success' && originalLane.status === 'pass'))
-        throw new Error('Provider job cannot authenticate a passing lane verdict')
+      const {files, originalLane} = await laneExecution(lane, context)
       if (citingLane && JSON.stringify(originalLane) !== JSON.stringify(citingLane))
         throw new Error('Lane verdict differs from the authenticated provider artifact')
-      const originalContext = files.get('context.json')
-      if (
-        !originalContext ||
-        JSON.stringify(contextSchema.parse(JSON.parse(originalContext.toString()))) !== JSON.stringify(context)
-      )
-        throw new Error('Authenticated artifact context is stale/mixed')
       const original = files.get(ref)
       if (!original || !original.length || !original.equals(Buffer.from(await readEvidence(evidenceRoot, ref))))
         throw new Error('Local artifact differs from authenticated provider bytes')
@@ -275,6 +280,27 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
           `https://github.com/${context.repository}/actions/runs/${context.run_id}/job/${gate[0].id}`
       )
         throw new Error('Gate provider identity/conclusion mismatch')
+      // Unlike a success, failure authority can override unavailable lane results.
+      // A PR source head alone cannot prove which base/merge this run executed.
+      if (
+        context.kind === 'pr' &&
+        record.conclusion !== 'success' &&
+        (await runIdentity(context)) !== context.tested_sha
+      ) {
+        let execution = false
+        for (const lane of validationLanes) {
+          try {
+            // Any authenticated sibling from this run proves its immutable event
+            // checkout. Local log copies are not prerequisites for this proof.
+            await laneExecution(lane, context)
+            execution = true
+            break
+          } catch {
+            // One unavailable/stale sibling must not erase another valid proof.
+          }
+        }
+        if (!execution) throw new Error('Gate failure execution revision is stale or unavailable')
+      }
     },
     async deviation(record, context) {
       const uri = new URL(record.approval.source_uri)

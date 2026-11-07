@@ -7,7 +7,6 @@ export interface ValidationCheck {
 }
 export interface ValidationLane {
   id: string
-  timeout_ms: number
   platform?: ValidationPlatform
   fixture_scope: string
   ac_ids: string[]
@@ -24,7 +23,6 @@ export const CI_EVIDENCE_RESERVE_MS = 90_000
 export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'quality',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'repository, no runtime fixtures',
     ac_ids: ['AC-24'],
     br_ids: ['BR-10'],
@@ -32,7 +30,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'business',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'disposable process/per-test roots',
     ac_ids: [
       'AC-1',
@@ -55,7 +52,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'e2e',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'isolated CLI, local sources/fake schedulers only',
     ac_ids: [
       'AC-2',
@@ -78,7 +74,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'human-dx',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'real POSIX PTYs, disposable persisted configuration',
     ac_ids: ['AC-22', 'AC-29'],
     br_ids: ['BR-09', 'BR-10'],
@@ -86,7 +81,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'agent-cli',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'closed stdin, separate pipes, local configuration',
     ac_ids: ['AC-21', 'AC-23', 'AC-29'],
     br_ids: ['BR-05', 'BR-08', 'BR-09', 'BR-10'],
@@ -94,7 +88,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'security',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'offline attack sentinels; public advisory metadata is the only network exception',
     ac_ids: ['AC-9', 'AC-10', 'AC-11', 'AC-12', 'AC-13', 'AC-15', 'AC-23', 'AC-25', 'AC-30'],
     br_ids: ['BR-02', 'BR-06', 'BR-07', 'BR-08', 'BR-10'],
@@ -102,7 +95,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'performance',
-    timeout_ms: LANE_BUDGET_MS,
     fixture_scope: 'fixed offline 10/1000-target fixtures; advisory latency',
     ac_ids: ['AC-31'],
     br_ids: ['BR-08', 'BR-09', 'BR-10'],
@@ -110,7 +102,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'native-macos',
-    timeout_ms: LANE_BUDGET_MS,
     platform: PLATFORMS.MACOS,
     fixture_scope: 'native macOS project/global roots and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
@@ -119,7 +110,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'native-windows',
-    timeout_ms: LANE_BUDGET_MS,
     platform: PLATFORMS.WINDOWS,
     fixture_scope: 'native Windows project/global roots, access controls, Job Objects and compiled executable',
     ac_ids: ['AC-2', 'AC-4', 'AC-6', 'AC-7', 'AC-9', 'AC-10', 'AC-12', 'AC-13', 'AC-19', 'AC-26'],
@@ -128,7 +118,6 @@ export const validationLanes: readonly ValidationLane[] = [
   },
   {
     id: 'build',
-    timeout_ms: LANE_BUDGET_MS,
     platform: PLATFORMS.LINUX,
     fixture_scope: 'independent native Linux build and compiled help/version',
     ac_ids: ['AC-26'],

@@ -1,3 +1,4 @@
+import {createAnsiText} from '../../src/domain/ansi-text'
 import type {RedactionSpan} from '../../src/domain/redact'
 import {
   diagnosticAuthoritySpans,
@@ -8,7 +9,6 @@ import {
   redactionSpans,
   subtractRedactionSpans,
 } from '../../src/domain/redact'
-import {createAnsiText} from './ansi-text'
 import {windowsJobs} from './windows-job'
 export const SESSION_MS = 10_000
 export const TAIL_BYTES = 256 * 1024
