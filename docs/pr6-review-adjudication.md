@@ -4,6 +4,44 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 bounded correction after96c809f, completed review AP
+
+Head `96c809f4cc553e39a82210576cefca8891f2f0ff`, actual merge
+`130b6d8e3a71ed002930350afa1453846b0335a3`: all hosted checks completed successfully or skipped,
+including CI42381239697 and reviewer42381240725. Both independent originals, all hosted originals and all11
+authentic provider ZIPs were preserved before explicit source-freeze release at2026-11-07T14:51:03.196617Z.
+All406 tracked files matched in all three worktrees.
+
+The [complete independent implementation original](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6708452643)
+retains **30pass/2fail/0not-runnable**, AC2/26: the first local macOS platform invocation recorded325/1 across
+two complete processes after pinned Bun1.4.2 trapped while starting the POSIX supervisor for a Git fixture.
+Full2171/0, default-policy security791/0, all ten fresh contracts1200/0 and hosted Windows/macOS326/0 each
+do not erase that failure. The task returned no text; its sealed durable reports were recovered without resuming it.
+The [complete actual supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6708453108) retains
+collector0/checker2,32 emitted blocked AC statuses,10 blocked lanes and34 reasons. Production artifact transport
+and missing authenticated app roles remain blockers, not permission to substitute local reports.
+Both complete originals use byte-verified reversible base64 transport. The private archive retains13121 members,
+86 command records,80 distinct empty roots and all six own406-file source guards.
+
+The [independent static reviewer](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6708174794)
+reported0blocking/0should-fix/0nits, with no tests/builds/installs. Hosted review added five findings.
+The owner authorized important fixes, not an unlimited cleanup loop:
+
+| Hosted finding | Bounded correction or explicit deferral |
+| --- | --- |
+|4502124875|Retain quoted-key and scalar mode independently through continuation, including indentless sequences.|
+|4502124879|Basic/Bearer recognition cannot narrow a complete credential scalar into token-only masking.|
+|4502124883|Whitespace completes exact aliases such as `sig`; an unfinished `sig` can still become public `signal`.|
+|4502124887|Run invalid-option checks with a valid local-sync fixture and assert the unknown-option diagnostic.|
+|4502124894|[Defer artifact-name helper cleanup](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6708276760): maintainability improvement, no demonstrated current correctness/security failure. Existing selection controls stay intact.|
+
+All three privacy findings reproduced on unchanged AP with exact Bun1.4.2:0pass/22fail in one complete process.
+The first implementation retained345/2, exposing overmasking of public `signal`/`signed_at` at partial-key cuts;
+the correction retains those unchanged public-boundary assertions and passes347/0. A separate new author Git
+fixture diagnostic passes15/0, but does not prove the prior runtime trap fixed; no speculative supervisor edit,
+pin change or retry of the original verifier was made. Inline deferral hit422 due to an existing owner pending review;
+the linked normal PR comment records the decision without submitting, deleting or modifying that review.
+
 ## Nov7 correction after29eb4d0, completed review AO
 
 Head `29eb4d0babf6956c60cdd7bf4ccd9c6f736f6cb8`, actual merge

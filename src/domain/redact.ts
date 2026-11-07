@@ -79,6 +79,7 @@ const VALUE_KINDS = {
   KEY: 'k',
   PLAIN: 'p',
   QUOTED: 'q',
+  QUOTED_SCALAR: 'c',
   SCALAR: 's',
   VALUE: 'v',
   SEQUENCE: 'l',
@@ -119,9 +120,20 @@ function assignmentValue(text: string, start: number, state: ValueState) {
       cursor++
     }
     if (cursor === text.length) return {start: cursor, end: cursor, continuation: valueContext({...state, column})}
-    if (state.kind === VALUE_KINDS.SCALAR && column !== null && column >= state.indent && sequenceItem(text, cursor))
+    if (
+      [VALUE_KINDS.SCALAR, VALUE_KINDS.QUOTED_SCALAR].some((kind) => state.kind === kind) &&
+      column !== null &&
+      column >= state.indent &&
+      sequenceItem(text, cursor)
+    )
       return assignmentValue(text, cursor, {...state, indent: column, kind: VALUE_KINDS.SEQUENCE, column})
-    if (column !== null && column <= state.indent && !(state.kind === VALUE_KINDS.QUOTED && /["']/.test(text[cursor])))
+    if (
+      column !== null &&
+      column <= state.indent &&
+      !(
+        [VALUE_KINDS.QUOTED, VALUE_KINDS.QUOTED_SCALAR].some((kind) => state.kind === kind) && /["']/.test(text[cursor])
+      )
+    )
       return {start, end: start, continuation: undefined}
     return credentialValue(
       text,
@@ -183,16 +195,23 @@ function credentialValue(
     start++
   }
   if (whitespace !== CREDENTIAL_WHITESPACE.HORIZONTAL) {
-    const kind =
-      whitespace === CREDENTIAL_WHITESPACE.QUOTED ? VALUE_KINDS.QUOTED : scalar ? VALUE_KINDS.SCALAR : VALUE_KINDS.PLAIN
+    const quoted = whitespace === CREDENTIAL_WHITESPACE.QUOTED
+    const kind = scalar
+      ? quoted
+        ? VALUE_KINDS.QUOTED_SCALAR
+        : VALUE_KINDS.SCALAR
+      : quoted
+        ? VALUE_KINDS.QUOTED
+        : VALUE_KINDS.PLAIN
     if (start === text.length) return {start, end: start, continuation: valueContext({indent, kind, column})}
     if (scalar && column !== null && column >= indent && sequenceItem(text, start))
       return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
-    if (column !== null && column <= indent && !(kind === VALUE_KINDS.QUOTED && /["']/.test(text[start])))
+    if (column !== null && column <= indent && !(quoted && /["']/.test(text[start])))
       return {start: original, end: original, continuation: undefined}
   }
   let end = start
-  if (authorization) {
+  const completeScalar = whitespace !== CREDENTIAL_WHITESPACE.HORIZONTAL && (scalar || column !== null)
+  if (authorization && !completeScalar) {
     const scheme = /^(?:Basic|Bearer)[ \t]+/i.exec(text.slice(start))
     if (scheme) {
       end += scheme[0].length
@@ -218,8 +237,7 @@ function credentialValue(
     }
     return {start, end, continuation: quote + 'x' + (escaped ? '\\' : '')}
   }
-  if (!token && whitespace !== CREDENTIAL_WHITESPACE.HORIZONTAL && (scalar || column !== null))
-    return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
+  if (!token && completeScalar) return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/\s/.test(text[end]))) end++
   return {start, end, continuation: end === text.length ? (end > start ? 'x' : '') : undefined}
 }
@@ -609,7 +627,8 @@ function discardedContext(discarded: string): string[] {
   const quotedKey = quotedKeyContext(discarded)
   if (quotedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
-  if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], false))
+  // Whitespace completes an exact alias; without it, "sig" may still become "signal".
+  if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
     retainKey('secret', pendingName.index)
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
