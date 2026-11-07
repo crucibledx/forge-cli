@@ -38,8 +38,9 @@ export function commandReason(value: string): string {
 
 /** Sanitize fields before JSON; budget escaped strings within both evidence consumers' cap. */
 export function commandLog(command: readonly string[], result: CommandOutcome): string {
-  const data = redactData({command: [...command], ...result})
+  const data = redactData({command: command.slice(0, 16), ...result})
   data.command = data.command.map((part) => diagnosticJSON(part, 1024))
+  if (command.length > data.command.length) data.command.push('<additional arguments omitted>')
   data.cwd = diagnosticJSON(data.cwd, 1024)
   if (data.signal !== null) data.signal = diagnosticJSON(data.signal, 1024)
   data.stdout = diagnosticJSON(data.stdout, MAX_EVIDENCE_BYTES / 4, true)
