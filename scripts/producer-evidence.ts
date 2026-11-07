@@ -239,6 +239,23 @@ export async function providerProducerState(
           Date.parse(time) > Date.parse(selected.review.submitted_at) ||
           (Date.parse(time) === Date.parse(selected.review.submitted_at) && raw.id > selected.review.id)
         try {
+          // An older empty COMMENTED shell claims no verdict. Do not extend
+          // this to prose, malformed payloads, selected IDs or newer output.
+          if (
+            !later &&
+            raw.id !== selected.review.id &&
+            raw.state === 'COMMENTED' &&
+            typeof raw.body === 'string' &&
+            !raw.body.trim()
+          ) {
+            const empty = reviewSchema.parse(raw)
+            if (
+              empty.html_url !==
+              `https://github.com/${context.repository}/pull/${context.pr_number}#pullrequestreview-${empty.id}`
+            )
+              throw new Error('Independent provider review identity/revision mismatch')
+            continue
+          }
           // Another integrated revision cannot supersede this exact merge.
           const blocks =
             typeof raw.body === 'string' ? [...raw.body.matchAll(/```forge-evidence-v1\n([\s\S]*?)\n```/g)] : []

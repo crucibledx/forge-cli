@@ -67,6 +67,8 @@ export interface TestSandbox {
 export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), timeoutMs = 30000): TestSandbox {
   const root = mkdtempSync(join(base, prefix))
   try {
+    const ceiling = dirname(realpathSync(root))
+    if (ceiling.includes(delimiter)) throw new Error('Git ceiling path contains a list delimiter')
     const project = join(root, 'project')
     const home = join(root, 'home')
     const temp = join(root, 'tmp')
@@ -102,7 +104,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
       GIT_CONFIG_NOSYSTEM: '1',
       // Git ignores a ceiling equal to its starting cwd. Exclude the canonical
       // parent so discovery stays inside this sandbox, including from its root.
-      GIT_CEILING_DIRECTORIES: dirname(realpathSync(root)),
+      GIT_CEILING_DIRECTORIES: ceiling,
       GIT_ATTR_NOSYSTEM: '1',
       GIT_TERMINAL_PROMPT: '0',
       GIT_ALLOW_PROTOCOL: 'file',

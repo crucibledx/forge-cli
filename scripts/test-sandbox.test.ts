@@ -1,5 +1,6 @@
-import {appendFileSync, mkdirSync, realpathSync, symlinkSync} from 'node:fs'
-import {dirname, join, resolve} from 'node:path'
+import {randomUUID} from 'node:crypto'
+import {appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync} from 'node:fs'
+import {delimiter, dirname, join, resolve} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
@@ -8,6 +9,21 @@ import {runPipe} from '../e2e/framework/pipe'
 import {allowlistedEnvironment, createTestSandbox, testEnvironment} from './test-sandbox'
 
 const dir = useTmpDir('compiler-environment')
+it.each([false, true])('AC-19 rejects unrepresentable canonical Git ceiling paths, linked=%s', (linked) => {
+  const physical = join(dir(), `run${delimiter}1`)
+  mkdirSync(physical)
+  const base = linked ? join(dir(), 'alias') : physical
+  if (linked) symlinkSync(physical, base, process.platform === 'win32' ? 'junction' : 'dir')
+  let sandbox: ReturnType<typeof createTestSandbox> | undefined
+  try {
+    expect(() => {
+      sandbox = createTestSandbox('invalid-ceiling-', base)
+    }).toThrow('Git ceiling path contains a list delimiter')
+  } finally {
+    sandbox?.dispose()
+  }
+  expect(readdirSync(physical)).toEqual([])
+})
 it.each(
   (['root', 'project', 'nested'] as const).flatMap((location) => [false, true].map((linked) => ({location, linked}))),
 )('AC-19 shared Git discovery boundary rejects enclosing config for %j', ({location, linked}) => {
@@ -35,6 +51,8 @@ it.each(
       expect(git(cwd, env, 'rev-parse', '--is-inside-work-tree').exitCode).toBe(128)
       const repository = join(sandbox.project, 'repository')
       mkdirSync(repository, {recursive: true})
+      const marker = randomUUID()
+      writeFileSync(join(repository, '.forge-test-fixture'), marker)
       expect(git(cwd, env, '-C', repository, 'init', '--quiet').exitCode).toBe(0)
       appendFileSync(join(repository, '.git/config'), '\n[forge]\n\tsandboxBoundary = fixture-only\n')
       const selected = git(cwd, env, '-C', repository, 'config', '--local', '--get', 'forge.sandboxBoundary')
@@ -42,7 +60,9 @@ it.each(
       expect(selected.stdout.toString().trim()).toBe('fixture-only')
       const worktree = git(cwd, env, '-C', repository, 'rev-parse', '--show-toplevel')
       expect(worktree.exitCode).toBe(0)
-      expect(realpathSync(worktree.stdout.toString().trim())).toBe(realpathSync(repository))
+      // Git expands native short paths that Bun may retain. Prove physical
+      // fixture identity through its unique bytes, not equivalent path spellings.
+      expect(readFileSync(join(worktree.stdout.toString().trim(), '.forge-test-fixture'), 'utf8')).toBe(marker)
     }
   } finally {
     sandbox.dispose()

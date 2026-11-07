@@ -14,6 +14,93 @@ import {commandLog, commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it('AC-27 failed command artifacts remove native, escaped and expanded Windows sandbox aliases', async () => {
+  const root = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\forge-validation-private-alias`
+  const aliases = [
+    root,
+    root.replaceAll('\\', '/'),
+    String.raw`C:\Users\PRIVATE_USER_Q\AppData\Local\Temp\forge-validation-private-alias`,
+    String.raw`c:\users\PRIVATE_USER_Q\appdata\local\temp\forge-validation-private-alias`,
+  ].flatMap((path) => [path, path.replaceAll('\\', '\\\\')])
+  const input =
+    aliases
+      .map(
+        (path) =>
+          `PUBLIC_BEFORE_ALIAS "D:\\public\\keep.txt" "https://public.invalid/keep" failure at "${path}\\nested\\file" PUBLIC_SAME_LINE`,
+      )
+      .join('\n') + '\nPUBLIC_AFTER_ALIAS'
+  const stream = () =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(Buffer.from(input))
+        controller.close()
+      },
+    })
+  const result = await executeCheck(['fixture'], 5000, {
+    ...ports,
+    createSandbox: () => {
+      const sandbox = createTestSandbox()
+      return {...sandbox, root, dispose: sandbox.dispose}
+    },
+    spawn: async () =>
+      ({
+        exited: Promise.resolve(19),
+        signalCode: null,
+        stdout: stream(),
+        stderr: stream(),
+      }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,
+    terminate: async () => {},
+  })
+  expect(result.exit_code).toBe(19)
+  expect(result.timed_out).toBe(false)
+  for (const output of [result.stdout, result.stderr, commandLog(['fixture'], result)]) {
+    expect(output).not.toContain('PRIVATE_USER_Q')
+    expect(output).not.toContain('RUNNER~1')
+    expect(output).not.toContain('forge-validation-private-alias')
+    expect(output).toContain('PUBLIC_AFTER_ALIAS')
+    expect(output).toContain('PUBLIC_BEFORE_ALIAS')
+    expect(output).toContain('PUBLIC_SAME_LINE')
+    expect(output).toContain('public.invalid/keep')
+    expect(output).toContain('<sandbox>')
+  }
+  expect(result.stdout).toContain('"D:\\public\\keep.txt"')
+  expect(result.stderr).toContain('"D:\\public\\keep.txt"')
+  for (const output of [result.stdout, result.stderr]) {
+    const lines = output.split('\n')
+    expect(lines).toHaveLength(aliases.length + 1)
+    for (const line of lines.slice(0, -1)) {
+      expect(line).toContain('PUBLIC_BEFORE_ALIAS')
+      expect(line).toContain('"D:\\public\\keep.txt"')
+      expect(line).toContain('"https://public.invalid/keep"')
+      expect(line).toContain('PUBLIC_SAME_LINE')
+      expect(line).toContain('<sandbox>')
+    }
+  }
+})
+it('AC-27 native Git-expanded paths in failed stdout and stderr are private after disposal', async () => {
+  const script = `
+    import {dirname, join} from 'node:path'
+    const repository = join(dirname(process.env.HOME), 'project')
+    const git = (...args) => Bun.spawnSync(['git', '-C', repository, ...args], {stdout:'pipe', stderr:'pipe'})
+    if (git('init', '--quiet').exitCode !== 0) throw Error('Fixture Git init failed')
+    const result = git('rev-parse', '--show-toplevel')
+    if (result.exitCode !== 0) throw Error('Fixture Git path lookup failed')
+    const value = JSON.stringify({path: result.stdout.toString().trim(), public: 'PUBLIC_NATIVE_Q'})
+    process.stdout.write(value)
+    process.stderr.write(value)
+    process.exit(19)
+  `
+  const result = await executeCheck([process.execPath, '-e', script], 5000)
+  expect(result).toMatchObject({exit_code: 19, timed_out: false})
+  for (const output of [result.stdout, result.stderr]) {
+    expect(JSON.parse(output)).toEqual({path: join('<sandbox>', 'project'), public: 'PUBLIC_NATIVE_Q'})
+    expect(output).not.toContain('forge-validation-')
+  }
+  const logged = JSON.parse(commandLog(['fixture-native-path'], result))
+  expect(logged.exit_code).toBe(19)
+  expect(logged.stdout).toBe(result.stdout)
+  expect(logged.stderr).toBe(result.stderr)
+})
 it.each([
   {command: ['bun', 'run', 'fixture'], expected: [process.execPath, '--no-env-file', 'run', 'fixture']},
   {command: [process.execPath, '-e', '0'], expected: [process.execPath, '--no-env-file', '-e', '0']},

@@ -75,7 +75,15 @@ function* credentialAssignments(text: string) {
   }
 }
 
-const VALUE_KINDS = {KEY: 'k', PLAIN: 'p', QUOTED: 'q', SCALAR: 's', VALUE: 'v'} as const
+const VALUE_KINDS = {
+  KEY: 'k',
+  PLAIN: 'p',
+  QUOTED: 'q',
+  SCALAR: 's',
+  VALUE: 'v',
+  SEQUENCE: 'l',
+  SEQUENCE_DASH: 'd',
+} as const
 type ValueKind = (typeof VALUE_KINDS)[keyof typeof VALUE_KINDS]
 const CREDENTIAL_WHITESPACE = {HORIZONTAL: 'horizontal', QUOTED: 'quoted', ASSIGNMENT: 'assignment'} as const
 type CredentialWhitespace = (typeof CREDENTIAL_WHITESPACE)[keyof typeof CREDENTIAL_WHITESPACE]
@@ -92,18 +100,27 @@ function valueState(text: string) {
   if (!Number.isSafeInteger(indent) || (column !== null && !Number.isSafeInteger(column))) return
   return {indent, kind: match[2] as ValueState['kind'], column, length: match[0].length}
 }
+const sequenceItem = (text: string, cursor: number) =>
+  text[cursor] === '-' && (cursor + 1 === text.length || /[ \t\r\n]/.test(text[cursor + 1]))
 /** Retain only indentation/phase counters, never a discarded word or block body. */
 function assignmentValue(text: string, start: number, state: ValueState) {
   let cursor = start,
     end = start,
     column = state.column
-  if (state.kind !== VALUE_KINDS.VALUE) {
+  if (state.kind === VALUE_KINDS.SEQUENCE_DASH) {
+    if (cursor === text.length) return {start, end, continuation: valueContext(state)}
+    if (!/[ \t\r\n]/.test(text[cursor])) return {start, end, continuation: undefined}
+    state = {...state, kind: VALUE_KINDS.SEQUENCE}
+  }
+  if (state.kind !== VALUE_KINDS.VALUE && state.kind !== VALUE_KINDS.SEQUENCE) {
     while (cursor < text.length && /[ \t\r\n]/.test(text[cursor])) {
       if (/[\r\n]/.test(text[cursor])) column = 0
       else if (column !== null) column++
       cursor++
     }
     if (cursor === text.length) return {start: cursor, end: cursor, continuation: valueContext({...state, column})}
+    if (state.kind === VALUE_KINDS.SCALAR && column !== null && column >= state.indent && sequenceItem(text, cursor))
+      return assignmentValue(text, cursor, {...state, indent: column, kind: VALUE_KINDS.SEQUENCE, column})
     if (column !== null && column <= state.indent && !(state.kind === VALUE_KINDS.QUOTED && /["']/.test(text[cursor])))
       return {start, end: start, continuation: undefined}
     return credentialValue(
@@ -125,7 +142,16 @@ function assignmentValue(text: string, start: number, state: ValueState) {
         continue
       }
       if (!/[\r\n]/.test(char)) {
-        if (column <= state.indent) return {start, end, continuation: undefined}
+        if (column <= state.indent) {
+          if (state.kind !== VALUE_KINDS.SEQUENCE || column !== state.indent || !sequenceItem(text, cursor))
+            return {start, end, continuation: undefined}
+          if (cursor + 1 === text.length)
+            return {
+              start,
+              end: cursor,
+              continuation: valueContext({...state, kind: VALUE_KINDS.SEQUENCE_DASH, column: null}),
+            }
+        }
         column = null
       }
     }
@@ -160,6 +186,8 @@ function credentialValue(
     const kind =
       whitespace === CREDENTIAL_WHITESPACE.QUOTED ? VALUE_KINDS.QUOTED : scalar ? VALUE_KINDS.SCALAR : VALUE_KINDS.PLAIN
     if (start === text.length) return {start, end: start, continuation: valueContext({indent, kind, column})}
+    if (scalar && column !== null && column >= indent && sequenceItem(text, start))
+      return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
     if (column !== null && column <= indent && !(kind === VALUE_KINDS.QUOTED && /["']/.test(text[start])))
       return {start: original, end: original, continuation: undefined}
   }
@@ -192,7 +220,7 @@ function credentialValue(
   }
   if (!token && whitespace !== CREDENTIAL_WHITESPACE.HORIZONTAL && (scalar || column !== null))
     return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
-  while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/[\s&]/.test(text[end]))) end++
+  while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/\s/.test(text[end]))) end++
   return {start, end, continuation: end === text.length ? (end > start ? 'x' : '') : undefined}
 }
 
@@ -394,8 +422,19 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     spans.push({start, end})
   }
   let continuedEnd = 0,
-    firstIndent = 0
+    firstIndent = 0,
+    continuedQueryEnd = 0
   for (const prefix of options.credentialPrefixes ?? []) {
+    if (/^[?&#]/.test(prefix)) {
+      const input = prefix + text
+      queryStart.lastIndex = 0
+      const match = queryStart.exec(input)
+      if (match && match.index < prefix.length && credentialQueryKey(match[1])) {
+        let end = match.index + match[0].length
+        while (end < input.length && !/[&#\s]/.test(input[end])) end++
+        continuedQueryEnd = Math.max(continuedQueryEnd, end - prefix.length)
+      }
+    }
     const state = valueState(prefix)
     if (!state) continue
     if (state.kind === VALUE_KINDS.KEY) {
@@ -446,6 +485,9 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     for (const match of credentialAssignments(credentialText)) {
       if (match.index < covered) continue
       if (continuedEnd > 0 && match.index - credentialPrefix.length < continuedEnd) continue
+      // An evicted query prefix still owns its value's delimiter rules. An
+      // unprefixed assignment recognizer must not consume the public next parameter.
+      if (continuedQueryEnd > 0 && match.index - credentialPrefix.length < continuedQueryEnd) continue
       if (!credentialPrefix && match.index === 0 && options.credentialPrefixes?.includes('_')) continue
       const value = credentialValue(
         credentialText,

@@ -377,6 +377,53 @@ it('AC-32 malformed older exact-revision app history is unavailable, not silentl
   f.selected.review.body = 'No verifiable structured verdict'
   expect((await evaluate(f, [], {read})).exit_code).toBe(2)
 })
+it.each([
+  'empty',
+  'whitespace',
+  'prose',
+  'attestation',
+  'dismissed',
+  'changes-requested',
+  'approved',
+  'wrong-uri',
+  'timestamp',
+  'newer',
+  'selected-changed',
+] as const)('AC-32 only a validated older empty comment is non-authoritative history: %s', async (kind) => {
+  const f = producerFixture(),
+    original = f.read([f.selected, f.resolved])
+  f.bundle.reviews = f.resolved.payload.reviews
+  f.selected.review.body = kind === 'whitespace' ? ' \n\t' : ''
+  if (kind === 'prose') f.selected.review.body = 'No verifiable structured verdict'
+  if (kind === 'attestation') f.selected.review.body = '```forge-evidence-v1\n{}\n```'
+  if (kind === 'dismissed') f.selected.review.state = 'DISMISSED'
+  if (kind === 'changes-requested') f.selected.review.state = 'CHANGES_REQUESTED'
+  if (kind === 'approved') f.selected.review.state = 'APPROVED'
+  if (kind === 'wrong-uri') f.selected.review.html_url = f.resolved.uri
+  if (kind === 'timestamp') f.selected.review.submitted_at = 'invalid'
+  if (kind === 'newer') f.selected.review.submitted_at = '2026-11-04T12:00:30.000Z'
+  const read = async (context: unknown, endpoint: string) =>
+    kind === 'selected-changed' && endpoint.includes('?')
+      ? [f.selected.review, {...f.resolved.review, body: ''}]
+      : original(context, endpoint)
+  const report = await evaluate(f, [], {read})
+  expect(report.exit_code).toBe(['empty', 'whitespace'].includes(kind) ? 0 : 2)
+})
+it('AC-32 older empty comments cannot clear an authenticated historical blocker', async () => {
+  const f = producerFixture(),
+    empty = f.make(776, 0),
+    read = f.read([empty, f.selected, f.later, f.resolved])
+  empty.review.body = ''
+  f.bundle.reviews = f.resolved.payload.reviews
+  const report = await evaluate(f, [], {read})
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons).toContainEqual({
+    kind: 'failure',
+    subject: 'code/later-blocker',
+    message: 'Open blocking finding',
+  })
+  expect(report.evidence).toContain(f.later.uri)
+})
 it.each(['old-open', 'resolved', 'selected-pass', 'new-pass'] as const)(
   'AC-32 human dismissal is not an independent resolution or passing approval: %s',
   async (mode) => {

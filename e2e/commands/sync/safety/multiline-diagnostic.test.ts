@@ -12,16 +12,24 @@ import {runPipe} from '../../../framework/pipe'
 import {config} from './helpers'
 
 const dir = useTmpDir('scalar-diagnostic-cli')
-it.each(['|', '>-', 'plain'].flatMap((scalar) => [false, true].map((preview) => ({scalar, preview}))))(
+it.each(
+  ['|', '>-', 'plain', 'assignment', 'sequence'].flatMap((scalar) =>
+    [false, true].map((preview) => ({scalar, preview})),
+  ),
+)(
   'AC-15,30 real CLI scalar failure keeps raw stdout/stderr/latest/history private: $scalar preview=$preview',
   async ({scalar, preview}) => {
     const root = dir(),
       first = 'CLI_SCALAR_FIRST_PRIVATE_Q',
       second = 'CLI_SCALAR_SECOND_PRIVATE_Q'
     const value =
-      scalar === 'plain'
-        ? `password: ${first} ${second}\n  ${first}\nvisible=yes`
-        : `password: ${scalar}\n  ${first} ${second}\n  ${first}\nvisible=yes`
+      scalar === 'assignment'
+        ? `password=prefix&${first}&${second}\nvisible=yes`
+        : scalar === 'sequence'
+          ? `api_keys:\n- ${first}\n- ${second}\nvisible=yes`
+          : scalar === 'plain'
+            ? `password: ${first} ${second}\n  ${first}\nvisible=yes`
+            : `password: ${scalar}\n  ${first} ${second}\n  ${first}\nvisible=yes`
     await config(root, [{name: 'alpha', type: 'local', path: join(root, value)}])
     const before = await protectedBytes(root),
       sinks: string[] = []
