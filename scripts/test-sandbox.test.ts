@@ -9,12 +9,17 @@ import {allowlistedEnvironment} from './test-sandbox'
 const dir = useTmpDir('compiler-environment')
 it('AC-19 excludes inherited secrets from the earliest compiler environment', () => {
   const previous = process.env.FORGE_COMPILER_SECRET
+  const options = process.env.BUN_OPTIONS
   process.env.FORGE_COMPILER_SECRET = 'compiler-sentinel'
+  process.env.BUN_OPTIONS = '--preload=OPERATOR_PRELOAD_MUST_NOT_RUN'
   try {
     expect(allowlistedEnvironment()).not.toHaveProperty('FORGE_COMPILER_SECRET')
+    expect(allowlistedEnvironment()).not.toHaveProperty('BUN_OPTIONS')
   } finally {
     if (previous === undefined) delete process.env.FORGE_COMPILER_SECRET
     else process.env.FORGE_COMPILER_SECRET = previous
+    if (options === undefined) delete process.env.BUN_OPTIONS
+    else process.env.BUN_OPTIONS = options
   }
 })
 it('AC-19 native Windows compiles once in isolation and copies independent per-fixture backends', async () => {
@@ -37,7 +42,8 @@ try {
  const compile = launches[0]
  const isolated = compile.cwd === first.project && compile.env.HOME === firstEnv.HOME &&
    compile.env.USERPROFILE === firstEnv.HOME && compile.env.TMPDIR === firstEnv.TMPDIR &&
-   !['FORGE_COMPILER_SECRET','SSH_AUTH_SOCK','BUN_OPTIONS'].some(key => key in compile.env)
+   !['FORGE_COMPILER_SECRET','SSH_AUTH_SOCK'].some(key => key in compile.env) &&
+   compile.env.BUN_OPTIONS === '--no-env-file'
  first.dispose()
  const run = args => original([executable, ...args], {cwd: second.project, env: secondEnv, stdout: 'pipe', stderr: 'pipe', timeout: 5000})
  const created = run(['/create','/tn','fixture-job']).exitCode

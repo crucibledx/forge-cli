@@ -92,7 +92,9 @@ export async function executeCheck(
       throw new Error('Command deadline exceeded during sandbox setup')
     }
     child = await ports.spawn(
-      [command[0] === 'bun' ? process.execPath : command[0], ...command.slice(1)],
+      command[0] === 'bun' || command[0] === process.execPath
+        ? [process.execPath, '--no-env-file', ...command.slice(1)]
+        : command,
       repositoryRoot,
       sandbox.env,
     )

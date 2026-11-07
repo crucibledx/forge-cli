@@ -5,8 +5,8 @@ import {describe, expect, it} from 'bun:test'
 
 import {runPipe} from '../e2e/framework/pipe'
 import {useTmpDir} from '../src/test-helpers/tmp'
-import type {createTestSandbox} from './test-sandbox'
-import {testEnvironment} from './test-sandbox'
+import {createTestSandbox, testEnvironment} from './test-sandbox'
+import {repositoryRoot} from './validation-identity'
 
 describe('isolated launcher regressions (BR-09,10)', () => {
   const dir = useTmpDir('launcher-contracts')
@@ -78,23 +78,53 @@ it('unmocked', () => expect(value).toBe(1))\n`,
     expect(result.stderr).toContain('(pass) mocked')
     expect(result.stderr).toContain('(pass) unmocked')
   })
-  it('imports local fixture history with no configured identity', async () => {
-    const fixture = join(dir(), 'identity.test.ts')
+  function identityFixture(cwd: string): string {
+    const fixture = join(cwd, 'identity.test.ts')
     const helper = resolve(import.meta.dir, '../e2e/framework/git.ts')
     writeFileSync(
       fixture,
       `import {it,expect} from 'bun:test'
+import {dirname} from 'node:path'
 import {createBareRepo} from ${JSON.stringify(helper)}
 it('no identity needed', async () => {
- const cwd = ${JSON.stringify(dir())}
- const identity = Bun.spawnSync(['git','config','--get','user.name'], {cwd})
+ const cwd = ${JSON.stringify(cwd)}
+ // A temp root may itself be inside a checkout. Bound Git discovery without
+ // configuring any identity or inheriting the enclosing repository's config.
+ const env = {...process.env, GIT_CEILING_DIRECTORIES: dirname(cwd)}
+ const identity = Bun.spawnSync(['git','config','--get','user.name'], {cwd, env})
  expect(identity.exitCode).not.toBe(0)
- expect(Bun.spawnSync(['git','rev-parse','--is-inside-work-tree'], {cwd}).exitCode).not.toBe(0)
- expect(await createBareRepo(${JSON.stringify(dir())}, {'skills/deploy.md':'# Deploy skill'})).toBeTruthy()
+ expect(Bun.spawnSync(['git','rev-parse','--is-inside-work-tree'], {cwd, env}).exitCode).not.toBe(0)
+ expect(await createBareRepo(${JSON.stringify(cwd)}, {'skills/deploy.md':'# Deploy skill'})).toBeTruthy()
 })\n`,
     )
-    const result = await runPipe(dir(), [process.execPath, resolve(import.meta.dir, 'run-tests.ts'), '--', fixture])
+    return fixture
+  }
+  it('imports local fixture history with no configured identity', async () => {
+    const result = await runPipe(dir(), [
+      process.execPath,
+      resolve(import.meta.dir, 'run-tests.ts'),
+      '--',
+      identityFixture(dir()),
+    ])
     expect(result.exitCode).toBe(0)
+  })
+  it('AC-14,19,25,27 imports identity-free fixtures when every disposable root is inside a checkout', async () => {
+    const parent = join(repositoryRoot, 'results/test-launcher-placement')
+    mkdirSync(parent, {recursive: true})
+    const sandbox = createTestSandbox('nested-', parent)
+    try {
+      const result = await runPipe(sandbox.project, [
+        process.execPath,
+        resolve(import.meta.dir, 'run-tests.ts'),
+        '--',
+        identityFixture(sandbox.project),
+      ])
+      expect(result.timedOut).toBe(false)
+      expect({exit: result.exitCode, stderr: result.stderr}).toMatchObject({exit: 0})
+      expect(result.stderr).toContain('1 pass')
+    } finally {
+      sandbox.dispose()
+    }
   })
   it('quotes checkout paths literally in fake scheduler scripts', async () => {
     if (process.platform === 'win32') return

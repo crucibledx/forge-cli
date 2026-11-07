@@ -14,6 +14,9 @@ export const testSuites = {
   ],
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
+    'scripts/dotenv-isolation.test.ts',
+    'scripts/evidence-output-alias.test.ts',
+    'scripts/run-tests.test.ts',
     'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/domain/redact.test.ts',
@@ -48,6 +51,9 @@ export const testSuites = {
     'scripts/check-lanes-assembly.test.ts',
   ],
   platform: [
+    'scripts/dotenv-isolation.test.ts',
+    'scripts/evidence-output-alias.test.ts',
+    'scripts/run-tests.test.ts',
     'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/application/commands/sync/emergency-terminal.test.ts',

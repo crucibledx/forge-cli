@@ -4,6 +4,47 @@ Source: [owner's Nov6 review](https://github.com/crucibledx/forge-cli/pull/6#iss
 The Nov5 ready result is historical, not approval of these changes. PR6 returned to draft when the evidence bypasses
 were confirmed. The frozen spec and approved readiness contract are unchanged.
 
+## Nov7 correction afterb8de477, completed review AL
+
+Head `b8de47737385fa2c1a5f1ec909b0742b5ce20153`, actual merge
+`30cb942f1ff2943ff372e9f81ad0a2b645a2c63f`: CI42364863887 and hosted reviewer42364864187 completed.
+Both independent originals were preserved and published before the explicit source-gate release at
+2026-11-07T11:07:44.896664Z. All404 tracked hashes remained unchanged through release; READY is not approval.
+
+The [original verifier](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706008595)
+retains **28pass/4fail/0not-runnable**, failing AC14/19/25/27. Its actual full run is2081pass/1fail;
+all ten fresh first-outcome contracts runs are1121pass/1fail each. The dotenv probe found all three synthetic
+credential variables in a byte-identical copied checkout. The identity fixture also inherited its enclosing
+Git worktree when isolated temp roots were placed inside ignored evidence. Neither failure is erased by the
+author's earlier2082/0 or by hosted successes. The [actual readiness supplement](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6706008813)
+retains collector0/checker2 and32blocked rows, despite ten authenticated passing hosted lanes, because genuine
+exact-revision code/security roles and a distinct implementation-verifier attestation remain missing.
+
+The [independent reviewer](https://github.com/crucibledx/forge-cli/pull/6#issuecomment-6705810787)
+retains0blocking/1should-fix/0nits. Its read-only filesystem probe established native case aliases, but it did
+not execute the destructive readiness counterexample. Its denied install/persistence never ran and was not rerouted.
+
+| Finding | Accepted correction and regression boundary |
+| --- | --- |
+| Hosted4501355536 / verifier AL | Disable dotenv before test preloads and repository-root Bun execution, and supply trusted `BUN_OPTIONS=--no-env-file` for nested package scripts. Keep compiled/non-Bun argv unchanged and explicit fixture preloads working. Synthetic `.env`/`.env.test` controls first prove ordinary autoload, then assert absent credentials at preload/import across launcher, named/absolute Bun and nested-run execution. |
+| Verifier AL placement failure | Bound Git discovery at the disposable parent, retaining the no-identity/no-worktree assertions without setting identity/config. Add an actual nested-checkout temporary-root regression. |
+| Independent reviewer AL | Reject portable case/NFC/expanding-case and existing device/inode input/output aliases before stale-output reads and cleanup. Direct readiness and both registered evidence CLIs preserve malformed/report-shaped private source bytes on native filesystems, including hardlinks. |
+| Hosted4501355544 | Share the const-derived redaction view type between the domain projector and retained transcript helper. |
+| Hosted4501355550 | Specialize the sole query-suffix scan for its invariant regex and credential-key predicate. |
+| Hosted4501355555 | Share percent-byte decoding and case normalization without changing quoted assignment decoding or incomplete encodings. |
+
+The first AM regression run retains25pass/5fail: four new `.env.local` positive controls incorrectly assumed
+test-mode autoload (Bun excludes that file in test mode), and one nested Git regression exposed that a ceiling
+at the current directory does not stop ancestor discovery. The supported `.env`/`.env.test` controls and parent
+ceiling correct those author fixtures; existing oracles remain unchanged. Initial fixture type errors and the
+new native/security registry-label rejection are retained separately, not represented as successful checks.
+No historical thread is resolved on an unpushed fix, and no local report substitutes for an app attestation.
+The first complete AM run retains2098pass/6fail across all18 runner processes. Four dependency-free fixture
+copies omitted the newly shared portable-path module; their copy list now includes it without adding installed
+packages. Two curated-suite negatives used AC32 as an uncovered ID, which the new alias suite now genuinely
+covers. Their mutation now selects still-uncovered AC28; the original rejection assertions remain unchanged.
+The original six failures and earlier incomplete fixture attempts remain preserved rather than overwritten.
+
 ## Nov7 correction after203424a, completed review AK
 
 Head `203424a35770cde30c96eff16fb617bed676518f`, actual tested merge

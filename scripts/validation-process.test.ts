@@ -14,6 +14,35 @@ import {commandLog, commandMetadata, executeCheck} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
+it.each([
+  {command: ['bun', 'run', 'fixture'], expected: [process.execPath, '--no-env-file', 'run', 'fixture']},
+  {command: [process.execPath, '-e', '0'], expected: [process.execPath, '--no-env-file', '-e', '0']},
+  {command: ['dist/forge', '--version'], expected: ['dist/forge', '--version']},
+  {command: ['git', '--version'], expected: ['git', '--version']},
+])('AC-19 Bun-only dotenv flags preserve compiled and non-Bun arguments: $command', async ({command, expected}) => {
+  let actual: string[] | undefined
+  const closed = () =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close()
+      },
+    })
+  const result = await executeCheck([...command], 5000, {
+    ...ports,
+    spawn: async (args) => {
+      actual = args
+      return {
+        exited: Promise.resolve(0),
+        signalCode: null,
+        stdout: closed(),
+        stderr: closed(),
+      } as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>
+    },
+    terminate: async () => {},
+  })
+  expect(result.exit_code).toBe(0)
+  expect(actual).toEqual([...expected])
+})
 it('AC-19 validation cleanup ps uses the command sandbox, never the launcher startup environment', async () => {
   if (process.platform === 'win32') return
   const root = dir(),

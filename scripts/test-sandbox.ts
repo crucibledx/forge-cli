@@ -103,6 +103,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
       GIT_ATTR_NOSYSTEM: '1',
       GIT_TERMINAL_PROMPT: '0',
       GIT_ALLOW_PROTOCOL: 'file',
+      BUN_OPTIONS: '--no-env-file',
       NO_COLOR: '1',
     }
     writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
@@ -139,7 +140,13 @@ export function testEnvironment(cwd: string, overrides: Record<string, string> =
       ensureWindowsScheduler(dir, env)
       const home = overrides.HOME ?? env.HOME
       // Deliberate fixture overrides are not inherited from the operator's environment.
-      return {...env, ...overrides, HOME: home, USERPROFILE: home}
+      return {
+        ...env,
+        ...overrides,
+        BUN_OPTIONS: overrides.BUN_OPTIONS ? `--no-env-file ${overrides.BUN_OPTIONS}` : env.BUN_OPTIONS,
+        HOME: home,
+        USERPROFILE: home,
+      }
     }
     const parent = dirname(dir)
     if (parent === dir) throw new Error('Test commands require a disposable test sandbox')
