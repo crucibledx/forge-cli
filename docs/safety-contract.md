@@ -32,6 +32,8 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   This includes differently spelled intermediate directories with distinct filenames, before fresh-root preview
   or apply. Identically spelled shared parent directories remain valid.
   This comparison never rewrites actual destination spelling or persisted state keys.
+- Windows device names, alternate data streams, and trailing dots/spaces are rejected on Windows only.
+  Legal POSIX filenames remain usable; portable case/Unicode collision checks still apply on every OS.
 - Config stays version `"1"`. State upgrades to version 2 only in a committed transaction. Loading old state does
   not write it: legacy hashes remain `legacy-unknown` until installation or byte-identical desired content verifies
   them. `local-wins` never invents an installed baseline.

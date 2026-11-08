@@ -43,6 +43,7 @@ export async function createConfinement(selectedRoot: string) {
       } else rel = inside(root, resolve(root, portable))
       const segments = rel.split(sep)
       if (
+        process.platform === 'win32' &&
         segments.some(
           (segment) =>
             /[:]/.test(segment) ||

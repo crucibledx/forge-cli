@@ -1,7 +1,6 @@
 import {expect, it} from 'bun:test'
 
 import type {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {terminateTree} from '../e2e/framework/process'
 import {assessAudit} from './security-audit'
 import {createTestSandbox} from './test-sandbox'
 import {executeCheck} from './validation-process'

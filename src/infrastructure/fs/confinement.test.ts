@@ -5,7 +5,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
 import {createConfinement} from './confinement'
-import {createFileReader} from './reader'
+import {createFileReader, readDiskContents} from './reader'
 import {prepareTransaction, transactionIO} from './transaction'
 
 describe('BR-07 confinement (AC-12)', () => {
@@ -29,12 +29,36 @@ describe('BR-07 confinement (AC-12)', () => {
     'C:relative',
     'D:\\foreign\\file',
     '\\\\server\\share\\file',
-    'stream:secret',
-    'a.',
-    'CON',
   ])('refuses unsafe path %j', async (path) => {
     const boundary = await createConfinement(dir())
     await expect(boundary.resolve(path)).rejects.toThrow()
+  })
+  it.each([
+    'stream:secret',
+    'notes:draft.md',
+    'a.',
+    'a ',
+    'CON',
+    'aux.md',
+    'com1.md',
+    'nested/PRN.txt',
+    'nested/file:stream',
+    'nested/folder./file.md',
+  ])('uses native filename restrictions for %j (AC-12)', async (path) => {
+    const boundary = await createConfinement(dir())
+    if (process.platform === 'win32') {
+      await expect(boundary.resolve(path)).rejects.toThrow('non-portable filename or alternate data stream')
+      await expect(prepareTransaction(dir(), [{path, content: 'safe'}])).rejects.toThrow()
+      return
+    }
+    expect(await boundary.resolve(path)).toBe(join(boundary.root, path))
+    await (await prepareTransaction(dir(), [{path, content: 'safe'}])).commit()
+    const contents = await readDiskContents(dir(), {
+      version: 2,
+      lastSync: '2026-11-08T00:00:00.000Z',
+      files: {[path]: {hash: 'a'.repeat(64), sourceName: 'fixture', baseline: 'installed'}},
+    })
+    expect(contents[path]).toEqual(Buffer.from('safe'))
   })
   it('refuses absolute outside-root and sibling-prefix paths', async () => {
     const boundary = await createConfinement(dir())

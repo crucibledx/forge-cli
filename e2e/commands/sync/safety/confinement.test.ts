@@ -21,3 +21,19 @@ it('BR-07 whole CLI accepts a symlink-selected canonical root without touching a
   expect(await readFile(join(root, '.claude/skills/a.md'), 'utf8')).toBe('# A')
   expect(await readFile(sentinel, 'utf8')).toBe('outside sentinel')
 })
+
+it.skipIf(process.platform === 'win32')(
+  'BR-07 POSIX sync preserves legal Windows-reserved filenames (AC-13)',
+  async () => {
+    const root = dir(),
+      source = join(root, 'upstream'),
+      names = ['aux.md', 'com1.md', 'notes:draft.md']
+    await mkdir(join(source, 'skills'), {recursive: true})
+    for (const name of names) await writeFile(join(source, 'skills', name), `# ${name}`)
+    await config(root, [{name: 'source', type: 'local', path: source}])
+    for (const args of [['sync'], ['sync', '--dry-run'], ['sync']]) {
+      expect((await command(root, args)).exitCode).toBe(0)
+      for (const name of names) expect(await readFile(join(root, '.claude/skills', name), 'utf8')).toBe(`# ${name}`)
+    }
+  },
+)
