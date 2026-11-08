@@ -18,12 +18,12 @@ const queryKeys = [
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
 const assignmentStart =
-  /(?<![a-z\d_.%+\\-])(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*)[=:]/gi
+  /(?<![a-z\d_.%+\\-])(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
 const authStart = /(?:Bearer|Basic)\s+/gi
 
 function assignmentKey(name: string) {
   return name
-    .replace(/\\u([a-f\d]{4})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .replace(/(?<!\\)\\+u([a-f\d]{4})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
     .replace(/\\(["'\\/])/g, '$1')
 }
 
@@ -38,14 +38,15 @@ function credentialQueryKey(name: string, complete = true): boolean {
 }
 
 function lineKey(text: string, index: number) {
-  const start = text.lastIndexOf('\n', index - 1) + 1
+  const start = Math.max(text.lastIndexOf('\n', index - 1), text.lastIndexOf('\r', index - 1)) + 1
   let key = start
   for (;;) {
     while (/[ \t]/.test(text[key] ?? '')) key++
     if (text[key] !== '-' || !/[ \t]/.test(text[key + 1] ?? '')) break
     key++
   }
-  return {key, indent: key - start, end: text.indexOf('\n', index)}
+  const ends = [text.indexOf('\n', index), text.indexOf('\r', index)].filter((end) => end >= 0)
+  return {key, indent: key - start, end: ends.length ? Math.min(...ends) : -1}
 }
 
 function* credentialAssignments(text: string) {
@@ -59,7 +60,7 @@ function* credentialAssignments(text: string) {
     while (query && query.index + query[0].length <= match.index) query = names.next().value
     // Query values have their own delimiter rules, including literal quotes.
     if (query && query.index <= match.index) continue
-    if (credentialQueryKey(assignmentKey(match[1] ?? match[2] ?? match[3]))) {
+    if (credentialQueryKey(assignmentKey(match[1] ?? match[2] ?? match[3] ?? match[4]))) {
       if (line.end < 0 || match.index > line.end) {
         line = lineKey(text, match.index)
         if (line.end < 0) line.end = text.length
@@ -70,6 +71,7 @@ function* credentialAssignments(text: string) {
         quoted: match[3] === undefined,
         scalar: match[0].endsWith(':'),
         indent: match.index === line.key ? line.indent : 0,
+        encoded: match[4] !== undefined,
       }
     }
   }
@@ -103,6 +105,32 @@ function valueState(text: string) {
 }
 const sequenceItem = (text: string, cursor: number) =>
   text[cursor] === '-' && (cursor + 1 === text.length || /[ \t\r\n]/.test(text[cursor + 1]))
+function escapedValueState(text: string) {
+  const match = /^\0j:(\d+):(\d+);/.exec(text)
+  if (!match) return
+  const level = Number(match[1]),
+    pending = Number(match[2])
+  if (!Number.isSafeInteger(level) || level < 0 || !Number.isSafeInteger(pending)) return
+  return {level, pending, length: match[0].length}
+}
+/** Encoded quote delimiters keep their level; retained state contains counters, not discarded bytes. */
+function escapedValue(text: string, start: number, level: number, pending = 0) {
+  for (let end = start; end < text.length; end++) {
+    if (text[end] === '\\') pending++
+    else {
+      if (level === 0) {
+        if (text[end] !== '"' || pending === 0)
+          return assignmentValue(text, start, {indent: 0, kind: VALUE_KINDS.VALUE, column: null})
+        level = pending
+        pending = 0
+        continue
+      }
+      if (text[end] === '"' && pending === level) return {start, end: end + 1, continuation: undefined}
+      pending = 0
+    }
+  }
+  return {start, end: text.length, continuation: `\0j:${level}:${pending};`}
+}
 /** Retain only indentation/phase counters, never a discarded word or block body. */
 function assignmentValue(text: string, start: number, state: ValueState) {
   let cursor = start,
@@ -219,6 +247,13 @@ function credentialValue(
     }
   }
   const quote = text[end]
+  const encodedQuote = /^(\\+)"/.exec(text.slice(end))
+  if (encodedQuote) {
+    const value = escapedValue(text, end + encodedQuote[0].length, encodedQuote[1].length)
+    return {...value, start}
+  }
+  if (end < text.length && /^\\+$/.test(text.slice(end)))
+    return {start, end: text.length, continuation: `\0j:0:${text.length - end};`}
   if (quote === '"' || quote === "'") {
     let escaped = false
     for (end++; end < text.length; end++) {
@@ -277,6 +312,16 @@ function quotedKeyContext(text: string) {
         break
       }
   return {syntax: quote + (decoded.length > partial.length ? 'q' : '') + partial + encoding, index: start - 1}
+}
+
+function escapedKeyContext(text: string) {
+  const closed = finalMatch(text, /(?<!\\)\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*$/)
+  if (closed && credentialQueryKey(assignmentKey(closed[1]))) return {syntax: '\\"secret\\"', index: closed.index}
+  const open = finalMatch(text, /(?<!\\)\\+"([^"\r\n]*)$/)
+  if (!open) return
+  const pending = /\\+$/.exec(open[1])?.[0] ?? ''
+  const key = quotedKeyContext('"' + open[1].slice(0, open[1].length - pending.length))
+  return key ? {syntax: key.syntax.replaceAll('"', '\\"') + (pending ? '\\' : ''), index: open.index} : undefined
 }
 
 function lastCredentialQuerySuffix(text: string): string {
@@ -443,6 +488,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     firstIndent = 0,
     continuedQueryEnd = 0
   for (const prefix of options.credentialPrefixes ?? []) {
+    const escaped = escapedValueState(prefix)
+    if (escaped) continuedEnd = Math.max(continuedEnd, escapedValue(text, 0, escaped.level, escaped.pending).end)
     if (/^[?&#]/.test(prefix)) {
       const input = prefix + text
       queryStart.lastIndex = 0
@@ -462,6 +509,12 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   }
   for (const span of options.spans ?? []) add(span.start, span.end)
   for (const prefix of ['', ...(options.credentialPrefixes ?? [])]) {
+    const escaped = escapedValueState(prefix)
+    if (escaped) {
+      const value = escapedValue(text, 0, escaped.level, escaped.pending)
+      add(value.start, value.end)
+      continue
+    }
     const state = valueState(prefix)
     if (state && state.kind !== VALUE_KINDS.KEY && state.length === prefix.length) {
       const value = assignmentValue(text, 0, state)
@@ -577,10 +630,20 @@ export function redact(text: string, options: RedactionOptions = {}): string {
 }
 function discardedContext(discarded: string): string[] {
   const contexts = new Set<string>()
+  const escaped = escapedValueState(discarded)
+  if (escaped) {
+    discarded = discarded.slice(escaped.length)
+    const value = escapedValue(discarded, 0, escaped.level, escaped.pending)
+    if (value.continuation) contexts.add(value.continuation)
+  }
   const state = valueState(discarded)
   const retainValue = (continuation: string | undefined, quoted: boolean) => {
     if (continuation !== undefined)
-      contexts.add(valueState(continuation) ? continuation : (quoted ? '"secret":' : 'secret=') + continuation)
+      contexts.add(
+        valueState(continuation) || escapedValueState(continuation)
+          ? continuation
+          : (quoted ? '"secret":' : 'secret=') + continuation,
+      )
   }
   if (state) {
     discarded = discarded.slice(state.length)
@@ -591,7 +654,7 @@ function discardedContext(discarded: string): string[] {
     const indent =
       index === line.key
         ? line.indent +
-          (state?.kind === VALUE_KINDS.KEY && !discarded.slice(0, index).includes('\n') ? state.indent : 0)
+          (state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded.slice(0, index)) ? state.indent : 0)
         : 0
     contexts.add((indent ? valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) : '') + syntax)
   }
@@ -607,7 +670,9 @@ function discardedContext(discarded: string): string[] {
     if (value.continuation !== undefined) contexts.add('Bearer ' + value.continuation)
   }
   covered = -1
+  let encodedAssignment = false
   for (const match of credentialAssignments(discarded)) {
+    encodedAssignment ||= match.encoded
     if (match.index < covered) continue
     if (pendingQuery !== undefined && match.index >= pendingQuery) continue
     const value = credentialValue(
@@ -625,7 +690,11 @@ function discardedContext(discarded: string): string[] {
     retainValue(value.continuation, match.quoted)
   }
   const quotedKey = quotedKeyContext(discarded)
-  if (quotedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
+  const encodedKey = escapedKeyContext(discarded)
+  if (quotedKey && !encodedAssignment && !encodedKey && pendingQuery === undefined)
+    retainKey(quotedKey.syntax, quotedKey.index)
+  if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
+  if (discarded.endsWith('\\')) contexts.add('\\')
   const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
   // Whitespace completes an exact alias; without it, "sig" may still become "signal".
   if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
@@ -655,10 +724,10 @@ function discardedContext(discarded: string): string[] {
       (/[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') ? 'q' : '') + partial + encoding,
       Math.max(0, discarded.length - partial.length - encoding.length),
     )
-  const trailingLine = discarded.slice(discarded.lastIndexOf('\n') + 1)
+  const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
   if (trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
     const line = lineKey(discarded, discarded.length)
-    const indent = line.indent + (state?.kind === VALUE_KINDS.KEY && !discarded.includes('\n') ? state.indent : 0)
+    const indent = line.indent + (state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded) ? state.indent : 0)
     contexts.add(valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) + discarded.slice(line.key))
   }
   const scheme = finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:(\/?)$/i)
@@ -674,8 +743,11 @@ function discardedContext(discarded: string): string[] {
 export function redactionContext(discarded: string, prefixes: readonly string[] = []): string[] {
   const contexts = new Set<string>()
   const keys = new Map<string, {indent: number; context: string}>()
+  const escapedBoundary = prefixes.includes('\\') && discarded.startsWith('"')
   for (const prefix of ['', ...prefixes]) {
-    for (const context of discardedContext(prefix + discarded)) {
+    // Do not reinterpret a split encoded quote as a fresh, ordinary key delimiter.
+    const boundary = escapedBoundary && !prefix.endsWith('\\') && !escapedValueState(prefix) ? '\\' : ''
+    for (const context of discardedContext(prefix + boundary + discarded)) {
       const state = valueState(context)
       if (state?.kind !== VALUE_KINDS.KEY) {
         contexts.add(context)

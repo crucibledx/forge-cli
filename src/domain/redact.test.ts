@@ -9,6 +9,63 @@ import {
   redactionSpans,
 } from './redact'
 
+it.each([1, 2, 3])('AC-15,30 escaped JSON depth %i protects credentials at every retained-context cut', (depth) => {
+  const secret = 'NESTED_PRIVATE_Q'
+  let input = JSON.stringify({access_token: secret, public: 'repository not found'})
+  for (let index = 0; index < depth; index++) input = JSON.stringify({error: input})
+  expect(redact(input)).not.toContain(secret)
+  expect(redact(input)).toContain('repository not found')
+  for (let cut = 0; cut <= input.length; cut++) {
+    const contexts = redactionContext(input.slice(0, cut))
+    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+    expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    const surviving = secret.slice(Math.max(0, cut - input.indexOf(secret)))
+    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
+    if (cut <= input.indexOf('repository not found'))
+      expect({cut, output}).toMatchObject({output: expect.stringContaining('repository not found')})
+  }
+  for (const size of [1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut < input.length; cut += size) {
+      contexts = redactionContext(input.slice(cut, cut + size), contexts)
+      const tail = input.slice(cut + size),
+        output = redact(tail, {credentialPrefixes: contexts})
+      const surviving = secret.slice(Math.max(0, cut + size - input.indexOf(secret)))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      if (cut + size <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    }
+  }
+})
+it('AC-15,30 long encoded escape runs retain syntax counters, not discarded private bytes', () => {
+  const slashes = '\\'.repeat(32_768),
+    secret = 'ESCAPED_FLOOD_PRIVATE_Q'
+  const input = JSON.stringify({error: JSON.stringify({token: slashes + secret, public: 'repository not found'})})
+  expect(redact(input)).not.toContain(secret)
+  expect(redact(input)).toContain('repository not found')
+  let contexts: string[] = []
+  const cut = input.indexOf(secret) + 3
+  for (let start = 0; start < cut; start += 1024) {
+    contexts = redactionContext(input.slice(start, Math.min(start + 1024, cut)), contexts)
+    expect(contexts.length).toBeLessThan(32)
+    expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+  }
+  const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+  expect(output).not.toContain(secret.slice(3))
+  expect(output).toContain('repository not found')
+  expect(redactionContext('\\"partial' + slashes).every((context) => context.length < 128)).toBe(true)
+})
+it.each(['\r', '\n', '\r\n'])('AC-15,30 scalar line boundaries preserve public siblings: %j', (newline) => {
+  const input = ['root:', '  password: CR_PRIVATE_Q', '  public: repository not found', 'visible=yes'].join(newline)
+  expect(redact(input)).not.toContain('CR_PRIVATE_Q')
+  expect(redact(input)).toContain('repository not found')
+  for (let cut = 0; cut <= input.length; cut++) {
+    const output = redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})
+    if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+    if (cut <= input.indexOf('CR_PRIVATE_Q')) expect(output).not.toContain('CR_PRIVATE_Q')
+  }
+})
+
 it.each([
   'password: MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',
   'password=\n  MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',

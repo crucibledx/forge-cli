@@ -5,6 +5,7 @@ import {dirname, join, relative} from 'node:path'
 import {createConfinement} from './confinement'
 import type {TemporaryFile} from './windows-access'
 import {
+  checkDirectoryCreationAccess,
   checkPrivateTemporarySupport,
   openPrivateTemporary,
   privateAccessMetadata,
@@ -60,6 +61,7 @@ export const transactionIO = {
   writeAccessMetadata,
   privateAccessMetadata,
   checkPrivateTemporarySupport,
+  checkDirectoryCreationAccess,
   async openTemp(path: string): Promise<TemporaryFile> {
     return process.platform === 'win32' ? openPrivateTemporary(path) : open(path, 'wx', 0o600)
   },
@@ -123,16 +125,19 @@ export async function prepareTransaction(root: string, operations: FileOperation
     }
     if (operation.content === null && snapshots.get(path)!.bytes === null) continue
     let parent = dirname(path)
+    let needsDirectoryCreation = false
     while (true) {
       try {
         const stat = await fs.lstat(parent)
         if (!stat.isDirectory()) throw new Error(`Not a directory: ${relative(boundary.root, parent)}`)
-        if (process.platform !== 'win32') await fs.access(parent, constants.W_OK | constants.X_OK)
+        if (process.platform === 'win32') await fs.checkDirectoryCreationAccess(parent, needsDirectoryCreation)
+        else await fs.access(parent, constants.W_OK | constants.X_OK)
         break
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         if (parent === boundary.root) throw error
         absentDirectories.add(parent)
+        needsDirectoryCreation = true
       }
       parent = dirname(parent)
     }

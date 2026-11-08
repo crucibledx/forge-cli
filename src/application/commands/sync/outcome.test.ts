@@ -153,7 +153,10 @@ describe('BR-04–08 truthful outcomes and incidental storage (AC-7,8,15,23)', (
     const deps = await dependencies()
     const before = await snapshot(dir())
     deps.loadSource = async () => {
-      throw new Error('nested cause: https://user:credential-sentinel@host/repo?token=query-sentinel')
+      throw new Error(
+        'nested cause: https://user:credential-sentinel@host/repo?token=query-sentinel ' +
+          JSON.stringify({error: JSON.stringify({access_token: 'encoded-credential-sentinel'})}),
+      )
     }
     await runSyncWithDependencies(options, deps)
     expect(process.exitCode).toBe(1)
@@ -163,6 +166,7 @@ describe('BR-04–08 truthful outcomes and incidental storage (AC-7,8,15,23)', (
     expect(deps.written[0].files.errors).toBeGreaterThanOrEqual(1)
     expect(JSON.stringify(deps.written)).not.toContain('credential-sentinel')
     expect(JSON.stringify(deps.written)).not.toContain('query-sentinel')
+    expect(JSON.stringify(deps.written)).not.toContain('encoded-credential-sentinel')
   })
   it('report storage failure cannot reverse a committed outcome', async () => {
     const deps = await dependencies()

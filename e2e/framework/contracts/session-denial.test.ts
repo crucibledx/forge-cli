@@ -13,9 +13,14 @@ it.each(['pipe', 'pty'])(
     const nativeSpawn = Bun.spawn,
       nativeKill = process.kill.bind(process)
     const children: Bun.Subprocess[] = []
+    const probes: Bun.Subprocess[] = []
     const unreported = new Promise<number>(() => {})
     const spawn = spyOn(Bun, 'spawn').mockImplementation(((...args: unknown[]) => {
       const child = Reflect.apply(nativeSpawn, Bun, args) as Bun.Subprocess
+      if (Array.isArray(args[0]) && args[0][0] === 'ps') {
+        probes.push(child)
+        return child
+      }
       children.push(child)
       // Inject loss of exit observation, not an already-completed fake child.
       return new Proxy(child, {
@@ -78,6 +83,11 @@ it.each(['pipe', 'pty'])(
       expect(performance.now() - started).toBeLessThan(4000)
       expect(attempts).toBeGreaterThan(1)
       expect(children).toHaveLength(1)
+      expect(probes.length).toBeGreaterThan(0)
+      for (const probe of probes) {
+        expect([0, 137]).toContain(await probe.exited)
+        if (probe.exitCode !== 0) expect(probe.signalCode).toBe('SIGKILL')
+      }
       expect(activeProcesses.size).toBe(0)
     } finally {
       clearTimeout(watchdog)

@@ -318,11 +318,17 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     context,
     verdict,
     lane_results: laneResults,
-    ac_results: acceptanceIds.map((id) => acResults.get(id) ?? {ac_id: id, result: 'blocked'}),
-    reviews: bundle.reviews,
-    deviations: bundle.deviations,
-    remaining_risks: bundle.reviews.flatMap((review) => review.remaining_risks),
-    reasons,
+    ac_results: acceptanceIds.map((id) => {
+      const row = acResults.get(id)
+      return row ? {...row, command: redact(row.command)} : {ac_id: id, result: 'blocked'}
+    }),
+    reviews: bundle.reviews.map((review) => ({
+      ...review,
+      remaining_risks: review.remaining_risks.map((risk) => redact(risk)),
+    })),
+    deviations: bundle.deviations.map((deviation) => ({...deviation, description: redact(deviation.description)})),
+    remaining_risks: bundle.reviews.flatMap((review) => review.remaining_risks.map((risk) => redact(risk))),
+    reasons: reasons.map((reason) => ({...reason, message: redact(reason.message)})),
     evidence: [
       ...new Set([
         ...currentProducerEvidence,

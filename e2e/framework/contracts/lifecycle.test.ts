@@ -1,11 +1,13 @@
-import {existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
+import {testEnvironment} from '../../../scripts/test-sandbox'
+import {spawnOwnedPipe} from '../owned-pipe'
 import {runPipe} from '../pipe'
-import {activeProcesses, disposeActiveProcesses, TAIL_BYTES} from '../process'
+import {activeProcesses, disposeActiveProcesses, TAIL_BYTES, terminateTree} from '../process'
 import {driveSession, runInitSession} from '../run'
 import {spawnPty} from '../spawn'
 
@@ -23,6 +25,28 @@ function dead(pid: number): boolean {
 
 describe('BR-09 lifecycle contracts (AC-18)', () => {
   const dir = useTmpDir('lifecycle')
+  it.skipIf(process.platform === 'win32')(
+    'AC-18 stalled cleanup probes fail within budget and kill their descendants',
+    async () => {
+      const root = dir(),
+        bin = join(root, 'bin'),
+        pidfile = join(root, 'probe-child')
+      mkdirSync(bin)
+      writeFileSync(
+        join(bin, 'ps'),
+        `#!${process.execPath}\nconst child=Bun.spawn([process.execPath,'-e','setInterval(()=>{},1000)'],{stdin:'ignore',stdout:'inherit',stderr:'inherit'});await Bun.write(process.env.PS_PID_FILE,String(child.pid));await child.exited\n`,
+        {mode: 0o755},
+      )
+      const env = testEnvironment(root, {PATH: `${bin}:${process.env.PATH}`, PS_PID_FILE: pidfile})
+      const proc = await spawnOwnedPipe([process.execPath, '-e', 'process.exit(0)'], root, testEnvironment(root))
+      expect(await proc.exited).toBe(0)
+      const start = performance.now()
+      await expect(terminateTree(proc, env)).rejects.toThrow('Cleanup probe exceeded remaining budget')
+      expect(performance.now() - start).toBeLessThan(2500)
+      expect(existsSync(pidfile)).toBe(true)
+      expect(dead(Number(readFileSync(pidfile, 'utf8')))).toBe(true)
+    },
+  )
   it.each(
     ['exit', 'local-wait', 'total-deadline'].flatMap((mode) =>
       [

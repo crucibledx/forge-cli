@@ -39,7 +39,11 @@ it.each(['apply', 'silent', 'preview', 'silent-preview'] as const)(
     ]
     for (let invocation = 0; invocation < 2; invocation++) {
       const result = await command(root, args)
-      expect(result.exitCode).toBe(1)
+      expect(result, JSON.stringify({mode, invocation, ...result})).toMatchObject({
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+      })
       expect(await protectedBytes(root)).toEqual(before)
       if (mode.includes('silent')) expect(result.stdout + result.stderr).toBe('')
     }

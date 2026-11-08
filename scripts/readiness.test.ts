@@ -215,6 +215,26 @@ async function fixture() {
       }
   return {bundle, provider: fixtureProvider(dir(), bundle)}
 }
+it('AC-15/27/32 derived report diagnostics are redacted without rewriting original attestations', async () => {
+  const {bundle} = await fixture()
+  bundle.reviews[0].remaining_risks = [
+    'https://user:DERIVED_PRIVATE_Q@host/repo: repository not found',
+    JSON.stringify({error: JSON.stringify({access_token: 'DERIVED_PRIVATE_Q'})}),
+  ]
+  const provider = fixtureProvider(dir(), bundle)
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json')
+  const original = JSON.stringify(bundle)
+  await writeFile(input, original)
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(JSON.stringify(report)).not.toContain('DERIVED_PRIVATE_Q')
+  expect(JSON.stringify(report)).toContain('repository not found')
+  expect(report.reviews[0].provenance).toEqual(bundle.reviews[0].provenance)
+  expect(JSON.stringify(bundle)).toBe(original)
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(0)
+  expect(await readFile(output, 'utf8')).not.toContain('DERIVED_PRIVATE_Q')
+  expect(await readFile(input, 'utf8')).toBe(original)
+})
 it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches owner review through the actual CLI parser', async () => {
   const {bundle} = await fixture()
   expect(existsSync(join(dir(), 'results/readiness.json'))).toBe(false)

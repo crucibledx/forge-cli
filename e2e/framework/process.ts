@@ -269,18 +269,70 @@ export async function drainTranscript(
 
 export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode'>
 
-function groupAlive(pid: number, env: Record<string, string>): boolean {
+async function groupAlive(pid: number, env: Record<string, string>, deadline: number): Promise<boolean> {
   // On macOS, signal-zero may return EPERM for an orphan already awaiting init's
   // reap. Zombies have no running code or open descriptors, but are still PIDs.
-  const result = Bun.spawnSync(['ps', '-axo', 'pgid=,stat='], {env, stdout: 'pipe', stderr: 'pipe'})
-  if (result.exitCode !== 0) throw new Error('Cannot verify owned process-group cleanup')
-  return new TextDecoder()
-    .decode(result.stdout)
-    .split('\n')
-    .some((line) => {
+  const remaining = deadline - performance.now()
+  if (remaining <= 0) throw new Error('Cannot verify owned cleanup within remaining budget')
+  const probe = Bun.spawn(['ps', '-axo', 'pgid=,stat='], {
+    env,
+    detached: true,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'ignore',
+  })
+  const reader = probe.stdout.getReader()
+  const output = async () => {
+    const decoder = new TextDecoder()
+    let text = '',
+      bytes = 0
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done) return text + decoder.decode()
+      bytes += chunk.value.byteLength
+      if (bytes > TAIL_BYTES) throw new Error('Cleanup probe output exceeded bounded capacity')
+      text += decoder.decode(chunk.value, {stream: true})
+    }
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const [text, code] = await Promise.race([
+      Promise.all([output(), probe.exited]),
+      new Promise<never>((_, reject) => {
+        // Reserve reaping time inside the same cleanup deadline.
+        timer = setTimeout(
+          () => reject(new Error('Cleanup probe exceeded remaining budget')),
+          Math.max(1, remaining - 50),
+        )
+      }),
+    ])
+    if (code !== 0) throw new Error('Cannot verify owned process-group cleanup')
+    return text.split('\n').some((line) => {
       const [group, state] = line.trim().split(/\s+/)
-      return Number(group) === pid && !state.startsWith('Z')
+      return Number(group) === pid && !state?.startsWith('Z')
     })
+  } finally {
+    clearTimeout(timer)
+    // The probe has its own group: a stalled PATH wrapper must not leave descendants behind.
+    try {
+      process.kill(-probe.pid, 'SIGKILL')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    }
+    try {
+      await Promise.race([
+        Promise.all([reader.cancel(), probe.exited]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Cleanup probe failed to reap within remaining budget')),
+            Math.max(1, deadline - performance.now()),
+          )
+        }),
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 }
 
 /** Process-group ownership on POSIX; an owned process tree on Windows. */
@@ -331,7 +383,16 @@ export async function terminateTree(proc: OwnedProcess, env: Record<string, stri
         if (code !== 'EPERM') throw error
         // Darwin can report EPERM before an exiting orphan appears as a zombie.
         // Retry inside the SAME cleanup budget; a live denial must still fail.
-        if (!groupAlive(proc.pid, env)) return false
+        try {
+          if (!(await groupAlive(proc.pid, env, cleanupEnd))) return false
+        } catch (probeError) {
+          throw new AggregateError(
+            [error, probeError],
+            `Cannot verify owned cleanup after ${error instanceof Error ? error.message : String(error)}: ${
+              probeError instanceof Error ? probeError.message : String(probeError)
+            }`,
+          )
+        }
         if (performance.now() >= cleanupEnd) throw error
         await new Promise((resolve) => setTimeout(resolve, 10))
       }
@@ -356,7 +417,7 @@ export async function terminateTree(proc: OwnedProcess, env: Record<string, stri
   } finally {
     clearTimeout(timer)
   }
-  while (groupAlive(proc.pid, env)) {
+  while (await groupAlive(proc.pid, env, cleanupEnd)) {
     if (performance.now() >= cleanupEnd) throw new Error('Owned descendants survived cleanup budget')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
