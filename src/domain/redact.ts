@@ -113,6 +113,39 @@ function escapedValueState(text: string) {
   if (!Number.isSafeInteger(level) || level < 0 || !Number.isSafeInteger(pending)) return
   return {level, pending, length: match[0].length}
 }
+type ContainerState = {depth: number; closing: string; quote: string; escaped: boolean}
+function containerState(text: string): ContainerState | undefined {
+  const match = /^\0f:(\d+):([}\]]):(["'-]):([01]);/.exec(text)
+  if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) < 1) return
+  return {
+    depth: Number(match[1]),
+    closing: match[2],
+    quote: match[3] === '-' ? '' : match[3],
+    escaped: match[4] === '1',
+  }
+}
+/** Flow containers terminate at their closing delimiter, not an indentation change. */
+function containerValue(text: string, start: number, state: ContainerState) {
+  const {closing} = state
+  let {depth, quote, escaped} = state
+  for (let end = start; end < text.length; end++) {
+    const char = text[end]
+    if (quote) {
+      if (char === quote && !escaped) quote = ''
+      escaped = char === '\\' && !escaped
+    } else if (char === '"' || char === "'") {
+      quote = char
+    } else if (char === '[' || char === '{') {
+      depth++
+    } else if (char === ']' || char === '}') {
+      depth--
+      if (depth === 0 && char === closing) return {start, end: end + 1, continuation: undefined}
+      // A mismatched outer delimiter is not a safe public sibling boundary.
+      if (depth === 0) depth = 1
+    }
+  }
+  return {start, end: text.length, continuation: `\0f:${depth}:${closing}:${quote || '-'}:${Number(escaped)};`}
+}
 /** Encoded quote delimiters keep their level; retained state contains counters, not discarded bytes. */
 function escapedValue(text: string, start: number, level: number, pending = 0) {
   for (let end = start; end < text.length; end++) {
@@ -159,7 +192,8 @@ function assignmentValue(text: string, start: number, state: ValueState) {
       column !== null &&
       column <= state.indent &&
       !(
-        [VALUE_KINDS.QUOTED, VALUE_KINDS.QUOTED_SCALAR].some((kind) => state.kind === kind) && /["']/.test(text[cursor])
+        [VALUE_KINDS.QUOTED, VALUE_KINDS.QUOTED_SCALAR].some((kind) => state.kind === kind) &&
+        /["'[{]/.test(text[cursor])
       )
     )
       return {start, end: start, continuation: undefined}
@@ -234,7 +268,7 @@ function credentialValue(
     if (start === text.length) return {start, end: start, continuation: valueContext({indent, kind, column})}
     if (scalar && column !== null && column >= indent && sequenceItem(text, start))
       return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
-    if (column !== null && column <= indent && !(quoted && /["']/.test(text[start])))
+    if (column !== null && column <= indent && !(quoted && /["'[{]/.test(text[start])))
       return {start: original, end: original, continuation: undefined}
   }
   let end = start
@@ -247,6 +281,8 @@ function credentialValue(
     }
   }
   const quote = text[end]
+  if (quote === '[' || quote === '{')
+    return containerValue(text, start, {depth: 0, closing: quote === '[' ? ']' : '}', quote: '', escaped: false})
   const encodedQuote = /^(\\+)"/.exec(text.slice(end))
   if (encodedQuote) {
     const value = escapedValue(text, end + encodedQuote[0].length, encodedQuote[1].length)
@@ -282,11 +318,18 @@ function quotedKeyContext(text: string) {
   let quote = '',
     start = 0,
     escaped = false,
+    separator = false,
     closed: {quote: string; name: string; index: number} | undefined
   for (let index = 0; index < text.length; index++) {
     const char = text[index]
+    // An evicted enclosing string must not steal the next JSON member's key origin.
+    if (separator && char === quote && !credentialQueryKey(assignmentKey(text.slice(start, index)))) {
+      quote = ''
+      escaped = false
+    }
     if (!quote) {
-      if (char === '"' || char === "'") {
+      // An encoded delimiter is not the origin of an ordinary quoted key.
+      if ((char === '"' || char === "'") && text[index - 1] !== '\\') {
         quote = char
         start = index + 1
         closed = undefined
@@ -295,6 +338,7 @@ function quotedKeyContext(text: string) {
       closed = {quote, name: text.slice(start, index), index: start - 1}
       quote = ''
     } else escaped = char === '\\' && !escaped
+    if (!/[ \t\r\n]/.test(char)) separator = char === ',' || char === '{'
   }
   if (!quote)
     return closed && credentialQueryKey(assignmentKey(closed.name))
@@ -488,6 +532,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     firstIndent = 0,
     continuedQueryEnd = 0
   for (const prefix of options.credentialPrefixes ?? []) {
+    const container = containerState(prefix)
+    if (container) continuedEnd = Math.max(continuedEnd, containerValue(text, 0, container).end)
     const escaped = escapedValueState(prefix)
     if (escaped) continuedEnd = Math.max(continuedEnd, escapedValue(text, 0, escaped.level, escaped.pending).end)
     if (/^[?&#]/.test(prefix)) {
@@ -509,6 +555,12 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   }
   for (const span of options.spans ?? []) add(span.start, span.end)
   for (const prefix of ['', ...(options.credentialPrefixes ?? [])]) {
+    const container = containerState(prefix)
+    if (container) {
+      const value = containerValue(text, 0, container)
+      add(value.start, value.end)
+      continue
+    }
     const escaped = escapedValueState(prefix)
     if (escaped) {
       const value = escapedValue(text, 0, escaped.level, escaped.pending)
@@ -640,7 +692,7 @@ function discardedContext(discarded: string): string[] {
   const retainValue = (continuation: string | undefined, quoted: boolean) => {
     if (continuation !== undefined)
       contexts.add(
-        valueState(continuation) || escapedValueState(continuation)
+        valueState(continuation) || escapedValueState(continuation) || containerState(continuation)
           ? continuation
           : (quoted ? '"secret":' : 'secret=') + continuation,
       )
@@ -670,9 +722,7 @@ function discardedContext(discarded: string): string[] {
     if (value.continuation !== undefined) contexts.add('Bearer ' + value.continuation)
   }
   covered = -1
-  let encodedAssignment = false
   for (const match of credentialAssignments(discarded)) {
-    encodedAssignment ||= match.encoded
     if (match.index < covered) continue
     if (pendingQuery !== undefined && match.index >= pendingQuery) continue
     const value = credentialValue(
@@ -691,8 +741,7 @@ function discardedContext(discarded: string): string[] {
   }
   const quotedKey = quotedKeyContext(discarded)
   const encodedKey = escapedKeyContext(discarded)
-  if (quotedKey && !encodedAssignment && !encodedKey && pendingQuery === undefined)
-    retainKey(quotedKey.syntax, quotedKey.index)
+  if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
   const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
@@ -741,6 +790,14 @@ function discardedContext(discarded: string): string[] {
 
 /** Advance concurrent recognizers without retaining duplicate origins of the same current-line syntax. */
 export function redactionContext(discarded: string, prefixes: readonly string[] = []): string[] {
+  const containers = prefixes.map(containerState).filter((state) => state !== undefined)
+  if (containers.length) {
+    const values = containers.map((state) => containerValue(discarded, 0, state))
+    const continuing = values.flatMap(({continuation}) => (continuation ? [continuation] : []))
+    // Do not invent fresh key origins inside a credential container's discarded body.
+    if (continuing.length) return [...new Set(continuing)]
+    return redactionContext(discarded.slice(Math.max(...values.map(({end}) => end))))
+  }
   const contexts = new Set<string>()
   const keys = new Map<string, {indent: number; context: string}>()
   const escapedBoundary = prefixes.includes('\\') && discarded.startsWith('"')

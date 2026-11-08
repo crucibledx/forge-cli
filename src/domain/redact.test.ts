@@ -9,6 +9,99 @@ import {
   redactionSpans,
 } from './redact'
 
+it.each([1, 2, 3])('AC-15,30 encoded assignments cannot suppress later ordinary credential keys: depth %i', (depth) => {
+  const secrets = ['FIRST_PRIVATE_Q', 'SECOND_PRIVATE_Q']
+  let encoded = JSON.stringify({token: secrets[0]})
+  for (let index = 1; index < depth; index++) encoded = JSON.stringify({error: encoded})
+  const input = JSON.stringify({error: encoded, password: secrets[1], public: 'repository not found'})
+  for (const size of [0, 1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut <= input.length; cut += size || 1) {
+      contexts = size
+        ? redactionContext(input.slice(Math.max(0, cut - size), cut), contexts)
+        : redactionContext(input.slice(0, cut))
+      const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+      for (const secret of secrets) {
+        const surviving = secret.slice(Math.max(0, cut - input.indexOf(secret)))
+        if (surviving)
+          expect({depth, size, cut, leaked: output.includes(surviving)}).toEqual({depth, size, cut, leaked: false})
+      }
+      if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+      expect(contexts.every((context) => context.length < 128)).toBe(true)
+    }
+  }
+})
+
+it.each(
+  ['\n', '\r', '\r\n'].flatMap((newline) =>
+    ['array', 'object'].flatMap((kind) => [false, true].map((nextLine) => ({newline, kind, nextLine}))),
+  ),
+)(
+  'AC-15,30 multiline credential containers retain delimiters across every cut: $kind $nextLine $newline',
+  ({newline, kind, nextLine}) => {
+    const secrets = ['CONTAINER_PRIVATE_Q', 'INNER_PRIVATE_Q']
+    const values = [secrets[0], {nested: [secrets[1] + ']}"\\', null, 42]}]
+    let input = JSON.stringify(
+      {api_keys: kind === 'array' ? values : {values}, public: 'repository not found'},
+      null,
+      2,
+    ).replace(/^ +/gm, '')
+    if (nextLine) input = input.replace('"api_keys": ', '"api_keys":\n')
+    input = input.replaceAll('\n', newline)
+    JSON.parse(input)
+    for (const output of [redact(input), JSON.stringify(redactData({error: input})), redact(redact(input))]) {
+      for (const secret of secrets) expect(output).not.toContain(secret)
+      expect(output).toContain('repository not found')
+    }
+    for (const size of [0, 1, 3, 7]) {
+      let contexts: string[] = []
+      for (let cut = 0; cut <= input.length; cut += size || 1) {
+        contexts = size
+          ? redactionContext(input.slice(Math.max(0, cut - size), cut), contexts)
+          : redactionContext(input.slice(0, cut))
+        const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+        for (const secret of secrets) {
+          const surviving = secret.slice(Math.max(0, cut - input.indexOf(secret)))
+          if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+        }
+        if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+        expect(contexts.length).toBeLessThan(32)
+        expect(
+          contexts.every((context) => context.length < 128 && secrets.every((secret) => !context.includes(secret))),
+        ).toBe(true)
+      }
+    }
+  },
+)
+it.each(['access_token,', 'provider,credential,'])(
+  'AC-15,30 member-boundary recovery preserves quoted credential names: %s',
+  (key) => {
+    const input = JSON.stringify({[key]: 'COMMA_PRIVATE_Q', public: 'repository not found'})
+    for (let cut = 0; cut <= input.length; cut++) {
+      const output = redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})
+      const surviving = 'COMMA_PRIVATE_Q'.slice(Math.max(0, cut - input.indexOf('COMMA_PRIVATE_Q')))
+      if (surviving) expect(output).not.toContain(surviving)
+      if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+    }
+  },
+)
+it('AC-15,30 deep credential containers retain only bounded depth/quote counters', () => {
+  const depth = 32768
+  const head = '{"password":' + '['.repeat(depth)
+  let contexts: string[] = []
+  for (let cut = 0; cut < head.length; cut += 512) {
+    contexts = redactionContext(head.slice(cut, cut + 512), contexts)
+    expect(contexts.length).toBeLessThan(8)
+    expect(contexts.every((context) => context.length < 64)).toBe(true)
+  }
+  const output = redact('"DEEP_PRIVATE_Q"' + ']'.repeat(depth) + ',"public":"repository not found"}', {
+    credentialPrefixes: contexts,
+  })
+  expect(output).not.toContain('DEEP_PRIVATE_Q')
+  expect(output).toContain('repository not found')
+  expect(redact('{"public":[\n"PUBLIC_DIAGNOSTIC"\n]}')).toContain('PUBLIC_DIAGNOSTIC')
+})
+
 it.each([1, 2, 3])('AC-15,30 escaped JSON depth %i protects credentials at every retained-context cut', (depth) => {
   const secret = 'NESTED_PRIVATE_Q'
   let input = JSON.stringify({access_token: secret, public: 'repository not found'})

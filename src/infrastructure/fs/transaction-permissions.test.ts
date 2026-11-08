@@ -16,14 +16,21 @@ it.each(['replace', 'delete', 'create', 'missing-parent'])(
     if (process.platform !== 'win32') return
     const parent = join(dir(), 'locked')
     await mkdir(parent)
-    await writeFile(join(parent, 'a.md'), 'before')
-    const original = await readAccessMetadata(parent)
+    const file = join(parent, 'a.md')
+    await writeFile(file, 'before')
+    const original = await readAccessMetadata(parent),
+      originalFile = await readAccessMetadata(file)
     const denied = await accessMetadataFromSddl('D:P(D;;0x00000006;;;WD)(A;;FA;;;OW)(A;;FA;;;SY)')
-    await writeAccessMetadata(parent, denied)
     try {
+      // Parent DACL updates propagate inherited ACEs. Keep this file explicitly readable.
+      await writeAccessMetadata(file, await accessMetadataFromSddl('D:P(A;;FA;;;OW)(A;;FA;;;SY)'))
+      const fileAcl = await readAccessMetadata(file)
+      expect(await readFile(file, 'utf8')).toBe('before')
+      await writeAccessMetadata(parent, denied)
       const before = await readdir(parent),
         acl = await readAccessMetadata(parent)
-      expect(await readFile(join(parent, 'a.md'), 'utf8')).toBe('before')
+      expect(await readFile(file, 'utf8')).toBe('before')
+      expect(await readAccessMetadata(file)).toEqual(fileAcl)
       await expect(
         prepareTransaction(dir(), [
           {
@@ -33,10 +40,12 @@ it.each(['replace', 'delete', 'create', 'missing-parent'])(
         ]),
       ).rejects.toThrow('Directory creation access denied')
       expect(await readdir(parent)).toEqual(before)
-      expect(await readFile(join(parent, 'a.md'), 'utf8')).toBe('before')
+      expect(await readFile(file, 'utf8')).toBe('before')
       expect(await readAccessMetadata(parent)).toEqual(acl)
+      expect(await readAccessMetadata(file)).toEqual(fileAcl)
     } finally {
       await writeAccessMetadata(parent, original!)
+      await writeAccessMetadata(file, originalFile!)
     }
   },
 )

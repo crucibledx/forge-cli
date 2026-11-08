@@ -13,6 +13,35 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each(['mixed', 'array', 'object'])(
+  'AC-15,16,30 reviewed %s credential leak stays private after real eviction',
+  (kind) => {
+    const input =
+      kind === 'mixed'
+        ? JSON.stringify({
+            error: JSON.stringify({token: 'FIRST_PRIVATE_Q'}),
+            password: 'EVICTED_PRIVATE_Q',
+            public: 'repository not found',
+          })
+        : JSON.stringify({
+            api_keys: kind === 'array' ? ['EVICTED_PRIVATE_Q'] : {value: 'EVICTED_PRIVATE_Q'},
+            public: 'repository not found',
+          })
+    const cut =
+      kind === 'mixed' ? input.indexOf('"password"') + '"password"'.length : input.indexOf('EVICTED_PRIVATE_Q')
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(input.slice(0, cut) + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(input.slice(cut)))
+    for (const finish of [false, true]) {
+      if (finish) transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('EVICTED_PRIVATE_Q')
+        expect(output).toContain('repository not found')
+        expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+  },
+)
 it.each([
   {prefix: '"api_keys":', suffix: '\n- PENDING_PRIVATE_Q'},
   {prefix: "'api_keys':", suffix: '\n- PENDING_PRIVATE_Q'},
