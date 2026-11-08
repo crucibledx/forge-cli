@@ -1,4 +1,3 @@
-import {existsSync} from 'node:fs'
 import {readdir, readFile} from 'node:fs/promises'
 import {join, relative, sep} from 'node:path'
 
@@ -20,10 +19,6 @@ function getKnownAssistantDirs(): Set<string> {
 }
 
 export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
-  if (!existsSync(baseDir)) {
-    return []
-  }
-
   const files: SourceFile[] = []
   const assistantDirs = getKnownAssistantDirs()
   await walk(baseDir, baseDir, files, assistantDirs, true)

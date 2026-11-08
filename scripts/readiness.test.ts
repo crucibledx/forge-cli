@@ -235,6 +235,32 @@ it('AC-15/27/32 derived report diagnostics are redacted without rewriting origin
   expect(await readFile(output, 'utf8')).not.toContain('DERIVED_PRIVATE_Q')
   expect(await readFile(input, 'utf8')).toBe(original)
 })
+it.each(['accepted', 'context-denied', 'artifact-denied'])(
+  'AC-15/27/32 copied lane reasons stay private without modifying attestations: %s',
+  async (mode) => {
+    const {bundle, provider} = await fixture()
+    bundle.lanes[0].checks[0].reason = 'Authorization: Bearer LANE_REASON_PRIVATE_Q'
+    if (mode === 'context-denied')
+      provider.context = async () => {
+        throw Error('Synthetic context denied')
+      }
+    if (mode === 'artifact-denied')
+      provider.artifact = async () => {
+        throw Error('Synthetic artifact denied')
+      }
+    const input = join(dir(), 'bundle.json'),
+      output = join(dir(), 'report.json'),
+      original = JSON.stringify(bundle)
+    await writeFile(input, original)
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(JSON.stringify(report)).not.toContain('LANE_REASON_PRIVATE_Q')
+    expect(report.lane_results[0].checks?.[0].evidence).toEqual(bundle.lanes[0].checks[0].evidence)
+    expect(JSON.stringify(bundle)).toBe(original)
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(mode === 'accepted' ? 0 : 2)
+    expect(await readFile(output, 'utf8')).not.toContain('LANE_REASON_PRIVATE_Q')
+    expect(await readFile(input, 'utf8')).toBe(original)
+  },
+)
 it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches owner review through the actual CLI parser', async () => {
   const {bundle} = await fixture()
   expect(existsSync(join(dir(), 'results/readiness.json'))).toBe(false)

@@ -13,6 +13,66 @@ import {spawnPty} from '../spawn'
 
 const dir = useTmpDir('redacted-tail')
 const liveSecret = 'Qv7_PRIVATE_λ_SECRET'
+it.each(['password=[]TAIL_PRIVATE_Q', 'password={x},TAIL_PRIVATE_Q', String.raw`api_keys: ['a\', ']TAIL_PRIVATE_Q']`])(
+  'AC-15,16,30 scalar/container quote fixes survive raw and visible eviction: %j',
+  (value) => {
+    const cut = value.startsWith('password=') ? 'password='.length : value.indexOf('TAIL_PRIVATE_Q')
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(value.slice(0, cut) + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(value.slice(cut) + '\npublic=TAIL_PUBLIC_Q'))
+    for (const finish of [false, true]) {
+      if (finish) transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('TAIL_PRIVATE_Q')
+        expect(output).toContain('public=TAIL_PUBLIC_Q')
+        expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+  },
+)
+it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'])(
+  'AC-15,16,30 invisible control strings preserve streamed credential recognition: %j',
+  (open) => {
+    const close = open.startsWith('\x1b') ? '\x1b\\' : '\u009c'
+    const input = `https://fixture.invalid?to${open}junk${close}ken=CONTROL_TAIL_PRIVATE_Q&visible=yes`
+    for (let cut = 0; cut <= input.length; cut++) {
+      const transcript = createTranscript()
+      transcript.append(Buffer.from(input.slice(0, cut)))
+      transcript.append(Buffer.from(input.slice(cut)))
+      transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('CONTROL_TAIL_PRIVATE_Q')
+        expect(output).toContain('visible=yes')
+      }
+    }
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(`https://fixture.invalid?to${open}` + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(`junk${close}ken=CONTROL_TAIL_PRIVATE_Q&visible=yes`))
+    transcript.finish()
+    for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+      expect(output).not.toContain('CONTROL_TAIL_PRIVATE_Q')
+      expect(output).toContain('visible=yes')
+    }
+  },
+)
+it('AC-15,16,18,30 credential-heavy single-line append completes within the unchanged session budget', async () => {
+  const program = `
+    import {createTranscript} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))}
+    const transcript = createTranscript()
+    transcript.append(Buffer.from('token=x '.repeat(150000)))
+    transcript.append(Buffer.from('\\npublic=CREDENTIAL_FLOOD_PUBLIC_Q'))
+    transcript.finish()
+    for (const text of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+      if (text.includes('token=x') || !text.includes('public=CREDENTIAL_FLOOD_PUBLIC_Q')) throw Error('Boundary mismatch')
+      if (Buffer.byteLength(text) > 262144) throw Error('Unbounded diagnostic')
+    }
+    console.log('credential-flood-completed')
+  `
+  const result = await executeCheck([process.execPath, '-e', program], 10000)
+  expect(result.timed_out).toBe(false)
+  expect(result.exit_code).toBe(0)
+  expect(result.stdout).toBe('credential-flood-completed\n')
+})
 it.each(['mixed', 'array', 'object'])(
   'AC-15,16,30 reviewed %s credential leak stays private after real eviction',
   (kind) => {

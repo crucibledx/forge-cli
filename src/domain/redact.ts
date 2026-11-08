@@ -86,6 +86,7 @@ const VALUE_KINDS = {
   VALUE: 'v',
   SEQUENCE: 'l',
   SEQUENCE_DASH: 'd',
+  CONTAINER_END: 'f',
 } as const
 type ValueKind = (typeof VALUE_KINDS)[keyof typeof VALUE_KINDS]
 const CREDENTIAL_WHITESPACE = {HORIZONTAL: 'horizontal', QUOTED: 'quoted', ASSIGNMENT: 'assignment'} as const
@@ -113,38 +114,53 @@ function escapedValueState(text: string) {
   if (!Number.isSafeInteger(level) || level < 0 || !Number.isSafeInteger(pending)) return
   return {level, pending, length: match[0].length}
 }
-type ContainerState = {depth: number; closing: string; quote: string; escaped: boolean}
+type ContainerState = {depth: number; closing: string; quote: string; escaped: boolean; indent: number}
 function containerState(text: string): ContainerState | undefined {
-  const match = /^\0f:(\d+):([}\]]):(["'-]):([01]);/.exec(text)
-  if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) < 1) return
+  const match = /^\0f:(\d+):([}\]]):(["'-]):([01]):(\d+);/.exec(text)
+  if (
+    !match ||
+    !Number.isSafeInteger(Number(match[1])) ||
+    Number(match[1]) < 1 ||
+    !Number.isSafeInteger(Number(match[5]))
+  )
+    return
   return {
     depth: Number(match[1]),
     closing: match[2],
     quote: match[3] === '-' ? '' : match[3],
     escaped: match[4] === '1',
+    indent: Number(match[5]),
   }
 }
 /** Flow containers terminate at their closing delimiter, not an indentation change. */
 function containerValue(text: string, start: number, state: ContainerState) {
-  const {closing} = state
+  const {closing, indent} = state
   let {depth, quote, escaped} = state
   for (let end = start; end < text.length; end++) {
     const char = text[end]
     if (quote) {
       if (char === quote && !escaped) quote = ''
-      escaped = char === '\\' && !escaped
+      // YAML single-quoted flow strings use doubled apostrophes, not backslash escapes.
+      escaped = quote === '"' && char === '\\' && !escaped
     } else if (char === '"' || char === "'") {
       quote = char
     } else if (char === '[' || char === '{') {
       depth++
     } else if (char === ']' || char === '}') {
       depth--
-      if (depth === 0 && char === closing) return {start, end: end + 1, continuation: undefined}
+      if (depth === 0 && char === closing) {
+        const value = assignmentValue(text, end + 1, {indent, kind: VALUE_KINDS.CONTAINER_END, column: null})
+        return {...value, start}
+      }
       // A mismatched outer delimiter is not a safe public sibling boundary.
       if (depth === 0) depth = 1
     }
   }
-  return {start, end: text.length, continuation: `\0f:${depth}:${closing}:${quote || '-'}:${Number(escaped)};`}
+  return {
+    start,
+    end: text.length,
+    continuation: `\0f:${depth}:${closing}:${quote || '-'}:${Number(escaped)}:${indent};`,
+  }
 }
 /** Encoded quote delimiters keep their level; retained state contains counters, not discarded bytes. */
 function escapedValue(text: string, start: number, level: number, pending = 0) {
@@ -169,6 +185,13 @@ function assignmentValue(text: string, start: number, state: ValueState) {
   let cursor = start,
     end = start,
     column = state.column
+  if (state.kind === VALUE_KINDS.CONTAINER_END) {
+    if (cursor === text.length) return {start, end, continuation: valueContext(state)}
+    // A closing bracket only ends a structured value when its next byte proves a boundary.
+    // Otherwise this was a scalar prefix, and its remaining bytes are still credentials.
+    if (/[,\]}\s]/.test(text[cursor])) return {start, end, continuation: undefined}
+    state = {...state, kind: VALUE_KINDS.VALUE}
+  }
   if (state.kind === VALUE_KINDS.SEQUENCE_DASH) {
     if (cursor === text.length) return {start, end, continuation: valueContext(state)}
     if (!/[ \t\r\n]/.test(text[cursor])) return {start, end, continuation: undefined}
@@ -281,8 +304,14 @@ function credentialValue(
     }
   }
   const quote = text[end]
-  if (quote === '[' || quote === '{')
-    return containerValue(text, start, {depth: 0, closing: quote === '[' ? ']' : '}', quote: '', escaped: false})
+  if (scalar && (quote === '[' || quote === '{'))
+    return containerValue(text, start, {
+      depth: 0,
+      closing: quote === '[' ? ']' : '}',
+      quote: '',
+      escaped: false,
+      indent,
+    })
   const encodedQuote = /^(\\+)"/.exec(text.slice(end))
   if (encodedQuote) {
     const value = escapedValue(text, end + encodedQuote[0].length, encodedQuote[1].length)
@@ -315,6 +344,7 @@ function credentialValue(
 
 /** Keep quote/key syntax and keyword states, never an arbitrary discarded value. */
 function quotedKeyContext(text: string) {
+  if (!text.includes('"') && !text.includes("'")) return
   let quote = '',
     start = 0,
     escaped = false,
@@ -338,7 +368,8 @@ function quotedKeyContext(text: string) {
       closed = {quote, name: text.slice(start, index), index: start - 1}
       quote = ''
     } else escaped = char === '\\' && !escaped
-    if (!/[ \t\r\n]/.test(char)) separator = char === ',' || char === '{'
+    if (char === ',' || char === '{') separator = true
+    else if (separator && !/[ \t\r\n]/.test(char)) separator = false
   }
   if (!quote)
     return closed && credentialQueryKey(assignmentKey(closed.name))
@@ -525,6 +556,7 @@ export function redactionSecretPrefix(text: string, secrets: readonly string[]):
 /** Recognize every span against unchanged input, then mask their union. */
 export function redactionSpans(text: string, options: RedactionOptions = {}): RedactionSpan[] {
   const spans: RedactionSpan[] = []
+  const firstLine = lineKey(text, 0)
   const add = (start: number, end: number) => {
     spans.push({start, end})
   }
@@ -575,6 +607,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     }
     const credentialPrefix = state?.kind === VALUE_KINDS.KEY ? prefix.slice(state.length) : prefix
     const credentialText = credentialPrefix + text
+    const firstCredentialLine = credentialPrefix ? lineKey(credentialText, 0) : firstLine
     const scan = (pattern: RegExp, trailing = 0, input = credentialText) => {
       for (const match of input.matchAll(pattern)) {
         add(
@@ -618,9 +651,9 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
         true,
         false,
         match.quoted ? CREDENTIAL_WHITESPACE.QUOTED : CREDENTIAL_WHITESPACE.ASSIGNMENT,
-        state?.kind === VALUE_KINDS.KEY && match.index === lineKey(credentialText, 0).key
+        state?.kind === VALUE_KINDS.KEY && match.index === firstCredentialLine.key
           ? state.indent + match.indent
-          : match.index - credentialPrefix.length === lineKey(text, 0).key
+          : match.index - credentialPrefix.length === firstLine.key
             ? Math.max(firstIndent, match.indent)
             : match.indent,
         match.scalar,
@@ -669,7 +702,7 @@ export function redact(text: string, options: RedactionOptions = {}): string {
       value.length,
     )
   const spans = recognize(text)
-  if (/[\u001b\u009b\u009d]/.test(text)) {
+  if (/[\u001b\u0090\u0098\u009b-\u009f]/.test(text)) {
     const segments: RedactionSegment[] = []
     let visible = 0
     const plain = createAnsiText((start, end) => {
@@ -722,6 +755,7 @@ function discardedContext(discarded: string): string[] {
     if (value.continuation !== undefined) contexts.add('Bearer ' + value.continuation)
   }
   covered = -1
+  const firstLineKey = lineKey(discarded, 0).key
   for (const match of credentialAssignments(discarded)) {
     if (match.index < covered) continue
     if (pendingQuery !== undefined && match.index >= pendingQuery) continue
@@ -731,9 +765,7 @@ function discardedContext(discarded: string): string[] {
       true,
       false,
       match.quoted ? CREDENTIAL_WHITESPACE.QUOTED : CREDENTIAL_WHITESPACE.ASSIGNMENT,
-      state?.kind === VALUE_KINDS.KEY && match.index === lineKey(discarded, 0).key
-        ? state.indent + match.indent
-        : match.indent,
+      state?.kind === VALUE_KINDS.KEY && match.index === firstLineKey ? state.indent + match.indent : match.indent,
       match.scalar,
     )
     covered = value.end

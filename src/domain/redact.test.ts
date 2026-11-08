@@ -1,4 +1,5 @@
 import {expect, it} from 'bun:test'
+import {parse} from 'yaml'
 
 import {
   diagnosticAuthoritySpans,
@@ -8,6 +9,53 @@ import {
   redactionSecretPrefix,
   redactionSpans,
 } from './redact'
+
+it.each([
+  'password=[]SCALAR_PRIVATE_Q',
+  'password={x}SCALAR_PRIVATE_Q',
+  'password=[],SCALAR_PRIVATE_Q',
+  'password={x},SCALAR_PRIVATE_Q',
+  'password: []SCALAR_PRIVATE_Q',
+  'password: {x}SCALAR_PRIVATE_Q',
+  String.raw`api_keys: ['a\', ']SCALAR_PRIVATE_Q']`,
+  String.raw`api_keys: ['a\', 'SCALAR_PRIVATE_Q']`,
+  String.raw`api_keys: ['a''SCALAR_PRIVATE_Q]still', 'next']`,
+  String.raw`api_keys: {'value': 'a\', 'other': '}SCALAR_PRIVATE_Q'}`,
+])('AC-15,30 scalar prefixes and YAML flow quotes remain private at every retained cut: %j', (value) => {
+  const secret = 'SCALAR_PRIVATE_Q'
+  const input = value + '\npublic: repository not found'
+  if (value.startsWith('api_keys:')) expect(parse(input).public).toBe('repository not found')
+  for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+    expect(output).not.toContain(secret)
+    expect(output).toContain('repository not found')
+  }
+  for (const size of [0, 1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut <= input.length; cut += size || 1) {
+      contexts = size
+        ? redactionContext(input.slice(Math.max(0, cut - size), cut), contexts)
+        : redactionContext(input.slice(0, cut))
+      const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+      const surviving = secret.slice(Math.max(0, cut - input.indexOf(secret)))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+      expect(contexts.length).toBeLessThan(32)
+      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    }
+  }
+})
+
+it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'])(
+  'AC-15,30 invisible control-string payloads cannot break credential names: %j',
+  (open) => {
+    const close = open.startsWith('\x1b') ? '\x1b\\' : '\u009c'
+    const input = `https://fixture.invalid?to${open}junk${close}ken=CONTROL_PRIVATE_Q&visible=yes`
+    for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+      expect(output).not.toContain('CONTROL_PRIVATE_Q')
+      expect(output).toContain('visible=yes')
+    }
+  },
+)
 
 it.each([1, 2, 3])('AC-15,30 encoded assignments cannot suppress later ordinary credential keys: depth %i', (depth) => {
   const secrets = ['FIRST_PRIVATE_Q', 'SECOND_PRIVATE_Q']

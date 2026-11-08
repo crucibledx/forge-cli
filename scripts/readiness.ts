@@ -108,7 +108,14 @@ export async function readiness(value: unknown, pin: string, provider: Readiness
     }
     const status = valid ? lane.status : 'blocked'
     if (status !== 'pass') add('blocked', id, `Lane ${status}`)
-    laneResults.push({lane_id: id, status, checks: lane.checks})
+    laneResults.push({
+      lane_id: id,
+      status,
+      checks: lane.checks.map((check) => ({
+        ...check,
+        ...(check.reason === undefined ? {} : {reason: redact(check.reason)}),
+      })),
+    })
   }
   if (
     identity(bundle.gate, 'Deterministic gate') &&

@@ -3,13 +3,14 @@ type AnsiState = (typeof ANSI)[keyof typeof ANSI]
 
 /** Strip streamed control sequences without retaining unbounded unfinished payloads. Not a screen emulator. */
 export function createAnsiText(onText?: (start: number, end: number) => void) {
-  let state: AnsiState = ANSI.TEXT
+  let state: AnsiState = ANSI.TEXT,
+    bellTerminates = false
   return (chunk: string): string => {
     let text = '',
       index = 0
     while (index < chunk.length) {
       if (state === ANSI.TEXT) {
-        const next = chunk.slice(index).search(/[\u001b\u009b\u009d]/)
+        const next = chunk.slice(index).search(/[\u001b\u0090\u0098\u009b-\u009f]/)
         if (next < 0) {
           text += chunk.slice(index)
           onText?.(index, chunk.length)
@@ -19,15 +20,24 @@ export function createAnsiText(onText?: (start: number, end: number) => void) {
         if (next) onText?.(index, index + next)
         const control = chunk[index + next]
         index += next + 1
-        state = control === '\u009b' ? ANSI.CSI : control === '\u009d' ? ANSI.OSC : ANSI.ESCAPE
+        bellTerminates = control === '\u009d'
+        state =
+          control === '\u001b'
+            ? ANSI.ESCAPE
+            : control === '\u009b'
+              ? ANSI.CSI
+              : control === '\u009c'
+                ? ANSI.TEXT
+                : ANSI.OSC
         continue
       }
       if (state === ANSI.ESCAPE) {
         const control = chunk[index++]
+        bellTerminates = control === ']'
         state =
           control === '['
             ? ANSI.CSI
-            : control === ']'
+            : ']P_^X'.includes(control)
               ? ANSI.OSC
               : /[ -/]/.test(control)
                 ? ANSI.INTERMEDIATE
@@ -47,7 +57,9 @@ export function createAnsiText(onText?: (start: number, end: number) => void) {
         .slice(index)
         .search(
           state === ANSI.OSC
-            ? /[\u0007\u009c]|\u001b\\/
+            ? bellTerminates
+              ? /[\u0007\u009c]|\u001b\\/
+              : /\u009c|\u001b\\/
             : state === ANSI.CSI
               ? /[\u001b\u009b@-~]/
               : /[\u001b\u009b0-~]/,
