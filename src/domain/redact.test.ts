@@ -10,6 +10,34 @@ import {
   redactionSpans,
 } from './redact'
 
+it.each([false, true, null, 0, 17, -12.5, 6e24])(
+  'AC-15 typed JSON credential scalar %j preserves public sibling diagnostics',
+  (token) => {
+    const input = JSON.stringify({
+      token,
+      path: '/public/recovery-target.md',
+      password: 'JSON_PRIVATE_Q',
+      error: 'PUBLIC_SPECIFIC_RECOVERY_Q: fix file permissions',
+    })
+    for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+      expect(output).toContain('/public/recovery-target.md')
+      expect(output).toContain('PUBLIC_SPECIFIC_RECOVERY_Q')
+      expect(output).not.toContain('JSON_PRIVATE_Q')
+    }
+  },
+)
+it.each([
+  '"token": false,JSON_PRIVATE_Q',
+  'prefix, "token": false,JSON_PRIVATE_Q',
+  '{"token":false,JSON_PRIVATE_Q}',
+  '{"token":falseJSON_PRIVATE_Q,"path":"public"}',
+  '{"token":"false,JSON_PRIVATE_Q","path":"public"}',
+  'token=false,JSON_PRIVATE_Q',
+  'token: false,JSON_PRIVATE_Q',
+])('AC-15,30 JSON-looking string credentials remain private: %j', (input) => {
+  expect(redact(input)).not.toContain('JSON_PRIVATE_Q')
+})
+
 it.each([
   'password=[]SCALAR_PRIVATE_Q',
   'password={x}SCALAR_PRIVATE_Q',

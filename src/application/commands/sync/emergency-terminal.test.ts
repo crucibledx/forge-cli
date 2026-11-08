@@ -56,9 +56,8 @@ const vectors = [
 ]
 for (const vector of vectors)
   for (const silent of [false, true])
-    it.each([false, true])(
-      `AC-23 AC-26 emergency ${vector.name} is inert with silent=${silent}, report-failure=%s`,
-      async (reportFailure) => {
+    for (const reportFailure of [false, true])
+      it(`AC-23 AC-26 emergency ${vector.name} is inert with silent=${silent}, report-failure=${reportFailure}`, async () => {
         // Application-boundary subprocess: real planning/transaction/outcome with injected filesystem faults.
         // No invalid native filename is created, so Windows exercises the same diagnostic boundary.
         const program = `
@@ -95,7 +94,7 @@ for (const vector of vectors)
             stderr = err
           },
         })
-        expect(result.exitCode).toBe(1)
+        expect(result).toMatchObject({exitCode: 1, signal: null, timedOut: false})
         expect(stderr).toContain('Recovery required')
         expect(stderr).toContain('Preserve files/backups and recovery temporaries:')
         expect(stderr).toContain('Restore target/config/state from one known-good snapshot, then dry-run.')
@@ -106,5 +105,4 @@ for (const vector of vectors)
           /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Bidi_Control}\u2028\u2029]/u,
         )
         if (silent) expect(stdout).toBe('')
-      },
-    )
+      })

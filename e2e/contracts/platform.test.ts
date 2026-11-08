@@ -8,10 +8,30 @@ import {expect, it} from 'bun:test'
 import {buildConfigYaml, setupLocalSync, writeConfig} from '@e2e/fixtures'
 import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
+import {createWindowsJob} from '@e2e/framework/windows-job'
 
 import {testEnvironment} from '../../scripts/test-sandbox'
 
 const dir = useTmpDir('native-platform')
+it.skipIf(process.platform !== 'win32')(
+  'native shared Windows bindings retain independent job-handle lifetimes (AC-18,26)',
+  async () => {
+    const first = await createWindowsJob(),
+      second = await createWindowsJob()
+    try {
+      expect(first.active()).toBe(0)
+      expect(second.active()).toBe(0)
+      first.close()
+      expect(second.active()).toBe(0)
+      second.terminate()
+      expect(second.active()).toBe(0)
+      expect(() => first.active()).toThrow('already closed')
+    } finally {
+      first.close()
+      second.close()
+    }
+  },
+)
 const destinations = [
   {id: 'claude-code', project: '.claude/rules/native.md', global: '.claude/rules/native.md'},
   {id: 'cursor', project: '.cursor/rules/native.mdc', global: '.cursor/rules/native.mdc'},

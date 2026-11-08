@@ -40,6 +40,37 @@ describe('BR-04–08 truthful outcomes and incidental storage (AC-7,8,15,23)', (
       },
     }
   }
+  it.each([false, true, null, 0, -12.5])(
+    'AC-15 typed JSON credential value %j keeps human and report recovery context',
+    async (token) => {
+      const deps = await dependencies()
+      deps.loadSource = async () => {
+        throw new Error(
+          JSON.stringify({
+            token,
+            path: '/public/recovery-target.md',
+            password: 'JSON_PRIVATE_Q',
+            error: 'PUBLIC_SPECIFIC_RECOVERY_Q: fix file permissions',
+          }),
+        )
+      }
+      const output = spyOn(console, 'log').mockImplementation(() => {})
+      let human = ''
+      try {
+        await runSyncWithDependencies({...options, silent: false}, deps)
+        human = output.mock.calls.flat().join('\n')
+      } finally {
+        output.mockRestore()
+      }
+      expect(process.exitCode).toBe(1)
+      expect(deps.written[0]).toMatchObject({success: false, files: {synced: 0, errors: 1}})
+      for (const value of [human, JSON.stringify(deps.written)]) {
+        expect(value).toContain('/public/recovery-target.md')
+        expect(value).toContain('PUBLIC_SPECIFIC_RECOVERY_Q')
+        expect(value).not.toContain('JSON_PRIVATE_Q')
+      }
+    },
+  )
   for (const keep of [false, true])
     for (const preview of [false, true])
       it(`AC-3,7,8 empty acquisition reaches real orchestration: keep=${keep}, preview=${preview}`, async () => {

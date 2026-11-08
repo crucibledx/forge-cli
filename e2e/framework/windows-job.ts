@@ -7,9 +7,7 @@ export interface WindowsJob {
 }
 export const windowsJobs = new Map<number, WindowsJob>()
 
-/** Keep the handle, not a leader PID, until the entire owned job is empty. */
-export async function createWindowsJob(): Promise<WindowsJob> {
-  if (process.platform !== 'win32') throw new Error('Windows job requested on another OS')
+async function windowsBindings() {
   const {dlopen, ptr} = await import('bun:ffi')
   const native = dlopen('kernel32.dll', {
     CreateJobObjectW: {args: ['ptr', 'ptr'], returns: 'ptr'},
@@ -20,11 +18,19 @@ export async function createWindowsJob(): Promise<WindowsJob> {
     OpenProcess: {args: ['u32', 'bool', 'u32'], returns: 'ptr'},
     CloseHandle: {args: ['ptr'], returns: 'bool'},
   })
+  return {native, ptr}
+}
+// Reuse process-scoped FFI bindings; each job still owns and closes its handle.
+let bindings: ReturnType<typeof windowsBindings> | undefined
+
+/** Keep the handle, not a leader PID, until the entire owned job is empty. */
+export async function createWindowsJob(): Promise<WindowsJob> {
+  if (process.platform !== 'win32') throw new Error('Windows job requested on another OS')
+  const {native, ptr} = await (bindings ??= windowsBindings())
   const name = `Local\\ForgeTest-${crypto.randomUUID()}`
   const encodedName = Buffer.from(`${name}\0`, 'utf16le')
   const handle = native.symbols.CreateJobObjectW(null, ptr(encodedName))
   if (!handle) {
-    native.close()
     throw new Error('Cannot acquire durable Windows Job Object')
   }
   let closed = false
@@ -32,7 +38,6 @@ export async function createWindowsJob(): Promise<WindowsJob> {
     if (!closed) {
       closed = true
       native.symbols.CloseHandle(handle)
-      native.close()
     }
   }
   try {

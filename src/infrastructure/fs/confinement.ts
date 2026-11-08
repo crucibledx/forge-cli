@@ -1,5 +1,5 @@
-import {lstat, realpath} from 'node:fs/promises'
-import {isAbsolute, relative, resolve, sep, win32} from 'node:path'
+import {lstat, readlink, realpath} from 'node:fs/promises'
+import {dirname, isAbsolute, relative, resolve, sep, win32} from 'node:path'
 
 class ConfinementError extends Error {
   constructor(path: string, reason: string) {
@@ -16,14 +16,46 @@ function inside(root: string, path: string): string {
   return rel
 }
 
+async function canonicalRoot(selected: string): Promise<string> {
+  if (process.platform === 'win32' || !selected.includes('\\')) return realpath(selected)
+  // Bun 1.4.2's realpath normalizes literal POSIX backslashes. Resolve native
+  // components instead, retaining symlink-root support and a bounded link count.
+  let current = '/',
+    pending = selected.split('/'),
+    links = 0
+  while (pending.length) {
+    const segment = pending.shift()!
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      current = dirname(current)
+      continue
+    }
+    const next = resolve(current, segment)
+    const info = await lstat(next)
+    if (info.isSymbolicLink()) {
+      if (++links > 40) throw new ConfinementError(selected, 'too many symbolic links in selected root')
+      const target = await readlink(next)
+      if (isAbsolute(target)) current = '/'
+      pending = [...target.split('/'), ...pending]
+    } else {
+      if (pending.length && !info.isDirectory())
+        throw new ConfinementError(selected, 'root ancestor is not a directory')
+      current = next
+    }
+  }
+  return current
+}
+
 export async function createConfinement(selectedRoot: string) {
   const selected = resolve(selectedRoot)
-  const root = await realpath(selected)
+  const root = await canonicalRoot(selected)
   if (!(await lstat(root)).isDirectory()) throw new ConfinementError(selectedRoot, 'root is not a directory')
   return {
     root,
     async resolve(path: string): Promise<string> {
       if (!path || path.includes('\0')) throw new ConfinementError(path, 'invalid filename')
+      if ((process.platform === 'win32' ? path.split(/[/\\]/) : path.split('/')).includes('..'))
+        throw new ConfinementError(path, 'parent traversal')
       if (/^[a-z]:(?![/\\])/i.test(path)) throw new ConfinementError(path, 'drive-relative path')
       if (
         process.platform !== 'win32' &&
@@ -31,16 +63,18 @@ export async function createConfinement(selectedRoot: string) {
       ) {
         throw new ConfinementError(path, 'foreign absolute or drive-relative path')
       }
-      const portable = path.replaceAll('\\', sep).replaceAll('/', sep)
-      if (portable.split(sep).includes('..')) throw new ConfinementError(path, 'parent traversal')
-      let rel: string
-      if (isAbsolute(portable)) {
+      let local = path
+      if (isAbsolute(path)) {
         try {
-          rel = inside(selected, resolve(portable))
+          local = inside(selected, resolve(path))
         } catch {
-          rel = inside(root, resolve(portable))
+          local = inside(root, resolve(path))
         }
-      } else rel = inside(root, resolve(root, portable))
+      }
+      // Normalize descendants, never the native spelling of the selected root.
+      const portable = local.replaceAll('\\', sep).replaceAll('/', sep)
+      if (portable.split(sep).includes('..')) throw new ConfinementError(path, 'parent traversal')
+      const rel = inside(root, resolve(root, portable))
       const segments = rel.split(sep)
       if (
         process.platform === 'win32' &&

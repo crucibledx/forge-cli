@@ -1,4 +1,4 @@
-import {mkdir, readFile, rename, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, realpath, rename, symlink, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -10,6 +10,38 @@ import {prepareTransaction, transactionIO} from './transaction'
 
 describe('BR-07 confinement (AC-12)', () => {
   const dir = useTmpDir('confinement')
+  it.skipIf(process.platform === 'win32')(
+    'canonicalizes literal-backslash roots without redirecting into a separator alias',
+    async () => {
+      const base = dir(),
+        root = join(base, 'selected\\root'),
+        link = join(base, 'root-link'),
+        alias = join(base, 'selected/root')
+      await mkdir(root)
+      await mkdir(alias, {recursive: true})
+      await writeFile(join(alias, 'sentinel'), 'outside')
+      await symlink(root, link)
+      const expected = join(await realpath(base), 'selected\\root')
+      for (const selected of [root, link]) {
+        const boundary = await createConfinement(selected)
+        expect(boundary.root).toBe(expected)
+        expect(await boundary.resolve(join(selected, 'a.md'))).toBe(join(expected, 'a.md'))
+        expect(await boundary.resolve('nested\\a.md')).toBe(join(expected, 'nested/a.md'))
+        for (const path of ['..\\selected/root/sentinel', join(alias, 'sentinel'), selected])
+          await expect(boundary.resolve(path)).rejects.toThrow()
+        await (await prepareTransaction(selected, [{path: 'a.md', content: 'safe'}])).commit()
+        expect(await readFile(join(root, 'a.md'), 'utf8')).toBe('safe')
+        expect(await readFile(join(alias, 'sentinel'), 'utf8')).toBe('outside')
+      }
+    },
+  )
+  it.skipIf(process.platform === 'win32')(
+    'bounds selected-root symlink cycles containing literal backslashes',
+    async () => {
+      await symlink('loop\\root', join(dir(), 'loop\\root'))
+      await expect(createConfinement(join(dir(), 'loop\\root'))).rejects.toThrow('too many symbolic links')
+    },
+  )
   it('accepts nested paths, mixed separators, absolute in-root paths and a symlink-selected root', async () => {
     const link = join(dirname(dir()), 'root-link')
     await symlink(dir(), link, process.platform === 'win32' ? 'junction' : 'dir')
@@ -63,6 +95,17 @@ describe('BR-07 confinement (AC-12)', () => {
   it('refuses absolute outside-root and sibling-prefix paths', async () => {
     const boundary = await createConfinement(dir())
     for (const path of [dirname(dir()), `${dir()}-sibling/file`]) await expect(boundary.resolve(path)).rejects.toThrow()
+  })
+  it('rejects absolute parent traversal before native resolution collapses it', async () => {
+    const boundary = await createConfinement(dir())
+    for (const path of [`${dir()}/nested/../file.md`, `${dir()}\\nested\\..\\file.md`])
+      await expect(boundary.resolve(path)).rejects.toThrow()
+  })
+  it.skipIf(process.platform === 'win32')('refuses a non-directory in a literal-root symlink target', async () => {
+    await writeFile(join(dir(), 'file'), 'not a directory')
+    await symlink('file/../target', join(dir(), 'root\\link'))
+    await mkdir(join(dir(), 'target'))
+    await expect(createConfinement(join(dir(), 'root\\link'))).rejects.toThrow('root ancestor is not a directory')
   })
   it.each(['leaf', 'ancestor', 'dangling', 'internal'])(
     'rejects pre-existing %s symlinks before read/write/delete',

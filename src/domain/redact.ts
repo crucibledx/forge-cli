@@ -51,7 +51,10 @@ function* credentialAssignments(text: string) {
   const names = input.matchAll(queryStart)
   let query = names.next().value
   let line = {key: 0, indent: 0, end: -1}
+  let previousEnd = 0
   for (const match of input.matchAll(assignmentStart)) {
+    const gapStart = previousEnd
+    previousEnd = match.index + match[0].length
     while (query && query.index + query[0].length <= match.index) query = names.next().value
     // Query values have their own delimiter rules, including literal quotes.
     if (query && query.index <= match.index) continue
@@ -67,6 +70,7 @@ function* credentialAssignments(text: string) {
         scalar: match[0].endsWith(':'),
         indent: match.index === line.key ? line.indent : 0,
         encoded: match[4] !== undefined,
+        flow: match[3] === undefined && match[0].endsWith(':') && /[,{]\s*$/.test(text.slice(gapStart, match.index)),
       }
     }
   }
@@ -287,6 +291,7 @@ function credentialValue(
   whitespace: CredentialWhitespace = CREDENTIAL_WHITESPACE.HORIZONTAL,
   indent = 0,
   scalar = false,
+  flow = false,
 ): {start: number; end: number; continuation: string | undefined} {
   const original = start
   let column: number | null = null
@@ -356,6 +361,14 @@ function credentialValue(
       escaped = text[end] === '\\' && !escaped
     }
     return {start, end, continuation: quote + 'x' + (escaped ? '\\' : '')}
+  }
+  if (flow) {
+    // Typed JSON scalars end before sibling fields, unlike free-form credentials.
+    const primitive =
+      /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*(?:}|,\s*"(?:\\.|[^"\\\r\n])*"\s*:))/.exec(
+        text.slice(start),
+      )
+    if (primitive) return {start, end: start + primitive[0].length, continuation: undefined}
   }
   if (!token && completeScalar) return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/\s/.test(text[end]))) end++
@@ -677,6 +690,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
             ? Math.max(firstIndent, match.indent)
             : match.indent,
         match.scalar,
+        match.flow,
       )
       covered = value.end
       add(value.start - credentialPrefix.length, value.end - credentialPrefix.length)
@@ -787,6 +801,7 @@ function discardedContext(discarded: string): string[] {
       match.quoted ? CREDENTIAL_WHITESPACE.QUOTED : CREDENTIAL_WHITESPACE.ASSIGNMENT,
       state?.kind === VALUE_KINDS.KEY && match.index === firstLineKey ? state.indent + match.indent : match.indent,
       match.scalar,
+      match.flow,
     )
     covered = value.end
     retainValue(value.continuation, match.quoted)
