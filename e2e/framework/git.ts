@@ -2,7 +2,9 @@ import {join, resolve} from 'node:path'
 
 import {gitFixtures} from '@e2e/fixtures/git-manifest'
 
+import {sessionFailure} from './failure'
 import {runPipe} from './pipe'
+import {SESSION_MS} from './process'
 
 const history = resolve(import.meta.dir, '../fixtures/git-history.bundle')
 function fixtureFor(files: Record<string, string>): string {
@@ -20,7 +22,20 @@ function fixtureFor(files: Record<string, string>): string {
 async function exec(cwd: string, command: string[]): Promise<void> {
   const result = await runPipe(cwd, command)
   if (result.exitCode !== 0 || result.timedOut)
-    throw new Error(`Fixture command failed: ${command.join(' ')}\n${result.stderr}`)
+    throw sessionFailure(
+      [new Error('Fixture command failed')],
+      {
+        command,
+        cwd,
+        exit: result.exitCode,
+        signal: result.signal,
+        timedOut: result.timedOut,
+        timeoutMs: SESSION_MS,
+        seed: process.env.FC_SEED ?? null,
+        replay: process.env.FC_PATH ?? null,
+      },
+      `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+    )
 }
 
 /** Import existing local fixture commits, never author commits or configure identity in tests. */
