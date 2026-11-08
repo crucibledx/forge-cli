@@ -5,21 +5,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.7.0] — 2026-11-08
-
-### Changed
-
-- **Breaking: all-or-nothing sync** — if fetching any source fails, `forge sync` exits with code 1 before installing or deleting synced files. Healthy sources no longer apply independently when another source fails.
-- **Transactional sync** — validate plans before commit and during dry-run, compensate failed writes, and report unrestored paths for manual recovery. State version 2 tracks ownership conservatively with explicit baselines.
-
-### Security
-
-- **Filesystem and diagnostics** — harden symlink-aware confinement and path-collision checks, preserve Windows access controls, protect recovery backups, and redact credentials in logs and reports.
-
-### Added
-
-- **Testing and security foundation** — isolated tests, bounded process cleanup, native Windows/macOS coverage, security regressions, and independent CI evidence validation that fails closed on missing or unauthenticated evidence.
-
 ## [0.6.24] — 2026-08-13
 
 ### Changed
