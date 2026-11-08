@@ -10,7 +10,7 @@ export function createAnsiText(onText?: (start: number, end: number) => void) {
       index = 0
     while (index < chunk.length) {
       if (state === ANSI.TEXT) {
-        const next = chunk.slice(index).search(/[\u001b\u0090\u0098\u009b-\u009f]/)
+        const next = chunk.slice(index).search(/[\u0018\u001a\u001b\u0090\u0098\u009b-\u009f]/)
         if (next < 0) {
           text += chunk.slice(index)
           onText?.(index, chunk.length)
@@ -26,7 +26,7 @@ export function createAnsiText(onText?: (start: number, end: number) => void) {
             ? ANSI.ESCAPE
             : control === '\u009b'
               ? ANSI.CSI
-              : control === '\u009c'
+              : control === '\u009c' || control === '\u0018' || control === '\u001a'
                 ? ANSI.TEXT
                 : ANSI.OSC
         continue
@@ -58,11 +58,11 @@ export function createAnsiText(onText?: (start: number, end: number) => void) {
         .search(
           state === ANSI.OSC
             ? bellTerminates
-              ? /[\u0007\u009c]|\u001b\\/
-              : /\u009c|\u001b\\/
+              ? /[\u0007\u0018\u001a\u009c]|\u001b\\/
+              : /[\u0018\u001a\u009c]|\u001b\\/
             : state === ANSI.CSI
-              ? /[\u001b\u009b@-~]/
-              : /[\u001b\u009b0-~]/,
+              ? /[\u0018\u001a\u001b\u009b@-~]/
+              : /[\u0018\u001a\u001b\u009b0-~]/,
         )
       if (next < 0) {
         if (state === ANSI.OSC && chunk.endsWith('\u001b')) state = ANSI.OSC_ESCAPE

@@ -45,9 +45,12 @@ it.each([
   }
 })
 
-it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'])(
-  'AC-15,30 invisible control-string payloads cannot break credential names: %j',
-  (open) => {
+const controlStrings = ['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'].map(
+  (open, label) => ({open, label}),
+)
+it.each(controlStrings)(
+  'AC-15,30 invisible control-string payloads cannot break credential names: form $label',
+  ({open}) => {
     const close = open.startsWith('\x1b') ? '\x1b\\' : '\u009c'
     const input = `https://fixture.invalid?to${open}junk${close}ken=CONTROL_PRIVATE_Q&visible=yes`
     for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
@@ -56,6 +59,52 @@ it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u00
     }
   },
 )
+it.each(
+  [...controlStrings, {open: '\x1b]', label: 8}, {open: '\u009d', label: 9}, {open: '', label: 10}].flatMap(
+    ({open, label}) => ['\x18', '\x1a'].map((cancel, kind) => ({open, cancel, label: `${label}/${kind}`})),
+  ),
+)('AC-15,30 cancelled control strings cannot expose raw credentials: $label', ({open, cancel}) => {
+  const input = `https://fixture.invalid?to${open}${open ? 'junk' : ''}${cancel}ken=CANCEL_PRIVATE_Q&visible=yes`
+  for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+    expect(output).not.toContain('CANCEL_PRIVATE_Q')
+    expect(output).toContain('visible=yes')
+  }
+})
+it.each(
+  ['\n', '\r', '\r\n'].flatMap((newline) =>
+    ['array', 'object', 'plain-hash', 'quoted-hash'].map((kind) => ({newline, kind})),
+  ),
+)('AC-15,30 YAML comments preserve credential boundaries across every cut: $kind %#', ({newline, kind}) => {
+  const value =
+    kind === 'array'
+      ? '[first, # ] } "\'\n  COMMENT_PRIVATE_Q\n]'
+      : kind === 'object'
+        ? '{first: ok, # } ] "\'\n  next: COMMENT_PRIVATE_Q\n}'
+        : kind === 'plain-hash'
+          ? '[first#literal, COMMENT_PRIVATE_Q]'
+          : "['# ]', COMMENT_PRIVATE_Q]"
+  const input = `api_keys: ${value}\npublic: repository not found`.replaceAll('\n', newline)
+  // Normalize only the parser oracle; raw CR inputs still exercise every privacy assertion below.
+  expect(parse(input.replace(/\r\n?/g, '\n')).public).toBe('repository not found')
+  for (const output of [redact(input), redact(redact(input)), JSON.stringify(redactData({cause: input}))]) {
+    expect(output).not.toContain('COMMENT_PRIVATE_Q')
+    expect(output).toContain('repository not found')
+  }
+  for (const size of [0, 1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut <= input.length; cut += size || 1) {
+      contexts = size
+        ? redactionContext(input.slice(Math.max(0, cut - size), cut), contexts)
+        : redactionContext(input.slice(0, cut))
+      const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+      const surviving = 'COMMENT_PRIVATE_Q'.slice(Math.max(0, cut - input.indexOf('COMMENT_PRIVATE_Q')))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      if (cut <= input.indexOf('repository not found')) expect(output).toContain('repository not found')
+      expect(contexts.length).toBeLessThan(32)
+      expect(contexts.every((context) => context.length < 128 && !context.includes('COMMENT_PRIVATE_Q'))).toBe(true)
+    }
+  }
+})
 
 it.each([1, 2, 3])('AC-15,30 encoded assignments cannot suppress later ordinary credential keys: depth %i', (depth) => {
   const secrets = ['FIRST_PRIVATE_Q', 'SECOND_PRIVATE_Q']

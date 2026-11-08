@@ -39,12 +39,7 @@ function credentialQueryKey(name: string, complete = true): boolean {
 
 function lineKey(text: string, index: number) {
   const start = Math.max(text.lastIndexOf('\n', index - 1), text.lastIndexOf('\r', index - 1)) + 1
-  let key = start
-  for (;;) {
-    while (/[ \t]/.test(text[key] ?? '')) key++
-    if (text[key] !== '-' || !/[ \t]/.test(text[key + 1] ?? '')) break
-    key++
-  }
+  const key = start + /^[ \t]*(?:-[ \t]+)*/.exec(text.slice(start))![0].length
   const ends = [text.indexOf('\n', index), text.indexOf('\r', index)].filter((end) => end >= 0)
   return {key, indent: key - start, end: ends.length ? Math.min(...ends) : -1}
 }
@@ -114,9 +109,17 @@ function escapedValueState(text: string) {
   if (!Number.isSafeInteger(level) || level < 0 || !Number.isSafeInteger(pending)) return
   return {level, pending, length: match[0].length}
 }
-type ContainerState = {depth: number; closing: string; quote: string; escaped: boolean; indent: number}
+type ContainerState = {
+  depth: number
+  closing: string
+  quote: string
+  escaped: boolean
+  indent: number
+  comment: boolean
+  separated: boolean
+}
 function containerState(text: string): ContainerState | undefined {
-  const match = /^\0f:(\d+):([}\]]):(["'-]):([01]):(\d+);/.exec(text)
+  const match = /^\0f:(\d+):([}\]]):(["'-]):([01]):(\d+):([01]):([01]);/.exec(text)
   if (
     !match ||
     !Number.isSafeInteger(Number(match[1])) ||
@@ -130,22 +133,36 @@ function containerState(text: string): ContainerState | undefined {
     quote: match[3] === '-' ? '' : match[3],
     escaped: match[4] === '1',
     indent: Number(match[5]),
+    comment: match[6] === '1',
+    separated: match[7] === '1',
   }
 }
 /** Flow containers terminate at their closing delimiter, not an indentation change. */
 function containerValue(text: string, start: number, state: ContainerState) {
   const {closing, indent} = state
-  let {depth, quote, escaped} = state
+  let {depth, quote, escaped, comment, separated} = state
   for (let end = start; end < text.length; end++) {
     const char = text[end]
+    if (comment) {
+      if (char === '\r' || char === '\n') {
+        comment = false
+        separated = true
+      }
+      continue
+    }
     if (quote) {
       if (char === quote && !escaped) quote = ''
       // YAML single-quoted flow strings use doubled apostrophes, not backslash escapes.
       escaped = quote === '"' && char === '\\' && !escaped
+      separated = false
+    } else if (char === '#' && separated) {
+      comment = true
     } else if (char === '"' || char === "'") {
       quote = char
+      separated = false
     } else if (char === '[' || char === '{') {
       depth++
+      separated = true
     } else if (char === ']' || char === '}') {
       depth--
       if (depth === 0 && char === closing) {
@@ -154,12 +171,13 @@ function containerValue(text: string, start: number, state: ContainerState) {
       }
       // A mismatched outer delimiter is not a safe public sibling boundary.
       if (depth === 0) depth = 1
-    }
+      separated = true
+    } else separated = /[\s,:]/.test(char)
   }
   return {
     start,
     end: text.length,
-    continuation: `\0f:${depth}:${closing}:${quote || '-'}:${Number(escaped)}:${indent};`,
+    continuation: `\0f:${depth}:${closing}:${quote || '-'}:${Number(escaped)}:${indent}:${Number(comment)}:${Number(separated)};`,
   }
 }
 /** Encoded quote delimiters keep their level; retained state contains counters, not discarded bytes. */
@@ -311,6 +329,8 @@ function credentialValue(
       quote: '',
       escaped: false,
       indent,
+      comment: false,
+      separated: true,
     })
   const encodedQuote = /^(\\+)"/.exec(text.slice(end))
   if (encodedQuote) {
@@ -702,7 +722,7 @@ export function redact(text: string, options: RedactionOptions = {}): string {
       value.length,
     )
   const spans = recognize(text)
-  if (/[\u001b\u0090\u0098\u009b-\u009f]/.test(text)) {
+  if (/[\u0018\u001a\u001b\u0090\u0098\u009b-\u009f]/.test(text)) {
     const segments: RedactionSegment[] = []
     let visible = 0
     const plain = createAnsiText((start, end) => {

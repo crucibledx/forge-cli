@@ -30,9 +30,12 @@ it.each(['password=[]TAIL_PRIVATE_Q', 'password={x},TAIL_PRIVATE_Q', String.raw`
     }
   },
 )
-it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'])(
-  'AC-15,16,30 invisible control strings preserve streamed credential recognition: %j',
-  (open) => {
+const controlStrings = ['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u0098'].map(
+  (open, label) => ({open, label}),
+)
+it.each(controlStrings)(
+  'AC-15,16,30 invisible control strings preserve streamed credential recognition: form $label',
+  ({open}) => {
     const close = open.startsWith('\x1b') ? '\x1b\\' : '\u009c'
     const input = `https://fixture.invalid?to${open}junk${close}ken=CONTROL_TAIL_PRIVATE_Q&visible=yes`
     for (let cut = 0; cut <= input.length; cut++) {
@@ -55,6 +58,51 @@ it.each(['\x1bP', '\x1b_', '\x1b^', '\x1bX', '\u0090', '\u009f', '\u009e', '\u00
     }
   },
 )
+it.each(
+  [...controlStrings, {open: '\x1b]', label: 8}, {open: '\u009d', label: 9}].flatMap(({open, label}) =>
+    ['\x18', '\x1a'].map((cancel, kind) => ({open, cancel, label: `${label}/${kind}`})),
+  ),
+)(
+  'AC-15,16,30 cancelled controls preserve both diagnostic views after every cut and eviction: $label',
+  ({open, cancel}) => {
+    const input = `https://fixture.invalid?to${open}junk\x1b${cancel}ken=CANCEL_PRIVATE_Q&visible=yes`
+    for (let cut = 0; cut <= input.length; cut++) {
+      const transcript = createTranscript()
+      transcript.append(Buffer.from(input.slice(0, cut)))
+      transcript.append(Buffer.from(input.slice(cut)))
+      transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('CANCEL_PRIVATE_Q')
+        expect(output).toContain('visible=yes')
+      }
+    }
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(`https://fixture.invalid?to${open}` + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(`junk\x1b${cancel}ken=CANCEL_PRIVATE_Q&visible=yes`))
+    for (const finish of [false, true]) {
+      if (finish) transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('CANCEL_PRIVATE_Q')
+        expect(output).toContain('visible=yes')
+        expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+  },
+)
+it.each(['\n', '\r', '\r\n'])('AC-15,16,30 YAML comments survive repeated raw and visible eviction: %#', (newline) => {
+  const transcript = createTranscript()
+  transcript.append(Buffer.from('api_keys: [first, # ] } "\'' + ' '.repeat(TAIL_BYTES)))
+  transcript.append(Buffer.from(' ignored-comment' + ' '.repeat(TAIL_BYTES)))
+  transcript.append(Buffer.from(`${newline}  COMMENT_PRIVATE_Q${newline}]${newline}public: repository not found`))
+  for (const finish of [false, true]) {
+    if (finish) transcript.finish()
+    for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+      expect(output).not.toContain('COMMENT_PRIVATE_Q')
+      expect(output).toContain('repository not found')
+      expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+    }
+  }
+})
 it('AC-15,16,18,30 credential-heavy single-line append completes within the unchanged session budget', async () => {
   const program = `
     import {createTranscript} from ${JSON.stringify(join(import.meta.dir, '../process.ts'))}
