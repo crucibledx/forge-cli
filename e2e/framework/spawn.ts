@@ -1,130 +1,203 @@
-import stripAnsi from 'strip-ansi'
+import './teardown'
 
-import {CLI_ENTRY, TIMEOUT_MS} from './constants'
+import {testEnvironment} from '../../scripts/test-sandbox'
+import {CLI_ENTRY} from './constants'
+import {sessionFailure} from './failure'
 import {ENTER} from './keys'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import type {ProcessOptions} from './pipe'
+import {posixOwnership} from './posix-owner'
+import {createTranscript, ownSession, sanitize, sessionBudget, terminateTree} from './process'
 
 export interface CLIResult {
+  stdout: string
+  stderr: string
   output: string
-  exitCode: number
+  exitCode: number | null
+  signal: string | null
+  timedOut: boolean
 }
 
-/**
- * A fluent step returned by `CLISession.waitForText`. It is a real Promise
- * (awaitable) and exposes action methods that fire immediately after the wait
- * resolves, then return the same step so you can keep chaining:
- *
- *   await cli
- *       .waitForText(M.assistants.addUndetected('Claude Code')).pressKey(N)
- *       .waitForText(M.assistants.addUndetected('Cursor')).pressKey(Y)
- *       .waitForText(M.source.branch).pressEnter()
- */
 export interface CliStep extends Promise<void> {
-  /** Send a single key after this step settles */
   pressKey(key: string): CliStep
-
-  /** Press Enter after this step settles */
   pressEnter(): CliStep
-
-  /** Write text after this step settles */
   write(text: string): CliStep
-
-  /** Wait for the next prompt text, chained after this step */
-  waitForText(text: string, timeoutMs?: number): CliStep
+  waitForText(text: string, timeoutMs?: number, mark?: number): CliStep
 }
 
 export interface CLISession {
-  /** Strip-ANSI snapshot of all output so far */
+  /** One absolute total deadline, shared with the convenience runner's driver. */
+  deadlineAt: number
+  /** Bounded combined PTY transcript, not a terminal screen or separate streams. */
   getOutput(): string
-
-  /** Begin a fluent interaction chain by waiting for `text` to appear */
-  waitForText(text: string, timeoutMs?: number): CliStep
-
-  /** Resolves once the subprocess exits */
+  failure(errors: readonly unknown[]): Error
+  mark(): number
+  waitForText(text: string, timeoutMs?: number, mark?: number): CliStep
   waitForExit(): Promise<CLIResult>
+  dispose(): Promise<void>
 }
 
-// ─── Spawn ───────────────────────────────────────────────────────────────────
+export function spawnPty(cwd: string, command: string[], options: ProcessOptions = {}): CLISession {
+  if (process.platform === 'win32') throw new Error('PTY journeys require a native POSIX runner')
+  const budget = sessionBudget(options.timeoutMs)
+  const replay = {
+    seed: options.env?.FC_SEED ?? process.env.FC_SEED ?? null,
+    replay: options.env?.FC_PATH ?? process.env.FC_PATH ?? null,
+  }
+  const transcript = createTranscript((text) => sanitize(text, cwd, options.secrets), options.secrets)
+  const listeners = new Set<() => void>()
+  let cursor = 0
+  let exited = false
+  let closed = false
+  let timedOut = false
+  const notify = () => listeners.forEach((listener) => listener())
+  const ownership = posixOwnership(command)
+  const env = testEnvironment(cwd, {TERM: 'xterm-256color', ...options.env})
+  const proc = ownership.wrap(
+    Bun.spawn(ownership.command, {
+      cwd,
+      env,
+      detached: true,
+      ipc: ownership.ipc,
+      terminal: {
+        cols: 80,
+        rows: 24,
+        data(_terminal, bytes) {
+          transcript.append(bytes)
+          notify()
+        },
+      },
+    }),
+  )
+  const term = proc.terminal!
+  const getOutput = () => transcript.visibleDiagnostic()
+  const failure = (errors: readonly unknown[]) =>
+    sessionFailure(
+      errors,
+      {
+        command,
+        cwd,
+        exit: proc.signalCode ? null : proc.exitCode,
+        signal: proc.signalCode ? String(proc.signalCode) : null,
+        timedOut,
+        timeoutMs: budget,
+        ...replay,
+      },
+      getOutput(),
+      options.secrets,
+    )
+  const mark = () => transcript.offset + transcript.text().length
+  const owner = ownSession(async () => {
+    closed = true
+    clearTimeout(deadline)
+    notify()
+    try {
+      await terminateTree(proc, env)
+    } finally {
+      term.close()
+    }
+  })
+  const deadlineAt = performance.now() + budget
+  const deadline = setTimeout(
+    () => {
+      timedOut = true
+      notify()
+      void owner.dispose().catch(() => {})
+    },
+    Math.max(0, deadlineAt - performance.now()),
+  )
+  const exit = proc.exited.then(() => {
+    exited = true
+    transcript.finish()
+    notify()
+  })
 
-/**
- * Spawns `bun run <CLI_ENTRY> <command> [...args]` inside Bun's built-in PTY
- * (Bun.spawn `terminal` option, available since v1.3.5).
- *
- * The child process sees isTTY=true so @clack/prompts enters raw mode and
- * confirm prompts respond to a single 'y'/'n' keypress without ENTER.
- *
- * Use `waitForText` before each `pressKey` — no fixed sleeps needed.
- */
+  function wait(text: string, timeoutMs?: number, from = cursor): Promise<void> {
+    if (!text || !Number.isInteger(from) || from < 0 || from > mark()) {
+      return Promise.reject(new Error('Expected nonempty text and a valid transcript mark'))
+    }
+    return new Promise((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const finish = (error?: Error) => {
+        clearTimeout(timer)
+        listeners.delete(check)
+        if (error) reject(error)
+        else resolve()
+      }
+      const check = () => {
+        const offset = transcript.offset
+        const index = transcript.text().indexOf(text, Math.max(0, from - offset))
+        if (index >= 0) {
+          cursor = Math.max(cursor, offset + index + text.length)
+          finish()
+        } else if (exited || closed || timedOut) {
+          finish(failure([new Error(`PTY ${timedOut ? 'deadline expired' : 'exited/closed'} waiting for "${text}"`)]))
+        }
+      }
+      listeners.add(check)
+      if (timeoutMs !== undefined) {
+        timer = setTimeout(
+          () => finish(failure([new Error(`PTY wait expired for "${text}"`)])),
+          sessionBudget(timeoutMs),
+        )
+      }
+      check()
+    })
+  }
+
+  function write(text: string): Promise<void> {
+    return Promise.resolve().then(() => {
+      if (closed || exited || timedOut) throw new Error('Cannot write to a closed PTY session')
+      term.write(text)
+    })
+  }
+
+  function step(base: Promise<void>): CliStep {
+    const result = base as CliStep
+    result.pressKey = (key) => step(base.then(() => write(key)))
+    result.pressEnter = () => result.pressKey(ENTER)
+    result.write = (text) => step(base.then(() => write(text)))
+    result.waitForText = (text, timeoutMs, from) => step(base.then(() => wait(text, timeoutMs, from)))
+    return result
+  }
+
+  return {
+    deadlineAt,
+    getOutput,
+    failure,
+    mark,
+    waitForText: (text, timeoutMs, from) => step(wait(text, timeoutMs, from)),
+    dispose: owner.dispose,
+    async waitForExit() {
+      const errors: unknown[] = []
+      try {
+        await Promise.race([exit, owner.finished])
+      } catch (error) {
+        errors.push(error)
+      } finally {
+        try {
+          await owner.dispose()
+        } catch (error) {
+          if (!errors.includes(error)) errors.push(error)
+        }
+      }
+      if (errors.length) throw failure(errors)
+      return {
+        output: getOutput(),
+        stdout: '',
+        stderr: '',
+        exitCode: proc.signalCode ? null : proc.exitCode,
+        signal: proc.signalCode ? String(proc.signalCode) : null,
+        timedOut,
+      }
+    },
+  }
+}
+
 export function spawnInteractive(
   cwd: string,
   command: string,
   args: string[] = [],
   env: Record<string, string> = {},
 ): CLISession {
-  let output = ''
-
-  const proc = Bun.spawn(['bun', 'run', CLI_ENTRY, command, ...args], {
-    cwd,
-    env: {...process.env, HOME: cwd, ...env},
-    terminal: {
-      cols: 80,
-      rows: 24,
-      data(_terminal, data) {
-        output += new TextDecoder().decode(data)
-      },
-    },
-  })
-
-  const term = proc.terminal!
-  const getOutput = () => stripAnsi(output)
-
-  function rawWaitForText(text: string, timeoutMs = TIMEOUT_MS): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (stripAnsi(output).includes(text)) {
-        resolve()
-        return
-      }
-      const interval = setInterval(() => {
-        if (stripAnsi(output).includes(text)) {
-          clearInterval(interval)
-          clearTimeout(deadline)
-          resolve()
-        }
-      }, 50)
-      const deadline = setTimeout(() => {
-        clearInterval(interval)
-        reject(
-          new Error(`Timed out waiting for "${text}" after ${timeoutMs}ms\n\nActual output:\n${stripAnsi(output)}`),
-        )
-      }, timeoutMs)
-    })
-  }
-
-  function makeStep(base: Promise<void>): CliStep {
-    const step = base as CliStep
-    step.pressKey = (key) => {
-      base.then(() => term.write(key))
-      return step
-    }
-    step.pressEnter = () => {
-      base.then(() => term.write(ENTER))
-      return step
-    }
-    step.write = (text) => {
-      base.then(() => term.write(text))
-      return step
-    }
-    step.waitForText = (text, timeoutMs?) => makeStep(base.then(() => rawWaitForText(text, timeoutMs)))
-    return step
-  }
-
-  const waitForText = (text: string, timeoutMs?: number): CliStep => makeStep(rawWaitForText(text, timeoutMs))
-
-  const waitForExit = async (): Promise<CLIResult> => {
-    const exitCode = await proc.exited
-    return {output: stripAnsi(output), exitCode}
-  }
-
-  return {getOutput, waitForText, waitForExit}
+  return spawnPty(cwd, [process.execPath, 'run', CLI_ENTRY, command, ...args], {env})
 }

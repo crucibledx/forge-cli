@@ -1,0 +1,578 @@
+import {existsSync} from 'node:fs'
+import {mkdir, readFile, rename, symlink, unlink, writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
+
+import {useTmpDir} from '@test-helpers/tmp'
+import {expect, it} from 'bun:test'
+
+import {runPipe} from '../e2e/framework/pipe'
+import {writeEvidence} from './evidence-io'
+import {fixtureProvider, readinessFixture} from './fixtures/readiness'
+import {collectReadiness, readiness, readinessCLI, readinessInputPath} from './readiness'
+import {repositoryRoot} from './validation-identity'
+
+const dir = useTmpDir('readiness')
+const priorReport = JSON.stringify({
+  schema_version: 1,
+  verdict: 'ready-for-owner-review',
+  ac_results: [],
+  lane_results: [],
+})
+it.each(
+  ['ancestor-link', 'leaf-link', 'absolute-outside', 'prefix-sibling'].flatMap((kind) =>
+    [false, true].map((malformed) => ({kind, malformed})),
+  ),
+)('AC-32 $kind cannot redirect readiness writes or cleanup, malformed=$malformed', async ({kind, malformed}) => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected'),
+    outside = join(dir(), kind === 'prefix-sibling' ? 'selected-other' : 'outside'),
+    input = join(selected, 'bundle.json'),
+    sentinel = join(outside, 'report.json')
+  await mkdir(selected)
+  await mkdir(outside)
+  await writeFile(input, malformed ? '{bad input' : JSON.stringify(bundle))
+  await writeFile(sentinel, priorReport)
+  let output = sentinel
+  if (kind === 'ancestor-link') {
+    await symlink(outside, join(selected, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+    output = join(selected, 'nested/report.json')
+  } else if (kind === 'leaf-link') {
+    await symlink(sentinel, join(selected, 'report.json'))
+    output = join(selected, 'report.json')
+  }
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+  expect(await readFile(sentinel, 'utf8')).toBe(priorReport)
+  expect(await readFile(input, 'utf8')).toBe(malformed ? '{bad input' : JSON.stringify(bundle))
+  if (!malformed && kind === 'ancestor-link') {
+    expect(await readinessCLI(['--input', input, '--output', join(selected, 'nested/new.json')], provider)).toBe(2)
+    expect(existsSync(join(outside, 'new.json'))).toBe(false)
+  }
+})
+it.each(['default', 'nested', 'root-alias'])('AC-32 selected-root %s report output remains supported', async (kind) => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected')
+  await mkdir(selected)
+  await writeFile(join(selected, 'bundle.json'), JSON.stringify(bundle))
+  let input = join(selected, 'bundle.json')
+  if (kind === 'root-alias') {
+    const alias = join(dir(), 'alias')
+    await symlink(selected, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    input = join(alias, 'bundle.json')
+  }
+  const args = ['--input', input]
+  const output = join(selected, kind === 'nested' ? 'nested/reports/report.json' : 'readiness.json')
+  if (kind === 'nested') args.push('--output', output)
+  expect(await readinessCLI(args, provider)).toBe(0)
+  expect(JSON.parse(await readFile(output, 'utf8')).verdict).toBe('ready-for-owner-review')
+})
+it('AC-32 cleanup revalidates the selected boundary after asynchronous provider work', async () => {
+  const {bundle, provider} = await fixture()
+  const selected = join(dir(), 'selected'),
+    nested = join(selected, 'nested'),
+    outside = join(dir(), 'outside'),
+    input = join(selected, 'bundle.json'),
+    output = join(nested, 'report.json'),
+    sentinel = join(outside, 'report.json')
+  await mkdir(nested, {recursive: true})
+  await mkdir(outside)
+  await writeFile(input, JSON.stringify(bundle))
+  await writeFile(output, priorReport)
+  await writeFile(sentinel, priorReport)
+  const original = provider.context
+  provider.context = async (...args) => {
+    await original(...args)
+    await rename(nested, join(selected, 'saved'))
+    await symlink(outside, nested, process.platform === 'win32' ? 'junction' : 'dir')
+  }
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+  expect(await readFile(sentinel, 'utf8')).toBe(priorReport)
+  expect(await readFile(join(selected, 'saved/report.json'), 'utf8')).toBe(priorReport)
+})
+
+it.each(['\x1b]52;c;YXR0YWNrZXI=\x07', '\x9d52;c;YXR0YWNrZXI=\x9c'])(
+  'AC-32 missing-input terminal controls are inert in actual registered readiness stderr: %j',
+  async (control) => {
+    let raw = ''
+    const result = await runPipe(
+      dir(),
+      [
+        process.execPath,
+        'run',
+        join(import.meta.dir, 'check-readiness.ts'),
+        '--input',
+        join(dir(), 'missing-' + control + '-é.json'),
+        '--output',
+        join(dir(), 'report.json'),
+      ],
+      {
+        inspectRaw: (_stdout, stderr) => {
+          raw = stderr
+        },
+      },
+    )
+    expect(result.exitCode).toBe(2)
+    expect(raw).toContain('Readiness blocked')
+    expect(raw).toContain('-é.json')
+    expect(raw).not.toMatch(/[\u001b\u0007\u009d\u009c]/)
+    expect(raw).toContain(control.startsWith('\x1b') ? '\\u001b' : '\\u009d')
+  },
+)
+
+it('AC-32 readiness defaults/pin use repository authority, never a variable CLI root or cwd', async () => {
+  expect(readinessCLI.length).toBe(2)
+  expect(readinessInputPath.length).toBe(1)
+  expect(readinessInputPath([])).toBe(join(repositoryRoot, 'results/readiness-input.json'))
+  const {bundle, provider} = await fixture()
+  await writeFile(join(dir(), '.bun-version'), '0.0.0')
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json')
+  await writeEvidence(input, bundle)
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(0)
+  const program = `import {readinessInputPath} from ${JSON.stringify(join(import.meta.dir, 'readiness.ts'))};console.log(readinessInputPath([]))`
+  const result = await runPipe(dir(), [process.execPath, '-e', program])
+  expect(result.exitCode).toBe(0)
+  expect(result.stdout.trim()).toBe(join(repositoryRoot, 'results/readiness-input.json'))
+})
+it('AC-25,32 authenticated TypeScript exit2 is failure even with unavailable sibling evidence', async () => {
+  const {bundle, provider} = await fixture()
+  const lane = bundle.lanes.find((item) => item.lane_id === 'quality')!
+  lane.status = 'fail'
+  lane.checks.find((check) => check.id === 'typecheck')!.exit_code = 2
+  const original = provider.artifact
+  provider.artifact = async (ref, ...args) => {
+    if (ref.includes('format')) throw new Error('Sibling log unavailable')
+    await original(ref, ...args)
+  }
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(report.exit_code).toBe(1)
+  expect(report.reasons).toContainEqual({
+    kind: 'failure',
+    subject: 'quality/typecheck',
+    message: 'Required check failed',
+  })
+})
+it.each([
+  'unavailable',
+  'stale-pending',
+  'stale-rejected',
+  'stale-approved',
+  'context-pending',
+  'context-approved',
+  'current-pending',
+  'current-rejected',
+  'current-approved',
+  'unavailable-with-failure',
+])(
+  'AC-32 deviation decisions require current authenticated evidence, preserving failure precedence: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const decision = kind.endsWith('pending') ? 'pending' : kind.endsWith('rejected') ? 'rejected' : 'approved'
+    bundle.deviations.push({
+      schema_version: 1,
+      id: 'D1',
+      description: 'synthetic only',
+      ac_ids: ['AC-26'],
+      contract_diff_sha256: 'd'.repeat(64),
+      head_sha: bundle.context.head_sha,
+      tested_sha: kind.startsWith('stale') ? 'f'.repeat(40) : bundle.context.tested_sha,
+      approval: {
+        decision,
+        actor: 'NazarUsik',
+        source_uri: 'https://github.com/crucibledx/forge-cli/pull/99#issuecomment-123',
+        approved_at: '2026-11-04T12:00:00.000Z',
+      },
+    })
+    let calls = 0
+    provider.deviation = async () => {
+      calls++
+      if (kind.startsWith('unavailable')) throw new Error('HTTP503 approval unavailable')
+    }
+    if (kind.startsWith('context'))
+      provider.context = async () => {
+        throw new Error('Context unavailable')
+      }
+    if (kind === 'unavailable-with-failure') {
+      bundle.lanes[0].status = 'fail'
+      bundle.lanes[0].checks[0].exit_code = 1
+    }
+    const report = await readiness(bundle, Bun.version, provider)
+    const failed = ['current-pending', 'current-rejected', 'unavailable-with-failure'].includes(kind)
+    expect(report.exit_code).toBe(kind === 'current-approved' ? 0 : failed ? 1 : 2)
+    expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(failed)
+    expect(calls).toBe(decision === 'approved' && !kind.startsWith('context') && !kind.startsWith('stale') ? 1 : 0)
+  },
+)
+async function fixture() {
+  await mkdir(join(dir(), 'fixtures'))
+  await writeFile(join(dir(), 'fixtures/check.log'), 'authenticated fixture evidence\n')
+  await writeFile(join(dir(), '.bun-version'), Bun.version)
+  const bundle = readinessFixture()
+  for (const lane of bundle.lanes)
+    for (const check of lane.checks)
+      for (const ref of check.evidence) {
+        await mkdir(join(dir(), 'checks', lane.lane_id), {recursive: true})
+        await writeFile(join(dir(), ref), 'authenticated fixture evidence\n')
+      }
+  return {bundle, provider: fixtureProvider(dir(), bundle)}
+}
+it('AC-15/27/32 derived report diagnostics are redacted without rewriting original attestations', async () => {
+  const {bundle} = await fixture()
+  bundle.reviews[0].remaining_risks = [
+    'https://user:DERIVED_PRIVATE_Q@host/repo: repository not found',
+    JSON.stringify({error: JSON.stringify({access_token: 'DERIVED_PRIVATE_Q'})}),
+  ]
+  const provider = fixtureProvider(dir(), bundle)
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json')
+  const original = JSON.stringify(bundle)
+  await writeFile(input, original)
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(JSON.stringify(report)).not.toContain('DERIVED_PRIVATE_Q')
+  expect(JSON.stringify(report)).toContain('repository not found')
+  expect(report.reviews[0].provenance).toEqual(bundle.reviews[0].provenance)
+  expect(JSON.stringify(bundle)).toBe(original)
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(0)
+  expect(await readFile(output, 'utf8')).not.toContain('DERIVED_PRIVATE_Q')
+  expect(await readFile(input, 'utf8')).toBe(original)
+})
+it.each(['accepted', 'context-denied', 'artifact-denied'])(
+  'AC-15/27/32 copied lane reasons stay private without modifying attestations: %s',
+  async (mode) => {
+    const {bundle, provider} = await fixture()
+    bundle.lanes[0].checks[0].reason = 'Authorization: Bearer LANE_REASON_PRIVATE_Q'
+    if (mode === 'context-denied')
+      provider.context = async () => {
+        throw Error('Synthetic context denied')
+      }
+    if (mode === 'artifact-denied')
+      provider.artifact = async () => {
+        throw Error('Synthetic artifact denied')
+      }
+    const input = join(dir(), 'bundle.json'),
+      output = join(dir(), 'report.json'),
+      original = JSON.stringify(bundle)
+    await writeFile(input, original)
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(JSON.stringify(report)).not.toContain('LANE_REASON_PRIVATE_Q')
+    expect(report.lane_results[0].checks?.[0].evidence).toEqual(bundle.lanes[0].checks[0].evidence)
+    expect(JSON.stringify(bundle)).toBe(original)
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(mode === 'accepted' ? 0 : 2)
+    expect(await readFile(output, 'utf8')).not.toContain('LANE_REASON_PRIVATE_Q')
+    expect(await readFile(input, 'utf8')).toBe(original)
+  },
+)
+it('AC-32 phase 1 needs no prior report; a complete synthetic bundle reaches owner review through the actual CLI parser', async () => {
+  const {bundle} = await fixture()
+  expect(existsSync(join(dir(), 'results/readiness.json'))).toBe(false)
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json'),
+    entry = join(dir(), 'fixture-cli.ts')
+  await writeEvidence(input, bundle)
+  await writeFile(
+    entry,
+    `import {readinessCLI} from ${JSON.stringify(join(import.meta.dir, 'readiness.ts'))}\nimport {fixtureProvider} from ${JSON.stringify(join(import.meta.dir, 'fixtures/readiness.ts'))}\nconst input=JSON.parse(await Bun.file(${JSON.stringify(input)}).text());process.exitCode=await readinessCLI(Bun.argv.slice(2),fixtureProvider(${JSON.stringify(dir())},input))\n`,
+  )
+  const result = await runPipe(dir(), [process.execPath, entry, '--input', input, '--output', output])
+  expect(result.exitCode).toBe(0)
+  expect(JSON.parse(await readFile(output, 'utf8')).verdict).toBe('ready-for-owner-review')
+  expect(
+    JSON.parse(await readFile(output, 'utf8')).ac_results.every((row: {result: string}) => row.result === 'pass'),
+  ).toBe(true)
+  const before = await readFile(input)
+  expect((await runPipe(dir(), [process.execPath, entry, '--input', input, '--output', output])).exitCode).toBe(0)
+  expect(await readFile(input)).toEqual(before)
+})
+it('AC-32 two failures dominate missing evidence while all sibling successes remain reported', async () => {
+  const {bundle, provider} = await fixture()
+  for (const lane of bundle.lanes.slice(0, 2)) {
+    lane.status = 'fail'
+    lane.checks[0].exit_code = 1
+  }
+  bundle.reviews = []
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(report.exit_code).toBe(1)
+  expect(report.lane_results.filter((lane) => lane.status === 'fail')).toHaveLength(2)
+  expect(report.lane_results.filter((lane) => lane.status === 'pass')).toHaveLength(8)
+  expect(report.reasons.some((reason) => reason.subject === 'security' && reason.kind === 'blocked')).toBe(true)
+})
+it('AC-32 repeated input flags select one shared evidence root and bundle', async () => {
+  const {bundle, provider} = await fixture()
+  const old = join(dir(), 'old/bundle.json'),
+    current = join(dir(), 'current/bundle.json'),
+    output = join(dir(), 'current/report.json')
+  await writeEvidence(old, {invalid: 'old bundle must not be selected'})
+  await writeEvidence(current, bundle)
+  const args = ['--', '--input', old, '--input', current, '--output', output]
+  expect(readinessInputPath(args)).toBe(current)
+  expect(readinessInputPath(['--input', '--input', '--output', output])).toBe(join(process.cwd(), '--input'))
+  expect(await readinessCLI(args, provider)).toBe(0)
+  expect(JSON.parse(await Bun.file(output).text()).verdict).toBe('ready-for-owner-review')
+})
+it.each([
+  'gate-auth',
+  'gate-revision',
+  'gate-context',
+  'review-auth',
+  'review-revision',
+  'review-unavailable',
+  'review-context',
+  'trusted-gate',
+  'trusted-review',
+])('AC-32 only an authenticated gate/review establishes a known failure: %s', async (kind) => {
+  const {bundle, provider} = await fixture()
+  if (kind.includes('gate')) bundle.gate.conclusion = 'failure'
+  else
+    bundle.reviews[0].findings.push({
+      id: 'known',
+      severity: 'blocking',
+      status: 'open',
+      evidence: ['fixtures/check.log'],
+    })
+  const trusted = fixtureProvider(dir(), bundle)
+  provider.gate = trusted.gate
+  provider.producer = trusted.producer
+  if (kind === 'gate-auth')
+    provider.gate = async () => {
+      throw new Error('Gate authentication unavailable')
+    }
+  if (kind === 'review-auth')
+    provider.producer = async () => {
+      throw new Error('Producer authentication unavailable')
+    }
+  if (kind.endsWith('context'))
+    provider.context = async () => {
+      throw new Error('Context unavailable')
+    }
+  if (kind === 'gate-revision') bundle.gate.tested_sha = 'f'.repeat(40)
+  if (kind === 'review-revision') bundle.reviews[0].tested_sha = 'f'.repeat(40)
+  if (kind === 'review-unavailable') {
+    bundle.reviews[0].completion = 'unavailable'
+    provider.producer = fixtureProvider(dir(), bundle).producer
+  }
+  const report = await readiness(bundle, Bun.version, provider)
+  expect(report.exit_code).toBe(kind.startsWith('trusted') ? 1 : 2)
+  expect(report.reasons.some((reason) => reason.kind === 'failure')).toBe(kind.startsWith('trusted'))
+})
+it.each([
+  'stale-tested',
+  'mixed-attempt',
+  'missing-lane',
+  'missing-role',
+  'missing-verifier',
+  'spoofed-producer',
+  'same-review-verifier',
+  'self-resolved',
+  'open-blocker',
+  'gate-skipped',
+  'foreign-native',
+  'invalid-path',
+  'pending-deviation',
+  'rejected-deviation',
+  'mismatched-approval',
+])('AC-32 rejects %s without an AI override', async (kind) => {
+  const {bundle, provider} = await fixture()
+  if (kind === 'stale-tested') bundle.lanes[0].tested_sha = 'f'.repeat(40)
+  if (kind === 'mixed-attempt') bundle.lanes[0].run_attempt = 2
+  if (kind === 'missing-lane') bundle.lanes.pop()
+  if (kind === 'missing-role') bundle.reviews.pop()
+  if (kind === 'missing-verifier') bundle.verifier = null
+  if (kind === 'spoofed-producer') bundle.reviews[0].provenance.actor = 'implementer'
+  if (kind === 'same-review-verifier') {
+    bundle.verifier!.provenance.producer_id = bundle.reviews[0].provenance.producer_id
+    bundle.verifier!.provenance.actor = bundle.reviews[0].provenance.actor
+  }
+  if (kind === 'self-resolved' || kind === 'open-blocker')
+    bundle.reviews[0].findings.push({
+      id: 'P1',
+      severity: 'blocking',
+      status: kind === 'open-blocker' ? 'open' : 'resolved',
+      evidence: ['fixtures/check.log'],
+    })
+  if (kind === 'gate-skipped') bundle.gate.conclusion = 'skipped'
+  if (kind === 'foreign-native') bundle.lanes.find((lane) => lane.lane_id === 'native-windows')!.runner_os = 'linux'
+  if (kind === 'invalid-path') bundle.lanes[0].checks[0].evidence = ['missing/artifact.log']
+  if (kind.includes('deviation') || kind === 'mismatched-approval')
+    bundle.deviations.push({
+      schema_version: 1,
+      id: 'D1',
+      description: 'synthetic only',
+      ac_ids: ['AC-26'],
+      contract_diff_sha256: 'd'.repeat(64),
+      head_sha: bundle.context.head_sha,
+      tested_sha: bundle.context.tested_sha,
+      approval: {
+        decision: kind === 'pending-deviation' ? 'pending' : kind === 'rejected-deviation' ? 'rejected' : 'approved',
+        actor: 'NazarUsik',
+        source_uri: 'https://github.com/crucibledx/forge-cli/issues/99#issuecomment-123',
+        approved_at: '2026-11-04T12:00:00.000Z',
+      },
+    })
+  expect((await readiness(bundle, Bun.version, provider)).exit_code).not.toBe(0)
+})
+it('AC-32 malformed/missing AC records and output failures exit 2, remove stale reports, and never overwrite input', async () => {
+  const {bundle, provider} = await fixture()
+  const input = join(dir(), 'bundle.json'),
+    output = join(dir(), 'report.json')
+  bundle.verifier!.rows.pop()
+  await writeEvidence(input, bundle)
+  await writeEvidence(output, {schema_version: 1, verdict: 'ready-for-owner-review', ac_results: [], lane_results: []})
+  expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+  expect(existsSync(output)).toBe(false)
+  await writeEvidence(input, readinessFixture())
+  await writeFile(join(dir(), 'blocked-parent'), 'not a directory')
+  expect(
+    await readinessCLI(
+      ['--input', input, '--output', join(dir(), 'blocked-parent/report.json')],
+      fixtureProvider(dir(), readinessFixture()),
+    ),
+  ).toBe(2)
+  expect(await readinessCLI(['--input', input, '--output', input], provider)).toBe(2)
+  expect(existsSync(input)).toBe(true)
+})
+it.each(['session-substitution', 'cross-lane', 'wrong-check'])(
+  'AC-25,32 blocks %s even when a permissive artifact resolver would accept it',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const substitute =
+      kind === 'session-substitution'
+        ? bundle.reviews[0].provenance.source_uri
+        : kind === 'cross-lane'
+          ? 'checks/business/test-unit.log'
+          : 'checks/quality/lint.log'
+    for (const lane of bundle.lanes) for (const check of lane.checks) check.evidence = [substitute]
+    provider.artifact = async () => {}
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.reasons.some((reason) => reason.message.includes('own selected-run artifact'))).toBe(true)
+  },
+)
+it('AC-32 missing deviations is not affirmative evidence of no deviations', async () => {
+  await expect(collectReadiness(readinessFixture().context, dir())).rejects.toThrow()
+  await writeEvidence(join(dir(), 'deviations.json'), [])
+  expect((await collectReadiness(readinessFixture().context, dir())).deviations).toEqual([])
+})
+it.each(['producer', 'head', 'tested', 'unavailable', 'same-producer', 'context', 'row-evidence', 'row-exit'])(
+  'AC-32 never publishes unauthenticated acceptance passes: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const verifier = bundle.verifier!
+    if (kind === 'producer') {
+      const original = provider.producer
+      provider.producer = async (record, context) => {
+        if ('phase' in record) throw new Error('Verifier authentication failed')
+        await original(record, context)
+      }
+    }
+    if (kind === 'head') verifier.head_sha = 'f'.repeat(40)
+    if (kind === 'tested') verifier.tested_sha = 'f'.repeat(40)
+    if (kind === 'unavailable') verifier.completion = 'unavailable'
+    if (kind === 'same-producer') {
+      verifier.provenance.producer_id = bundle.reviews[0].provenance.producer_id
+      verifier.provenance.actor = bundle.reviews[0].provenance.actor
+    }
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Checkout authentication failed')
+      }
+    if (kind === 'row-evidence') verifier.rows[0].evidence = ['fixtures/missing.log']
+    if (kind === 'row-exit') verifier.rows[0].exit_code = 1
+    if (['unavailable', 'same-producer', 'row-evidence', 'row-exit'].includes(kind))
+      provider.producer = fixtureProvider(dir(), bundle).producer
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.ac_results[0].result).toBe('blocked')
+    expect(report.ac_results.filter((row) => row.result === 'pass')).toHaveLength(kind.startsWith('row-') ? 31 : 0)
+  },
+)
+it.each(['authenticated', 'unverified'])(
+  'AC-32 only a trusted verifier establishes a known failure: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    bundle.verifier!.rows[0].result = 'fail'
+    bundle.verifier!.rows[0].exit_code = 1
+    const original = fixtureProvider(dir(), bundle).producer
+    provider.producer = async (record, context) => {
+      if (kind === 'unverified' && 'phase' in record) throw new Error('Verifier authentication failed')
+      await original(record, context)
+    }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.ac_results[0].result).toBe(kind === 'authenticated' ? 'fail' : 'blocked')
+    expect(report.exit_code).toBe(kind === 'authenticated' ? 1 : 2)
+  },
+)
+it.each(['stale-pass', 'stale-fail', 'expired-pass', 'unverified-fail', 'context'])(
+  'AC-25,32 normalizes untrusted lane verdicts without suppressing siblings: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const lane = bundle.lanes[0]
+    if (kind.endsWith('fail')) {
+      lane.status = 'fail'
+      lane.checks[0].exit_code = 1
+    }
+    if (kind.startsWith('stale')) lane.tested_sha = 'f'.repeat(40)
+    if (kind === 'expired-pass' || kind === 'unverified-fail') {
+      const original = provider.artifact
+      provider.artifact = async (ref, context, citing) => {
+        if (citing?.lane_id === lane.lane_id) throw new Error('Artifact expired or unauthenticated')
+        await original(ref, context, citing)
+      }
+    }
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Context unavailable')
+      }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(2)
+    expect(report.lane_results[0].status).toBe('blocked')
+    expect(report.lane_results.filter((row) => row.status === 'pass')).toHaveLength(kind === 'context' ? 0 : 9)
+  },
+)
+it.each(['authenticated', 'missing-failure-log', 'stale', 'context'])(
+  'AC-25,32 preserves a proven check failure despite an unavailable sibling: %s',
+  async (kind) => {
+    const {bundle, provider} = await fixture()
+    const lane = bundle.lanes.find((item) => item.lane_id === 'quality')!
+    const failed = lane.checks.find((check) => check.id === 'format:check')!
+    const unavailable = lane.checks.find((check) => check.id === 'lint')!
+    lane.status = 'fail'
+    failed.exit_code = 1
+    bundle.gate.conclusion = 'cancelled'
+    provider.gate = fixtureProvider(dir(), bundle).gate
+    await unlink(join(dir(), unavailable.evidence[0]))
+    if (kind === 'missing-failure-log') await unlink(join(dir(), failed.evidence[0]))
+    if (kind === 'stale') lane.tested_sha = 'f'.repeat(40)
+    if (kind === 'context')
+      provider.context = async () => {
+        throw new Error('Checkout authentication unavailable')
+      }
+    const report = await readiness(bundle, Bun.version, provider)
+    expect(report.exit_code).toBe(kind === 'authenticated' ? 1 : 2)
+    expect(report.lane_results.find((item) => item.lane_id === lane.lane_id)!.status).toBe('blocked')
+    expect(
+      report.reasons.some((reason) => reason.subject === `${lane.lane_id}/${failed.id}` && reason.kind === 'failure'),
+    ).toBe(kind === 'authenticated')
+    expect(
+      report.reasons.some(
+        (reason) => reason.subject === `${lane.lane_id}/${unavailable.id}` && reason.kind === 'blocked',
+      ),
+    ).toBe(true)
+    expect(report.lane_results.filter((item) => item.status === 'pass')).toHaveLength(kind === 'context' ? 0 : 9)
+  },
+)
+it.each(['verifier.json', 'reviews/code.json', 'checks/quality/lint.log', 'custom-source.json', 'context.json'])(
+  'AC-32 protects source evidence from output writes AND stale cleanup: %s',
+  async (file) => {
+    const {bundle, provider} = await fixture()
+    const input = join(dir(), 'bundle.json'),
+      output = join(dir(), file)
+    await mkdir(join(output, '..'), {recursive: true})
+    const original = JSON.stringify(bundle.verifier)
+    await writeFile(output, original)
+    await writeEvidence(input, bundle)
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+    expect(await Bun.file(output).text()).toBe(original)
+    await writeFile(input, 'invalid input')
+    expect(await readinessCLI(['--input', input, '--output', output], provider)).toBe(2)
+    expect(await Bun.file(output).text()).toBe(original)
+  },
+)

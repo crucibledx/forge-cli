@@ -1,10 +1,11 @@
-import {existsSync} from 'node:fs'
 import {readdir, readFile} from 'node:fs/promises'
-import {join, relative} from 'node:path'
+import {join, relative, sep} from 'node:path'
 
 import {getAllAssistants} from '@domain/assistants'
 import type {SyncState} from '@domain/sync/state'
 import type {SourceFile} from '@domain/sync/types'
+
+import {createConfinement} from './confinement'
 
 function getKnownAssistantDirs(): Set<string> {
   const dirs = new Set<string>()
@@ -18,23 +19,24 @@ function getKnownAssistantDirs(): Set<string> {
 }
 
 export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
-  if (!existsSync(baseDir)) {
-    return []
-  }
-
   const files: SourceFile[] = []
   const assistantDirs = getKnownAssistantDirs()
   await walk(baseDir, baseDir, files, assistantDirs, true)
   return files
 }
 
-/**
- * Reads a single file relative to projectRoot. Returns content or null if missing.
- */
-export async function readFileContent(projectRoot: string, relativePath: string): Promise<string | null> {
-  const fullPath = join(projectRoot, relativePath)
-  if (!existsSync(fullPath)) return null
-  return readFile(fullPath, 'utf-8')
+/** Canonicalize one selected boundary, then reuse it for every file in that plan. */
+export async function createFileReader(projectRoot: string) {
+  const boundary = await createConfinement(projectRoot)
+  return async (relativePath: string): Promise<Buffer | null> => {
+    const fullPath = await boundary.resolve(relativePath)
+    try {
+      return await readFile(fullPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+  }
 }
 
 /**
@@ -44,10 +46,11 @@ export async function readFileContent(projectRoot: string, relativePath: string)
 export async function readDiskContents(
   projectRoot: string,
   syncState: SyncState,
-): Promise<Record<string, string | null>> {
-  const result: Record<string, string | null> = {}
+): Promise<Record<string, string | Uint8Array | null>> {
+  const result: Record<string, string | Uint8Array | null> = {}
+  const read = await createFileReader(projectRoot)
   for (const targetPath of Object.keys(syncState.files)) {
-    result[targetPath] = await readFileContent(projectRoot, targetPath)
+    result[targetPath] = await read(targetPath)
   }
   return result
 }
@@ -75,7 +78,7 @@ async function walk(
       await walk(baseDir, fullPath, files, assistantDirs, false)
     } else if (entry.isFile()) {
       const content = await readFile(fullPath, 'utf-8')
-      const relativePath = relative(baseDir, fullPath)
+      const relativePath = relative(baseDir, fullPath).split(sep).join('/')
       files.push({relativePath, content})
     }
   }

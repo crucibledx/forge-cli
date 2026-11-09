@@ -1,8 +1,9 @@
 import {createHash} from 'node:crypto'
 
+import {buildSyncState} from '@test-helpers/sync-state'
 import {describe, expect, it} from 'bun:test'
 
-import {buildSyncState, emptySyncState, hashContent} from './state'
+import {emptySyncState, hashContent} from './state'
 
 describe('hashContent', () => {
   it('returns SHA-256 hex digest', () => {
@@ -19,7 +20,7 @@ describe('hashContent', () => {
   })
 })
 
-describe('buildSyncState', () => {
+describe('test fixture buildSyncState', () => {
   it('builds state from file list', () => {
     const state = buildSyncState([
       {targetPath: '.claude/skills/deploy.md', content: '# Deploy', sourceName: 'team'},

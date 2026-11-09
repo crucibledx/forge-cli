@@ -182,6 +182,7 @@ describe('forge config — e2e', () => {
           .pressKey(Y)
           // wait for removal message; now empty: Add(0) Done(1) → 1 down
           .waitForText(SM.removed('default'))
+          .waitForText(SM.action)
           .pressKey(ARROW_DOWN)
           .pressEnter()
           // decline changing another section

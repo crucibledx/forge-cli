@@ -128,7 +128,7 @@ describe('forge init — e2e', () => {
         const {exitCode} = await runInitSession(getDir(), (cli) =>
           cli.waitForText(M.assistants.select).pressKey(CTRL_C),
         )
-        expect([0, 1]).toContain(exitCode)
+        expect(exitCode === 0 || exitCode === 1).toBe(true)
         expect(existsSync(configFilePath(getDir()))).toBe(false)
       },
       TIMEOUT_MS,

@@ -100,6 +100,7 @@ async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string
   if (config.sources.length === 0) return null
 
   try {
+    // Sync deliberately retains disabled targets; status must still compare them to their real upstream.
     const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
     const allResolved = []
 

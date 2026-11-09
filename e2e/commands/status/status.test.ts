@@ -4,11 +4,13 @@
  * Covers: never synced, all in sync, locally modified, locally deleted, mixed drift.
  */
 
-import {writeFile} from 'node:fs/promises'
+import {readFile, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
 
+import {loadProjectConfig} from '@infrastructure/config/loader'
+import {writeProjectConfig} from '@infrastructure/config/writer'
 import {buildConfigYaml, writeConfig, writeSourceTree} from '@e2e/fixtures'
 import {runStatus, runSync, useTmpDir} from '@e2e/framework'
 
@@ -33,6 +35,39 @@ async function setupSynced(dir: string): Promise<string> {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('forge status', () => {
+  it('AC-6 legacy state still reports a deleted target while upstream remains available', async () => {
+    const dir = getDir()
+    await setupSynced(dir)
+    const path = join(dir, '.crucible/sync-state.json')
+    const state = JSON.parse(await readFile(path, 'utf8'))
+    delete state.version
+    for (const entry of Object.values(state.files) as {baseline?: string}[]) delete entry.baseline
+    await writeFile(path, JSON.stringify(state))
+    await unlink(join(dir, '.claude/skills/deploy.md'))
+    const result = await runStatus(dir)
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toContain('1 file(s) deleted locally')
+    expect(result.output).not.toContain('legacy_unknown')
+  })
+  it('AC-4,6 disabled assistants retain real upstream status instead of false source removal', async () => {
+    const dir = getDir(),
+      source = join(dir, 'source')
+    await writeSourceTree(source, {rules: {'a.md': '# Rule'}})
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code', 'cursor'], localSource: {path: source}}))
+    expect((await runSync(dir)).exitCode).toBe(0)
+    const config = (await loadProjectConfig(dir))!
+    config.assistants.find((a) => a.id === 'cursor')!.enabled = false
+    await writeProjectConfig(dir, config)
+    expect((await runSync(dir)).exitCode).toBe(0)
+    const status = await runStatus(dir)
+    expect(status.exitCode).toBe(0)
+    expect(status.output).toContain('in sync')
+    expect(status.output).not.toContain('removed from source')
+    await unlink(join(source, 'rules/a.md'))
+    const removed = await runStatus(dir)
+    expect(removed.exitCode).toBe(0)
+    expect(removed.output).toContain('removed from source')
+  })
   it('warns when never synced', async () => {
     const dir = getDir()
     await writeConfig(

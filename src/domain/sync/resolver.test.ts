@@ -62,6 +62,14 @@ const sourceFiles: SourceFile[] = [
 ]
 
 describe('resolveTargets', () => {
+  it.each(['skills/a\\b.md', '.claude/skills/a\\b.md'])(
+    'AC-9,14 refuses ambiguous POSIX filename separators before an initial apply: %s',
+    (relativePath) => {
+      const resolve = () => resolveTargets([{relativePath, content: 'bytes'}], [claudeDef])
+      if (process.platform === 'win32') expect(resolve()[0].targetPath).toBe('.claude/skills/a/b.md')
+      else expect(resolve).toThrow('Backslash')
+    },
+  )
   it('returns empty array when no source files', () => {
     const result = resolveTargets([], [cursorDef])
     expect(result).toHaveLength(0)

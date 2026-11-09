@@ -86,7 +86,7 @@ describe('forge sync — local source', () => {
 
     const {output, exitCode} = await runSync(dir)
     expect(exitCode).toBe(0)
-    expect(output).toContain('No files')
+    expect(output).toContain('0 file(s) synced')
   })
 
   it('--dry-run does not write files', async () => {

@@ -1,4 +1,4 @@
-import {mkdir, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, rename, stat, symlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
@@ -9,9 +9,17 @@ import {collectFiles} from './reader'
 const getDir = useTmpDir('reader')
 
 describe('collectFiles', () => {
-  it('returns empty array for non-existent directory', async () => {
-    const result = await collectFiles(join(getDir(), 'does-not-exist'))
-    expect(result).toEqual([])
+  it('AC-2 rejects a missing source instead of acquiring empty success', async () => {
+    await expect(collectFiles(join(getDir(), 'does-not-exist'))).rejects.toMatchObject({code: 'ENOENT'})
+  })
+
+  it('AC-2 rejects source disappearance after successful directory validation', async () => {
+    const source = join(getDir(), 'source')
+    await mkdir(source)
+    await writeFile(join(source, 'a.md'), 'source fixture')
+    expect((await stat(source)).isDirectory()).toBe(true)
+    await rename(source, join(getDir(), 'source-renamed'))
+    await expect(collectFiles(source)).rejects.toMatchObject({code: 'ENOENT'})
   })
 
   it('returns empty array for empty directory', async () => {
