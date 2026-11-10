@@ -258,17 +258,36 @@ jobs:
           end
           FORMULA
 
-      - name: Push formula to Homebrew tap
-        uses: dmnemec/copy_file_to_another_repo_action@main
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.DIST_REPO_TOKEN }}
+      - name: Mint crucible-smith token for homebrew-tap
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          source_file: forge.rb
-          destination_repo: crucibledx/homebrew-tap
-          destination_folder: Formula
-          user_email: github-actions[bot]@users.noreply.github.com
-          user_name: github-actions[bot]
-          commit_message: 'forge ${{ env.TAG }}'
+          client-id: ${{ vars.SMITH_CLIENT_ID }}
+          private-key: ${{ secrets.SMITH_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: homebrew-tap
+
+      - name: Check out homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: crucibledx/homebrew-tap
+          token: ${{ steps.app-token.outputs.token }}
+          path: homebrew-tap
+
+      - name: Push formula to Homebrew tap
+        working-directory: homebrew-tap
+        run: |
+          mkdir -p Formula
+          cp ../forge.rb Formula/forge.rb
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Formula/forge.rb
+          if git diff --cached --quiet; then
+            echo "forge.rb already up to date"
+            exit 0
+          fi
+          git commit -m "forge ${TAG}"
+          git push origin HEAD
 
   # ── 6. Update Scoop bucket ──────────────────────────────────────
   scoop:
@@ -315,14 +334,33 @@ jobs:
           }
           MANIFEST
 
-      - name: Push manifest to Scoop bucket
-        uses: dmnemec/copy_file_to_another_repo_action@main
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.DIST_REPO_TOKEN }}
+      - name: Mint crucible-smith token for scoop-bucket
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          source_file: forge.json
-          destination_repo: crucibledx/scoop-bucket
-          destination_folder: bucket
-          user_email: github-actions[bot]@users.noreply.github.com
-          user_name: github-actions[bot]
-          commit_message: 'forge ${{ env.TAG }}'
+          client-id: ${{ vars.SMITH_CLIENT_ID }}
+          private-key: ${{ secrets.SMITH_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: scoop-bucket
+
+      - name: Check out scoop-bucket
+        uses: actions/checkout@v4
+        with:
+          repository: crucibledx/scoop-bucket
+          token: ${{ steps.app-token.outputs.token }}
+          path: scoop-bucket
+
+      - name: Push manifest to Scoop bucket
+        working-directory: scoop-bucket
+        run: |
+          mkdir -p bucket
+          cp ../forge.json bucket/forge.json
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add bucket/forge.json
+          if git diff --cached --quiet; then
+            echo "forge.json already up to date"
+            exit 0
+          fi
+          git commit -m "forge ${TAG}"
+          git push origin HEAD
