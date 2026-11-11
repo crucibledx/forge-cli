@@ -6,7 +6,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {accessMetadataFromSddl} from '@test-helpers/windows-access'
 import {expect, it} from 'bun:test'
 
-import {readAccessMetadata, writeAccessMetadata} from '@infrastructure/fs/windows-access'
+import {descriptorFlags, readAccessMetadata, writeAccessMetadata} from '@infrastructure/fs/windows-access'
 
 import {command, config} from './helpers'
 
@@ -19,9 +19,15 @@ const windowsLocations = {
   'updated target and adjacent backup': {locked: '.claude/rules', initial: true, localEdit: true},
   'state and config metadata': {locked: '.crucible', initial: true, localEdit: false},
 } as const
+async function dacl(path: string) {
+  const {bytes, offset, flags} = descriptorFlags((await readAccessMetadata(path))!)
+  // Restoring a DACL through SetNamedSecurityInfoW also sets SE_DACL_AUTO_INHERITED.
+  // That control bit does not change access, so compare protection and the ACEs only.
+  return {flags, aces: offset ? bytes.subarray(offset, offset + bytes.readUInt16LE(offset + 2)) : null}
+}
 async function accessSnapshot(directory: string) {
-  const result: Record<string, Uint8Array | null> = {'.': await readAccessMetadata(directory)}
-  for (const name of (await readdir(directory)).sort()) result[name] = await readAccessMetadata(join(directory, name))
+  const result: Record<string, Awaited<ReturnType<typeof dacl>>> = {'.': await dacl(directory)}
+  for (const name of (await readdir(directory)).sort()) result[name] = await dacl(join(directory, name))
   return result
 }
 it.each(
@@ -61,7 +67,7 @@ it.each(
       expect(await readFile(target, 'utf8')).toBe('after')
       if (localEdit) expect(await readFile(`${target}.bak`, 'utf8')).toBe('local edit')
     }
-    // Existing entries keep their exact DACL; entries created by apply are not compared.
+    // Existing entries keep their DACL; entries created by apply are not compared.
     const after = await accessSnapshot(lockedPath)
     for (const [name, descriptor] of Object.entries(access)) expect(after[name]).toEqual(descriptor)
   } finally {
