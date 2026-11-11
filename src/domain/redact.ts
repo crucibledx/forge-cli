@@ -35,6 +35,14 @@ function escapedAmpersands(text: string): string {
   return text.replaceAll('\\u0026', '&'.repeat(6))
 }
 
+/** The rest of an "&" escape split by a chunk boundary is a delimiter, not the start of a key or value. */
+function completedAmpersand(text: string, prefixes: readonly string[] = []): string {
+  for (const prefix of prefixes)
+    if (/^\\(?:u[\da-fA-F]{0,3})?$/.test(prefix) && (prefix + text).startsWith('\\u0026'))
+      return '&'.repeat(6 - prefix.length) + text.slice(6 - prefix.length)
+  return text
+}
+
 function assignmentKey(name: string) {
   return name
     .replace(/(?<!\\)\\+u([a-f\d]{4})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
@@ -613,13 +621,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   }
   let continuedEnd = 0,
     firstIndent = 0,
-    continuedQueryEnd = 0,
-    ampersandHead = 0
-  for (const prefix of options.credentialPrefixes ?? [])
-    if (/^\\(?:u[\da-fA-F]{0,3})?$/.test(prefix) && (prefix + text).startsWith('\\u0026'))
-      ampersandHead = 6 - prefix.length
-  // The rest of an "&" escape split by a chunk boundary is a delimiter, not the start of a key.
-  const scanText = '&'.repeat(ampersandHead) + text.slice(ampersandHead)
+    continuedQueryEnd = 0
+  const scanText = completedAmpersand(text, options.credentialPrefixes)
   for (const prefix of options.credentialPrefixes ?? []) {
     const container = containerState(prefix)
     if (container) continuedEnd = Math.max(continuedEnd, containerValue(text, 0, container).end)
@@ -900,6 +903,7 @@ export function redactionContext(discarded: string, prefixes: readonly string[] 
     if (continuing.length) return [...new Set(continuing)]
     return redactionContext(discarded.slice(Math.max(...values.map(({end}) => end))))
   }
+  discarded = completedAmpersand(discarded, prefixes)
   const contexts = new Set<string>()
   const keys = new Map<string, {indent: number; context: string}>()
   const escapedBoundary = prefixes.includes('\\') && discarded.startsWith('"')

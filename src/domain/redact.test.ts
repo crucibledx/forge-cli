@@ -345,6 +345,22 @@ it.each(['comp\\u0026sig', 'page=1\\u0026token'])(
     )
   },
 )
+it.each(['token', 'comp\\u0026sig', 'page=1\\u0026token'])(
+  'AC-15,30 a Go-escaped "&" split across chunks ends the query credential after %s',
+  (parameters) => {
+    const secret = 'SPLIT_QUERY_PRIVATE_Q'
+    const input = `GET /repo?${parameters}=${secret}\\u0026page=2 denied`
+    const escape = input.indexOf('\\u0026page'),
+      end = escape + 6
+    for (let first = escape; first < end; first++) {
+      for (let second = first + 1; second <= end; second++) {
+        const contexts = redactionContext(input.slice(first, second), redactionContext(input.slice(0, first)))
+        const output = redact(input.slice(second), {credentialPrefixes: contexts})
+        expect({first, second, output}).toEqual({first, second, output: input.slice(second)})
+      }
+    }
+  },
+)
 it.each(['open C:\\Secrets\\Npm_auth: Access is denied.', 'C:\\Data\\Tokens\\Rsa_key: missing'])(
   'AC-15 uppercase path segments are not JSON whitespace escapes: %s',
   (input) => {
