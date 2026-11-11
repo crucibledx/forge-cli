@@ -1,4 +1,13 @@
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, resolve} from 'node:path'
 
@@ -15,37 +24,61 @@ const runtimeKeys = [
   'LC_ALL',
 ]
 const replayKeys = ['FC_SEED', 'FC_PATH']
-let windowsScheduler: Buffer | undefined
+const SANDBOX_MARKER = '.forge-test-sandbox'
+const SCHEDULER_TEMPLATE = join('scheduler', 'schtasks.exe')
+let windowsScheduler: string | undefined
+
+/**
+ * The nearest sandbox at or above `root` that already compiled the Windows backend. Nested launchers, validators
+ * and test processes run with TMP inside their parent sandbox, so they reuse its build instead of recompiling.
+ * Only directories created by createTestSandbox (marked) qualify; a stray scheduler/schtasks.exe never does.
+ */
+export function enclosingSchedulerTemplate(root: string): string | undefined {
+  for (let dir = resolve(root); ;) {
+    const template = join(dir, SCHEDULER_TEMPLATE)
+    if (existsSync(join(dir, SANDBOX_MARKER)) && existsSync(template)) return template
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+}
+
+function compileWindowsScheduler(root: string, env: Record<string, string>, timeoutMs: number): string {
+  // Outside bin/, so the template itself is never on a fixture PATH; fixtures only ever run their own copy.
+  const template = join(root, SCHEDULER_TEMPLATE)
+  mkdirSync(dirname(template), {mode: 0o700})
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      'build',
+      resolve(import.meta.dir, 'fixtures/fake-scheduler.ts'),
+      '--compile',
+      '--outfile',
+      template,
+    ],
+    {
+      cwd: join(root, 'project'),
+      env,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: Math.min(30000, Math.max(1, timeoutMs)),
+    },
+  )
+  if (result.exitCode !== 0)
+    throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
+  return template
+}
 
 /** Command-free fixtures need no large native executable; every command environment does. */
 function ensureWindowsScheduler(root: string, env: Record<string, string>, timeoutMs = 30000): void {
   if (process.platform !== 'win32') return
   const executable = join(root, 'bin', 'schtasks.exe')
   if (existsSync(executable)) return
-  if (windowsScheduler) writeFileSync(executable, windowsScheduler, {mode: 0o700})
-  else {
-    const result = Bun.spawnSync(
-      [
-        process.execPath,
-        'build',
-        resolve(import.meta.dir, 'fixtures/fake-scheduler.ts'),
-        '--compile',
-        '--outfile',
-        executable,
-      ],
-      {
-        cwd: join(root, 'project'),
-        env,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: Math.min(30000, Math.max(1, timeoutMs)),
-      },
-    )
-    if (result.exitCode !== 0)
-      throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
-    // Cache immutable bytes, never a mutable shared executable or hardlink.
-    windowsScheduler = readFileSync(executable)
-  }
+  if (!windowsScheduler || !existsSync(windowsScheduler))
+    windowsScheduler = enclosingSchedulerTemplate(root) ?? compileWindowsScheduler(root, env, timeoutMs)
+  // Each fixture gets an independent copy, never a shared executable or hardlink. On Windows runners a kernel
+  // file copy of the ~86 MB backend takes ~25 ms; writing the same bytes from JS takes ~1 s.
+  copyFileSync(windowsScheduler, executable)
 }
 
 export function allowlistedEnvironment(): Record<string, string> {
@@ -111,7 +144,7 @@ export function createTestSandbox(prefix = 'forge-tests-', base = tmpdir(), time
       BUN_OPTIONS: '--no-env-file',
       NO_COLOR: '1',
     }
-    writeFileSync(join(root, '.forge-test-sandbox'), JSON.stringify(env), {mode: 0o600})
+    writeFileSync(join(root, SANDBOX_MARKER), JSON.stringify(env), {mode: 0o600})
     return {
       root,
       project,
@@ -137,7 +170,7 @@ export function testEnvironment(cwd: string, overrides: Record<string, string> =
   while (true) {
     let env: Record<string, string> | undefined
     try {
-      env = JSON.parse(readFileSync(join(dir, '.forge-test-sandbox'), 'utf8'))
+      env = JSON.parse(readFileSync(join(dir, SANDBOX_MARKER), 'utf8'))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }

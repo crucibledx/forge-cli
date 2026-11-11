@@ -21,13 +21,16 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
-      - name: Microbenchmarks
-        run: bun run diag-bench.ts
-      - name: Two flaky test files, timed
+      - name: Focused tests, timed
         shell: bash
         run: |
-          start=$(date +%s); bun run scripts/run-tests.ts --timeout-ms 40000 -- scripts/run-tests.test.ts scripts/dotenv-isolation.test.ts 2>&1 | grep -E '^\(pass\)|^\(fail\)|Ran |pass$|fail$' ; echo "elapsed $(( $(date +%s) - start ))s"
-      - name: Baseline test:platform, timed
+          set +e +o pipefail
+          start=$(date +%s); bun run scripts/run-tests.ts --timeout-ms 40000 -- scripts/test-sandbox.test.ts scripts/run-tests.test.ts scripts/dotenv-isolation.test.ts > focused.log 2>&1; code=$?
+          grep -E '^\(pass\)|^\(fail\)|Ran |^ *[0-9]+ (pass|fail)|error' focused.log; echo "exit $code elapsed $(( $(date +%s) - start ))s"
+      - name: test:platform, timed
         shell: bash
         run: |
-          start=$(date +%s); bun run test:platform > platform.log 2>&1; code=$?; grep -E '^\(fail\)|Ran |^ *[0-9]+ (pass|fail)' platform.log; echo "exit $code elapsed $(( $(date +%s) - start ))s"
+          set +e +o pipefail
+          start=$(date +%s); bun run test:platform > platform.log 2>&1; code=$?
+          grep -E '^\(fail\)|Ran |^ *[0-9]+ (pass|fail)' platform.log; echo "exit $code elapsed $(( $(date +%s) - start ))s"
+          grep -B2 -A30 '^error' platform.log | head -150
