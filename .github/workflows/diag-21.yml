@@ -1,0 +1,33 @@
+name: diag-21
+
+on:
+  push:
+    branches: ['loop/21-windows-ci-flake']
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: Microbenchmarks
+        run: bun run diag-bench.ts
+      - name: Two flaky test files, timed
+        shell: bash
+        run: |
+          start=$(date +%s); bun run scripts/run-tests.ts --timeout-ms 40000 -- scripts/run-tests.test.ts scripts/dotenv-isolation.test.ts 2>&1 | grep -E '^\(pass\)|^\(fail\)|Ran |pass$|fail$' ; echo "elapsed $(( $(date +%s) - start ))s"
+      - name: Baseline test:platform, timed
+        shell: bash
+        run: |
+          start=$(date +%s); bun run test:platform > platform.log 2>&1; code=$?; grep -E '^\(fail\)|Ran |^ *[0-9]+ (pass|fail)' platform.log; echo "exit $code elapsed $(( $(date +%s) - start ))s"
