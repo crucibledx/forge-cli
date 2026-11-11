@@ -280,7 +280,7 @@ on every PR, with no path-based skips. Existing full suites stay intact; focused
 Run independent jobs in parallel with distinct process/home/cache/temp sandboxes; do not parallelize unsafe tests
 inside a process. No quality/unit failure may skip E2E/human/agent/security/performance/native/build diagnostics.
 Matrix jobs use `fail-fast:false`; independent checks within a lane use separate steps with recorded outcomes,
-not a short-circuit `&&` chain. Failed setup blocks only that job; dependent checks are explicitly blocked, never
+not a short-circuit `&&` chain. Failed setup fails only that job; its checks are skipped, never reported as
 passed. Cancellation/superseding a commit cannot cancel only failing siblings and leave a green current-head gate.
 
 The workflow matrix lists each lane's registered package scripts; `check:contracts` keeps it equal to the registry.
@@ -298,14 +298,14 @@ Latency samples are advisory per OS/Bun/fixture; ongoing baseline aggregation, p
 regression thresholds belong to the performance follow-up, not an unimplemented 20-sample trigger here.
 
 New scripts: `test:contracts`, `test:properties`, `test:platform`, `test:human`, `test:agent`, `test:security`,
-`test:performance`, `check:contracts`, `check:lanes`; isolate before imports.
+`test:performance`, `check:contracts`; isolate before imports.
 `scripts/run-tests.ts [--timeout-ms 20000|40000] -- <paths...>` spawns pinned `bun test --timeout <ms>`, forwards
 exit and disposes its sandbox in `finally`. `test:contracts` selects checker self-tests, `e2e/framework/contracts/`,
 `e2e/commands/sync/safety/` and `e2e/contracts/`; platform runs only native-safe safety tests plus platform.test.ts.
 `check:contracts` validates BR/AC IDs, existing mappings/paths, required lanes/workflow jobs, frozen exact toolchain
 and follow-up boundaries. Include scripts' self-tests in `test`; malformed fixture registries/workflows must fail.
-Retain `test` as the full suite. `check:lanes` runs applicable modules without short-circuiting; foreign native
-modules are blocked, not simulated.
+Retain `test` as the full suite. A native lane's checks run locally only on its own OS; another OS's native lane
+is never emulated, and a local run does not replace the CI lane.
 
 #### Timing, evidence and merge readiness
 
@@ -370,6 +370,7 @@ Owner-approved amendment (crucibledx/forge-cli#29, merged by the owner): AC-32 n
 The earlier readiness collector/checker, producer attestations and `docs/quality-gate-readiness-contract.md` are withdrawn.
 Owner-approved amendment (crucibledx/forge-cli#28): `Deterministic gate` aggregates the run's own lane job results
 (`needs.lanes.result`) instead of re-validating uploaded lane evidence; AC-25, AC-27 and AC-32 are reworded to match.
+The local `check:lanes` runner and its lane-evidence library are withdrawn with it: CI job logs are the lane record.
 
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 | --- | --- | --- | --- |

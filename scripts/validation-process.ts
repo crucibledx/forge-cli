@@ -4,18 +4,13 @@ import stripAnsi from 'strip-ansi'
 
 import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {
-  createTranscript,
-  diagnosticHead,
-  diagnosticJSON,
-  drainTranscript,
-  terminateTree,
-} from '../e2e/framework/process'
-import {redact, redactData} from '../src/domain/redact'
+import {createTranscript, diagnosticHead, drainTranscript, terminateTree} from '../e2e/framework/process'
+import {redact} from '../src/domain/redact'
 import type {TestSandbox} from './test-sandbox'
 import {createTestSandbox} from './test-sandbox'
-import {MAX_EVIDENCE_BYTES} from './validation-evidence'
 import {repositoryRoot} from './validation-identity'
+
+export const MAX_STRUCTURED_BYTES = 2 * 1024 * 1024
 
 export interface CommandOutcome {
   signal: string | null
@@ -54,27 +49,12 @@ function privatePath(text: string, root: string, label: string, aliases = false)
   return text
 }
 
-/** Recognize complete private input before reserving a bounded lane-schema-safe primary summary. */
-export function commandReason(value: string): string {
+/** Recognize complete private input before reserving a bounded primary summary. */
+function commandReason(value: string): string {
   return (
     diagnosticHead(privatePath(stripAnsi(redact(value)), repositoryRoot, '<repository>'), 16000) ||
     'Validation unavailable'
   )
-}
-
-/** Sanitize fields before JSON; budget escaped strings within both evidence consumers' cap. */
-export function commandLog(command: readonly string[], result: CommandOutcome): string {
-  const data = redactData({command: command.slice(0, 16), ...result})
-  data.command = data.command.map((part) => diagnosticJSON(part, 1024))
-  if (command.length > data.command.length) data.command.push('<additional arguments omitted>')
-  data.cwd = diagnosticJSON(data.cwd, 1024)
-  if (data.signal !== null) data.signal = diagnosticJSON(data.signal, 1024)
-  data.stdout = diagnosticJSON(data.stdout, MAX_EVIDENCE_BYTES / 4, true)
-  data.stderr = diagnosticJSON(data.stderr, MAX_EVIDENCE_BYTES / 4, true)
-  for (const key of ['seed', 'replay'] as const)
-    if (data[key] !== null) data[key] = diagnosticJSON(data[key], MAX_EVIDENCE_BYTES / 8)
-  if (data.reason) data.reason = commandReason(data.reason)
-  return JSON.stringify(data)
 }
 
 /** Snapshot only allowlisted replay inputs, before setup or cleanup can change them. */
@@ -109,7 +89,7 @@ export async function executeCheck(
   let exit: number | null = null
   let observing = true
   let reason: string | undefined
-  const structuredBuffer = structured ? Buffer.alloc(MAX_EVIDENCE_BYTES) : undefined
+  const structuredBuffer = structured ? Buffer.alloc(MAX_STRUCTURED_BYTES) : undefined
   let structuredBytes = 0
   if (structured) delete structured.data
   const cleanupFailed = (error: unknown) => {
@@ -135,10 +115,10 @@ export async function executeCheck(
       ? child.stdout.pipeThrough(
           new TransformStream<Uint8Array, Uint8Array>({
             transform(chunk, controller) {
-              if (structuredBytes <= MAX_EVIDENCE_BYTES) {
-                if (chunk.byteLength <= MAX_EVIDENCE_BYTES - structuredBytes)
+              if (structuredBytes <= MAX_STRUCTURED_BYTES) {
+                if (chunk.byteLength <= MAX_STRUCTURED_BYTES - structuredBytes)
                   structuredBuffer!.set(chunk, structuredBytes)
-                structuredBytes = Math.min(MAX_EVIDENCE_BYTES + 1, structuredBytes + chunk.byteLength)
+                structuredBytes = Math.min(MAX_STRUCTURED_BYTES + 1, structuredBytes + chunk.byteLength)
               }
               controller.enqueue(chunk)
             },
@@ -186,7 +166,7 @@ export async function executeCheck(
       cleanupFailed(error)
     }
   }
-  if (structured && structuredBytes <= MAX_EVIDENCE_BYTES) {
+  if (structured && structuredBytes <= MAX_STRUCTURED_BYTES) {
     try {
       structured.data = JSON.parse(
         new TextDecoder('utf-8', {fatal: true}).decode(structuredBuffer!.subarray(0, structuredBytes)),

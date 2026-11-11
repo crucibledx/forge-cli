@@ -5,7 +5,7 @@ import {parse} from 'yaml'
 
 import {testSuites} from './registry/suites'
 import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
-import {repositoryRoot} from './validation-context'
+import {repositoryRoot} from './validation-identity'
 import {acceptanceIds, businessRuleIds, LANE_BUDGET_MS, validationLanes} from './validation-lanes'
 
 export function contractInputs() {
@@ -92,15 +92,11 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   for (const lane of input.lanes) {
     const expected = requiredChecks[lane.id] ?? []
     require(lane.checks.length === expected.length &&
-      lane.checks.every((check, index) => {
-        const id = expected[index]
-        const blocked = (id?.startsWith('test:') && id !== 'test:compiled') || id === 'check:security-audit'
-        return (
-          check.id === id &&
-          JSON.stringify(check.command) === JSON.stringify(['bun', 'run', id]) &&
-          JSON.stringify(check.blocked_exits ?? []) === JSON.stringify(blocked ? [2] : [])
-        )
-      }), `${lane.id}: required ordered check contract changed`)
+      lane.checks.every(
+        (check, index) =>
+          check.id === expected[index] &&
+          JSON.stringify(check.command) === JSON.stringify(['bun', 'run', expected[index]]),
+      ), `${lane.id}: required ordered check contract changed`)
     require(lane.fixture_scope.trim(), `${lane.id}: invalid scope`)
     require(lane.checks.length &&
       lane.checks.every(
