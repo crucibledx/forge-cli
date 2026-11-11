@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process'
 import {mkdir, readFile, realpath, rename, symlink, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
@@ -33,6 +34,50 @@ describe('BR-07 confinement (AC-12)', () => {
         expect(await readFile(join(root, 'a.md'), 'utf8')).toBe('safe')
         expect(await readFile(join(alias, 'sentinel'), 'utf8')).toBe('outside')
       }
+    },
+  )
+  it.skipIf(process.platform === 'win32')(
+    'keeps a natively created literal-backslash root apart from its separator alias through apply and disk reads',
+    async () => {
+      const base = await realpath(dir()),
+        root = join(base, 'team\\notes'),
+        alias = join(base, 'team/notes')
+      // Bun's realpath maps this root onto the alias, so both must exist natively.
+      const created = spawnSync('/bin/sh', [
+        '-c',
+        'mkdir -p "$1" "$2" && printf literal > "$1/kept.md" && printf literal > "$1/gone.md" && printf alias > "$2/kept.md" && printf alias > "$2/gone.md"',
+        'native-fixture',
+        root,
+        alias,
+      ])
+      expect(created.status).toBe(0)
+      const boundary = await createConfinement(root)
+      expect(boundary.root).toBe(root)
+      const target = await boundary.resolve('.claude/rules/a.md')
+      expect(target).toBe(join(root, '.claude/rules/a.md'))
+      expect(await boundary.resolve(target)).toBe(target)
+      const operations = [
+        {path: '.claude/rules/a.md', content: 'new'},
+        {path: 'kept.md', content: 'updated'},
+        {path: 'gone.md', content: null},
+      ]
+      await prepareTransaction(root, operations)
+      expect(await readFile(join(root, 'kept.md'), 'utf8')).toBe('literal')
+      await (await prepareTransaction(root, operations)).commit()
+      const entry = {hash: 'a'.repeat(64), sourceName: 'fixture', baseline: 'installed' as const}
+      const contents = await readDiskContents(root, {
+        version: 2,
+        lastSync: '2026-11-11T00:00:00.000Z',
+        files: {'.claude/rules/a.md': entry, 'kept.md': entry, 'gone.md': entry},
+      })
+      expect(contents).toEqual({
+        '.claude/rules/a.md': Buffer.from('new'),
+        'kept.md': Buffer.from('updated'),
+        'gone.md': null,
+      })
+      expect(await readFile(join(alias, 'kept.md'), 'utf8')).toBe('alias')
+      expect(await readFile(join(alias, 'gone.md'), 'utf8')).toBe('alias')
+      await expect(readFile(join(alias, '.claude/rules/a.md'))).rejects.toThrow()
     },
   )
   it.skipIf(process.platform === 'win32')(
