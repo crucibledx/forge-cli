@@ -69,11 +69,13 @@ it.each([
 })
 it.each(
   [null, true, false, 0, -12.5, 6e24, {}, [], [1, 'x']].flatMap((value) =>
-    ['compact', 'spaced', 'pretty', 'tabs', 'nested', 'nested-pretty'].map((shape) => ({
-      value,
-      shape,
-      json: JSON.stringify(value),
-    })),
+    ['compact', 'spaced', 'pretty', 'tabs', 'nested', 'nested-pretty', 'open-line', 'colon-line', 'crlf-line'].map(
+      (shape) => ({
+        value,
+        shape,
+        json: JSON.stringify(value),
+      }),
+    ),
   ),
 )('AC-15,30 JSON $shape non-string credential $json keeps its public sibling at every cut', ({value, shape, json}) => {
   const secret = 'NON_STRING_PRIVATE_Q'
@@ -88,6 +90,9 @@ it.each(
       null,
       4,
     ),
+    'open-line': `{\n"auth":${json},"error":"repository not found","token":"${secret}"}`,
+    'colon-line': `{"auth":\n  ${json},"error":"repository not found","token":"${secret}"}`,
+    'crlf-line': `{\r\n\t"password":\r\n\t\t${json}, "error": "repository not found",\r\n\t"token": "${secret}"\r\n}`,
   }
   expectPrivateAcrossCuts(inputs[shape], secret)
 })

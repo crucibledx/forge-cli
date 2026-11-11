@@ -36,8 +36,26 @@ const flowPrimitive = new RegExp(String.raw`^${JSON_PRIMITIVE}(?=\s*(?:}|,\s*"${
 const pendingFlowPrimitive = new RegExp(
   String.raw`^(?:t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?|-|-?(?:0|[1-9]\d*)(?:\.(?:\d+(?:[eE][+-]?\d*)?)?|[eE][+-]?\d*)?|${JSON_PRIMITIVE}\s*(?:,\s*(?:"${JSON_KEY_BODY}\\?(?:"\s*)?)?)?)$`,
 )
-const FLOW_VALUE_CONTEXT = '{"secret":'
-const flowDelimiterEnd = /[,{][ \t]*$/
+const FLOW_INDENT_LIMIT = 48
+const flowDelimiterEnd = /[,{]\s*$/
+
+/**
+ * JSON may break the line between members. Replaying the break and a capped indent keeps the next key's
+ * YAML indentation; a shallower indent only lets more following lines continue a value.
+ */
+function flowLine(text: string): string | undefined {
+  let start = text.length
+  while (start > 0 && /[ \t]/.test(text[start - 1])) start--
+  let delimiter = start
+  while (delimiter > 0 && /\s/.test(text[delimiter - 1])) delimiter--
+  if (start === delimiter || !/[,{]/.test(text[delimiter - 1] ?? '')) return undefined
+  return `{\n${' '.repeat(Math.min(FLOW_INDENT_LIMIT, text.length - start))}`
+}
+
+/** The key's line indent keeps later YAML lines from reading as part of a replayed JSON value. */
+function flowValueContext(indent: number): string {
+  return indent ? `{\n${' '.repeat(Math.min(FLOW_INDENT_LIMIT, indent))}"secret":` : '{"secret":'
+}
 
 /**
  * Some retained contexts are fresh origins with more structure than an empty one: a flow delimiter,
@@ -47,7 +65,10 @@ const flowDelimiterEnd = /[,{][ \t]*$/
 function credentialOrigins(prefixes: readonly string[]): readonly string[] {
   const fresh = prefixes.some((prefix) => {
     const state = valueState(prefix)
-    return prefix === '{' || (state?.kind === VALUE_KINDS.KEY && state.column === 0 && state.length === prefix.length)
+    return (
+      /^\{(?:\n[ \t]*)?$/.test(prefix) ||
+      (state?.kind === VALUE_KINDS.KEY && state.column === 0 && state.length === prefix.length)
+    )
   })
   return fresh ? prefixes : ['', ...prefixes]
 }
@@ -59,7 +80,7 @@ function credentialOrigins(prefixes: readonly string[]): readonly string[] {
 function flowValueReplay(pending: string): string {
   return pending
     .replace(new RegExp(`"${JSON_KEY_BODY}(\\\\?)("?)`), (_, slash: string, close: string) => `"q${slash}${close}`)
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? '\n' : ' '))
     .replace(/\d+/g, (run) => (run[0] === '0' ? run.slice(0, 2).replace(/\d/g, '0') : '1'))
 }
 
@@ -371,7 +392,16 @@ function credentialValue(
         ? VALUE_KINDS.QUOTED
         : VALUE_KINDS.PLAIN
     if (start === text.length)
-      return {start, end: start, continuation: flow && column === null ? '' : valueContext({indent, kind, column})}
+      return {
+        start,
+        end: start,
+        // Replay the line break as text: the next chunk may still be a JSON primitive.
+        continuation: flow
+          ? column === null
+            ? ''
+            : '\n' + ' '.repeat(Math.min(FLOW_INDENT_LIMIT, column))
+          : valueContext({indent, kind, column}),
+      }
     if (scalar && column !== null && column >= indent && sequenceItem(text, start))
       return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
     if (column !== null && column <= indent && !(quoted && /["'[{]/.test(text[start])))
@@ -672,6 +702,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
         continuedQueryEnd = Math.max(continuedQueryEnd, end - prefix.length)
       }
     }
+    // A replayed JSON line break sets the first line's indent, like a line-anchored KEY state.
+    if (prefix.startsWith('{\n')) firstIndent = Math.max(firstIndent, lineKey(prefix.slice(2) + text, 0).indent)
     const state = valueState(prefix)
     if (!state) continue
     if (state.kind === VALUE_KINDS.KEY) {
@@ -818,12 +850,12 @@ function discardedContext(discarded: string): string[] {
     if (value.continuation) contexts.add(value.continuation)
   }
   const state = valueState(discarded)
-  const retainValue = (continuation: string | undefined, quoted: boolean, flow = false) => {
+  const retainValue = (continuation: string | undefined, quoted: boolean, flowIndent?: number) => {
     if (continuation !== undefined)
       contexts.add(
         valueState(continuation) || escapedValueState(continuation) || containerState(continuation)
           ? continuation
-          : (flow ? FLOW_VALUE_CONTEXT : quoted ? '"secret":' : 'secret=') + continuation,
+          : (flowIndent !== undefined ? flowValueContext(flowIndent) : quoted ? '"secret":' : 'secret=') + continuation,
       )
   }
   if (state) {
@@ -837,9 +869,11 @@ function discardedContext(discarded: string): string[] {
         ? line.indent +
           (state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded.slice(0, index)) ? state.indent : 0)
         : 0
+    const replay = flowLine(discarded.slice(0, index))
     // Without "{" or "," before a quoted key, its primitive value would read as a YAML scalar.
     const flow = !indent && flowDelimiterEnd.test(discarded.slice(0, index)) ? '{' : ''
-    contexts.add((indent ? valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) : flow) + syntax)
+    if (replay) contexts.add(replay + syntax)
+    else contexts.add((indent ? valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) : flow) + syntax)
   }
   if (finalMatch(lastCredentialQuerySuffix(discarded), /^[?&#][^?&#=\s]+=[^&#\s]*$/)) contexts.add('?token=x')
   const queryName = unfinishedQueryName(discarded)
@@ -857,25 +891,29 @@ function discardedContext(discarded: string): string[] {
   for (const match of credentialAssignments(discarded)) {
     if (match.index < covered) continue
     if (pendingQuery !== undefined && match.index >= pendingQuery) continue
+    const indent =
+      state?.kind === VALUE_KINDS.KEY && match.index === firstLineKey ? state.indent + match.indent : match.indent
     const value = credentialValue(
       discarded,
       match.index + match.length,
       true,
       false,
       match.quoted ? CREDENTIAL_WHITESPACE.QUOTED : CREDENTIAL_WHITESPACE.ASSIGNMENT,
-      state?.kind === VALUE_KINDS.KEY && match.index === firstLineKey ? state.indent + match.indent : match.indent,
+      indent,
       match.scalar,
       match.flow,
     )
     covered = value.end
-    retainValue(value.continuation, match.quoted, match.flow)
+    retainValue(value.continuation, match.quoted, match.flow ? indent : undefined)
   }
   const quotedKey = quotedKeyContext(discarded)
   const encodedKey = escapedKeyContext(discarded)
   if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
-  if (flowDelimiterEnd.test(discarded)) contexts.add('{')
+  const flowBreak = flowLine(discarded)
+  if (flowBreak) contexts.add(flowBreak)
+  else if (flowDelimiterEnd.test(discarded)) contexts.add('{')
   // Keep a trailing, possibly split escape so a key in the next chunk still sees its separator.
   const escapeTail = finalMatch(discarded, /\\(?:[bfnrt]|u[\da-fA-F]{0,4})$/)?.[0]
   if (escapeTail) contexts.add(escapeTail)
@@ -916,7 +954,7 @@ function discardedContext(discarded: string): string[] {
       Math.max(0, discarded.length - partial.length - encoding.length),
     )
   const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
-  if (trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
+  if (!flowBreak && trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
     const line = lineKey(discarded, discarded.length)
     const inherited = state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded)
     const indent = line.indent + (inherited ? state.indent : 0)
@@ -924,7 +962,7 @@ function discardedContext(discarded: string): string[] {
     const anchored = inherited ? state.column === 0 : /[\r\n]/.test(discarded)
     contexts.add(valueContext({indent, kind: VALUE_KINDS.KEY, column: anchored ? 0 : null}) + discarded.slice(line.key))
   }
-  if (/[\r\n]$/.test(discarded)) contexts.add(valueContext({indent: 0, kind: VALUE_KINDS.KEY, column: 0}))
+  if (!flowBreak && /[\r\n]$/.test(discarded)) contexts.add(valueContext({indent: 0, kind: VALUE_KINDS.KEY, column: 0}))
   const scheme = finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:(\/?)$/i)
   if (scheme) contexts.add(`https:${scheme[1]}`)
   // A partial URI scheme can coexist with another recognizer, such as Bearer.
