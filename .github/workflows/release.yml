@@ -186,6 +186,9 @@ jobs:
     name: Publish to npm
     needs: [ ci-gate, quality, test, build ]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -197,6 +200,9 @@ jobs:
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+      # Trusted publishing (OIDC) needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - name: Install npm with trusted publishing support
+        run: npm install -g npm@11.21.2 && npm --version
       - run: bun install --frozen-lockfile
       - name: Check whether this version is on npm
         id: npm-version
@@ -226,8 +232,10 @@ jobs:
       - name: Publish (dry run)
         if: ${{ inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
         run: |
-          if ! npm whoami >/dev/null 2>&1; then
-            echo "::warning::npm rejects the configured credential (npm whoami failed). A real release would fail here."
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::notice::NPM_TOKEN is not set, so the release relies on npm trusted publishing. Only a real publish can verify it."
+          elif ! npm whoami >/dev/null 2>&1; then
+            echo "::warning::npm rejects the NPM_TOKEN secret (npm whoami failed). A real release would fail here unless trusted publishing is configured."
           fi
           npm publish --access public --dry-run
         env:
@@ -235,12 +243,12 @@ jobs:
 
       - name: Publish
         if: ${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
+        # npm uses trusted publishing when it is configured for this workflow, else NODE_AUTH_TOKEN.
         run: |
-          if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::The NPM_TOKEN repository secret is not set. Add an npm token with publish rights for @crucibledx/forge-cli."
+          if ! npm publish --access public --provenance; then
+            echo "::error::npm rejected the publish. Configure npm trusted publishing for crucibledx/forge-cli and release.yml, or set the NPM_TOKEN secret."
             exit 1
           fi
-          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

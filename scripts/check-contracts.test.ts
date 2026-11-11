@@ -218,13 +218,17 @@ const releaseDrift: Record<string, [string, (release: ReleaseWorkflow) => void]>
   'npm-publish-unguarded': [
     'Release publish step must be skipped in a dry run',
     (release) => {
-      delete findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public\n')).if
+      delete findStep(
+        release,
+        'publish-npm',
+        (step) => !!step.run?.includes('npm publish --access public --provenance'),
+      ).if
     },
   ],
   'npm-publish-guard-bypassed': [
     'Release publish step must be skipped in a dry run',
     (release) => {
-      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public\n')).if =
+      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public --provenance')).if =
         '${{ !inputs.dry_run || true }}'
     },
   ],
