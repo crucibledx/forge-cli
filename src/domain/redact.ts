@@ -17,9 +17,31 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
-const assignmentStart =
-  /(?<![a-z\d_.%+\\-])(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
+// Encoders escape whitespace before a key, such as \n or \u000a for a newline. The escape's
+// final letter or digit ends that separator; it is not the start of a key name.
+const ESCAPED_SEPARATOR = String.raw`(?-i:\\(?:[bfnrt]|u00(?:0[89acdACD]|20)))`
+const NAME_BOUNDARY = String.raw`(?:(?<![a-z\d_.%+\\-])|(?<=${ESCAPED_SEPARATOR}))`
+const escapedSeparatorEnd = new RegExp(ESCAPED_SEPARATOR + '$')
+const assignmentStart = new RegExp(
+  NAME_BOUNDARY +
+    String.raw`(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]`,
+  'gi',
+)
+const pendingNameEnd = new RegExp(NAME_BOUNDARY + String.raw`([a-z_%][a-z\d_.%+-]*)[ \t]*$`, 'i')
 const authStart = /(?:Bearer|Basic)\s+/gi
+
+/** Go's JSON encoder writes "&" as \u0026; reading it as "&" at the same length lets query rules apply. */
+function escapedAmpersands(text: string): string {
+  return text.replaceAll('\\u0026', '&'.repeat(6))
+}
+
+/** The rest of an "&" escape split by a chunk boundary is a delimiter, not the start of a key or value. */
+function completedAmpersand(text: string, prefixes: readonly string[] = []): string {
+  for (const prefix of prefixes)
+    if (/^\\(?:u[\da-fA-F]{0,3})?$/.test(prefix) && (prefix + text).startsWith('\\u0026'))
+      return '&'.repeat(6 - prefix.length) + text.slice(6 - prefix.length)
+  return text
+}
 
 function assignmentKey(name: string) {
   return name
@@ -27,8 +49,12 @@ function assignmentKey(name: string) {
     .replace(/\\(["'\\/])/g, '$1')
 }
 
+function decodedName(name: string): string {
+  return name.replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+}
+
 function credentialName(name: string): string {
-  return name.replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16))).toLowerCase()
+  return decodedName(name).toLowerCase()
 }
 
 function credentialQueryKey(name: string, complete = true): boolean {
@@ -596,6 +622,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   let continuedEnd = 0,
     firstIndent = 0,
     continuedQueryEnd = 0
+  const scanText = completedAmpersand(text, options.credentialPrefixes)
   for (const prefix of options.credentialPrefixes ?? []) {
     const container = containerState(prefix)
     if (container) continuedEnd = Math.max(continuedEnd, containerValue(text, 0, container).end)
@@ -639,7 +666,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       continue
     }
     const credentialPrefix = state?.kind === VALUE_KINDS.KEY ? prefix.slice(state.length) : prefix
-    const credentialText = credentialPrefix + text
+    const credentialText = escapedAmpersands(credentialPrefix + scanText)
     const firstCredentialLine = credentialPrefix ? lineKey(credentialText, 0) : firstLine
     const scan = (pattern: RegExp, trailing = 0, input = credentialText) => {
       for (const match of input.matchAll(pattern)) {
@@ -748,6 +775,7 @@ export function redact(text: string, options: RedactionOptions = {}): string {
   return maskRedactionSpans(text, spans).text
 }
 function discardedContext(discarded: string): string[] {
+  discarded = escapedAmpersands(discarded)
   const contexts = new Set<string>()
   const escaped = escapedValueState(discarded)
   if (escaped) {
@@ -811,14 +839,18 @@ function discardedContext(discarded: string): string[] {
   if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
-  const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
+  // Keep a trailing, possibly split escape so a key in the next chunk still sees its separator.
+  const escapeTail = finalMatch(discarded, /\\(?:[bfnrt]|u[\da-fA-F]{0,4})$/)?.[0]
+  if (escapeTail) contexts.add(escapeTail)
+  const pendingName = finalMatch(discarded, pendingNameEnd)
   // Whitespace completes an exact alias; without it, "sig" may still become "signal".
   if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
     retainKey('secret', pendingName.index)
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
   const encoding = finalMatch(discarded, /%[a-f\d]?$/i)?.[0] ?? ''
-  const lower = credentialName(encoding ? discarded.slice(0, -encoding.length) : discarded)
+  const named = decodedName(encoding ? discarded.slice(0, -encoding.length) : discarded)
+  const lower = named.toLowerCase()
   for (const marker of [
     'Bearer',
     'Basic',
@@ -835,9 +867,15 @@ function discardedContext(discarded: string): string[] {
         break
       }
   }
+  // A marker prefix such as "a" can be the final character of an escape like \u000a, not a name.
+  if (escapedSeparatorEnd.test(discarded.slice(0, discarded.length - encoding.length))) partial = ''
+  // The partial is measured in decoded text, so test for the escape there too.
+  const midWord =
+    /[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') &&
+    !escapedSeparatorEnd.test(named.slice(0, named.length - partial.length))
   if ((partial || encoding) && pendingQuery === undefined)
     retainKey(
-      (/[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') ? 'q' : '') + partial + encoding,
+      (midWord ? 'q' : '') + partial + encoding,
       Math.max(0, discarded.length - partial.length - encoding.length),
     )
   const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
@@ -865,6 +903,7 @@ export function redactionContext(discarded: string, prefixes: readonly string[] 
     if (continuing.length) return [...new Set(continuing)]
     return redactionContext(discarded.slice(Math.max(...values.map(({end}) => end))))
   }
+  discarded = completedAmpersand(discarded, prefixes)
   const contexts = new Set<string>()
   const keys = new Map<string, {indent: number; context: string}>()
   const escapedBoundary = prefixes.includes('\\') && discarded.startsWith('"')
