@@ -12,7 +12,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   lanes:
@@ -24,7 +23,11 @@ jobs:
       matrix:
         include:
           - {lane: quality, os: ubuntu-latest, checks: ['format:check', 'lint', 'typecheck']}
-          - {lane: business, os: ubuntu-latest, checks: ['test:unit', 'test:properties', 'check:contracts', 'test:checkers']}
+          - {
+              lane: business,
+              os: ubuntu-latest,
+              checks: ['test:unit', 'test:properties', 'check:contracts', 'test:checkers'],
+            }
           - {lane: e2e, os: ubuntu-latest, checks: ['test:e2e']}
           - {lane: human-dx, os: ubuntu-latest, checks: ['test:human']}
           - {lane: agent-cli, os: ubuntu-latest, checks: ['test:agent']}
@@ -43,13 +46,17 @@ jobs:
       - id: install
         run: bun install --frozen-lockfile
       # Separate always() steps: an early failing check must not hide later checks' results.
-      - if: always() && steps.install.outcome == 'success' && matrix.checks[0]
+      - name: ${{ matrix.checks[0] || 'not used by this lane' }}
+        if: always() && steps.install.outcome == 'success' && matrix.checks[0]
         run: bun run ${{ matrix.checks[0] }}
-      - if: always() && steps.install.outcome == 'success' && matrix.checks[1]
+      - name: ${{ matrix.checks[1] || 'not used by this lane' }}
+        if: always() && steps.install.outcome == 'success' && matrix.checks[1]
         run: bun run ${{ matrix.checks[1] }}
-      - if: always() && steps.install.outcome == 'success' && matrix.checks[2]
+      - name: ${{ matrix.checks[2] || 'not used by this lane' }}
+        if: always() && steps.install.outcome == 'success' && matrix.checks[2]
         run: bun run ${{ matrix.checks[2] }}
-      - if: always() && steps.install.outcome == 'success' && matrix.checks[3]
+      - name: ${{ matrix.checks[3] || 'not used by this lane' }}
+        if: always() && steps.install.outcome == 'success' && matrix.checks[3]
         run: bun run ${{ matrix.checks[3] }}
       - name: TEMPORARY re-run demonstration (reverted before review)
         if: matrix.lane == 'performance'

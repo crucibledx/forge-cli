@@ -6,18 +6,18 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
 
 ## Rules and migration
 
-| Rule | Safe example | Unsafe counterexample | Layer and evidence |
-| --- | --- | --- | --- |
-| BR-01 | Collect every source outcome, abort on any failure | Treat an unreadable source as empty and delete its files | Application; sync safety tests |
-| BR-02 | Retain disabled/removed/unknown/ambiguous ownership | Guess a global owner using a project-only prefix | Domain/application; safety and native platform tests |
-| BR-03 | Delete eligible tracked stale outputs only | Discover an untracked sibling or backup as a cleanup candidate | Application; planning and CLI snapshots |
-| BR-04 | Persist installed bytes or explicitly unknown legacy baselines | Record desired-but-skipped bytes as installed | Domain; state upgrade, reconciliation and properties |
-| BR-05 | Validate a preview without changing protected bytes or reports | Advance timestamps or write latest reports during preview | Application; outcome and CLI contracts |
-| BR-06 | Restore targets and metadata or identify exact untrusted paths | Say rollback complete after restoration failed, or infer backup provenance from `.bak` | Infrastructure; every transaction write/chmod/rename position |
-| BR-07 | Permit the selected symlink root, reject links beneath it | Follow a target/backup/metadata symlink outside the boundary | Infrastructure; confinement and external sentinels |
-| BR-08 | Repeat preserves target/backup bytes; silent preserves outcomes | Hide an incomplete recovery emergency or reverse a committed exit after a report failure | Application; outcome tests |
-| BR-09 | Drain bounded streams, own deadlines and descendants | Reuse old prompt bytes or leave an orphan after leader exit | Harness; pipe, PTY and lifecycle contracts |
-| BR-10 | Disposable homes, isolated Git and fake schedulers | Use operator credentials, live sources or invented readiness | Harness; isolation, lane and checker tests |
+| Rule  | Safe example                                                    | Unsafe counterexample                                                                    | Layer and evidence                                            |
+| ----- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| BR-01 | Collect every source outcome, abort on any failure              | Treat an unreadable source as empty and delete its files                                 | Application; sync safety tests                                |
+| BR-02 | Retain disabled/removed/unknown/ambiguous ownership             | Guess a global owner using a project-only prefix                                         | Domain/application; safety and native platform tests          |
+| BR-03 | Delete eligible tracked stale outputs only                      | Discover an untracked sibling or backup as a cleanup candidate                           | Application; planning and CLI snapshots                       |
+| BR-04 | Persist installed bytes or explicitly unknown legacy baselines  | Record desired-but-skipped bytes as installed                                            | Domain; state upgrade, reconciliation and properties          |
+| BR-05 | Validate a preview without changing protected bytes or reports  | Advance timestamps or write latest reports during preview                                | Application; outcome and CLI contracts                        |
+| BR-06 | Restore targets and metadata or identify exact untrusted paths  | Say rollback complete after restoration failed, or infer backup provenance from `.bak`   | Infrastructure; every transaction write/chmod/rename position |
+| BR-07 | Permit the selected symlink root, reject links beneath it       | Follow a target/backup/metadata symlink outside the boundary                             | Infrastructure; confinement and external sentinels            |
+| BR-08 | Repeat preserves target/backup bytes; silent preserves outcomes | Hide an incomplete recovery emergency or reverse a committed exit after a report failure | Application; outcome tests                                    |
+| BR-09 | Drain bounded streams, own deadlines and descendants            | Reuse old prompt bytes or leave an orphan after leader exit                              | Harness; pipe, PTY and lifecycle contracts                    |
+| BR-10 | Disposable homes, isolated Git and fake schedulers              | Use operator credentials, live sources or invented readiness                             | Harness; isolation, lane and checker tests                    |
 
 ### Compatibility corrections
 
@@ -148,7 +148,6 @@ selected evidence root before creating directories or temporary files. A pre-exi
 cannot redirect a write. This is additional evidence security, not an extension of frozen sync BR-07.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
-
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/

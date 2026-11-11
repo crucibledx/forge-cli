@@ -136,21 +136,32 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
       JSON.stringify(matrix.find((row: {lane: string}) => row.lane === lane.id)?.checks) ===
       JSON.stringify(lane.checks.map((check) => check.command[2])),
   ), 'Workflow matrix checks differ from registry')
-  const laneSteps = (ci.jobs?.lanes?.steps ?? []) as {if?: string; run?: string}[]
+  const lanes = ci.jobs?.lanes as {steps?: Record<string, unknown>[]} | undefined
+  const steps = lanes?.steps ?? []
   const longest = Math.max(0, ...input.lanes.map((lane) => lane.checks.length))
   require(Array.from({length: longest}, (_, index) => `matrix.checks[${index}]`).every((check) =>
-    laneSteps.some(
-      (step) => step.if?.startsWith('always()') && step.if.includes(check) && step.run === `bun run \${{ ${check} }}`,
+    steps.some(
+      (step) =>
+        String(step.if).startsWith('always()') &&
+        String(step.if).includes(check) &&
+        step.run === `bun run \${{ ${check} }}`,
     ),
   ), 'Every registered check must run as its own step, even after an earlier failure')
   const gate = ci.jobs?.gate
+  const result = (gate?.steps ?? []).find((step: Record<string, unknown>) =>
+    JSON.stringify(step).includes('needs.lanes.result'),
+  )
   require(gate?.name === 'Deterministic gate' &&
     gate.if === 'always()' &&
     [gate.needs ?? []].flat().includes('lanes') &&
-    JSON.stringify(gate.steps ?? []).includes('needs.lanes.result') &&
-    String(gate.steps?.at(-1)?.run).includes('= success'), 'Always-run gate must require every lane to succeed')
-  const lanes = ci.jobs?.lanes as {steps?: Record<string, unknown>[]} | undefined
-  const steps = lanes?.steps ?? []
+    result &&
+    result.if === undefined &&
+    String(result.run).includes('= success'), 'Always-run gate must require every lane to succeed')
+  // A tolerated failure would let needs.lanes.result report success.
+  require([lanes, gate, ...steps, ...(gate?.steps ?? [])].every(
+    (item) => item?.['continue-on-error'] === undefined,
+  ), 'Lane and gate failures must not be tolerated')
+  require(JSON.stringify(ci.permissions) === JSON.stringify({contents: 'read'}), 'CI token must stay read-only')
   require(steps.some((step) => step.run === 'bun install --frozen-lockfile'), 'CI frozen install missing')
   require(steps
     .filter((step) => String(step.uses).startsWith('actions/checkout@'))
@@ -161,7 +172,8 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   require(setups.length === 1 &&
     setups.every(
       (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
-    ), 'CI Bun pin differs') // The requirement cannot be conditional on the very setup step an edit can remove.
+    ), 'CI Bun pin differs')
+  // The requirement cannot be conditional on the very setup step an edit can remove.
   for (const id of ['quality', 'test', 'build', 'publish-npm']) {
     const job = input.release.jobs?.[id] as {steps?: Record<string, unknown>[]} | undefined
     require(job, `Required release job missing: ${id}`)

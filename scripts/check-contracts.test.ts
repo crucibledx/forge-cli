@@ -35,7 +35,7 @@ it('AC-28 documentation inputs contain only the document actually validated', ()
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])
 })
-type WorkflowStep = {if?: string; run?: string; env?: Record<string, string>}
+type WorkflowStep = {if?: string; run?: string; env?: Record<string, string>; 'continue-on-error'?: boolean}
 const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInputs>['ci']) => void]> = {
   'matrix-unregistered-lane': [
     'Workflow matrix differs from registry',
@@ -89,6 +89,43 @@ const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInpu
       ci.jobs.gate.steps = [{run: 'echo passed'}]
     },
   ],
+  'gate-step-conditional': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      ci.jobs.gate.steps[0].if = "needs.lanes.result == 'success'"
+    },
+  ],
+  'gate-result-not-compared': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      ci.jobs.gate.steps = [{env: {LANES: '${{ needs.lanes.result }}'}, run: 'echo "$LANES"'} satisfies WorkflowStep]
+    },
+  ],
+  'lane-step-continue-on-error': [
+    'Lane and gate failures must not be tolerated',
+    (ci) => {
+      ci.jobs.lanes.steps.find((step: WorkflowStep) => step.run?.includes('matrix.checks[0]'))['continue-on-error'] =
+        true
+    },
+  ],
+  'lane-job-continue-on-error': [
+    'Lane and gate failures must not be tolerated',
+    (ci) => {
+      ci.jobs.lanes['continue-on-error'] = true
+    },
+  ],
+  'gate-step-continue-on-error': [
+    'Lane and gate failures must not be tolerated',
+    (ci) => {
+      ci.jobs.gate.steps[0]['continue-on-error'] = true
+    },
+  ],
+  'write-permission': [
+    'CI token must stay read-only',
+    (ci) => {
+      ci.permissions.actions = 'write'
+    },
+  ],
   'gate-renamed': [
     'Always-run gate must require every lane to succeed',
     (ci) => {
@@ -96,7 +133,7 @@ const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInpu
     },
   ],
 }
-it.each(Object.keys(workflowDrift))('AC-25,32 rejects workflow drift: %s', (kind) => {
+it.each(Object.keys(workflowDrift))('AC-25,27,32 rejects workflow drift: %s', (kind) => {
   const original = contractInputs()
   const input = {...original, ci: structuredClone(original.ci)}
   const [message, mutate] = workflowDrift[kind]
@@ -115,7 +152,7 @@ it.each([
     'Native jobs must use the selected native hosted runners (no cross-compilation)',
   )
 })
-it.each(['pin', 'minimum', 'lock', 'rule', 'layer', 'path', 'lane', 'workflow', 'fail-fast', 'timeout', 'release'])(
+it.each(['pin', 'minimum', 'lock', 'rule', 'layer', 'path', 'lane', 'timeout', 'release'])(
   'rejects malformed %s contracts',
   (kind) => {
     const original = contractInputs(),
@@ -134,9 +171,6 @@ it.each(['pin', 'minimum', 'lock', 'rule', 'layer', 'path', 'lane', 'workflow', 
     if (kind === 'layer') Object.assign(input.ledger[0], {layer: 'invalid-layer'})
     if (kind === 'path') input.ledger[0].tests = ['missing.test.ts']
     if (kind === 'lane') input.lanes = input.lanes.slice(0, -1)
-    if (kind === 'workflow') input.ci.on.pull_request.paths = ['src/**']
-    if (kind === 'fail-fast') input.ci.jobs.lanes.strategy['fail-fast'] = true
-
     if (kind === 'timeout') input.ci.jobs.gate['timeout-minutes'] = 99
     if (kind === 'release')
       input.release.jobs.quality.steps.find(
