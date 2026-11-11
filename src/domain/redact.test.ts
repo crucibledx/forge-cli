@@ -400,6 +400,56 @@ it.each(['\r', '\n', '\r\n'])('AC-15,30 scalar line boundaries preserve public s
     if (cut <= input.indexOf('CR_PRIVATE_Q')) expect(output).not.toContain('CR_PRIVATE_Q')
   }
 })
+it.each(
+  [
+    ['root:', '  password: CR_PRIVATE_Q', '  public: repository not found', 'visible=yes'],
+    ['root:', '  - password: CR_PRIVATE_Q', '    public: repository not found', 'visible=yes'],
+    ['root:', '  password: |', '    CR_PRIVATE_Q', '  public: repository not found', 'visible=yes'],
+  ].flatMap((lines) =>
+    [
+      {label: 'CR', newline: '\r'},
+      {label: 'CRLF', newline: '\r\n'},
+    ].map((boundary) => ({lines, ...boundary})),
+  ),
+)('AC-15,30 $label chunks redact like LF chunks at the same line boundaries: %#', ({lines, newline}) => {
+  const lf = lines.join('\n'),
+    input = lines.join(newline)
+  const at = (cut: number) => cut + (lf.slice(0, cut).split('\n').length - 1) * (newline.length - 1)
+  for (const size of [1, 3, 7]) {
+    let lfContexts: string[] = [],
+      contexts: string[] = []
+    for (let cut = 0; cut < lf.length; cut += size) {
+      const end = Math.min(lf.length, cut + size)
+      lfContexts = redactionContext(lf.slice(cut, end), lfContexts)
+      contexts = redactionContext(input.slice(at(cut), at(end)), contexts)
+      const output = redact(input.slice(at(end)), {credentialPrefixes: contexts})
+      expect({size, end, output: output.replaceAll(newline, '\n')}).toEqual({
+        size,
+        end,
+        output: redact(lf.slice(end), {credentialPrefixes: lfContexts}),
+      })
+      const surviving = 'CR_PRIVATE_Q'.slice(Math.max(0, end - lf.indexOf('CR_PRIVATE_Q')))
+      if (surviving) expect({size, end, leaked: output.includes(surviving)}).toEqual({size, end, leaked: false})
+    }
+  }
+})
+it.each([
+  ['root:', '  password: CR_PRIVATE_Q', '  public: repository not found', 'visible=yes'],
+  ['root:', '  password:', '    CR_PRIVATE_Q', '  public: repository not found', 'visible=yes'],
+])('AC-15,30 a CRLF split between chunks keeps the public sibling: %#', (...lines) => {
+  const input = lines.join('\r\n')
+  for (let cr = input.indexOf('\r'); cr >= 0; cr = input.indexOf('\r', cr + 1)) {
+    for (const start of [0, cr - 1, cr]) {
+      // The chunk ends at CR, so the next chunk begins with the LF of the same line break.
+      const contexts = redactionContext(input.slice(start, cr + 1), redactionContext(input.slice(0, start)))
+      const output = redact(input.slice(cr + 1), {credentialPrefixes: contexts})
+      if (cr < input.indexOf('repository not found'))
+        expect({cr, start, output}).toMatchObject({output: expect.stringContaining('repository not found')})
+      const surviving = 'CR_PRIVATE_Q'.slice(Math.max(0, cr + 1 - input.indexOf('CR_PRIVATE_Q')))
+      if (surviving) expect({cr, start, leaked: output.includes(surviving)}).toEqual({cr, start, leaked: false})
+    }
+  }
+})
 
 it.each([
   'password: MULTI_FIRST_Q MULTI_SECOND_Q\n  MULTI_THIRD_Q',
