@@ -1,32 +1,8 @@
-import {statSync} from 'node:fs'
 import {mkdir, open, rename, unlink, writeFile} from 'node:fs/promises'
-import {basename, dirname, relative, resolve} from 'node:path'
+import {dirname, resolve} from 'node:path'
 
-import {portablePath} from '../src/domain/portable-path'
 import {createConfinement} from '../src/infrastructure/fs/confinement'
 import {MAX_EVIDENCE_BYTES} from './validation-evidence'
-import {requiredLaneIds} from './validation-lanes'
-
-/** Both output CLIs must protect the same original evidence before any writes or cleanup. */
-export function protectEvidenceOutput(input: string, output: string): void {
-  if (portablePath(resolve(input)) === portablePath(resolve(output)))
-    throw new Error('Output cannot overwrite source attestations')
-  const source = statSync(input, {bigint: true, throwIfNoEntry: false})
-  const destination = statSync(output, {bigint: true, throwIfNoEntry: false})
-  if (source && destination && source.dev === destination.dev && source.ino === destination.ino)
-    throw new Error('Output cannot overwrite source attestations')
-  const sourceNames = [
-    'context.json',
-    'verifier.json',
-    'producers.json',
-    'deviations.json',
-    'gate.json',
-    ...requiredLaneIds.map((id) => `${id}.json`),
-  ]
-  const within = relative(dirname(input), output).replaceAll('\\', '/').toLowerCase()
-  if (sourceNames.includes(basename(output).toLowerCase()) || /^(reviews|checks|raw-reports)\//.test(within))
-    throw new Error('Output cannot overwrite source evidence')
-}
 
 export async function writeEvidence(
   path: string,

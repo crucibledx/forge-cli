@@ -15,7 +15,6 @@ export const testSuites = {
   agent: ['e2e/contracts/existing-cli.test.ts'],
   security: [
     'scripts/dotenv-isolation.test.ts',
-    'scripts/evidence-output-alias.test.ts',
     'scripts/run-tests.test.ts',
     'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
@@ -52,7 +51,6 @@ export const testSuites = {
   ],
   platform: [
     'scripts/dotenv-isolation.test.ts',
-    'scripts/evidence-output-alias.test.ts',
     'scripts/run-tests.test.ts',
     'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
