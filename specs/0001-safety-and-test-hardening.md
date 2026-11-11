@@ -324,7 +324,6 @@ Merge readiness is CI plus human review. A PR is ready when all required lanes a
 exact tested merge revision, the hosted `review` check passes with no unresolved blocking findings, and the code
 owner approves. Missing/unavailable lane evidence fails the gate; no AI verdict overrides it. The repository keeps
 no readiness collector/checker, producer attestations or evidence bundles; the PR body and CI are the record.
-(Amended in crucibledx/forge-cli#29; this replaces the withdrawn readiness evidence contract.)
 PR draft/non-draft is not readiness; avoid non-draft-only review trigger cycles. Update repo loop/contributor/safety
 guidance and owner setup for required `Deterministic gate`/reviews; report unenforced rules truthfully. No auto-merge.
 
@@ -370,8 +369,8 @@ below is shorthand for `bun run scripts/run-tests.ts -- <paths>`, with process i
 timeout; use `--timeout-ms 40000` before `--` for longer session tests. CI must use the launcher, not raw Bun.
 Test files must contain the named BR/scenario assertions; each must fail for its documented counterexample.
 
-Amended with owner approval in crucibledx/forge-cli#29: AC-32 now describes the CI merge gate. The earlier
-readiness collector/checker, producer attestations and `docs/quality-gate-readiness-contract.md` are withdrawn.
+Owner-approved amendment (crucibledx/forge-cli#29, merged by the owner): AC-32 now describes the CI merge gate.
+The earlier readiness collector/checker, producer attestations and `docs/quality-gate-readiness-contract.md` are withdrawn.
 
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 | --- | --- | --- | --- |
@@ -406,4 +405,4 @@ readiness collector/checker, producer attestations and `docs/quality-gate-readin
 | AC-29 | Human DX asserts input/invalid retry/selection/help/cancel-before-persistence and saved outcomes; agent CLI checks closed stdin/streams/errors separately; both report independently when another lane fails. | e2e | `bun run test:human` and `bun run test:agent`; registry fixtures verify required lane coverage |
 | AC-30 | Security tests never execute source scripts or leak secrets; audited high/critical, unavailable/invalid or unaudited results block without hiding sibling successes. No audit modifies dependencies. | test | `bun run test:security`; security wrapper fixtures inject each audit outcome and assert status/evidence/unchanged lock |
 | AC-31 | Performance smoke checks 10/1000-target output/state, records cold/warm timings, fails incorrect output/30-second timeout, reports insufficient baselines advisory; no invented hard latency threshold. | test | `bun run test:performance`; benchmark wrapper fixtures exercise timeout/wrong output/missing baseline |
-| AC-32 | Merge readiness is the CI gate plus human review, not repository tooling: `Deterministic gate` passes only when every required lane passes on the current head's tested merge revision; failed/blocked/missing/stale/cancelled/skipped/malformed lane evidence fails it. The hosted `review` check and code-owner approval decide the merge. The repository ships no readiness, producer or attestation collector/checker. | test | `bun run test:contracts` (`scripts/gate.test.ts` negative, two-failure and complete fixtures); `bun run check:contracts`; CI `Deterministic gate` on the PR |
+| AC-32 | Merge readiness is the CI gate plus human review, not repository tooling: `Deterministic gate` passes only when every required lane passes on the current head's tested merge revision; failed/blocked/missing/stale/cancelled/skipped/malformed lane evidence fails it. The repository ships no readiness, producer or attestation collector/checker. The hosted `review` check and code-owner approval then decide the merge through owner-configured branch rules, not a repository test. | test | `bun run test:contracts` (`scripts/gate.test.ts` AC-32 cases: each rejected run, two failures, a complete run); `bun run check:contracts`; `git grep` for readiness/producer tooling and `collect:readiness`/`check:readiness` in `scripts`, `package.json`, `.factory` and `CONTRIBUTING.md` finds none; CI `Deterministic gate` on the PR |

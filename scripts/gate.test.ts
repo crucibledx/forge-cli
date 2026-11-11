@@ -225,7 +225,7 @@ it.each([
   'expired',
   'malformed',
   'missing-log',
-])('AC-25,27 selected provider run rejects %s while reporting every sibling', async (kind) => {
+])('AC-25,27,32 selected provider run rejects %s while reporting every sibling', async (kind) => {
   const {bundle, jobs, artifacts} = await fixture(kind)
   const result = await deterministicGate(bundle.context, dir(), Bun.version, jobs, artifacts)
   expect(result.lanes).toHaveLength(10)

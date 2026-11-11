@@ -148,6 +148,7 @@ export const safetyLedger: SafetyRule[] = [
       'scripts/run-tests.test.ts',
       'scripts/check-lanes.test.ts',
       'scripts/security-audit.test.ts',
+      'scripts/gate.test.ts',
     ],
   },
 ]
