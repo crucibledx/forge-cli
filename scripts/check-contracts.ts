@@ -4,8 +4,8 @@ import {resolve} from 'node:path'
 import {parse} from 'yaml'
 
 import {testSuites} from './registry/suites'
+import {repositoryRoot} from './repository-root'
 import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
-import {repositoryRoot} from './validation-identity'
 import {acceptanceIds, businessRuleIds, LANE_BUDGET_MS, validationLanes} from './validation-lanes'
 
 export function contractInputs() {

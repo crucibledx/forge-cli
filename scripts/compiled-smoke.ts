@@ -1,7 +1,7 @@
 import {resolve} from 'node:path'
 
 import pkg from '../package.json'
-import {repositoryRoot} from './validation-identity'
+import {repositoryRoot} from './repository-root'
 import {executeCheck} from './validation-process'
 
 if (import.meta.main) {

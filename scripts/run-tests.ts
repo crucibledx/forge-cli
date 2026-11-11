@@ -2,8 +2,8 @@ import {readFileSync, statSync} from 'node:fs'
 import {resolve} from 'node:path'
 
 import {type TestSuite, testSuites} from './registry/suites'
+import {repositoryRoot} from './repository-root'
 import {createTestSandbox} from './test-sandbox'
-import {repositoryRoot} from './validation-identity'
 
 export async function runTests(args: string[]): Promise<number> {
   let timeout = '20000'

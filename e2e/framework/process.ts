@@ -70,7 +70,7 @@ export function diagnosticHead(text: string, maximum: number): string {
   return bytes.subarray(0, end).toString()
 }
 /** Bound the encoded JSON string; >=13 bytes reserves the visible truncation marker and quotes. */
-export function diagnosticJSON(text: string, maximum: number, tail = false): string {
+export function diagnosticJSON(text: string, maximum: number): string {
   if (!Number.isSafeInteger(maximum) || maximum < 13) throw new RangeError('JSON diagnostic budget must be >=13')
   if (Buffer.byteLength(JSON.stringify(text)) <= maximum) return text
   const marker = '[truncated]'
@@ -91,25 +91,15 @@ export function diagnosticJSON(text: string, maximum: number, tail = false): str
               : point <= 0xffff
                 ? 3
                 : 4
-  let index = tail ? text.length : 0
-  while (tail ? index > 0 : index < text.length) {
-    let start = tail ? index - 1 : index
-    if (
-      tail &&
-      start > 0 &&
-      text.charCodeAt(start) >= 0xdc00 &&
-      text.charCodeAt(start) <= 0xdfff &&
-      text.charCodeAt(start - 1) >= 0xd800 &&
-      text.charCodeAt(start - 1) <= 0xdbff
-    )
-      start--
-    const point = text.codePointAt(start)!,
+  let index = 0
+  while (index < text.length) {
+    const point = text.codePointAt(index)!,
       size = cost(point)
     if (size > remaining) break
     remaining -= size
-    index = tail ? start : index + (point > 0xffff ? 2 : 1)
+    index += point > 0xffff ? 2 : 1
   }
-  return tail ? marker + text.slice(index) : text.slice(0, index) + marker
+  return text.slice(0, index) + marker
 }
 function diagnosticView(clean: (text: string) => string, secrets: string[]) {
   let raw = ''

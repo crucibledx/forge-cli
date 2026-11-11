@@ -16,8 +16,8 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {runPipe} from '../e2e/framework/pipe'
+import {repositoryRoot} from './repository-root'
 import {allowlistedEnvironment, createTestSandbox, enclosingSchedulerTemplate, testEnvironment} from './test-sandbox'
-import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('compiler-environment')
 it.each([false, true])('AC-19 rejects unrepresentable canonical Git ceiling paths, linked=%s', (linked) => {
