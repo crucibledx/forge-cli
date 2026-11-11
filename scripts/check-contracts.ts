@@ -237,9 +237,10 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
         ['softprops/action-gh-release@', 'actions/create-github-app-token@'].some((action) =>
           String(step.uses).startsWith(action),
         ) ||
-        String(step.run).includes('git push')
+        /git push|npm publish(?![^\n]*--dry-run)/.test(String(step.run))
       )
-        require(step.if === '${{ !inputs.dry_run }}', 'Release publish step must be skipped in a dry run')
+        require(step.if === '${{ !inputs.dry_run }}' ||
+          String(step.if).startsWith('${{ !inputs.dry_run && '), 'Release publish step must be skipped in a dry run')
   const safety = input.docs.find((doc) => doc.path === 'docs/safety-contract.md')?.text ?? ''
   require(businessRuleIds.every((id) => safety.includes(id)), 'Documented safety ledger incomplete')
   require([

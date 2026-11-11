@@ -18,10 +18,13 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
   REPO: crucibledx/forge-cli
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
-  DRY_RUN: ${{ inputs.dry_run == true }}
 
 # Public channels publish strictly in order: npm, then the GitHub release, then Homebrew and Scoop.
 # Nothing publishes until the tagged commit has a green CI gate, the release checks pass and the
@@ -46,30 +49,36 @@ jobs:
         run: |
           sha="$(git rev-parse 'HEAD^{commit}')"
           echo "${TAG} points at ${sha}"
+          # Only push runs on main check out exactly this commit; pull_request runs test a merge commit.
+          runs="repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&event=push&branch=main&per_page=1"
           # CI can still be running when a tag is pushed right after a merge, so wait for it.
           grace=$((SECONDS + 5 * 60))
           deadline=$((SECONDS + 25 * 60))
+          run_url=""
           while :; do
-            run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=1" \
-              --jq '.workflow_runs[0] | if . == null then "" else "\(.id) \(.status) \(.html_url)" end')"
-            read -r run_id run_status run_url <<<"${run}"
-            if [ -z "${run}" ]; then
+            if ! run="$(gh api "${runs}" \
+              --jq '.workflow_runs[0] | if . == null then "" else "\(.id) \(.status) \(.html_url)" end')"; then
+              echo "GitHub API error, retrying..."
+            elif [ -z "${run}" ]; then
               if (( SECONDS >= grace )); then
-                echo "::error::CI never ran on ${sha}. Tag a commit on main after its CI run is green."
+                echo "::error::No CI push run on main for ${sha}. Tag a commit on main after its CI run is green."
                 exit 1
               fi
               echo "No CI run for ${sha} yet, waiting..."
-            elif [ "${run_status}" = completed ]; then
-              gate="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
-                --jq '[.jobs[] | select(.name == "Deterministic gate")] | last | .conclusion // "missing"')"
-              if [ "${gate}" = success ]; then
+            else
+              read -r run_id run_status run_url <<<"${run}"
+              if [ "${run_status}" != completed ]; then
+                echo "CI run ${run_url} is ${run_status}, waiting..."
+              elif ! gate="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
+                --jq '[.jobs[] | select(.name == "Deterministic gate")] | last | .conclusion // "missing"')"; then
+                echo "GitHub API error, retrying..."
+              elif [ "${gate}" = success ]; then
                 echo "Deterministic gate passed on ${sha}: ${run_url}"
                 exit 0
+              else
+                echo "::error::Deterministic gate is '${gate}' on ${sha} (${run_url}). Re-run CI on this commit if it was cancelled, or fix CI on main and tag a commit whose gate is green."
+                exit 1
               fi
-              echo "::error::Deterministic gate is '${gate}' on ${sha} (${run_url}). Fix CI on main, then tag a commit whose gate is green."
-              exit 1
-            else
-              echo "CI run ${run_url} is ${run_status}, waiting..."
             fi
             if (( SECONDS >= deadline )); then
               echo "::error::Timed out waiting for CI on ${sha} (${run_url:-no run}). Re-run this job once CI has finished."
@@ -189,7 +198,8 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - run: bun install --frozen-lockfile
-      - name: Publish
+      - name: Check whether this version is on npm
+        id: npm-version
         run: |
           name="$(node -p "require('./package.json').name")"
           version="$(node -p "require('./package.json').version")"
@@ -208,20 +218,29 @@ jobs:
             echo "::error::Could not check whether ${name}@${version} is already on npm."
             exit 1
           fi
-
           if [ "${published}" = true ]; then
             echo "${name}@${version} is already on npm, skipping publish."
-          elif [ "${DRY_RUN}" = true ]; then
-            if ! npm whoami >/dev/null 2>&1; then
-              echo "::warning::npm rejects the configured credential (npm whoami failed). A real release would fail here."
-            fi
-            npm publish --access public --dry-run
-          elif [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::The NPM_TOKEN repository secret is not set. Add an npm token with publish rights for ${name}."
-            exit 1
-          else
-            npm publish --access public
           fi
+          echo "published=${published}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish (dry run)
+        if: ${{ inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
+        run: |
+          if ! npm whoami >/dev/null 2>&1; then
+            echo "::warning::npm rejects the configured credential (npm whoami failed). A real release would fail here."
+          fi
+          npm publish --access public --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish
+        if: ${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::error::The NPM_TOKEN repository secret is not set. Add an npm token with publish rights for @crucibledx/forge-cli."
+            exit 1
+          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

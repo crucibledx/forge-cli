@@ -215,8 +215,21 @@ const releaseDrift: Record<string, [string, (release: ReleaseWorkflow) => void]>
       delete findStep(release, 'scoop', (step) => !!step.run?.includes('git push')).if
     },
   ],
+  'npm-publish-unguarded': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      delete findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public\n')).if
+    },
+  ],
+  'npm-publish-guard-bypassed': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public\n')).if =
+        '${{ !inputs.dry_run || true }}'
+    },
+  ],
 }
-it.each(Object.keys(releaseDrift))('release publishes npm first and only after every check: rejects %s', (kind) => {
+it.each(Object.keys(releaseDrift))('release ordering and dry-run guards: rejects %s', (kind) => {
   const original = contractInputs()
   const input = {...original, release: structuredClone(original.release)}
   const [message, mutate] = releaseDrift[kind]
