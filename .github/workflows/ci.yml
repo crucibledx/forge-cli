@@ -46,16 +46,16 @@ jobs:
       - id: install
         run: bun install --frozen-lockfile
       # Separate always() steps: an early failing check must not hide later checks' results.
-      - name: ${{ matrix.checks[0] || 'not used by this lane' }}
+      - name: ${{ matrix.checks[0] || 'no check registered at this index' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[0]
         run: bun run ${{ matrix.checks[0] }}
-      - name: ${{ matrix.checks[1] || 'not used by this lane' }}
+      - name: ${{ matrix.checks[1] || 'no check registered at this index' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[1]
         run: bun run ${{ matrix.checks[1] }}
-      - name: ${{ matrix.checks[2] || 'not used by this lane' }}
+      - name: ${{ matrix.checks[2] || 'no check registered at this index' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[2]
         run: bun run ${{ matrix.checks[2] }}
-      - name: ${{ matrix.checks[3] || 'not used by this lane' }}
+      - name: ${{ matrix.checks[3] || 'no check registered at this index' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[3]
         run: bun run ${{ matrix.checks[3] }}
 

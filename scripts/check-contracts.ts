@@ -156,7 +156,9 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     [gate.needs ?? []].flat().includes('lanes') &&
     result &&
     result.if === undefined &&
-    String(result.run).includes('= success'), 'Always-run gate must require every lane to succeed')
+    // Exact script only: a suffix like `|| true` would neutralize the comparison.
+    String(result.run).trim() ===
+      'echo "lanes: $LANES"\ntest "$LANES" = success', 'Always-run gate must require every lane to succeed')
   // A tolerated failure would let needs.lanes.result report success.
   require([lanes, gate, ...steps, ...(gate?.steps ?? [])].every(
     (item) => item?.['continue-on-error'] === undefined,

@@ -101,6 +101,15 @@ const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInpu
       ci.jobs.gate.steps = [{env: {LANES: '${{ needs.lanes.result }}'}, run: 'echo "$LANES"'} satisfies WorkflowStep]
     },
   ],
+  'gate-result-neutralized': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      ci.jobs.gate.steps[0].run = ci.jobs.gate.steps[0].run.replace(
+        'test "$LANES" = success',
+        'test "$LANES" = success || true',
+      )
+    },
+  ],
   'lane-step-continue-on-error': [
     'Lane and gate failures must not be tolerated',
     (ci) => {
