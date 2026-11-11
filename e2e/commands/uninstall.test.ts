@@ -6,6 +6,7 @@ import {existsSync} from 'node:fs'
 import {mkdir, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
+import {snapshot} from '@test-helpers/snapshot'
 import {describe, expect, it} from 'bun:test'
 
 import {hashContent} from '@domain/sync/state'
@@ -19,6 +20,8 @@ import {
   useTmpDir,
   Y,
 } from '@e2e/framework'
+
+import {nativePairBytes, readNativePair, writeAmbiguousPair} from './sync/safety/helpers'
 
 const getDir = useTmpDir('forge-uninstall')
 
@@ -77,4 +80,34 @@ describe('forge uninstall', () => {
     },
     TIMEOUT_MS,
   )
+
+  for (const literal of ['.claude/skills/a\\b.md', 'notes/a\\b.md'])
+    it.skipIf(process.platform === 'win32')(
+      `refuses ambiguous POSIX backslash state before prompting or changing files: ${literal}`,
+      async () => {
+        const dir = getDir()
+        await writeConfig(dir, buildConfigYaml({assistants: ['claude-code']}))
+        const paths = await writeAmbiguousPair(dir, literal)
+        await writeFile(
+          join(dir, '.crucible', 'sync-state.json'),
+          JSON.stringify({
+            lastSync: '',
+            files: {[literal]: {hash: hashContent('literal owned bytes'), sourceName: 'default'}},
+          }),
+        )
+        const before = await snapshot(dir)
+
+        const result = await runUninstallSession(dir, (cli) => cli.waitForText('Ambiguous tracked backslash path'))
+
+        expect(result.exitCode).toBe(1)
+        expect(await snapshot(dir)).toEqual(before)
+        expect(await readNativePair(dir, paths)).toMatchObject({
+          exitCode: 0,
+          signal: null,
+          timedOut: false,
+          stdout: nativePairBytes,
+        })
+      },
+      TIMEOUT_MS,
+    )
 })

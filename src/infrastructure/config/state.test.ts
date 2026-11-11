@@ -65,7 +65,13 @@ it('AC-6 canonicalizes legacy/native separators without merging distinct tracked
 })
 it.each(
   [false, true].flatMap((current) =>
-    ['.claude/rules/a\\b.md', '.ClAuDe/rules/a\\b.md', '.claude\\rules/a.md'].map((path) => ({current, path})),
+    [
+      '.claude/rules/a\\b.md',
+      '.ClAuDe/rules/a\\b.md',
+      '.claude\\rules/a.md',
+      'notes/a\\b.md',
+      'unknown/.claude\\rules/a.md',
+    ].map((path) => ({current, path})),
   ),
 )(
   'AC-5/6 mixed separators cannot reinterpret native POSIX ownership, current=$current path=$path',
@@ -78,13 +84,20 @@ it.each(
     expect(JSON.stringify(input)).toBe(before)
   },
 )
-it('AC-4/6 unmatched mixed paths remain outside all assistant destinations after normalization', () => {
-  const path = 'unknown/.claude\\rules/a.md',
-    entry = {hash: hashContent('retained'), sourceName: 'unknown'}
-  const input = {lastSync: '', files: {[path]: entry}}
-  expect(parseSyncState(input).files['unknown/.claude/rules/a.md']).toEqual({...entry, baseline: 'legacy-unknown'})
-  expect(Object.keys(input.files)).toEqual([path])
-})
+it.each([false, true])(
+  'AC-6 backslash-only Windows legacy keys keep separator normalization, current=%p',
+  (current) => {
+    const entry = {
+      hash: hashContent('original'),
+      sourceName: 'team',
+      ...(current ? {baseline: 'installed' as const} : {}),
+    }
+    const input = {...(current ? {version: 2} : {}), lastSync: '', files: {'.claude\\skills\\a\\b.md': entry}}
+    expect(parseSyncState(input).files).toEqual({
+      '.claude/skills/a/b.md': {...entry, baseline: current ? 'installed' : 'legacy-unknown'},
+    })
+  },
+)
 
 describe('getSyncStatePath', () => {
   it('returns path inside .crucible dir', () => {

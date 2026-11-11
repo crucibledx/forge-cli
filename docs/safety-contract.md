@@ -43,6 +43,10 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   preserve them. When compensation is incomplete, metadata named in the emergency is **untrusted**.
 - Legacy Windows backslash keys normalize to slash-separated state keys in memory before planning/status.
   Competing canonical keys fail rather than overwrite one another; case/NFC aliases still fail the full graph.
+- On macOS and Linux a tracked key containing both `/` and `\` is ambiguous: it can name a literal-backslash file
+  or a different nested file. Every command that reads state (sync, preview, status, health, source, config,
+  uninstall) refuses it before any change. Keep both files, then rename the entry to its `/` form only if Forge
+  installed the nested file; otherwise remove it. Backslash-only keys from older Windows state still normalize.
 - Raw own `__proto__` file keys are unsupported and reject the whole legacy/v2 state before record parsing.
   They must not disappear silently, whether malformed or carrying unknown ownership. Rejection preserves
   protected bytes during apply/preview; ordinary `constructor` and `prototype` keys remain supported.

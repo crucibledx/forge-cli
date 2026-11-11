@@ -210,16 +210,18 @@ it.each(
         raw = stdout + stderr
       },
     })
-    expect(result.exitCode).toBe(0)
-    expect(raw).toContain('Retaining tracked path')
+    // On POSIX the ESC-backslash terminator makes this key ambiguous, so sync refuses and the error prints the path.
+    const refused = process.platform !== 'win32' && path.includes('\\')
+    expect(result.exitCode).toBe(refused ? 1 : 0)
+    expect(raw).toContain(refused ? 'Ambiguous tracked backslash path' : 'Retaining tracked path')
     expect(raw).toContain('unknown/visible-é')
     expect(raw.includes(controls[kind])).toBe(false)
     expect(raw).toContain(kind === 'c1-osc' ? '\\u009d' : '\\u001b')
     const after = await readFile(statePath, 'utf8')
-    const retainedPath = preview ? path : path.replaceAll('\\', '/')
+    const retainedPath = preview || refused ? path : path.replaceAll('\\', '/')
     expect(Object.keys(JSON.parse(after).files)).toEqual([retainedPath])
     expect(JSON.parse(after).files[retainedPath]).toEqual(JSON.parse(original).files[path])
-    if (preview) {
+    if (preview || refused) {
       expect(after).toBe(original)
       expect(await readFile(configPath, 'utf8')).toBe(beforeConfig)
     }

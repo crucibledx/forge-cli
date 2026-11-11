@@ -3,9 +3,7 @@ import {dirname, join} from 'node:path'
 
 import {z} from 'zod'
 
-import {getAllAssistants} from '@domain/assistants'
 import {STATE_PATH} from '@domain/config/paths'
-import {portablePath} from '@domain/portable-path'
 import type {SyncState} from '@domain/sync/state'
 import {emptySyncState, SYNC_BASELINES} from '@domain/sync/state'
 
@@ -46,19 +44,13 @@ export function parseSyncState(input: unknown): SyncState {
   const parsed: SyncState = current ? currentSchema.parse(input) : legacySchema.parse(input)
   const files: SyncState['files'] = {}
   for (const [path, entry] of Object.entries(parsed.files)) {
+    // Forge writes "/" keys, and older Windows builds wrote "\"-only keys. On POSIX a key with both can name a
+    // literal-backslash file, and rewriting it would hand ownership (and later deletion) to a different file.
     const key = path.replaceAll('\\', '/')
-    if (process.platform !== 'win32' && path.includes('/') && path.includes('\\')) {
-      const candidate = portablePath(key)
-      const claimable = getAllAssistants().some((assistant) =>
-        assistant.targetMappings.some((mapping) =>
-          [mapping.destination.project, mapping.destination.global].some(
-            (destination) => destination !== undefined && candidate.startsWith(`${portablePath(destination)}/`),
-          ),
-        ),
+    if (process.platform !== 'win32' && path.includes('/') && path.includes('\\'))
+      throw new Error(
+        `Ambiguous tracked backslash path on POSIX: ${path}. It can name a file with a backslash in its name or the nested file ${key}, so nothing was changed. Keep both files. In ${STATE_PATH}, rename this entry to ${key} only if Forge installed the nested file; otherwise remove the entry. Then retry.`,
       )
-      if (claimable)
-        throw new Error(`Ambiguous tracked backslash path on POSIX; preserve files and rebuild state: ${path}`)
-    }
     if (Object.hasOwn(files, key)) throw new Error(`Competing tracked paths after separator normalization: ${key}`)
     files[key] = {...entry, baseline: entry.baseline ?? SYNC_BASELINES.LEGACY_UNKNOWN}
   }

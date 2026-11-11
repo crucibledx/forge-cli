@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 
 import {stringify} from 'yaml'
 
@@ -20,6 +20,20 @@ export async function config(root: string, sources: Source[], sync: Partial<Proj
       sync: {keep_local: false, ...sync},
     }),
   )
+}
+// Bun's file APIs normalize backslashes on POSIX. Create and inspect both real names natively.
+const nativeInspect = '/bin/cat "$1"; printf "\\n"; /bin/cat "$2"; printf "\\n"'
+export const nativePairBytes = 'literal owned bytes\nUNRELATED USER BYTES\n'
+export const readNativePair = (root: string, paths: string[]) =>
+  runPipe(root, ['/bin/sh', '-c', nativeInspect, 'forge-native-fixture', ...paths])
+/** Writes a literal-backslash file and the distinct nested file its separator-normalized key would name. */
+export async function writeAmbiguousPair(root: string, literal: string): Promise<string[]> {
+  const paths = [join(root, literal), join(root, literal.replaceAll('\\', '/'))]
+  await mkdir(dirname(paths[1]), {recursive: true})
+  const write = 'printf "%s" "literal owned bytes" > "$1" && printf "%s" "UNRELATED USER BYTES" > "$2"'
+  const result = await runPipe(root, ['/bin/sh', '-c', write, 'forge-native-fixture', ...paths])
+  if (result.exitCode !== 0) throw new Error(`Native fixture failed: ${JSON.stringify(result)}`)
+  return paths
 }
 export async function readTree(root: string): Promise<string> {
   if (!existsSync(root)) return ''
