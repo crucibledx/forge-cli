@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -46,7 +47,9 @@ export function enclosingSchedulerTemplate(root: string): string | undefined {
 function compileWindowsScheduler(root: string, env: Record<string, string>, timeoutMs: number): string {
   // Outside bin/, so the template itself is never on a fixture PATH; fixtures only ever run their own copy.
   const template = join(root, SCHEDULER_TEMPLATE)
-  mkdirSync(dirname(template), {mode: 0o700})
+  // Build under a temporary name so a killed or failed compile never leaves a partial template for reuse.
+  const building = join(dirname(template), 'building-schtasks.exe')
+  mkdirSync(dirname(template), {recursive: true, mode: 0o700})
   const result = Bun.spawnSync(
     [
       process.execPath,
@@ -54,7 +57,7 @@ function compileWindowsScheduler(root: string, env: Record<string, string>, time
       resolve(import.meta.dir, 'fixtures/fake-scheduler.ts'),
       '--compile',
       '--outfile',
-      template,
+      building,
     ],
     {
       cwd: join(root, 'project'),
@@ -66,6 +69,7 @@ function compileWindowsScheduler(root: string, env: Record<string, string>, time
   )
   if (result.exitCode !== 0)
     throw new Error(`Cannot build isolated scheduler backend: ${new TextDecoder().decode(result.stderr)}`)
+  renameSync(building, template)
   return template
 }
 

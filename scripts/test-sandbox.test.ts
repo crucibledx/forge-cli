@@ -115,8 +115,11 @@ it('AC-19 nested sandboxes reuse the nearest enclosing compiled scheduler, never
     writeFileSync(stray, 'not a sandbox build')
     const strayChild = createTestSandbox('stray-', unmarked)
     sandboxes.push(strayChild)
-    expect(enclosingSchedulerTemplate(strayChild.root)).not.toBe(stray)
-    expect(enclosingSchedulerTemplate(unmarked)).not.toBe(stray)
+    // Skips the stray file and resolves exactly as the enclosing launcher tree does (its build on Windows, none elsewhere).
+    const enclosing = enclosingSchedulerTemplate(dir())
+    expect(enclosing).not.toBe(stray)
+    expect(enclosingSchedulerTemplate(strayChild.root)).toBe(enclosing)
+    expect(enclosingSchedulerTemplate(unmarked)).toBe(enclosing)
   } finally {
     for (const sandbox of sandboxes.reverse()) sandbox.dispose()
   }
@@ -127,13 +130,14 @@ it('AC-19 native Windows compiles once per sandbox tree and copies independent p
   const parent = join(repositoryRoot, 'results/scheduler-template')
   mkdirSync(parent, {recursive: true})
   const base = mkdtempSync(join(parent, 'run-'))
-  const sandboxModule = JSON.stringify(resolve(import.meta.dir, 'test-sandbox.ts'))
-  const countBuilds = `const original = Bun.spawnSync, launches = []
+  try {
+    const sandboxModule = JSON.stringify(resolve(import.meta.dir, 'test-sandbox.ts'))
+    const countBuilds = `const original = Bun.spawnSync, launches = []
 Bun.spawnSync = (...args) => {if (args[0][1] === 'build') launches.push(args[1]); return original(...args)}`
-  const nestedProbe = join(base, 'nested-probe.ts')
-  writeFileSync(
-    nestedProbe,
-    `import {existsSync} from 'node:fs'
+    const nestedProbe = join(base, 'nested-probe.ts')
+    writeFileSync(
+      nestedProbe,
+      `import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {createTestSandbox} from ${sandboxModule}
 ${countBuilds}
@@ -143,8 +147,8 @@ try {
  console.log(JSON.stringify({builds: launches.length, copied: existsSync(join(nested.root, 'bin/schtasks.exe'))}))
 } finally {nested.dispose()}
 `,
-  )
-  const source = `
+    )
+    const source = `
 import {appendFileSync, existsSync, statSync} from 'node:fs'
 import {join} from 'node:path'
 import {createTestSandbox, testEnvironment} from ${sandboxModule}
@@ -173,7 +177,6 @@ try {
  console.log(JSON.stringify({builds: launches.length, lazy, isolated, independent, nested, created, queried}))
 } finally {first.dispose(); second.dispose()}
 `
-  try {
     const result = await runPipe(dir(), [process.execPath, '-e', source], {
       timeoutMs: 30000,
       env: {FORGE_COMPILER_SECRET: 'compiler-sentinel'},
@@ -191,5 +194,6 @@ try {
     })
   } finally {
     rmSync(base, {recursive: true, force: true})
+    if (!readdirSync(parent).length) rmSync(parent, {recursive: true})
   }
 }, 40000)
