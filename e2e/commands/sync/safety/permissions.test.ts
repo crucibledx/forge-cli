@@ -13,11 +13,19 @@ import {command, config} from './helpers'
 const dir = useTmpDir('preview-permissions')
 // Inheritable owner/SYSTEM access keeps existing children readable after the
 // protected directory DACL replaces what they inherited.
-const lockedDacl = (denied: boolean) => `D:P${denied ? '(D;;0x00000006;;;WD)' : ''}(A;OICI;FA;;;OW)(A;OICI;FA;;;SY)`
+const lockedDacl = (deny: string) => `D:P${deny}(A;OICI;FA;;;OW)(A;OICI;FA;;;SY)`
+const creationDeny = '(D;;0x00000006;;;WD)'
 const windowsLocations = {
-  'new target': {locked: '.claude/rules', initial: false, localEdit: false},
-  'updated target and adjacent backup': {locked: '.claude/rules', initial: true, localEdit: true},
-  'state and config metadata': {locked: '.crucible', initial: true, localEdit: false},
+  'new target': {locked: '.claude/rules', deny: creationDeny, initial: false, localEdit: false},
+  'updated target and adjacent backup': {locked: '.claude/rules', deny: creationDeny, initial: true, localEdit: true},
+  'state and config metadata': {locked: '.crucible', deny: creationDeny, initial: true, localEdit: false},
+  // .claude/rules is created by apply and inherits this file-creation deny from .claude.
+  'new target under an inherited file-creation deny': {
+    locked: '.claude',
+    deny: '(D;OICI;0x00000002;;;WD)',
+    initial: false,
+    localEdit: false,
+  },
 } as const
 async function dacl(path: string) {
   const {bytes, offset, flags} = descriptorFlags((await readAccessMetadata(path))!)
@@ -34,7 +42,7 @@ it.each(
   Object.keys(windowsLocations).flatMap((location) => [true, false].map((denied) => [location, denied] as const)),
 )('AC-8/10 Windows preview and apply agree for %s, creation denied=%p', async (location, denied) => {
   if (process.platform !== 'win32') return
-  const {locked, initial, localEdit} = windowsLocations[location as keyof typeof windowsLocations]
+  const {locked, deny, initial, localEdit} = windowsLocations[location as keyof typeof windowsLocations]
   const root = dir(),
     source = join(root, 'source'),
     target = join(root, '.claude/rules/a.md'),
@@ -42,7 +50,7 @@ it.each(
   await mkdir(join(source, 'rules'), {recursive: true})
   await writeFile(join(source, 'rules/a.md'), initial ? 'first' : 'after')
   await config(root, [{name: 'team', type: 'local', path: source}])
-  await mkdir(join(root, '.claude/rules'), {recursive: true})
+  await mkdir(join(root, locked), {recursive: true})
   if (initial) {
     const first = await command(root)
     expect(first, JSON.stringify(first)).toMatchObject({exitCode: 0})
@@ -50,7 +58,7 @@ it.each(
   }
   if (localEdit) await writeFile(target, 'local edit')
   const original = await readAccessMetadata(lockedPath)
-  await writeAccessMetadata(lockedPath, await accessMetadataFromSddl(lockedDacl(denied)))
+  await writeAccessMetadata(lockedPath, await accessMetadataFromSddl(lockedDacl(denied ? deny : '')))
   try {
     const before = await protectedBytes(root),
       access = await accessSnapshot(lockedPath)
