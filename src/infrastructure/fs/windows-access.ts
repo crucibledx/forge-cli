@@ -54,8 +54,17 @@ export async function readAccessMetadata(path: string): Promise<Uint8Array | nul
   }
 }
 
-/** Evaluate current directory creation rights without a probe write or privilege changes. */
-export async function checkDirectoryCreationAccess(path: string, directory: boolean): Promise<void> {
+const FILE_ADD_FILE = 0x2
+const FILE_ADD_SUBDIRECTORY = 0x4
+// SEF_DACL_AUTO_INHERIT | SEF_AVOID_PRIVILEGE_CHECK | SEF_AVOID_OWNER_CHECK
+const INHERITED_DESCRIPTOR_FLAGS = 0x1 | 0x8 | 0x10
+
+/**
+ * Evaluate current creation rights without a probe write or privilege changes. `newDirectories`
+ * (shallowest first) will be created under `path`; each is checked against the DACL it would
+ * inherit, because an inheritable deny on `path` only takes effect inside the new directory.
+ */
+export async function checkDirectoryCreationAccess(path: string, newDirectories: string[] = []): Promise<void> {
   if (process.platform !== 'win32') return
   const {dlopen, ptr} = await import('bun:ffi')
   const security = dlopen('advapi32.dll', {
@@ -64,6 +73,8 @@ export async function checkDirectoryCreationAccess(path: string, directory: bool
     OpenProcessToken: {args: ['ptr', 'u32', 'ptr'], returns: 'i32'},
     DuplicateToken: {args: ['ptr', 'i32', 'ptr'], returns: 'i32'},
     AccessCheck: {args: ['ptr', 'ptr', 'u32', 'ptr', 'ptr', 'ptr', 'ptr', 'ptr'], returns: 'i32'},
+    CreatePrivateObjectSecurityEx: {args: ['ptr', 'ptr', 'ptr', 'ptr', 'i32', 'u32', 'ptr', 'ptr'], returns: 'i32'},
+    DestroyPrivateObjectSecurity: {args: ['ptr'], returns: 'i32'},
   })
   const kernel = dlopen('kernel32.dll', {
     GetCurrentThreadId: {args: [], returns: 'u32'},
@@ -73,6 +84,7 @@ export async function checkDirectoryCreationAccess(path: string, directory: bool
     CloseHandle: {args: ['ptr'], returns: 'i32'},
   })
   const handles: bigint[] = []
+  const derived: Buffer[] = []
   const keep = (handle: number | bigint | null) => {
     if (!handle) throw new Error(`Cannot inspect Windows directory access: ${path}`)
     handles.push(BigInt(handle))
@@ -103,34 +115,63 @@ export async function checkDirectoryCreationAccess(path: string, directory: bool
     const mapping = Buffer.alloc(16)
     for (const [index, mask] of [0x120089, 0x120116, 0x1200a0, 0x1f01ff].entries())
       mapping.writeUInt32LE(mask, index * 4)
-    const requested = directory ? 4 : 2 // FILE_ADD_SUBDIRECTORY or FILE_ADD_FILE, not generic write.
     const granted = Buffer.alloc(4),
-      allowed = Buffer.alloc(4)
+      allowed = Buffer.alloc(4),
+      privilegeLength = Buffer.alloc(4)
     let privileges = Buffer.alloc(20)
-    size.writeUInt32LE(privileges.length)
-    const check = () =>
-      security.symbols.AccessCheck(
-        ptr(descriptor),
-        effective,
-        requested,
-        ptr(mapping),
-        ptr(privileges),
-        ptr(size),
-        ptr(granted),
-        ptr(allowed),
-      )
-    if (!check()) {
-      const error = kernel.symbols.GetLastError(),
-        required = size.readUInt32LE()
-      if (error !== 122 || required < 20 || required > 65536)
-        throw new Error(`Cannot evaluate Windows directory ACL: ${path}`)
-      privileges = Buffer.alloc(required)
-      size.writeUInt32LE(privileges.length)
-      if (!check()) throw new Error(`Cannot evaluate Windows directory ACL: ${path}`)
+    // Request only FILE_ADD_FILE or FILE_ADD_SUBDIRECTORY, not generic write.
+    const permits = (target: number, requested: number, directory: string) => {
+      const check = () => {
+        privilegeLength.writeUInt32LE(privileges.length)
+        return security.symbols.AccessCheck(
+          target,
+          effective,
+          requested,
+          ptr(mapping),
+          ptr(privileges),
+          ptr(privilegeLength),
+          ptr(granted),
+          ptr(allowed),
+        )
+      }
+      if (!check()) {
+        const error = kernel.symbols.GetLastError(),
+          required = privilegeLength.readUInt32LE()
+        if (error !== 122 || required < 20 || required > 65536)
+          throw new Error(`Cannot evaluate Windows directory ACL: ${directory}`)
+        privileges = Buffer.alloc(required)
+        if (!check()) throw new Error(`Cannot evaluate Windows directory ACL: ${directory}`)
+      }
+      return allowed.readInt32LE() !== 0 && (granted.readUInt32LE() & requested) === requested
     }
-    if (!allowed.readInt32LE() || (granted.readUInt32LE() & requested) !== requested)
-      throw new Error(`Directory creation access denied: ${path}`)
+    // Take the existing descriptor's address at each use so its Buffer stays referenced.
+    let inheritedDescriptor: number | null = null
+    for (const [level, directory] of [path, ...newDirectories].entries()) {
+      if (level > 0) {
+        // Same inheritance CreateDirectoryW applies when no explicit descriptor is passed.
+        const inherited = Buffer.alloc(8)
+        if (
+          !security.symbols.CreatePrivateObjectSecurityEx(
+            inheritedDescriptor ?? ptr(descriptor),
+            null,
+            ptr(inherited),
+            null,
+            1,
+            INHERITED_DESCRIPTOR_FLAGS,
+            effective,
+            ptr(mapping),
+          )
+        )
+          throw new Error(`Cannot derive inherited Windows directory ACL: ${directory}`)
+        derived.push(inherited)
+        inheritedDescriptor = Number(inherited.readBigUInt64LE())
+      }
+      const requested = level < newDirectories.length ? FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE
+      if (!permits(inheritedDescriptor ?? ptr(descriptor), requested, directory))
+        throw new Error(`Directory creation access denied: ${directory}`)
+    }
   } finally {
+    for (const inherited of derived) security.symbols.DestroyPrivateObjectSecurity(ptr(inherited))
     for (const handle of handles.reverse()) kernel.symbols.CloseHandle(handle)
     security.close()
     kernel.close()

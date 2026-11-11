@@ -125,19 +125,19 @@ export async function prepareTransaction(root: string, operations: FileOperation
     }
     if (operation.content === null && snapshots.get(path)!.bytes === null) continue
     let parent = dirname(path)
-    let needsDirectoryCreation = false
+    const missing: string[] = []
     while (true) {
       try {
         const stat = await fs.lstat(parent)
         if (!stat.isDirectory()) throw new Error(`Not a directory: ${relative(boundary.root, parent)}`)
-        if (process.platform === 'win32') await fs.checkDirectoryCreationAccess(parent, needsDirectoryCreation)
+        if (process.platform === 'win32') await fs.checkDirectoryCreationAccess(parent, [...missing].reverse())
         else await fs.access(parent, constants.W_OK | constants.X_OK)
         break
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         if (parent === boundary.root) throw error
         absentDirectories.add(parent)
-        needsDirectoryCreation = true
+        missing.push(parent)
       }
       parent = dirname(parent)
     }
@@ -152,15 +152,23 @@ export async function prepareTransaction(root: string, operations: FileOperation
   const recoveryTemporaries = new Set<string>()
   const attemptedDirectories: string[] = []
   const directories = [...absentDirectories].sort((a, b) => a.length - b.length)
-  const remove = async (path: string) => {
+  const remove = async (path: string, touch?: () => void) => {
     await boundary.resolve(path)
+    touch?.()
     try {
       await fs.unlink(path)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
   }
-  const write = async (path: string, bytes: Uint8Array, mode: number, existed: boolean, recovery = false) => {
+  const write = async (
+    path: string,
+    bytes: Uint8Array,
+    mode: number,
+    existed: boolean,
+    recovery = false,
+    touch?: () => void,
+  ) => {
     await boundary.resolve(path)
     const temporary = join(dirname(path), `.forge-${crypto.randomUUID()}.tmp`)
     temporaries.add(temporary)
@@ -170,6 +178,7 @@ export async function prepareTransaction(root: string, operations: FileOperation
     await fs.chmod(temporary, mode)
     const access = snapshots.get(path)!.access
     if (access !== null) await fs.writeAccessMetadata(temporary, access)
+    touch?.()
     await fs.replace(temporary, path, existed)
     temporaries.delete(temporary)
     recoveryTemporaries.delete(temporary)
@@ -185,15 +194,18 @@ export async function prepareTransaction(root: string, operations: FileOperation
         for (const operation of operations) {
           const path = await boundary.resolve(operation.path)
           const snapshot = snapshots.get(path)!
-          // Include the failing operation, even if it threw after touching disk.
-          touched.push(path)
-          if (operation.content === null) await remove(path)
+          // A target needs compensation once replace/unlink is attempted, even if that call throws.
+          // A failure while staging its temporary leaves the target itself unchanged.
+          const touch = () => touched.push(path)
+          if (operation.content === null) await remove(path, touch)
           else
             await write(
               path,
               typeof operation.content === 'string' ? Buffer.from(operation.content) : operation.content,
               snapshot.mode,
               snapshot.bytes !== null,
+              false,
+              touch,
             )
         }
       } catch (error) {
