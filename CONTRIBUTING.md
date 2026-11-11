@@ -65,18 +65,10 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 - `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
   not a native Windows/macOS substitute. CI runs all ten independent lanes and an always-run `Deterministic gate`;
-  seven-day sanitized artifacts include failures. See [safety and readiness guidance](docs/safety-contract.md).
-- Phase 1 independent checks include `scripts/readiness.test.ts` and need no prior readiness report. Phase 2:
-  `bun run collect:readiness -- --context results/context.json --out results/readiness-input.json`, then
-  `bun run check:readiness -- --input results/readiness-input.json --output results/readiness.json`.
-  Exits are 0 ready for owner review, 1 known failure/unapproved deviation, 2 blocked/invalid evidence.
-  Producers supply structured exact-revision sidecars alongside raw Markdown; implementers cannot infer a verdict.
-  CI artifacts must come from the selected run/attempt. Owner approval is an authenticated exact-hash/revision object.
+  seven-day sanitized artifacts include failures. See the [safety contract](docs/safety-contract.md).
+- A PR is ready to merge when every lane and `Deterministic gate` pass, the hosted `review` check passes with no
+  unresolved blocking findings, and the code owner approves. There is no separate evidence or attestation command.
   Required branch rules/reviews are configured by the owner only; agents report enforcement evidence or access blockers.
-  Writable local session transcripts and prose-only bot reviews are supporting material, not authenticated approval.
-  The production provider requires the independent app's structured GitHub review on the exact head/tested revision,
-  distinct verifier/review producer IDs, and each check's own selected-run CI log. Missing hosted attestations block
-  readiness even when all tests pass. See the provider requirements in `docs/safety-contract.md`.
 
 ## Before You Submit
 
