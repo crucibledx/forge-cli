@@ -160,7 +160,7 @@ it.each([
   {prefix: 'password: Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
   {prefix: 'client_secret: Bearer PREFIX', suffix: ' PENDING_PRIVATE_Q'},
   {prefix: 'client_secret=\n  Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
-  ...['sig', '%73ig', 'SIG', '%73%69%67', '{"error":"denied\\nsig'].map((prefix) => ({
+  ...['sig', '%73ig', 'SIG', '%73%69%67', '{"error":"denied\\nsig', '{"error":"denied\\u000asig'].map((prefix) => ({
     prefix,
     suffix: ': PENDING_PRIVATE_Q',
   })),

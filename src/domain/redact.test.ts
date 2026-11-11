@@ -255,6 +255,34 @@ it.each([1, 2, 3])('AC-15,30 escaped JSON depth %i protects credentials at every
     }
   }
 })
+/** Complete text, every retained-context cut and small chunks must all hide the secret and keep public text. */
+function expectPrivateAcrossCuts(input: string, secret: string) {
+  const at = input.indexOf(secret),
+    publicAt = input.indexOf('repository not found')
+  for (const output of [redact(input), JSON.stringify(redactData({cause: input}))]) {
+    expect(output).not.toContain(secret)
+    expect(output).toContain('repository not found')
+  }
+  for (let cut = 0; cut <= input.length; cut++) {
+    const contexts = redactionContext(input.slice(0, cut))
+    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+    expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    const surviving = secret.slice(Math.max(0, cut - at))
+    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
+    if (cut <= publicAt) expect({cut, output}).toMatchObject({output: expect.stringContaining('repository not found')})
+  }
+  for (const size of [1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut < input.length; cut += size) {
+      contexts = redactionContext(input.slice(cut, cut + size), contexts)
+      const output = redact(input.slice(cut + size), {credentialPrefixes: contexts})
+      const surviving = secret.slice(Math.max(0, cut + size - at))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      if (cut + size <= publicAt) expect(output).toContain('repository not found')
+      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    }
+  }
+}
 it.each(
   [
     {
@@ -285,31 +313,20 @@ it.each(
   const secret = 'ESCAPED_WHITESPACE_PRIVATE_Q'
   let input = inner(secret)
   for (let index = 0; index < depth; index++) input = JSON.stringify({error: input})
-  const at = input.indexOf(secret),
-    publicAt = input.indexOf('repository not found')
-  for (const output of [redact(input), JSON.stringify(redactData({cause: input}))]) {
-    expect(output).not.toContain(secret)
-    expect(output).toContain('repository not found')
-  }
-  for (let cut = 0; cut <= input.length; cut++) {
-    const contexts = redactionContext(input.slice(0, cut))
-    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
-    expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
-    const surviving = secret.slice(Math.max(0, cut - at))
-    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
-    if (cut <= publicAt) expect({cut, output}).toMatchObject({output: expect.stringContaining('repository not found')})
-  }
-  for (const size of [1, 3, 7]) {
-    let contexts: string[] = []
-    for (let cut = 0; cut < input.length; cut += size) {
-      contexts = redactionContext(input.slice(cut, cut + size), contexts)
-      const output = redact(input.slice(cut + size), {credentialPrefixes: contexts})
-      const surviving = secret.slice(Math.max(0, cut + size - at))
-      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
-      if (cut + size <= publicAt) expect(output).toContain('repository not found')
-      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
-    }
-  }
+  expectPrivateAcrossCuts(input, secret)
+})
+it.each([
+  ['\\u000a', 'denied\\u000apassword=SECRET retry'],
+  ['\\u000D', 'denied\\u000Dclient_secret=SECRET retry'],
+  ['\\u0009', '{\\u0009\\"access_token\\":\\"SECRET\\"}'],
+  ['\\f', 'denied\\ftoken=SECRET retry'],
+  ['\\b', 'denied\\bapi_key=SECRET retry'],
+  ['\\u0026', 'GET /repo?page=1\\u0026token=SECRET retry'],
+  ['\\n before %73ig', 'denied\\n%73ig=SECRET retry'],
+  ['\\u000a before %73ig', 'denied\\u000a%73ig=SECRET retry'],
+])('AC-15,30 escaped separator %s keeps the following credential private', (_, member) => {
+  const secret = 'ESCAPED_SEPARATOR_PRIVATE_Q'
+  expectPrivateAcrossCuts(`{"error":"${member.replace('SECRET', secret)}","public":"repository not found"}`, secret)
 })
 it.each(['open C:\\Secrets\\Npm_auth: Access is denied.', 'C:\\Data\\Tokens\\Rsa_key: missing'])(
   'AC-15 uppercase path segments are not JSON whitespace escapes: %s',

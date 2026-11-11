@@ -17,9 +17,17 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
-// Escaped payloads encode whitespace as \n, \r or \t; that letter ends a word, not starts a key name.
-const assignmentStart =
-  /(?:(?<![a-z\d_.%+\\-])|(?<=(?-i:\\[nrt])))(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
+// Encoders escape the separator before a key: \n or \u000a for a newline, \u0026 for "&" (Go).
+// The escape's final letter or digit ends that separator; it is not the start of a key name.
+const ESCAPED_SEPARATOR = String.raw`(?-i:\\(?:[bfnrt]|u00(?:0[89acdACD]|2[06])))`
+const NAME_BOUNDARY = String.raw`(?:(?<![a-z\d_.%+\\-])|(?<=${ESCAPED_SEPARATOR}))`
+const escapedSeparatorEnd = new RegExp(ESCAPED_SEPARATOR + '$')
+const assignmentStart = new RegExp(
+  NAME_BOUNDARY +
+    String.raw`(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]`,
+  'gi',
+)
+const pendingNameEnd = new RegExp(NAME_BOUNDARY + String.raw`([a-z_%][a-z\d_.%+-]*)[ \t]*$`, 'i')
 const authStart = /(?:Bearer|Basic)\s+/gi
 
 function assignmentKey(name: string) {
@@ -812,10 +820,10 @@ function discardedContext(discarded: string): string[] {
   if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
-  // The escape's letter is not the start of a word; keep the boundary for a key in the next chunk.
-  const whitespaceEscape = finalMatch(discarded, /\\[nrt]$/)?.[0]
-  if (whitespaceEscape) contexts.add(whitespaceEscape)
-  const pendingName = finalMatch(discarded, /(?:(?<![a-z\d_.%+\\-])|(?<=(?-i:\\[nrt])))([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
+  // Keep a trailing, possibly split escape so a key in the next chunk still sees its separator.
+  const escapeTail = finalMatch(discarded, /\\(?:[bfnrt]|u[\da-fA-F]{0,4})$/)?.[0]
+  if (escapeTail) contexts.add(escapeTail)
+  const pendingName = finalMatch(discarded, pendingNameEnd)
   // Whitespace completes an exact alias; without it, "sig" may still become "signal".
   if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
     retainKey('secret', pendingName.index)
@@ -839,11 +847,17 @@ function discardedContext(discarded: string): string[] {
         break
       }
   }
-  const partialStart = discarded.length - partial.length - encoding.length
+  // A marker prefix such as "a" can be the final character of an escape like \u000a, not a name.
+  if (escapedSeparatorEnd.test(discarded.slice(0, discarded.length - encoding.length))) partial = ''
+  // The partial is measured in decoded text, so test for the escape there too.
   const midWord =
-    /[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') && !/\\[nrt]$/.test(discarded.slice(0, partialStart))
+    /[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') &&
+    !escapedSeparatorEnd.test(lower.slice(0, lower.length - partial.length))
   if ((partial || encoding) && pendingQuery === undefined)
-    retainKey((midWord ? 'q' : '') + partial + encoding, Math.max(0, partialStart))
+    retainKey(
+      (midWord ? 'q' : '') + partial + encoding,
+      Math.max(0, discarded.length - partial.length - encoding.length),
+    )
   const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
   if (trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
     const line = lineKey(discarded, discarded.length)
