@@ -35,23 +35,73 @@ it('AC-28 documentation inputs contain only the document actually validated', ()
 it('AC-1,24,25,27,28 validates the real ledger, pin, workflows and boundaries', () => {
   expect(validateContracts(contractInputs())).toEqual([])
 })
-it('AC-24 AC-25 workflow reuses the lane entrypoint and rejects its implementation drift', () => {
-  const original = contractInputs()
-  expect(original.package.scripts['ci:lane']).toBeUndefined()
-  const input = {...original, package: structuredClone(original.package)}
-  input.package.scripts['check:lanes'] = 'echo passed'
-  expect(validateContracts(input)).toContain('CI package entrypoints differ')
-})
-it.each(['removed', 'late', 'changed'])('AC-25,27 rejects a %s job budget anchor', (kind) => {
+type WorkflowStep = {if?: string; run?: string; env?: Record<string, string>}
+const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInputs>['ci']) => void]> = {
+  'matrix-unregistered-lane': [
+    'Workflow matrix differs from registry',
+    (ci) => ci.jobs.lanes.strategy.matrix.include.push({lane: 'unregistered', os: 'ubuntu-latest', checks: ['lint']}),
+  ],
+  'matrix-missing-lane': ['Workflow matrix differs from registry', (ci) => ci.jobs.lanes.strategy.matrix.include.pop()],
+  'matrix-check-dropped': [
+    'Workflow matrix checks differ from registry',
+    (ci) => ci.jobs.lanes.strategy.matrix.include.find((row: {lane: string}) => row.lane === 'business').checks.pop(),
+  ],
+  'fail-fast': [
+    'Modules must be independent with fail-fast disabled',
+    (ci) => {
+      ci.jobs.lanes.strategy['fail-fast'] = true
+    },
+  ],
+  'path-filter': [
+    'Every PR must run every module without path skips',
+    (ci) => {
+      ci.on.pull_request.paths = ['src/**']
+    },
+  ],
+  'check-step-removed': [
+    'Every registered check must run as its own step, even after an earlier failure',
+    (ci) => {
+      ci.jobs.lanes.steps = ci.jobs.lanes.steps.filter((step: WorkflowStep) => !step.run?.includes('matrix.checks[3]'))
+    },
+  ],
+  'check-step-short-circuits': [
+    'Every registered check must run as its own step, even after an earlier failure',
+    (ci) => {
+      const step = ci.jobs.lanes.steps.find((step: WorkflowStep) => step.run?.includes('matrix.checks[1]'))
+      step.if = 'matrix.checks[1]'
+    },
+  ],
+  'gate-not-always': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      delete ci.jobs.gate.if
+    },
+  ],
+  'gate-without-needs': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      delete ci.jobs.gate.needs
+    },
+  ],
+  'gate-ignores-lane-result': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      ci.jobs.gate.steps = [{run: 'echo passed'}]
+    },
+  ],
+  'gate-renamed': [
+    'Always-run gate must require every lane to succeed',
+    (ci) => {
+      ci.jobs.gate.name = 'gate'
+    },
+  ],
+}
+it.each(Object.keys(workflowDrift))('AC-25,32 rejects workflow drift: %s', (kind) => {
   const original = contractInputs()
   const input = {...original, ci: structuredClone(original.ci)}
-  const steps = input.ci.jobs.lanes.steps
-  if (kind === 'removed') steps.shift()
-  if (kind === 'late') steps.push(steps.shift())
-  if (kind === 'changed') steps[0].run = 'echo ignored'
-  expect(validateContracts(input)).toContain(
-    'CI deadline must start before setup and reserve evidence/cleanup headroom',
-  )
+  const [message, mutate] = workflowDrift[kind]
+  mutate(input.ci)
+  expect(validateContracts(input)).toContain(message)
 })
 it.each([
   ['native-macos', 'ubuntu-latest'],
@@ -65,82 +115,62 @@ it.each([
     'Native jobs must use the selected native hosted runners (no cross-compilation)',
   )
 })
-it.each([
-  'pin',
-  'minimum',
-  'lock',
-  'rule',
-  'layer',
-  'path',
-  'lane',
-  'workflow',
-  'fail-fast',
-  'retention',
-  'timeout',
-  'release',
-])('rejects malformed %s contracts', (kind) => {
-  const original = contractInputs(),
-    input = {
+it.each(['pin', 'minimum', 'lock', 'rule', 'layer', 'path', 'lane', 'workflow', 'fail-fast', 'timeout', 'release'])(
+  'rejects malformed %s contracts',
+  (kind) => {
+    const original = contractInputs(),
+      input = {
+        ...original,
+        ledger: structuredClone(original.ledger),
+        lanes: structuredClone(original.lanes),
+        ci: structuredClone(original.ci),
+        release: structuredClone(original.release),
+        package: structuredClone(original.package),
+      }
+    if (kind === 'pin') input.pin = 'latest'
+    if (kind === 'minimum') input.package.engines.bun = '>=1.0.0'
+    if (kind === 'lock') input.lock = ''
+    if (kind === 'rule') input.ledger[0].id = 'BR-99'
+    if (kind === 'layer') Object.assign(input.ledger[0], {layer: 'invalid-layer'})
+    if (kind === 'path') input.ledger[0].tests = ['missing.test.ts']
+    if (kind === 'lane') input.lanes = input.lanes.slice(0, -1)
+    if (kind === 'workflow') input.ci.on.pull_request.paths = ['src/**']
+    if (kind === 'fail-fast') input.ci.jobs.lanes.strategy['fail-fast'] = true
+
+    if (kind === 'timeout') input.ci.jobs.gate['timeout-minutes'] = 99
+    if (kind === 'release')
+      input.release.jobs.quality.steps.find(
+        (step: {run?: string}) => step.run === 'bun install --frozen-lockfile',
+      ).run = 'bun install'
+    expect(validateContracts(input).length).toBeGreaterThan(0)
+  },
+)
+it.each(['release-setup-removed', 'ci-setup-removed', 'release-job-removed', 'check-command'])(
+  'AC-24,25 fails closed for %s even when the guarded step is removed',
+  (kind) => {
+    const original = contractInputs()
+    const input = {
       ...original,
-      ledger: structuredClone(original.ledger),
-      lanes: structuredClone(original.lanes),
       ci: structuredClone(original.ci),
       release: structuredClone(original.release),
       package: structuredClone(original.package),
     }
-  if (kind === 'pin') input.pin = 'latest'
-  if (kind === 'minimum') input.package.engines.bun = '>=1.0.0'
-  if (kind === 'lock') input.lock = ''
-  if (kind === 'rule') input.ledger[0].id = 'BR-99'
-  if (kind === 'layer') Object.assign(input.ledger[0], {layer: 'invalid-layer'})
-  if (kind === 'path') input.ledger[0].tests = ['missing.test.ts']
-  if (kind === 'lane') input.lanes = input.lanes.slice(0, -1)
-  if (kind === 'workflow') input.ci.on.pull_request.paths = ['src/**']
-  if (kind === 'fail-fast') input.ci.jobs.lanes.strategy['fail-fast'] = true
-  if (kind === 'retention')
-    input.ci.jobs.lanes.steps.find((step: {uses?: string}) => step.uses?.startsWith('actions/upload-artifact@')).with[
-      'retention-days'
-    ] = 1
-  if (kind === 'timeout') input.ci.jobs.gate['timeout-minutes'] = 99
-  if (kind === 'release')
-    input.release.jobs.quality.steps.find((step: {run?: string}) => step.run === 'bun install --frozen-lockfile').run =
-      'bun install'
-  expect(validateContracts(input).length).toBeGreaterThan(0)
-})
-it.each([
-  'release-setup-removed',
-  'ci-setup-removed',
-  'release-job-removed',
-  'check-command',
-  'gate-command',
-  'ci-alias',
-])('AC-24,25 fails closed for %s even when the guarded step is removed', (kind) => {
-  const original = contractInputs()
-  const input = {
-    ...original,
-    ci: structuredClone(original.ci),
-    release: structuredClone(original.release),
-    package: structuredClone(original.package),
-  }
-  if (kind === 'release-setup-removed')
-    for (const job of Object.values(input.release.jobs) as {steps: {uses?: string; run?: string}[]}[]) {
-      job.steps = job.steps.filter((step) => !step.uses?.startsWith('oven-sh/setup-bun@'))
-      for (const step of job.steps) if (step.run === 'bun install --frozen-lockfile') step.run = 'bun install'
-    }
-  if (kind === 'ci-setup-removed')
-    input.ci.jobs.lanes.steps = input.ci.jobs.lanes.steps.filter(
-      (step: {uses?: string}) => !step.uses?.startsWith('oven-sh/setup-bun@'),
-    )
-  if (kind === 'release-job-removed') delete input.release.jobs.build
-  if (kind === 'check-command')
-    input.ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Independent check 1').run = 'echo passed'
-  if (kind === 'gate-command')
-    input.ci.jobs.gate.steps.find(
-      (step: {name?: string}) => step.name === 'All-results summary and fail-closed gate',
-    ).run = 'echo passed'
-  if (kind === 'ci-alias') input.package.scripts['ci:gate'] = 'echo passed'
-  expect(validateContracts(input).length).toBeGreaterThan(0)
-})
+    if (kind === 'release-setup-removed')
+      for (const job of Object.values(input.release.jobs) as {steps: {uses?: string; run?: string}[]}[]) {
+        job.steps = job.steps.filter((step) => !step.uses?.startsWith('oven-sh/setup-bun@'))
+        for (const step of job.steps) if (step.run === 'bun install --frozen-lockfile') step.run = 'bun install'
+      }
+    if (kind === 'ci-setup-removed')
+      input.ci.jobs.lanes.steps = input.ci.jobs.lanes.steps.filter(
+        (step: {uses?: string}) => !step.uses?.startsWith('oven-sh/setup-bun@'),
+      )
+    if (kind === 'release-job-removed') delete input.release.jobs.build
+    if (kind === 'check-command')
+      input.ci.jobs.lanes.steps.find((step: {run?: string}) => step.run?.includes('matrix.checks[0]')).run =
+        'echo passed'
+    expect(validateContracts(input).length).toBeGreaterThan(0)
+  },
+)
 type ReleaseStep = {uses?: string; run?: string; if?: string}
 type ReleaseWorkflow = {
   on: {workflow_dispatch: {inputs: Record<string, unknown>}}

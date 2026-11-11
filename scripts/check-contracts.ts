@@ -6,13 +6,7 @@ import {parse} from 'yaml'
 import {testSuites} from './registry/suites'
 import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
 import {repositoryRoot} from './validation-context'
-import {
-  acceptanceIds,
-  businessRuleIds,
-  CI_EVIDENCE_RESERVE_MS,
-  LANE_BUDGET_MS,
-  validationLanes,
-} from './validation-lanes'
+import {acceptanceIds, businessRuleIds, LANE_BUDGET_MS, validationLanes} from './validation-lanes'
 
 export function contractInputs() {
   const read = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8')
@@ -133,74 +127,41 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   require(matrix.find((row: {lane: string}) => row.lane === 'native-windows')?.os === 'windows-latest' &&
     matrix.find((row: {lane: string}) => row.lane === 'native-macos')?.os ===
       'macos-15-intel', 'Native jobs must use the selected native hosted runners (no cross-compilation)')
-  require(ci.jobs?.lanes?.['timeout-minutes'] <= 10 &&
-    ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
-  const startBudget = ci.jobs?.lanes?.steps?.[0]
   require(LANE_BUDGET_MS > 0 &&
     LANE_BUDGET_MS <= 600000 &&
     ci.jobs?.lanes?.['timeout-minutes'] * 60000 === LANE_BUDGET_MS &&
-    CI_EVIDENCE_RESERVE_MS >= 60000 &&
-    startBudget?.name === 'Start lane budget' &&
-    startBudget.shell === 'bash' &&
-    startBudget.run ===
-      'echo "FORGE_LANE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"', 'CI deadline must start before setup and reserve evidence/cleanup headroom')
-  require(ci.jobs?.gate?.name === 'Deterministic gate' &&
-    ci.jobs.gate.if === 'always()' &&
-    ci.jobs.gate.needs?.includes('lanes'), 'Always-run aggregate gate missing')
-  for (const job of Object.values(ci.jobs ?? {}) as {steps?: Record<string, unknown>[]}[]) {
-    const steps = job.steps ?? []
-    require(steps.some((step) =>
-      String(step.run).includes('bun install --frozen-lockfile'),
-    ), 'CI frozen install missing')
-    require(steps
-      .filter((step) => String(step.uses).startsWith('actions/checkout@'))
-      .every(
-        (step) => (step.with as Record<string, unknown>)?.ref === '${{ github.sha }}',
-      ), 'CI must check out the exact tested SHA')
-    const uploads = steps.filter((step) => String(step.uses).startsWith('actions/upload-artifact@'))
-    require(uploads.length &&
-      uploads.every(
-        (step) => step.if === 'always()' && (step.with as Record<string, unknown>)?.['retention-days'] === 7,
-      ), 'Always-upload seven-day evidence missing')
-    const setups = steps.filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
-    require(setups.length === 1 &&
-      setups.every(
-        (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
-      ), 'CI Bun pin differs')
-  }
-  const checks =
-    ci.jobs?.lanes?.steps?.filter((step: {name?: string}) => step.name?.startsWith('Independent check')) ?? []
-  require(checks.length === 4 &&
-    checks.every((step: {if?: string}) =>
-      step.if?.startsWith('always()'),
-    ), 'Independent checks must continue after early failures')
-  checks.forEach((step: {run?: string}, index: number) =>
-    require(step.run ===
-      `bun run check:lanes -- --lane "\${{ matrix.lane }}" --check-index ${index}`, 'CI check commands must use the registered package entrypoint'),
-  )
-  require(ci.jobs.lanes.steps.find((step: {name?: string}) => step.name === 'Assemble lane evidence')?.run ===
-    'bun run check:lanes -- --lane "${{ matrix.lane }}" --assemble', 'CI lane assembly entrypoint differs')
-  const setupFailure = ci.jobs.lanes.steps.find(
-    (step: {name?: string}) => step.name === 'Preserve installation-failure evidence',
-  )
-  require(setupFailure?.if === "always() && steps.install.outcome != 'success'" &&
-    setupFailure?.run ===
-      'bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"', 'Dependency-free installation-failure evidence missing')
-  require(ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')
-    ?.run === 'bun run ci:gate', 'CI gate entrypoint differs')
-  const gateSetupFailure = ci.jobs.gate.steps.find(
-    (step: {name?: string}) => step.name === 'Preserve gate installation-failure evidence',
-  )
-  require(gateSetupFailure?.if === "always() && steps.install.outcome != 'success'" &&
-    gateSetupFailure?.run === 'bun scripts/gate-setup-failure.ts' &&
-    ci.jobs.gate.steps.find((step: {name?: string}) => step.name === 'All-results summary and fail-closed gate')?.if ===
-      "always() && steps.install.outcome == 'success'" &&
-    ci.jobs.gate.steps.some(
-      (step: {id?: string; run?: string}) => step.id === 'install' && step.run === 'bun install --frozen-lockfile',
-    ), 'Dependency-free gate installation-failure evidence missing')
-  require(input.package.scripts['check:lanes'] === 'bun run scripts/check-lanes.ts' &&
-    input.package.scripts['ci:gate'] === 'bun run scripts/gate.ts', 'CI package entrypoints differ')
-  // The requirement cannot be conditional on the very setup step an edit can remove.
+    ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
+  require(input.lanes.every(
+    (lane) =>
+      JSON.stringify(matrix.find((row: {lane: string}) => row.lane === lane.id)?.checks) ===
+      JSON.stringify(lane.checks.map((check) => check.command[2])),
+  ), 'Workflow matrix checks differ from registry')
+  const laneSteps = (ci.jobs?.lanes?.steps ?? []) as {if?: string; run?: string}[]
+  const longest = Math.max(0, ...input.lanes.map((lane) => lane.checks.length))
+  require(Array.from({length: longest}, (_, index) => `matrix.checks[${index}]`).every((check) =>
+    laneSteps.some(
+      (step) => step.if?.startsWith('always()') && step.if.includes(check) && step.run === `bun run \${{ ${check} }}`,
+    ),
+  ), 'Every registered check must run as its own step, even after an earlier failure')
+  const gate = ci.jobs?.gate
+  require(gate?.name === 'Deterministic gate' &&
+    gate.if === 'always()' &&
+    [gate.needs ?? []].flat().includes('lanes') &&
+    JSON.stringify(gate.steps ?? []).includes('needs.lanes.result') &&
+    String(gate.steps?.at(-1)?.run).includes('= success'), 'Always-run gate must require every lane to succeed')
+  const lanes = ci.jobs?.lanes as {steps?: Record<string, unknown>[]} | undefined
+  const steps = lanes?.steps ?? []
+  require(steps.some((step) => step.run === 'bun install --frozen-lockfile'), 'CI frozen install missing')
+  require(steps
+    .filter((step) => String(step.uses).startsWith('actions/checkout@'))
+    .every(
+      (step) => (step.with as Record<string, unknown>)?.ref === '${{ github.sha }}',
+    ), 'CI must check out the exact tested SHA')
+  const setups = steps.filter((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
+  require(setups.length === 1 &&
+    setups.every(
+      (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
+    ), 'CI Bun pin differs') // The requirement cannot be conditional on the very setup step an edit can remove.
   for (const id of ['quality', 'test', 'build', 'publish-npm']) {
     const job = input.release.jobs?.[id] as {steps?: Record<string, unknown>[]} | undefined
     require(job, `Required release job missing: ${id}`)

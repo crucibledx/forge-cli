@@ -23,20 +23,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {lane: quality, os: ubuntu-latest}
-          - {lane: business, os: ubuntu-latest}
-          - {lane: e2e, os: ubuntu-latest}
-          - {lane: human-dx, os: ubuntu-latest}
-          - {lane: agent-cli, os: ubuntu-latest}
-          - {lane: security, os: ubuntu-latest}
-          - {lane: performance, os: ubuntu-latest}
-          - {lane: native-macos, os: macos-15-intel}
-          - {lane: native-windows, os: windows-latest}
-          - {lane: build, os: ubuntu-latest}
+          - {lane: quality, os: ubuntu-latest, checks: ['format:check', 'lint', 'typecheck']}
+          - {lane: business, os: ubuntu-latest, checks: ['test:unit', 'test:properties', 'check:contracts', 'test:checkers']}
+          - {lane: e2e, os: ubuntu-latest, checks: ['test:e2e']}
+          - {lane: human-dx, os: ubuntu-latest, checks: ['test:human']}
+          - {lane: agent-cli, os: ubuntu-latest, checks: ['test:agent']}
+          - {lane: security, os: ubuntu-latest, checks: ['test:security', 'check:security-audit']}
+          - {lane: performance, os: ubuntu-latest, checks: ['test:performance']}
+          - {lane: native-macos, os: macos-15-intel, checks: ['build', 'test:platform', 'test:compiled']}
+          - {lane: native-windows, os: windows-latest, checks: ['build', 'test:platform', 'test:compiled']}
+          - {lane: build, os: ubuntu-latest, checks: ['build', 'test:compiled']}
     steps:
-      - name: Start lane budget
-        shell: bash
-        run: echo "FORGE_LANE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -45,32 +42,18 @@ jobs:
           bun-version-file: .bun-version
       - id: install
         run: bun install --frozen-lockfile
-      - name: Independent check 1
-        if: always() && steps.install.outcome == 'success'
-        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 0
-      - name: Independent check 2
-        if: always() && steps.install.outcome == 'success'
-        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 1
-      - name: Independent check 3
-        if: always() && steps.install.outcome == 'success'
-        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 2
-      - name: Independent check 4
-        if: always() && steps.install.outcome == 'success'
-        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --check-index 3
-      - name: Assemble lane evidence
-        if: always() && steps.install.outcome == 'success'
-        run: bun run check:lanes -- --lane "${{ matrix.lane }}" --assemble
-      - name: Preserve installation-failure evidence
-        if: always() && steps.install.outcome != 'success'
-        run: bun scripts/setup-failure-evidence.ts --lane "${{ matrix.lane }}"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: validation-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.lane }}
-          path: results/
-          retention-days: 7
-          if-no-files-found: error
+      # Separate always() steps: an early failing check must not hide later checks' results.
+      - if: always() && steps.install.outcome == 'success' && matrix.checks[0]
+        run: bun run ${{ matrix.checks[0] }}
+      - if: always() && steps.install.outcome == 'success' && matrix.checks[1]
+        run: bun run ${{ matrix.checks[1] }}
+      - if: always() && steps.install.outcome == 'success' && matrix.checks[2]
+        run: bun run ${{ matrix.checks[2] }}
+      - if: always() && steps.install.outcome == 'success' && matrix.checks[3]
+        run: bun run ${{ matrix.checks[3] }}
 
+  # The required check. needs.lanes.result is success only if every matrix lane succeeded in this run attempt,
+  # including lanes carried over by "Re-run failed jobs"; failed, cancelled or skipped lanes fail it.
   gate:
     name: Deterministic gate
     needs: [lanes]
@@ -78,31 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - id: install
-        run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v4
-        if: always()
-        with:
-          pattern: validation-${{ github.run_id }}-${{ github.run_attempt }}-*
-          path: results/incoming
-      - name: All-results summary and fail-closed gate
-        if: always() && steps.install.outcome == 'success'
-        run: bun run ci:gate
+      - name: Require every lane to succeed
         env:
-          GH_TOKEN: ${{ github.token }}
-      - name: Preserve gate installation-failure evidence
-        if: always() && steps.install.outcome != 'success'
-        run: bun scripts/gate-setup-failure.ts
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: validation-summary-${{ github.run_id }}-${{ github.run_attempt }}
-          path: results/gate-summary.json
-          retention-days: 7
-          if-no-files-found: error
+          LANES: ${{ needs.lanes.result }}
+        run: |
+          echo "lanes: $LANES"
+          test "$LANES" = success
