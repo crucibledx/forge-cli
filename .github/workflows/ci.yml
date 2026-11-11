@@ -58,6 +58,16 @@ jobs:
       - name: ${{ matrix.checks[3] || 'not used by this lane' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[3]
         run: bun run ${{ matrix.checks[3] }}
+      - name: TEMPORARY re-run demonstration (reverted before review)
+        if: matrix.lane == 'performance'
+        shell: bash
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" = "1" ]; then
+            printf '%s\n' "import {expect, it} from 'bun:test'" \
+              "it('temporary failing assertion for the #28 re-run demo', () => expect(1 + 1).toBe(3))" \
+              > scripts/rerun-demo.test.ts
+            bun run scripts/run-tests.ts -- scripts/rerun-demo.test.ts
+          fi
 
   # The required check. needs.lanes.result is success only if every matrix lane succeeded in this run attempt,
   # including lanes carried over by "Re-run failed jobs"; failed, cancelled or skipped lanes fail it.
