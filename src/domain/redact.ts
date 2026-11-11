@@ -17,9 +17,9 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
-// Encoders escape the separator before a key: \n or \u000a for a newline, \u0026 for "&" (Go).
-// The escape's final letter or digit ends that separator; it is not the start of a key name.
-const ESCAPED_SEPARATOR = String.raw`(?-i:\\(?:[bfnrt]|u00(?:0[89acdACD]|2[06])))`
+// Encoders escape whitespace before a key, such as \n or \u000a for a newline. The escape's
+// final letter or digit ends that separator; it is not the start of a key name.
+const ESCAPED_SEPARATOR = String.raw`(?-i:\\(?:[bfnrt]|u00(?:0[89acdACD]|20)))`
 const NAME_BOUNDARY = String.raw`(?:(?<![a-z\d_.%+\\-])|(?<=${ESCAPED_SEPARATOR}))`
 const escapedSeparatorEnd = new RegExp(ESCAPED_SEPARATOR + '$')
 const assignmentStart = new RegExp(
@@ -29,6 +29,11 @@ const assignmentStart = new RegExp(
 )
 const pendingNameEnd = new RegExp(NAME_BOUNDARY + String.raw`([a-z_%][a-z\d_.%+-]*)[ \t]*$`, 'i')
 const authStart = /(?:Bearer|Basic)\s+/gi
+
+/** Go's JSON encoder writes "&" as \u0026; reading it as "&" at the same length lets query rules apply. */
+function escapedAmpersands(text: string): string {
+  return text.replaceAll('\\u0026', '&'.repeat(6))
+}
 
 function assignmentKey(name: string) {
   return name
@@ -608,7 +613,13 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
   }
   let continuedEnd = 0,
     firstIndent = 0,
-    continuedQueryEnd = 0
+    continuedQueryEnd = 0,
+    ampersandHead = 0
+  for (const prefix of options.credentialPrefixes ?? [])
+    if (/^\\(?:u[\da-fA-F]{0,3})?$/.test(prefix) && (prefix + text).startsWith('\\u0026'))
+      ampersandHead = 6 - prefix.length
+  // The rest of an "&" escape split by a chunk boundary is a delimiter, not the start of a key.
+  const scanText = '&'.repeat(ampersandHead) + text.slice(ampersandHead)
   for (const prefix of options.credentialPrefixes ?? []) {
     const container = containerState(prefix)
     if (container) continuedEnd = Math.max(continuedEnd, containerValue(text, 0, container).end)
@@ -652,7 +663,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       continue
     }
     const credentialPrefix = state?.kind === VALUE_KINDS.KEY ? prefix.slice(state.length) : prefix
-    const credentialText = credentialPrefix + text
+    const credentialText = escapedAmpersands(credentialPrefix + scanText)
     const firstCredentialLine = credentialPrefix ? lineKey(credentialText, 0) : firstLine
     const scan = (pattern: RegExp, trailing = 0, input = credentialText) => {
       for (const match of input.matchAll(pattern)) {
@@ -761,6 +772,7 @@ export function redact(text: string, options: RedactionOptions = {}): string {
   return maskRedactionSpans(text, spans).text
 }
 function discardedContext(discarded: string): string[] {
+  discarded = escapedAmpersands(discarded)
   const contexts = new Set<string>()
   const escaped = escapedValueState(discarded)
   if (escaped) {

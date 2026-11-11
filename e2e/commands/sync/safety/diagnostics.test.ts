@@ -45,7 +45,7 @@ it.each(
       'json-pretty': 'remote: ' + JSON.stringify({access_token: secret}, null, 2),
       'json-escaped-tab': 'remote: ' + JSON.stringify({error: JSON.stringify({access_token: secret}, null, '\t')}),
       'json-escaped-newline': 'remote: ' + JSON.stringify({error: `denied\npassword=${secret}`}),
-      'json-go-escaped-query': `remote: {"error":"GET /repo?page=1\\u0026token=${secret} denied"}`,
+      'json-go-escaped-query': `remote: {"error":"GET /repo?comp\\u0026sig=${secret}\\u0026page=2 denied"}`,
     }
     const marker = join(fixture, 'invoked'),
       ssh = join(fixture, 'ssh.ts')
