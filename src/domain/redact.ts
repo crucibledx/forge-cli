@@ -17,8 +17,9 @@ const queryKeys = [
   'session',
 ]
 const queryStart = /[?&#]([^?&#=\s]+)=/g
+// Escaped payloads encode whitespace as \n, \r or \t; that letter ends a word, not starts a key name.
 const assignmentStart =
-  /(?<![a-z\d_.%+\\-])(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
+  /(?:(?<![a-z\d_.%+\\-])|(?<=\\[nrt]))(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
 const authStart = /(?:Bearer|Basic)\s+/gi
 
 function assignmentKey(name: string) {
@@ -811,7 +812,10 @@ function discardedContext(discarded: string): string[] {
   if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
-  const pendingName = finalMatch(discarded, /(?<![a-z\d_.%+-])([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
+  // The escape's letter is not the start of a word; keep the boundary for a key in the next chunk.
+  const whitespaceEscape = finalMatch(discarded, /\\[nrt]$/i)?.[0]
+  if (whitespaceEscape) contexts.add(whitespaceEscape)
+  const pendingName = finalMatch(discarded, /(?:(?<![a-z\d_.%+-])|(?<=\\[nrt]))([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
   // Whitespace completes an exact alias; without it, "sig" may still become "signal".
   if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
     retainKey('secret', pendingName.index)

@@ -24,6 +24,8 @@ it.each(
     'json-secret',
     'json-unicode',
     'json-pretty',
+    'json-escaped-tab',
+    'json-escaped-newline',
   ].flatMap((kind) => ['apply', 'silent', 'preview', 'silent-preview'].map((mode) => ({kind, mode}))),
 )(
   'AC-15,30 actual offline Git SSH stderr keeps $kind private in raw/log/latest/history: $mode',
@@ -40,6 +42,8 @@ it.each(
       'json-secret': 'remote: ' + JSON.stringify({client_secret: `prefix ${secret} suffix`}),
       'json-unicode': `remote: {"access_\\u0074oken":${JSON.stringify(secret)}}`,
       'json-pretty': 'remote: ' + JSON.stringify({access_token: secret}, null, 2),
+      'json-escaped-tab': 'remote: ' + JSON.stringify({error: JSON.stringify({access_token: secret}, null, '\t')}),
+      'json-escaped-newline': 'remote: ' + JSON.stringify({error: `denied\npassword=${secret}`}),
     }
     const marker = join(fixture, 'invoked'),
       ssh = join(fixture, 'ssh.ts')

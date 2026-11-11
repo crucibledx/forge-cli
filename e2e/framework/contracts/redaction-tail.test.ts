@@ -121,20 +121,24 @@ it('AC-15,16,18,30 credential-heavy single-line append completes within the unch
   expect(result.exit_code).toBe(0)
   expect(result.stdout).toBe('credential-flood-completed\n')
 })
-it.each(['mixed', 'array', 'object'])(
+it.each(['mixed', 'array', 'object', 'escaped-tab'])(
   'AC-15,16,30 reviewed %s credential leak stays private after real eviction',
   (kind) => {
     const input =
-      kind === 'mixed'
+      kind === 'escaped-tab'
         ? JSON.stringify({
-            error: JSON.stringify({token: 'FIRST_PRIVATE_Q'}),
-            password: 'EVICTED_PRIVATE_Q',
-            public: 'repository not found',
+            error: JSON.stringify({access_token: 'EVICTED_PRIVATE_Q', public: 'repository not found'}, null, '\t'),
           })
-        : JSON.stringify({
-            api_keys: kind === 'array' ? ['EVICTED_PRIVATE_Q'] : {value: 'EVICTED_PRIVATE_Q'},
-            public: 'repository not found',
-          })
+        : kind === 'mixed'
+          ? JSON.stringify({
+              error: JSON.stringify({token: 'FIRST_PRIVATE_Q'}),
+              password: 'EVICTED_PRIVATE_Q',
+              public: 'repository not found',
+            })
+          : JSON.stringify({
+              api_keys: kind === 'array' ? ['EVICTED_PRIVATE_Q'] : {value: 'EVICTED_PRIVATE_Q'},
+              public: 'repository not found',
+            })
     const cut =
       kind === 'mixed' ? input.indexOf('"password"') + '"password"'.length : input.indexOf('EVICTED_PRIVATE_Q')
     const transcript = createTranscript()

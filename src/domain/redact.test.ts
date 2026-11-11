@@ -255,6 +255,52 @@ it.each([1, 2, 3])('AC-15,30 escaped JSON depth %i protects credentials at every
     }
   }
 })
+it.each(
+  [
+    {
+      shape: 'tab-indented',
+      inner: (secret: string) => JSON.stringify({access_token: secret, public: 'repository not found'}, null, '\t'),
+    },
+    {
+      shape: 'unindented',
+      inner: (secret: string) => `{\n"access_token":${JSON.stringify(secret)},\n"public":"repository not found"}`,
+    },
+    {
+      shape: 'plain assignment',
+      inner: (secret: string) =>
+        JSON.stringify({message: `failed\npassword=${secret} retry`, public: 'repository not found'}),
+    },
+  ].flatMap((payload) => [1, 2].map((depth) => ({...payload, depth}))),
+)('AC-15,30 escaped $shape JSON at depth $depth keeps keys after escaped whitespace private', ({inner, depth}) => {
+  const secret = 'ESCAPED_WHITESPACE_PRIVATE_Q'
+  let input = inner(secret)
+  for (let index = 0; index < depth; index++) input = JSON.stringify({error: input})
+  const at = input.indexOf(secret),
+    publicAt = input.indexOf('repository not found')
+  for (const output of [redact(input), JSON.stringify(redactData({cause: input}))]) {
+    expect(output).not.toContain(secret)
+    expect(output).toContain('repository not found')
+  }
+  for (let cut = 0; cut <= input.length; cut++) {
+    const contexts = redactionContext(input.slice(0, cut))
+    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+    expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    const surviving = secret.slice(Math.max(0, cut - at))
+    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
+    if (cut <= publicAt) expect({cut, output}).toMatchObject({output: expect.stringContaining('repository not found')})
+  }
+  for (const size of [1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut < input.length; cut += size) {
+      contexts = redactionContext(input.slice(cut, cut + size), contexts)
+      const output = redact(input.slice(cut + size), {credentialPrefixes: contexts})
+      const surviving = secret.slice(Math.max(0, cut + size - at))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      if (cut + size <= publicAt) expect(output).toContain('repository not found')
+      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    }
+  }
+})
 it('AC-15,30 long encoded escape runs retain syntax counters, not discarded private bytes', () => {
   const slashes = '\\'.repeat(32_768),
     secret = 'ESCAPED_FLOOD_PRIVATE_Q'
