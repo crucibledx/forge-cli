@@ -1,12 +1,23 @@
 import {randomUUID} from 'node:crypto'
-import {appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync} from 'node:fs'
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import {delimiter, dirname, join, resolve} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
 import {runPipe} from '../e2e/framework/pipe'
-import {allowlistedEnvironment, createTestSandbox, testEnvironment} from './test-sandbox'
+import {allowlistedEnvironment, createTestSandbox, enclosingSchedulerTemplate, testEnvironment} from './test-sandbox'
+import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('compiler-environment')
 it.each([false, true])('AC-19 rejects unrepresentable canonical Git ceiling paths, linked=%s', (linked) => {
@@ -83,16 +94,67 @@ it('AC-19 excludes inherited secrets from the earliest compiler environment', ()
     else process.env.BUN_OPTIONS = options
   }
 })
-it('AC-19 native Windows compiles once in isolation and copies independent per-fixture backends', async () => {
+it('AC-19 nested sandboxes reuse the nearest enclosing compiled scheduler, never an unmarked directory', () => {
+  const outer = createTestSandbox('outer-', dir())
+  const sandboxes = [outer]
+  try {
+    const template = join(outer.root, 'scheduler', 'schtasks.exe')
+    mkdirSync(dirname(template))
+    writeFileSync(template, 'outer template')
+    const inner = createTestSandbox('inner-', join(outer.root, 'tmp'))
+    sandboxes.push(inner)
+    expect(enclosingSchedulerTemplate(inner.root)).toBe(template)
+    expect(enclosingSchedulerTemplate(join(inner.project, 'nested'))).toBe(template)
+    const nearest = join(inner.root, 'scheduler', 'schtasks.exe')
+    mkdirSync(dirname(nearest))
+    writeFileSync(nearest, 'inner template')
+    expect(enclosingSchedulerTemplate(inner.project)).toBe(nearest)
+    const unmarked = join(dir(), 'unmarked'),
+      stray = join(unmarked, 'scheduler', 'schtasks.exe')
+    mkdirSync(dirname(stray), {recursive: true})
+    writeFileSync(stray, 'not a sandbox build')
+    const strayChild = createTestSandbox('stray-', unmarked)
+    sandboxes.push(strayChild)
+    // Skips the stray file and resolves exactly as the enclosing launcher tree does (its build on Windows, none elsewhere).
+    const enclosing = enclosingSchedulerTemplate(dir())
+    expect(enclosing).not.toBe(stray)
+    expect(enclosingSchedulerTemplate(strayChild.root)).toBe(enclosing)
+    expect(enclosingSchedulerTemplate(unmarked)).toBe(enclosing)
+  } finally {
+    for (const sandbox of sandboxes.reverse()) sandbox.dispose()
+  }
+})
+it('AC-19 native Windows compiles once per sandbox tree and copies independent per-fixture backends', async () => {
   if (process.platform !== 'win32') return
-  const source = `
+  // Outside every test sandbox, so no enclosing template exists and the first sandbox must compile.
+  const parent = join(repositoryRoot, 'results/scheduler-template')
+  mkdirSync(parent, {recursive: true})
+  const base = mkdtempSync(join(parent, 'run-'))
+  try {
+    const sandboxModule = JSON.stringify(resolve(import.meta.dir, 'test-sandbox.ts'))
+    const countBuilds = `const original = Bun.spawnSync, launches = []
+Bun.spawnSync = (...args) => {if (args[0][1] === 'build') launches.push(args[1]); return original(...args)}`
+    const nestedProbe = join(base, 'nested-probe.ts')
+    writeFileSync(
+      nestedProbe,
+      `import {existsSync} from 'node:fs'
+import {join} from 'node:path'
+import {createTestSandbox} from ${sandboxModule}
+${countBuilds}
+const nested = createTestSandbox('nested-')
+try {
+ void nested.env
+ console.log(JSON.stringify({builds: launches.length, copied: existsSync(join(nested.root, 'bin/schtasks.exe'))}))
+} finally {nested.dispose()}
+`,
+    )
+    const source = `
 import {appendFileSync, existsSync, statSync} from 'node:fs'
 import {join} from 'node:path'
-import {createTestSandbox, testEnvironment} from ${JSON.stringify(resolve(import.meta.dir, 'test-sandbox.ts'))}
-const original = Bun.spawnSync, launches = []
-Bun.spawnSync = (...args) => {if (args[0][1] === 'build') launches.push(args[1]); return original(...args)}
-const first = createTestSandbox('first-', process.cwd())
-const second = createTestSandbox('second-', process.cwd())
+import {createTestSandbox, testEnvironment} from ${sandboxModule}
+${countBuilds}
+const first = createTestSandbox('first-', ${JSON.stringify(base)})
+const second = createTestSandbox('second-', ${JSON.stringify(base)})
 try {
  const lazy = !existsSync(join(first.root, 'bin/schtasks.exe')) && !existsSync(join(second.root, 'bin/schtasks.exe'))
  const firstEnv = first.env
@@ -105,25 +167,33 @@ try {
    compile.env.USERPROFILE === firstEnv.HOME && compile.env.TMPDIR === firstEnv.TMPDIR &&
    !['FORGE_COMPILER_SECRET','SSH_AUTH_SOCK'].some(key => key in compile.env) &&
    compile.env.BUN_OPTIONS === '--no-env-file'
+ // A separate process whose temp root is inside first (a nested launcher or validator) reuses first's build.
+ const probe = original([process.execPath, ${JSON.stringify(nestedProbe)}], {cwd: first.project, env: firstEnv, stdout: 'pipe', stderr: 'pipe', timeout: 20000})
+ const nested = probe.exitCode === 0 ? JSON.parse(probe.stdout.toString()) : probe.stderr.toString()
  first.dispose()
  const run = args => original([executable, ...args], {cwd: second.project, env: secondEnv, stdout: 'pipe', stderr: 'pipe', timeout: 5000})
  const created = run(['/create','/tn','fixture-job']).exitCode
  const queried = run(['/query','/tn','fixture-job']).exitCode
- console.log(JSON.stringify({builds: launches.length, lazy, isolated, independent, created, queried}))
+ console.log(JSON.stringify({builds: launches.length, lazy, isolated, independent, nested, created, queried}))
 } finally {first.dispose(); second.dispose()}
 `
-  const result = await runPipe(dir(), [process.execPath, '-e', source], {
-    timeoutMs: 30000,
-    env: {FORGE_COMPILER_SECRET: 'compiler-sentinel'},
-  })
-  expect(result.timedOut).toBe(false)
-  expect(result.exitCode).toBe(0)
-  expect(JSON.parse(result.stdout)).toEqual({
-    builds: 1,
-    lazy: true,
-    isolated: true,
-    independent: true,
-    created: 0,
-    queried: 0,
-  })
+    const result = await runPipe(dir(), [process.execPath, '-e', source], {
+      timeoutMs: 30000,
+      env: {FORGE_COMPILER_SECRET: 'compiler-sentinel'},
+    })
+    expect(result.timedOut).toBe(false)
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({
+      builds: 1,
+      lazy: true,
+      isolated: true,
+      independent: true,
+      nested: {builds: 0, copied: true},
+      created: 0,
+      queried: 0,
+    })
+  } finally {
+    rmSync(base, {recursive: true, force: true})
+    if (!readdirSync(parent).length) rmSync(parent, {recursive: true})
+  }
 }, 40000)

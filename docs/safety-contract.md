@@ -86,8 +86,9 @@ starting at the sandbox root and symlink/junction bases inside a checkout. Expli
 Default session deadline is 10 seconds with a 20-second test budget; 30-second sessions need
 `--timeout-ms 40000` before `--`. PTY text is a transcript, not a reconstructed screen.
 Full/checker/platform entrypoints allow40 seconds for the30-second native compiler probe, without extending
-ordinary session deadlines. Windows primes one isolated compilation before test imports; fixtures receive separate
-byte copies when `sandbox.env` or `testEnvironment()` is requested. Command-free fixtures do not write the large
+ordinary session deadlines. Windows compiles once per sandbox tree before test imports; nested launchers and
+validators reuse the nearest enclosing sandbox's build. Fixtures receive separate file copies when `sandbox.env` or
+`testEnvironment()` is requested. Command-free fixtures do not write the large
 executable. Every command environment prepares its own backend before use, so disposing or altering one backend
 cannot affect another. Native Windows completion within the unchanged lane budget must still be verified.
 

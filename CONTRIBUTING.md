@@ -58,8 +58,9 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   Sessions have a 10-second total deadline and a 20-second runner budget. For a 30-second session, select
   `--timeout-ms 40000` before `--`. PTY output is a transcript, not a terminal screen.
   Full/checker/platform entrypoints select40 seconds for the bounded native compiler probe; ordinary session
-  deadlines remain10 seconds. Windows compiles the isolated fake scheduler once before test imports. A fixture
-  materializes its independent byte copy when its command environment is requested, never for pure filesystem
+  deadlines remain10 seconds. Windows compiles the isolated fake scheduler once per sandbox tree, before test
+  imports: nested launchers, validators and test processes reuse the nearest enclosing sandbox's build. A fixture
+  materializes its independent file copy when its command environment is requested, never for pure filesystem
   setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 - `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
