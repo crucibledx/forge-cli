@@ -152,6 +152,34 @@ it.each(['mixed', 'array', 'object', 'escaped-tab'])(
     }
   },
 )
+it.each(
+  ['null', 'true', '-12.5', '{}', '[]'].flatMap((value) =>
+    [
+      {layout: '{"auth":%s,', cut: 'value'},
+      {layout: '{"auth":%s,', cut: 'member'},
+      {layout: '{\n"auth":%s,', cut: 'line'},
+      {layout: '{"auth":\n  %s,', cut: 'line'},
+      {layout: '{"auth":\n  %s,', cut: 'value'},
+    ].map(({layout, cut}) => ({value, layout, cut})),
+  ),
+)(
+  'AC-15,16,30 public JSON sibling after non-string credential $value in $layout survives $cut eviction',
+  ({value, layout, cut}) => {
+    const input = `${layout.replace('%s', value)}"error":"repository not found","token":"EVICTED_PRIVATE_Q"}`
+    const at = {value: input.indexOf(value), member: input.indexOf('"error"'), line: input.indexOf('\n') + 1}[cut]!
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(input.slice(0, at) + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(input.slice(at)))
+    for (const finish of [false, true]) {
+      if (finish) transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('EVICTED_PRIVATE_Q')
+        expect(output).toContain('repository not found')
+        expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+  },
+)
 it.each([
   {prefix: '"api_keys":', suffix: '\n- PENDING_PRIVATE_Q'},
   {prefix: "'api_keys':", suffix: '\n- PENDING_PRIVATE_Q'},
