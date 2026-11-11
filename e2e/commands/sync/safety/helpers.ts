@@ -21,7 +21,7 @@ export async function config(root: string, sources: Source[], sync: Partial<Proj
     }),
   )
 }
-// Bun's file APIs normalize backslashes on POSIX. Create and inspect both real names natively.
+// Bun's realpath normalizes backslashes on POSIX. Create and inspect both real names natively.
 const nativeInspect = '/bin/cat "$1"; printf "\\n"; /bin/cat "$2"; printf "\\n"'
 export const nativePairBytes = 'literal owned bytes\nUNRELATED USER BYTES\n'
 export const readNativePair = (root: string, paths: string[]) =>
