@@ -64,8 +64,9 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 - `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
-  not a native Windows/macOS substitute. CI runs all ten independent lanes and an always-run `Deterministic gate`;
-  seven-day sanitized artifacts include failures. See the [safety contract](docs/safety-contract.md).
+  not a native Windows/macOS substitute. CI runs all ten independent lanes, one step per check with its output in the
+  job log, and an always-run `Deterministic gate` that fails unless every lane succeeded. "Re-run failed jobs" works.
+  See the [safety contract](docs/safety-contract.md).
 - A PR is ready to merge when every lane and `Deterministic gate` pass, the hosted `review` check passes with no
   unresolved blocking findings, and the code owner approves. There is no separate evidence or attestation command.
   Required branch rules/reviews are configured by the owner only; agents report enforcement evidence or access blockers.

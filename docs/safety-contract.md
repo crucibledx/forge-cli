@@ -118,9 +118,6 @@ Pipe/PTY failures retain original and cleanup errors with bounded sanitized tran
 Cleanup failures block successful commands but preserve a nonzero exit observed before cleanup or deadline.
 The isolated test launcher likewise retains observed test failure exit1 if sandbox cleanup later fails; a passing
 batch with incomplete cleanup remains blocked2.
-CI records its lane clock before checkout, shares remaining time across independent steps, and reserves90 seconds
-inside the unchanged shared ten-minute lane budget for bounded cleanup, evidence assembly and upload. Missing, malformed,
-future or exhausted clock evidence blocks command execution rather than granting a new full budget.
 
 The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
 native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.
@@ -140,12 +137,11 @@ Missing/malformed sidecars become blocked checks without dropping siblings or re
 an independently failed sibling still makes the assembled lane exit1. Only an absent raw log receives a
 bounded blocked placeholder. Confinement and non-collision write errors still fail rather than being suppressed.
 
-CI checks out the event's exact tested SHA. Independent checks continue after sibling failures. Matrix fail-fast
-is disabled. Seven-day bounded sanitized artifacts include failures; the always-run `Deterministic gate` checks
-selected run/attempt, provider jobs and evidence before passing. Missing, stale, skipped or cancelled evidence
-fails the gate. An upload failure cannot turn a lane green.
-Unavailable or malformed provider lookups still persist a blocked all-lane gate summary, retaining independently
-available metadata and known failures. Invalid context is recorded as unavailable, never invented.
+CI checks out the event's exact tested SHA. The workflow matrix lists each lane's registered package scripts, and
+each runs as its own `always()` step, so checks continue after sibling failures and their output is in the job log.
+Matrix fail-fast is disabled. The always-run `Deterministic gate` passes only when `needs.lanes.result` is
+`success`; a failed, cancelled, skipped or timed-out lane fails it. Because it reads the run's own job results,
+"Re-run failed jobs" turns it green once the re-run lanes pass, with no artifact or provider API lookup.
 The interactive driver shares the child's absolute session deadline, including unrelated waits after child disposal.
 Nested raw check-log and partial-result writes validate every existing ancestor against the original
 selected evidence root before creating directories or temporary files. A pre-existing link beneath that root
@@ -153,14 +149,6 @@ cannot redirect a write. This is additional evidence security, not an extension 
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 
-After a frozen-install failure, a dependency-free Bun entrypoint records the original context, blocked lane and
-unexecuted check logs before the always-run upload. It does not require packages that failed to install.
-The gate has its own dependency-free fallback: all ten rows remain blocked and its summary stays nonpassing.
-Unavailable context is null, and downloaded lane records are not promoted to authenticated results.
-Both fallbacks use the dependency-free shared evidence writer with the repository as their original root.
-Every destination, including `results` and nested check directories, is checked before mkdir; exclusive creation
-preserves existing context/lane/check/gate evidence. Native junction controls check unchanged outside directory
-entries as well as sentinel bytes, without installing packages. These are additional evidence-security checks.
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
 only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
