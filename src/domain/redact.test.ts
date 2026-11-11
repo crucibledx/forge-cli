@@ -270,6 +270,16 @@ it.each(
       inner: (secret: string) =>
         JSON.stringify({message: `failed\npassword=${secret} retry`, public: 'repository not found'}),
     },
+    {
+      shape: 'carriage-return assignment',
+      inner: (secret: string) =>
+        JSON.stringify({message: `failed\rclient_secret=${secret} retry`, public: 'repository not found'}),
+    },
+    {
+      shape: 'short alias',
+      inner: (secret: string) =>
+        JSON.stringify({message: `failed\nsig=${secret} retry`, public: 'repository not found'}),
+    },
   ].flatMap((payload) => [1, 2].map((depth) => ({...payload, depth}))),
 )('AC-15,30 escaped $shape JSON at depth $depth keeps keys after escaped whitespace private', ({inner, depth}) => {
   const secret = 'ESCAPED_WHITESPACE_PRIVATE_Q'
@@ -301,6 +311,12 @@ it.each(
     }
   }
 })
+it.each(['open C:\\Secrets\\Npm_auth: Access is denied.', 'C:\\Data\\Tokens\\Rsa_key: missing'])(
+  'AC-15 uppercase path segments are not JSON whitespace escapes: %s',
+  (input) => {
+    expect(redact(input)).toBe(input)
+  },
+)
 it('AC-15,30 long encoded escape runs retain syntax counters, not discarded private bytes', () => {
   const slashes = '\\'.repeat(32_768),
     secret = 'ESCAPED_FLOOD_PRIVATE_Q'

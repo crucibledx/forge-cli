@@ -19,7 +19,7 @@ const queryKeys = [
 const queryStart = /[?&#]([^?&#=\s]+)=/g
 // Escaped payloads encode whitespace as \n, \r or \t; that letter ends a word, not starts a key name.
 const assignmentStart =
-  /(?:(?<![a-z\d_.%+\\-])|(?<=\\[nrt]))(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
+  /(?:(?<![a-z\d_.%+\\-])|(?<=(?-i:\\[nrt])))(?:(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)')[ \t\r\n]*|([a-z_%][a-z\d_.%+-]*)[ \t]*|\\+"([^"\r\n]*?)(?<!\\)\\+"[ \t\r\n]*)[=:]/gi
 const authStart = /(?:Bearer|Basic)\s+/gi
 
 function assignmentKey(name: string) {
@@ -813,9 +813,9 @@ function discardedContext(discarded: string): string[] {
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
   // The escape's letter is not the start of a word; keep the boundary for a key in the next chunk.
-  const whitespaceEscape = finalMatch(discarded, /\\[nrt]$/i)?.[0]
+  const whitespaceEscape = finalMatch(discarded, /\\[nrt]$/)?.[0]
   if (whitespaceEscape) contexts.add(whitespaceEscape)
-  const pendingName = finalMatch(discarded, /(?:(?<![a-z\d_.%+-])|(?<=\\[nrt]))([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
+  const pendingName = finalMatch(discarded, /(?:(?<![a-z\d_.%+\\-])|(?<=(?-i:\\[nrt])))([a-z_%][a-z\d_.%+-]*)[ \t]*$/i)
   // Whitespace completes an exact alias; without it, "sig" may still become "signal".
   if (pendingName && pendingQuery === undefined && credentialQueryKey(pendingName[1], /[ \t]$/.test(discarded)))
     retainKey('secret', pendingName.index)
@@ -839,11 +839,11 @@ function discardedContext(discarded: string): string[] {
         break
       }
   }
+  const partialStart = discarded.length - partial.length - encoding.length
+  const midWord =
+    /[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') && !/\\[nrt]$/.test(discarded.slice(0, partialStart))
   if ((partial || encoding) && pendingQuery === undefined)
-    retainKey(
-      (/[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') ? 'q' : '') + partial + encoding,
-      Math.max(0, discarded.length - partial.length - encoding.length),
-    )
+    retainKey((midWord ? 'q' : '') + partial + encoding, Math.max(0, partialStart))
   const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
   if (trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
     const line = lineKey(discarded, discarded.length)

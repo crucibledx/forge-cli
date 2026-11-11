@@ -124,21 +124,19 @@ it('AC-15,16,18,30 credential-heavy single-line append completes within the unch
 it.each(['mixed', 'array', 'object', 'escaped-tab'])(
   'AC-15,16,30 reviewed %s credential leak stays private after real eviction',
   (kind) => {
-    const input =
-      kind === 'escaped-tab'
-        ? JSON.stringify({
-            error: JSON.stringify({access_token: 'EVICTED_PRIVATE_Q', public: 'repository not found'}, null, '\t'),
-          })
-        : kind === 'mixed'
-          ? JSON.stringify({
-              error: JSON.stringify({token: 'FIRST_PRIVATE_Q'}),
-              password: 'EVICTED_PRIVATE_Q',
-              public: 'repository not found',
-            })
-          : JSON.stringify({
-              api_keys: kind === 'array' ? ['EVICTED_PRIVATE_Q'] : {value: 'EVICTED_PRIVATE_Q'},
-              public: 'repository not found',
-            })
+    const inputs: Record<string, string> = {
+      mixed: JSON.stringify({
+        error: JSON.stringify({token: 'FIRST_PRIVATE_Q'}),
+        password: 'EVICTED_PRIVATE_Q',
+        public: 'repository not found',
+      }),
+      array: JSON.stringify({api_keys: ['EVICTED_PRIVATE_Q'], public: 'repository not found'}),
+      object: JSON.stringify({api_keys: {value: 'EVICTED_PRIVATE_Q'}, public: 'repository not found'}),
+      'escaped-tab': JSON.stringify({
+        error: JSON.stringify({access_token: 'EVICTED_PRIVATE_Q', public: 'repository not found'}, null, '\t'),
+      }),
+    }
+    const input = inputs[kind]
     const cut =
       kind === 'mixed' ? input.indexOf('"password"') + '"password"'.length : input.indexOf('EVICTED_PRIVATE_Q')
     const transcript = createTranscript()
@@ -162,7 +160,10 @@ it.each([
   {prefix: 'password: Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
   {prefix: 'client_secret: Bearer PREFIX', suffix: ' PENDING_PRIVATE_Q'},
   {prefix: 'client_secret=\n  Basic PREFIX', suffix: ':PENDING_PRIVATE_Q'},
-  ...['sig', '%73ig', 'SIG', '%73%69%67'].map((prefix) => ({prefix, suffix: ': PENDING_PRIVATE_Q'})),
+  ...['sig', '%73ig', 'SIG', '%73%69%67', '{"error":"denied\\nsig'].map((prefix) => ({
+    prefix,
+    suffix: ': PENDING_PRIVATE_Q',
+  })),
 ])('AC-15,16,30 pending credential syntax survives whitespace eviction: $prefix', ({prefix, suffix}) => {
   const transcript = createTranscript()
   transcript.append(Buffer.from(prefix + ' '.repeat(TAIL_BYTES + 1)))
