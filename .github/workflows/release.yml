@@ -230,15 +230,20 @@ jobs:
           echo "published=${published}" >> "$GITHUB_OUTPUT"
 
       - name: Publish (dry run)
-        if: ${{ inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
+        if: ${{ inputs.dry_run }}
         run: |
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
             echo "::notice::NPM_TOKEN is not set, so the release relies on npm trusted publishing. Only a real publish can verify it."
           elif ! npm whoami >/dev/null 2>&1; then
             echo "::warning::npm rejects the NPM_TOKEN secret (npm whoami failed). A real release would fail here unless trusted publishing is configured."
           fi
-          npm publish --access public --dry-run
+          if [ "${PUBLISHED}" = true ]; then
+            npm pack --dry-run
+          else
+            npm publish --access public --dry-run
+          fi
         env:
+          PUBLISHED: ${{ steps.npm-version.outputs.published }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish

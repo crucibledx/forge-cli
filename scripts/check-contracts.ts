@@ -231,6 +231,11 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     releaseNeeds(id).includes('github-release'),
   ), 'Homebrew and Scoop must wait for the GitHub release')
   require(input.release.on?.workflow_dispatch?.inputs?.dry_run?.type === 'boolean', 'Release dry_run input missing')
+  // Exact expressions only: a prefix check would accept `!inputs.dry_run && x || true`.
+  const dryRunGuards = [
+    '${{ !inputs.dry_run }}',
+    "${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' }}",
+  ]
   for (const job of Object.values(releaseJobs))
     for (const step of job.steps ?? [])
       if (
@@ -239,8 +244,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
         ) ||
         /git push|npm publish(?![^\n]*--dry-run)/.test(String(step.run))
       )
-        require(step.if === '${{ !inputs.dry_run }}' ||
-          String(step.if).startsWith('${{ !inputs.dry_run && '), 'Release publish step must be skipped in a dry run')
+        require(dryRunGuards.includes(String(step.if)), 'Release publish step must be skipped in a dry run')
   const safety = input.docs.find((doc) => doc.path === 'docs/safety-contract.md')?.text ?? ''
   require(businessRuleIds.every((id) => safety.includes(id)), 'Documented safety ledger incomplete')
   require([

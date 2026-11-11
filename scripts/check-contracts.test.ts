@@ -232,6 +232,13 @@ const releaseDrift: Record<string, [string, (release: ReleaseWorkflow) => void]>
         '${{ !inputs.dry_run || true }}'
     },
   ],
+  'npm-publish-guard-prefixed-bypass': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public --provenance')).if =
+        "${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' || true }}"
+    },
+  ],
 }
 it.each(Object.keys(releaseDrift))('release ordering and dry-run guards: rejects %s', (kind) => {
   const original = contractInputs()
