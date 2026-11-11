@@ -283,14 +283,11 @@ Matrix jobs use `fail-fast:false`; independent checks within a lane use separate
 not a short-circuit `&&` chain. Failed setup blocks only that job; dependent checks are explicitly blocked, never
 passed. Cancellation/superseding a commit cannot cancel only failing siblings and leave a green current-head gate.
 
-Each lane writes `results/<lane-id>.json`: schema_version `1`, head_sha, tested_sha, run_id/attempt, lane_id, status,
-per-check command/exit/duration/evidence, OS/Bun. Status is pass/fail/blocked/cancelled; registry defines required lanes.
-Expected identity comes from trusted workflow metadata: PR head SHA, event's tested merge SHA and run ID/attempt.
-Pin all lane checkouts to that tested SHA; never derive expected identity from an uploaded report. Only matching
-lane evidence can combine; the same head with an old/different merge revision or run attempt must fail.
-One always-run summary lists every success/failure, even with missing artifacts. `Deterministic gate` runs
-`always()` after all jobs and passes only complete required successes; missing/malformed/stale/skipped/cancelled/
-timed-out evidence fails. Local evidence declares tested_sha=head_sha and cannot impersonate a merge-validation run.
+The workflow matrix lists each lane's registered package scripts; `check:contracts` keeps it equal to the registry.
+Every lane checks out the event's tested SHA, and each check runs as a separate `always()` step whose output streams
+to the job log. `Deterministic gate` runs `always()` after the lane matrix and passes only when `needs.lanes.result`
+is `success`: any failed, cancelled, skipped or timed-out lane fails it. The result comes from the same workflow run
+and commit, so "Re-run failed jobs" combines re-run and carried-over lanes correctly.
 
 Security runs `bun audit --json --audit-level=high` on the frozen lock, with a 60-second request deadline.
 High/critical advisories in runtime or development dependencies block readiness; no implicit ignore list.
@@ -312,17 +309,17 @@ modules are blocked, not simulated.
 
 #### Timing, evidence and merge readiness
 
-Record per-job/test durations, OS/Bun version and flake results; always upload bounded sanitized artifacts for
-7 days, including failures. Upload failure cannot erase failure or satisfy required evidence.
+Record per-job/test durations, OS/Bun version and flake results. Each check runs as its own CI step, so its
+output, including failures, is in that lane's job log; the repository uploads no evidence artifacts.
 Record 10 consecutive no-retry focused safety/harness passes plus native CI runs on the implementation PR.
 Nazar's budget replaces the two-minute target: complete automated PR feedback normally 5–10 minutes, acceptable
-execution-path ceiling 15 minutes (parallel lanes <=10 minutes, gate/summary <=5). Measure through required
-evidence/summary; report queue and independent-review time separately. Timeout blocks, never skips a lane.
+execution-path ceiling 15 minutes (parallel lanes <=10 minutes, gate <=5). Measure through the required gate;
+report queue and independent-review time separately. Timeout blocks, never skips a lane.
 Unbounded queue/owner/LLM review is not a fabricated SLA. Local checks target <=10 seconds without flaky assertions.
 
 Merge readiness is CI plus human review. A PR is ready when all required lanes and `Deterministic gate` pass on its
 exact tested merge revision, the hosted `review` check passes with no unresolved blocking findings, and the code
-owner approves. Missing/unavailable lane evidence fails the gate; no AI verdict overrides it. The repository keeps
+owner approves. A failed, cancelled, skipped or timed-out lane fails the gate; no AI verdict overrides it. The repository keeps
 no readiness collector/checker, producer attestations or evidence bundles; the PR body and CI are the record.
 PR draft/non-draft is not readiness; avoid non-draft-only review trigger cycles. Update repo loop/contributor/safety
 guidance and owner setup for required `Deterministic gate`/reviews; report unenforced rules truthfully. No auto-merge.
@@ -371,6 +368,8 @@ Test files must contain the named BR/scenario assertions; each must fail for its
 
 Owner-approved amendment (crucibledx/forge-cli#29, merged by the owner): AC-32 now describes the CI merge gate.
 The earlier readiness collector/checker, producer attestations and `docs/quality-gate-readiness-contract.md` are withdrawn.
+Owner-approved amendment (crucibledx/forge-cli#28): `Deterministic gate` aggregates the run's own lane job results
+(`needs.lanes.result`) instead of re-validating uploaded lane evidence; AC-25, AC-27 and AC-32 are reworded to match.
 
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 | --- | --- | --- | --- |
@@ -398,11 +397,11 @@ The earlier readiness collector/checker, producer attestations and `docs/quality
 | AC-22 | Existing wizard journeys still assert persisted configs/files, not just transcript text; no screen-emulator claims for stripped output. | e2e | `bun test e2e/commands/init.test.ts e2e/commands/config/ e2e/commands/source/` |
 | AC-23 | Silent valid/failed/preview sync uses the same exit/mutation policy with no visible output, except incomplete rollback always names unrestored paths on stderr, including simultaneous report-storage failure. | e2e | `bun test e2e/commands/sync/safety/silent.test.ts` |
 | AC-24 | A clean frozen install uses committed lock/exact Bun pin; inconsistent pin/workflow/lock settings fail validation; release jobs share it without release execution. | test | `bun install --frozen-lockfile && bun run check:contracts`; implementation PR records `bun --version` and clean git diff |
-| AC-25 | All registered required modules gate every PR; unit/quality failure never skips other lanes; fail-fast is off; same-head aggregator rejects failed/blocked/cancelled/skipped/missing/stale/malformed outcomes. | test | `bun run test:contracts`; scripts' workflow/registry fixtures inject two independent lane failures and assert all success/failure results survive; CI artifact links prove separate unit/E2E jobs |
-| AC-26 | Native macOS and Windows execute local sync/rollback/containment/pipe smoke and compiled help/version without real scheduler access; Windows drive/UNC cases run natively. | e2e | `bun run test:platform` and native CI artifact links for both OSes, including built binary commands |
-| AC-27 | Sanitized bounded same-head artifacts retain required fields for 7 days even on failure; ten focused runs pass without retries; 5–10-minute target, 15-minute ceiling and lane deadlines are configured/reported without invented p95. | test | `bun run test:contracts` ten times; `bun run check:contracts` verifies retention, always-upload and timeouts; PR links failed-fixture/native/CI timing samples |
+| AC-25 | All registered required modules gate every PR; unit/quality failure never skips other lanes; fail-fast is off; the always-run `Deterministic gate` fails unless every lane job in the run succeeded, so a failed/cancelled/skipped/timed-out lane fails it. | test | `bun run test:contracts`; `scripts/check-contracts.test.ts` workflow fixtures reject an unregistered/missing matrix lane, dropped or short-circuiting check steps, fail-fast, path filters and a gate that is not `always()`, lacks `needs: lanes` or ignores its result; PR links a run with one red lane and red gate, and CI job links prove separate unit/E2E jobs |
+| AC-26 | Native macOS and Windows execute local sync/rollback/containment/pipe smoke and compiled help/version without real scheduler access; Windows drive/UNC cases run natively. | e2e | `bun run test:platform` and native CI job links for both OSes, including built binary commands |
+| AC-27 | Every check's output, including failures, is readable in its own lane job log; ten focused runs pass without retries; 5–10-minute target, 15-minute ceiling and lane deadlines are configured/reported without invented p95. | test | `bun run test:contracts` ten times; `bun run check:contracts` verifies separate check steps and timeouts; PR links a failing-assertion job log and native/CI timing samples |
 | AC-28 | Module/readiness guidance, exact commands, safety limits, separate future CLI/MCP contracts and approval boundaries are documented; no fabricated MCP coverage or branch enforcement. | doc | `bun run check:contracts`; README, CONTRIBUTING.md, docs/safety-contract.md, .factory/loop-contract.md; PR includes read-only branch-rule evidence/access blocker |
 | AC-29 | Human DX asserts input/invalid retry/selection/help/cancel-before-persistence and saved outcomes; agent CLI checks closed stdin/streams/errors separately; both report independently when another lane fails. | e2e | `bun run test:human` and `bun run test:agent`; registry fixtures verify required lane coverage |
 | AC-30 | Security tests never execute source scripts or leak secrets; audited high/critical, unavailable/invalid or unaudited results block without hiding sibling successes. No audit modifies dependencies. | test | `bun run test:security`; security wrapper fixtures inject each audit outcome and assert status/evidence/unchanged lock |
 | AC-31 | Performance smoke checks 10/1000-target output/state, records cold/warm timings, fails incorrect output/30-second timeout, reports insufficient baselines advisory; no invented hard latency threshold. | test | `bun run test:performance`; benchmark wrapper fixtures exercise timeout/wrong output/missing baseline |
-| AC-32 | Merge readiness is the CI gate plus human review, not repository tooling: `Deterministic gate` passes only when every required lane passes on the current head's tested merge revision; failed/blocked/missing/stale/cancelled/skipped/malformed lane evidence fails it. The repository ships no readiness, producer or attestation collector/checker. The hosted `review` check and code-owner approval then decide the merge through owner-configured branch rules, not a repository test. | test | `bun run test:contracts` (`scripts/gate.test.ts` AC-32 cases: each rejected run, two failures, a complete run); `bun run check:contracts`; `git grep` for readiness/producer tooling and `collect:readiness`/`check:readiness` in `scripts`, `package.json`, `.factory` and `CONTRIBUTING.md` finds none; CI `Deterministic gate` on the PR |
+| AC-32 | Merge readiness is the CI gate plus human review, not repository tooling: `Deterministic gate` passes only when every required lane job passes on the current head's tested merge revision; a failed, cancelled, skipped or timed-out lane fails it. The repository ships no readiness, producer or attestation collector/checker. The hosted `review` check and code-owner approval then decide the merge through owner-configured branch rules, not a repository test. | test | `bun run test:contracts` (`scripts/check-contracts.test.ts` AC-32 workflow-drift cases); `bun run check:contracts`; `git grep` for readiness/producer tooling and `collect:readiness`/`check:readiness` in `scripts`, `package.json`, `.factory` and `CONTRIBUTING.md` finds none; CI `Deterministic gate` on the PR, red with one red lane and green after "Re-run failed jobs" |

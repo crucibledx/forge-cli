@@ -16,7 +16,6 @@ export const testSuites = {
   security: [
     'scripts/dotenv-isolation.test.ts',
     'scripts/run-tests.test.ts',
-    'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/domain/redact.test.ts',
     'src/domain/redaction-spans.test.ts',
@@ -52,7 +51,6 @@ export const testSuites = {
   platform: [
     'scripts/dotenv-isolation.test.ts',
     'scripts/run-tests.test.ts',
-    'scripts/setup-failure-evidence.test.ts',
     'scripts/evidence-io.test.ts',
     'src/application/commands/sync/emergency-terminal.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
