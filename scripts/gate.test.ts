@@ -275,7 +275,7 @@ it.each([
   ['unfinished', 'blocked', 'Required provider job unfinished (status in_progress)'],
   ['queued', 'blocked', 'Required provider job unfinished (status queued)'],
   ['stale-failure', 'fail', 'Required provider job concluded failure'],
-  ['unfinished-failure', 'fail', 'Required provider job unfinished (status in_progress)'],
+  ['unfinished-failure', 'fail', 'Required provider job concluded failure'],
   ['completed-failure', 'fail', 'Required provider job concluded failure'],
   ['cancelled', 'blocked', 'Required provider job concluded cancelled'],
   ['missing', 'blocked', 'Required provider job missing'],

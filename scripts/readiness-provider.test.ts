@@ -221,6 +221,7 @@ it.each([
   'timed-out-pass',
   'unknown-job',
   'running-job',
+  'stale-running-job',
   'zero-artifact',
   'stale-tested',
   'mixed-attempt',
@@ -287,23 +288,27 @@ it.each([
             {
               id: 1,
               name: 'e2e',
-              status: kind === 'running-job' ? 'in_progress' : 'completed',
-              conclusion: ['cancelled-evidence', 'cancelled-pass'].includes(kind)
-                ? 'cancelled'
-                : ['timed-out-evidence', 'timed-out-pass'].includes(kind)
-                  ? 'timed_out'
-                  : kind === 'unknown-job'
-                    ? 'neutral'
-                    : ['failed-job', 'failed-evidence', 'blocked-evidence'].includes(kind)
-                      ? 'failure'
-                      : 'success',
+              status: ['running-job', 'stale-running-job'].includes(kind) ? 'in_progress' : 'completed',
+              conclusion:
+                kind === 'running-job'
+                  ? null
+                  : ['cancelled-evidence', 'cancelled-pass'].includes(kind)
+                    ? 'cancelled'
+                    : ['timed-out-evidence', 'timed-out-pass'].includes(kind)
+                      ? 'timed_out'
+                      : kind === 'unknown-job'
+                        ? 'neutral'
+                        : ['failed-job', 'failed-evidence', 'blocked-evidence'].includes(kind)
+                          ? 'failure'
+                          : 'success',
               started_at:
                 kind === 'invalid-job-start'
                   ? 'not-an-ISO-date'
                   : kind === 'reversed-job-window'
                     ? '2026-11-04T12:02:00Z'
                     : '2026-11-04T12:00:00Z',
-              completed_at: kind === 'invalid-job-end' ? 'not-an-ISO-date' : '2026-11-04T12:01:00Z',
+              completed_at:
+                kind === 'invalid-job-end' ? 'not-an-ISO-date' : kind === 'running-job' ? null : '2026-11-04T12:01:00Z',
             },
           ],
         }
@@ -349,9 +354,15 @@ it.each([
   })
   const citing = kind === 'cross-lane' ? bundle.lanes.find((lane) => lane.lane_id === 'security')! : lane
   if (
-    ['e2e', 'paginated', 'failed-evidence', 'blocked-evidence', 'cancelled-evidence', 'timed-out-evidence'].includes(
-      kind,
-    )
+    [
+      'e2e',
+      'stale-running-job',
+      'paginated',
+      'failed-evidence',
+      'blocked-evidence',
+      'cancelled-evidence',
+      'timed-out-evidence',
+    ].includes(kind)
   )
     await expect(provider.artifact(ref, context, citing)).resolves.toBeUndefined()
   else await expect(provider.artifact(ref, context, citing)).rejects.toThrow()
@@ -449,6 +460,41 @@ it('AC-25 shared provider artifacts reject non-positive IDs consistently', () =>
   const artifact = {id: 1, name: 'quality', expired: false, created_at: '2026-11-04T12:00:00Z'}
   expect(providerArtifact.safeParse(artifact).success).toBe(true)
   for (const id of [0, -1, 1.5]) expect(providerArtifact.safeParse({...artifact, id}).success).toBe(false)
+})
+it.each(['stale-finished', 'no-end'])('provider gate accepts a finished gate job only: %s', async (kind) => {
+  const f = producerFixture(),
+    context = f.bundle.context
+  const provider = readinessProvider(dir(), {
+    archive: async () => {
+      throw Error('No archive should be reached')
+    },
+    githubJSON: async (_context, endpoint) => {
+      if (endpoint === '/actions/workflows/ci.yml') return {id: 7, path: '.github/workflows/ci.yml'}
+      if (endpoint.includes('/jobs?'))
+        return {
+          total_count: 1,
+          jobs: [
+            {
+              ...windowJob,
+              id: Number(f.bundle.gate.provider_id),
+              name: 'Deterministic gate',
+              status: 'in_progress',
+              completed_at: kind === 'no-end' ? null : windowJob.completed_at,
+            },
+          ],
+        }
+      return {
+        id: Number(context.run_id),
+        run_attempt: context.run_attempt,
+        head_sha: context.tested_sha,
+        workflow_id: 7,
+        path: '.github/workflows/ci.yml',
+      }
+    },
+  })
+  const result = provider.gate(f.bundle.gate, context)
+  if (kind === 'no-end') await expect(result).rejects.toThrow('Gate provider identity/conclusion mismatch')
+  else await expect(result).resolves.toBeUndefined()
 })
 it('AC-32 artifact503 cannot invalidate independently authenticated gate jobs or producer failures', async () => {
   const f = producerFixture(),

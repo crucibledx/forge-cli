@@ -13,6 +13,7 @@ import {
   providerArtifactInJobWindow,
   providerArtifacts,
   providerJob,
+  providerJobFinished,
   requiredCIWorkflow,
 } from './github-evidence'
 import {
@@ -167,7 +168,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
       artifact = artifacts.filter((artifact) => artifact.name === artifactName(context, lane.id))
     if (
       job.length !== 1 ||
-      job[0].status !== 'completed' ||
+      !providerJobFinished(job[0]) ||
       !['success', 'failure', 'cancelled', 'timed_out'].includes(job[0].conclusion ?? '') ||
       artifact.length !== 1 ||
       artifact[0].expired ||
@@ -273,7 +274,7 @@ export function readinessProvider(evidenceRoot: string, ports = {githubJSON, arc
       const gate = jobs.filter((job) => job.name === 'Deterministic gate')
       if (
         gate.length !== 1 ||
-        gate[0].status !== 'completed' ||
+        !providerJobFinished(gate[0]) ||
         gate[0].conclusion !== record.conclusion ||
         String(gate[0].id) !== record.provider_id ||
         record.source_uri !==

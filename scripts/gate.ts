@@ -24,7 +24,8 @@ export const artifactName = (context: EvidenceContext, lane: string) =>
 function providerJobDefect(jobs: z.infer<typeof providerJob>[]) {
   if (jobs.length === 0) return 'Required provider job missing'
   if (jobs.length > 1) return 'Required provider job duplicated'
-  if (!providerJobFinished(jobs[0])) return `Required provider job unfinished (status ${jobs[0].status})`
+  if (!providerJobFinished(jobs[0]) && jobs[0].conclusion !== 'failure')
+    return `Required provider job unfinished (status ${jobs[0].status})`
   if (jobs[0].conclusion !== 'success') return `Required provider job concluded ${jobs[0].conclusion}`
 }
 export async function deterministicGate(
