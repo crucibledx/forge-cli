@@ -36,8 +36,12 @@ function assignmentKey(name: string) {
     .replace(/\\(["'\\/])/g, '$1')
 }
 
+function decodedName(name: string): string {
+  return name.replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+}
+
 function credentialName(name: string): string {
-  return name.replace(/%([a-f\d]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16))).toLowerCase()
+  return decodedName(name).toLowerCase()
 }
 
 function credentialQueryKey(name: string, complete = true): boolean {
@@ -830,7 +834,8 @@ function discardedContext(discarded: string): string[] {
   if (finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:\/\/[^\s/?#]*$/i)) contexts.add('https://')
   let partial = ''
   const encoding = finalMatch(discarded, /%[a-f\d]?$/i)?.[0] ?? ''
-  const lower = credentialName(encoding ? discarded.slice(0, -encoding.length) : discarded)
+  const named = decodedName(encoding ? discarded.slice(0, -encoding.length) : discarded)
+  const lower = named.toLowerCase()
   for (const marker of [
     'Bearer',
     'Basic',
@@ -852,7 +857,7 @@ function discardedContext(discarded: string): string[] {
   // The partial is measured in decoded text, so test for the escape there too.
   const midWord =
     /[a-z\d_.%+-]/i.test(lower.at(-partial.length - 1) ?? '') &&
-    !escapedSeparatorEnd.test(lower.slice(0, lower.length - partial.length))
+    !escapedSeparatorEnd.test(named.slice(0, named.length - partial.length))
   if ((partial || encoding) && pendingQuery === undefined)
     retainKey(
       (midWord ? 'q' : '') + partial + encoding,

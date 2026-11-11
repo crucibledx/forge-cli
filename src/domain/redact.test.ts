@@ -321,6 +321,9 @@ it.each([
   ['\\u0009', '{\\u0009\\"access_token\\":\\"SECRET\\"}'],
   ['\\f', 'denied\\ftoken=SECRET retry'],
   ['\\b', 'denied\\bapi_key=SECRET retry'],
+  ['\\u0008', 'denied\\u0008token=SECRET retry'],
+  ['\\u000c', 'denied\\u000cpassword=SECRET retry'],
+  ['\\u0020', 'denied\\u0020api_key=SECRET retry'],
   ['\\u0026', 'GET /repo?page=1\\u0026token=SECRET retry'],
   ['\\n before %73ig', 'denied\\n%73ig=SECRET retry'],
   ['\\u000a before %73ig', 'denied\\u000a%73ig=SECRET retry'],
@@ -334,6 +337,11 @@ it.each(['open C:\\Secrets\\Npm_auth: Access is denied.', 'C:\\Data\\Tokens\\Rsa
     expect(redact(input)).toBe(input)
   },
 )
+it('AC-15 an uppercase path letter is not an escape boundary at a retained-context cut', () => {
+  const input = 'open C:\\Nsig: Access is denied.',
+    cut = input.indexOf('\\Ns') + 3
+  expect(redact(input.slice(cut), {credentialPrefixes: redactionContext(input.slice(0, cut))})).toBe(input.slice(cut))
+})
 it('AC-15,30 long encoded escape runs retain syntax counters, not discarded private bytes', () => {
   const slashes = '\\'.repeat(32_768),
     secret = 'ESCAPED_FLOOD_PRIVATE_Q'
