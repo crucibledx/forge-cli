@@ -47,6 +47,45 @@ describe('BR-09 lifecycle contracts (AC-18)', () => {
       expect(dead(Number(readFileSync(pidfile, 'utf8')))).toBe(true)
     },
   )
+  it.skipIf(process.platform === 'win32')(
+    'AC-18 a stalled supervisor probe reports exit within budget and leaves cleanup unverified',
+    async () => {
+      const root = dir(),
+        bin = join(root, 'bin'),
+        pidfile = join(root, 'probe-children')
+      mkdirSync(bin)
+      writeFileSync(
+        join(bin, 'ps'),
+        `#!${process.execPath}\nimport {appendFileSync} from 'node:fs'\nconst child=Bun.spawn([process.execPath,'-e','setInterval(()=>{},1000)'],{stdin:'ignore',stdout:'inherit',stderr:'inherit'});appendFileSync(process.env.PS_PID_FILE,child.pid+'\\n');await child.exited\n`,
+        {mode: 0o755},
+      )
+      const env = testEnvironment(root, {PATH: `${bin}:${process.env.PATH}`, PS_PID_FILE: pidfile})
+      const start = performance.now()
+      const proc = await spawnOwnedPipe([process.execPath, '-e', 'process.exit(0)'], root, env)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        const exit = await Promise.race([
+          proc.exited,
+          new Promise<string>((resolve) => {
+            timer = setTimeout(() => resolve('exit report stalled'), 6000)
+          }),
+        ])
+        expect(exit).toBe(0)
+        // Two seconds of probe budget plus supervisor and child startup.
+        expect(performance.now() - start).toBeLessThan(4000)
+        // An unverified snapshot must keep the owner instead of reporting a clean group.
+        expect(dead(proc.pid)).toBe(false)
+        await expect(terminateTree(proc, env)).rejects.toThrow('Cleanup probe exceeded remaining budget')
+      } finally {
+        clearTimeout(timer)
+        await terminateTree(proc, testEnvironment(root)).catch(() => {})
+      }
+      expect(dead(proc.pid)).toBe(true)
+      const children = readFileSync(pidfile, 'utf8').trim().split('\n').map(Number)
+      expect(children.length).toBeGreaterThanOrEqual(2)
+      for (const pid of children) expect(dead(pid)).toBe(true)
+    },
+  )
   it.each(
     ['exit', 'local-wait', 'total-deadline'].flatMap((mode) =>
       [
