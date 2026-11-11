@@ -38,7 +38,6 @@
     "test:compiled": "bun run scripts/compiled-smoke.ts",
     "check:security-audit": "bun run scripts/security-audit.ts",
     "check:contracts": "bun run scripts/check-contracts.ts",
-    "check:lanes": "bun run scripts/check-lanes.ts",
     "test:checkers": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite checkers",
     "test:contracts": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite contracts",
     "test": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite all",

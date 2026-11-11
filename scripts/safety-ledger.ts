@@ -146,7 +146,6 @@ export const safetyLedger: SafetyRule[] = [
     tests: [
       'e2e/framework/contracts/isolation.test.ts',
       'scripts/run-tests.test.ts',
-      'scripts/check-lanes.test.ts',
       'scripts/security-audit.test.ts',
       'scripts/check-contracts.test.ts',
     ],

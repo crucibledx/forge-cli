@@ -13,21 +13,16 @@ it.each(validationLanes.flatMap((lane) => lane.checks.map((check) => [lane.id, c
     expect(validateContracts(input)).toContain(`${id}: required ordered check contract changed`)
   },
 )
-it.each(['id', 'command', 'duplicate', 'reorder', 'blocked-exits', 'test-blocked-exits'])(
-  'AC-25 complete command contracts reject %s drift',
-  (kind) => {
-    const original = contractInputs()
-    const input = {...original, lanes: structuredClone(original.lanes)}
-    const lane = input.lanes.find((lane) => lane.id === (kind === 'test-blocked-exits' ? 'business' : 'quality'))!
-    if (kind === 'id') lane.checks[0].id = 'lint'
-    if (kind === 'command') lane.checks[0].command = ['bun', 'run', 'lint']
-    if (kind === 'duplicate') lane.checks.push(structuredClone(lane.checks[0]))
-    if (kind === 'reorder') lane.checks.reverse()
-    if (kind === 'blocked-exits') lane.checks[2].blocked_exits = [2]
-    if (kind === 'test-blocked-exits') lane.checks[0].blocked_exits = []
-    expect(validateContracts(input)).toContain(`${lane.id}: required ordered check contract changed`)
-  },
-)
+it.each(['id', 'command', 'duplicate', 'reorder'])('AC-25 complete command contracts reject %s drift', (kind) => {
+  const original = contractInputs()
+  const input = {...original, lanes: structuredClone(original.lanes)}
+  const lane = input.lanes.find((lane) => lane.id === 'quality')!
+  if (kind === 'id') lane.checks[0].id = 'lint'
+  if (kind === 'command') lane.checks[0].command = ['bun', 'run', 'lint']
+  if (kind === 'duplicate') lane.checks.push(structuredClone(lane.checks[0]))
+  if (kind === 'reorder') lane.checks.reverse()
+  expect(validateContracts(input)).toContain(`${lane.id}: required ordered check contract changed`)
+})
 it('AC-28 documentation inputs contain only the document actually validated', () => {
   expect(contractInputs().docs.map((doc) => doc.path)).toEqual(['docs/safety-contract.md'])
 })

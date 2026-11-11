@@ -8,10 +8,8 @@ import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {runPipe} from '../e2e/framework/pipe'
 import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
 import {createTestSandbox, testEnvironment} from './test-sandbox'
-import {MAX_EVIDENCE_BYTES} from './validation-evidence'
-import {repositoryRoot} from './validation-identity'
 import type {StructuredCommandOutput} from './validation-process'
-import {commandLog, commandMetadata, executeCheck} from './validation-process'
+import {commandMetadata, executeCheck, MAX_STRUCTURED_BYTES} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
@@ -22,8 +20,8 @@ it.each(['split-utf8', 'beyond-tail', 'at-cap', 'over-cap', 'invalid-utf8', 'tra
     let chunks: Uint8Array[]
     if (kind === 'split-utf8') chunks = Array.from(json, (byte) => Uint8Array.of(byte))
     else if (kind === 'beyond-tail') chunks = [json, Buffer.alloc(TAIL_BYTES + 1, ' ')]
-    else if (kind === 'at-cap') chunks = [json, Buffer.alloc(MAX_EVIDENCE_BYTES - json.length, ' ')]
-    else if (kind === 'over-cap') chunks = [json, Buffer.alloc(MAX_EVIDENCE_BYTES + 1 - json.length, ' ')]
+    else if (kind === 'at-cap') chunks = [json, Buffer.alloc(MAX_STRUCTURED_BYTES - json.length, ' ')]
+    else if (kind === 'over-cap') chunks = [json, Buffer.alloc(MAX_STRUCTURED_BYTES + 1 - json.length, ' ')]
     else if (kind === 'invalid-utf8') chunks = [Buffer.from('{"public":"'), Uint8Array.of(0xff), Buffer.from('"}')]
     else if (kind === 'trailing-garbage') chunks = [json, Buffer.from('not-json')]
     else chunks = []
@@ -55,11 +53,10 @@ it.each(['split-utf8', 'beyond-tail', 'at-cap', 'over-cap', 'invalid-utf8', 'tra
     if (['split-utf8', 'beyond-tail', 'at-cap'].includes(kind))
       expect(structured.data).toEqual({public: 'λ', access_token: 'STRUCTURED_PRIVATE_Q'})
     else expect(structured.data).toBeUndefined()
-    for (const output of [JSON.stringify(result), commandLog(['fixture-structured'], result)]) {
-      expect(output).not.toContain('STRUCTURED_PRIVATE_Q')
-      expect(output).not.toContain('STDERR_PRIVATE_Q')
-      expect(output).not.toContain('stale-result')
-    }
+    const output = JSON.stringify(result)
+    expect(output).not.toContain('STRUCTURED_PRIVATE_Q')
+    expect(output).not.toContain('STDERR_PRIVATE_Q')
+    expect(output).not.toContain('stale-result')
     expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(TAIL_BYTES)
   },
 )
@@ -100,10 +97,6 @@ describe('repository-local private validation roots', () => {
     }
     expect(result.reason).toContain('fixture cleanup failure at <sandbox>')
     expect(result.reason).not.toContain('forge-validation-')
-    const logged = JSON.parse(commandLog(['fixture-nested-native-path'], result))
-    expect(logged.stdout).toBe(result.stdout)
-    expect(logged.stderr).toBe(result.stderr)
-    expect(logged.reason).toBe(result.reason)
   })
 })
 it('AC-27 failed command artifacts remove native, escaped and expanded Windows sandbox aliases', async () => {
@@ -145,7 +138,7 @@ it('AC-27 failed command artifacts remove native, escaped and expanded Windows s
   })
   expect(result.exit_code).toBe(19)
   expect(result.timed_out).toBe(false)
-  for (const output of [result.stdout, result.stderr, commandLog(['fixture'], result)]) {
+  for (const output of [result.stdout, result.stderr]) {
     expect(output).not.toContain('PRIVATE_USER_Q')
     expect(output).not.toContain('RUNNER~1')
     expect(output).not.toContain('forge-validation-private-alias')
@@ -188,10 +181,6 @@ it('AC-27 native Git-expanded paths in failed stdout and stderr are private afte
     expect(JSON.parse(output)).toEqual({path: join('<sandbox>', 'project'), public: 'PUBLIC_NATIVE_Q'})
     expect(output).not.toContain('forge-validation-')
   }
-  const logged = JSON.parse(commandLog(['fixture-native-path'], result))
-  expect(logged.exit_code).toBe(19)
-  expect(logged.stdout).toBe(result.stdout)
-  expect(logged.stderr).toBe(result.stderr)
 })
 it.each([
   {command: ['bun', 'run', 'fixture'], expected: [process.execPath, '--no-env-file', 'run', 'fixture']},
@@ -260,35 +249,8 @@ it('AC-19 validation cleanup receives the command sandbox, never the launcher st
   const cleanup = JSON.parse(readFileSync(observed, 'utf8'))
   expect(cleanup).toEqual({marker: 'unset', home: child.home, temp: child.temp})
 })
-it('AC-27 serialized command arguments have a count cap and an explicit omission marker', () => {
-  for (const count of [0, 3, 16, 17, 2100]) {
-    const command = Array.from({length: count}, (_, index) =>
-      index < 16 ? 'x'.repeat(1024) : 'https://user:OMITTED_PRIVATE',
-    )
-    const raw = commandLog(command, {
-      ...commandMetadata(),
-      signal: 'SIGTERM',
-      seed: '123',
-      replay: '0:1',
-      exit_code: 19,
-      duration_ms: 1,
-      timed_out: false,
-      stdout: '\0'.repeat(262144) + 'visible-stdout-end',
-      stderr: '\0'.repeat(262144) + 'visible-stderr-end',
-    })
-    const log = JSON.parse(raw)
-    expect(Buffer.byteLength(raw)).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES)
-    expect(log.command.slice(0, 16)).toHaveLength(Math.min(count, 16))
-    expect(log.command).toHaveLength(count > 16 ? 17 : count)
-    if (count > 16) expect(log.command.at(-1)).toBe('<additional arguments omitted>')
-    expect(raw).not.toContain('OMITTED_PRIVATE')
-    expect(log.stdout).toEndWith('visible-stdout-end')
-    expect(log.stderr).toEndWith('visible-stderr-end')
-    expect(log).toMatchObject({signal: 'SIGTERM', cwd: '.', seed: '123', replay: '0:1', exit_code: 19})
-  }
-})
 it.each(['setup-error', 'setup-string', 'cleanup-error', 'cleanup-string'])(
-  'AC-15,18,25,27,30 oversized %s keeps a private schema-safe primary reason',
+  'AC-15,18,25,27,30 oversized %s keeps a private bounded primary reason',
   async (kind) => {
     const message = 'primary unavailable https://user:X_SETUP_PRIVATE\n' + 'é'.repeat(TAIL_BYTES * 2)
     const thrown = kind.endsWith('string') ? message : new Error(message)
@@ -502,20 +464,9 @@ it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure 
   expect(result.stderr).toBe('err')
   expect(result.duration_ms).toBeLessThan(5000)
 })
-it('AC-25 validation execution and HEAD lookup use the checkout authority, not caller working directories', async () => {
-  const git = Bun.spawnSync(['git', '-C', repositoryRoot, 'rev-parse', 'HEAD'], {stdout: 'pipe', stderr: 'pipe'})
-  expect(git.exitCode).toBe(0)
-  const result = await executeCheck(
-    [
-      process.execPath,
-      '-e',
-      `import {actualHead} from ${JSON.stringify(join(import.meta.dir, 'validation-identity.ts'))};
-process.stdout.write(process.cwd());process.chdir(${JSON.stringify(dir())});process.stderr.write(actualHead());`,
-    ],
-    5000,
-  )
+it('AC-25 validation execution uses the checkout authority, not caller working directories', async () => {
+  const result = await executeCheck([process.execPath, '-e', 'process.stdout.write(process.cwd())'], 5000)
   expect(result).toMatchObject({exit_code: 0, timed_out: false, stdout: '<repository>'})
-  expect(result.stderr).toBe(new TextDecoder().decode(git.stdout).trim())
 })
 it.each(['pipe', 'pty'])(
   'AC-18,19,25 outer deadline reaps detached %s descendants after hard-killing their runner',

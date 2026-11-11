@@ -35,9 +35,8 @@ bun run test:agent         # closed stdin, separate streams
 bun run test:security      # offline attack/rollback/redaction checks
 bun run check:security-audit # public advisory metadata, 60-second bound
 bun run test:performance   # offline 10/1000-target correctness and advisory timings
-bun run test:platform      # current OS only; native Windows/macOS CI evidence is separate
+bun run test:platform      # current OS only; the other native OS runs only in its CI lane
 bun run check:contracts    # ledger, registry, workflow/toolchain boundaries
-bun run check:lanes -- --out results # all outcomes, at most two active commands
 ```
 
 Named suite membership is maintained in `scripts/registry/suites.ts`; package scripts only select a suite.
@@ -63,9 +62,9 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   materializes its independent file copy when its command environment is requested, never for pure filesystem
   setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
-- `check:lanes` exits 1 on failure, otherwise 2 on incomplete/foreign-native evidence. A successful local build is
-  not a native Windows/macOS substitute. CI runs all ten independent lanes, one step per check with its output in the
-  job log, and an always-run `Deterministic gate` that fails unless every lane succeeded. "Re-run failed jobs" works.
+- A successful local build is not a native Windows/macOS substitute. CI runs all ten independent lanes, one step
+  per check with its output in the job log, and an always-run `Deterministic gate` that fails unless every lane
+  succeeded. "Re-run failed jobs" works.
   See the [safety contract](docs/safety-contract.md).
 - A PR is ready to merge when every lane and `Deterministic gate` pass, the hosted `review` check passes with no
   unresolved blocking findings, and the code owner approves. There is no separate evidence or attestation command.

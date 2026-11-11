@@ -8,9 +8,10 @@ Read by the Crucible loop agents (`implement-spec`, `verifier`). Keep it accurat
   (`bun run test` runs `src/`, `e2e/` and `scripts/` through the isolated test launcher.)
 - **Focused tests:** `bun run scripts/run-tests.ts -- <paths...>`. Never run raw `bun test`; cached home/temp
   constants and legacy cache cleanup must remain in the launcher's disposable environment.
-- **Modules:** `scripts/validation-lanes.ts` defines ten required independent lanes. Use `bun run check:contracts`
-  and `bun run check:lanes -- --out results`. Foreign native evidence is blocked, never simulated. All lanes and
-  `Deterministic gate` must pass on the exact tested merge revision; a draft toggle does not make a PR ready.
+- **Modules:** `scripts/validation-lanes.ts` defines ten required independent lanes; `bun run check:contracts`
+  keeps the CI matrix equal to it. A native lane's checks run locally only on its own OS; another OS's native lane is
+  never emulated, and a local run does not replace the CI lane. All lanes and `Deterministic gate` must pass on the
+  exact tested merge revision; a draft toggle does not make a PR ready.
 - **Merge gate:** the ten lanes, `Deterministic gate`, the hosted `review` check and Nazar's code-owner approval.
   There is no repository-local evidence or attestation step. No agent approves its own deviations or branch settings.
 - **Commit style:** `feat(v0.x.y): ...` / `fix(v0.x.y): ...`, matching `git log`.

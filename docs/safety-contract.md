@@ -94,7 +94,8 @@ cannot affect another. Native Windows completion within the unchanged lane budge
 
 Raw stream channels remain separate. Diagnostics recognize both unchanged raw bytes and streamed terminal-visible
 text, projecting sensitive visible spans back across formatting; assertion cursors use a separate unredacted
-bounded transcript. This is not a terminal screen emulator. Sandbox setup errors produce blocked check records.
+bounded transcript. This is not a terminal screen emulator. Sandbox setup errors return no exit code and
+a sanitized reason, never a passing result.
 Decoded exact SAS `sig` is private, including encoded/case spellings; ordinary names such as `design` and `signal`
 are not short-substring matches. Incomplete names remain undecided until their boundary is known.
 Production diagnostics also mask Basic/Bearer values and credential assignments by default, including
@@ -129,13 +130,8 @@ with their layers; security and platform suites intentionally overlap them. `tes
 OS checks, not all Linux validation: portable suites plus the independent Linux build already cover Linux.
 Contract guards reject missing curated paths, files with no declared lane AC label and unmapped declared AC labels.
 Labels only prevent attribution drift; executable assertions and independent review remain necessary.
-`bun run check:lanes -- --out results` runs at most two independent commands concurrently and collects all results.
-Foreign native modules are blocked, not emulated. Local evidence cannot substitute for PR merge validation.
-Exits: 1 for proven failure, 2 for otherwise incomplete evidence, 0 only for complete required successes.
-Assembly validates each partial context and check schema, identity, command and sole expected raw-log path.
-Missing/malformed sidecars become blocked checks without dropping siblings or replacing an existing raw log;
-an independently failed sibling still makes the assembled lane exit1. Only an absent raw log receives a
-bounded blocked placeholder. Confinement and non-collision write errors still fail rather than being suppressed.
+A native lane's checks run locally only on its own OS; another OS's native lane is never emulated, and a local run
+does not replace the CI lane.
 
 CI checks out the event's exact tested SHA. The workflow matrix lists each lane's registered package scripts, and
 each runs as its own `always()` step, so checks continue after sibling failures and their output is in the job log.
@@ -143,9 +139,6 @@ Matrix fail-fast is disabled. The always-run `Deterministic gate` passes only wh
 `success`; a failed, cancelled, skipped or timed-out lane fails it. Because it reads the run's own job results,
 "Re-run failed jobs" turns it green once the re-run lanes pass, with no artifact or provider API lookup.
 The interactive driver shares the child's absolute session deadline, including unrelated waits after child disposal.
-Nested raw check-log and partial-result writes validate every existing ancestor against the original
-selected evidence root before creating directories or temporary files. A pre-existing link beneath that root
-cannot redirect a write. This is additional evidence security, not an extension of frozen sync BR-07.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 

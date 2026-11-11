@@ -16,7 +16,6 @@ export const testSuites = {
   security: [
     'scripts/dotenv-isolation.test.ts',
     'scripts/run-tests.test.ts',
-    'scripts/evidence-io.test.ts',
     'src/domain/redact.test.ts',
     'src/domain/redaction-spans.test.ts',
     'src/infrastructure/cli/terminal-text.test.ts',
@@ -45,13 +44,10 @@ export const testSuites = {
     'e2e/contracts/security.test.ts',
     'scripts/security-audit.test.ts',
     'scripts/validation-process.test.ts',
-    'scripts/check-lanes.test.ts',
-    'scripts/check-lanes-assembly.test.ts',
   ],
   platform: [
     'scripts/dotenv-isolation.test.ts',
     'scripts/run-tests.test.ts',
-    'scripts/evidence-io.test.ts',
     'src/application/commands/sync/emergency-terminal.test.ts',
     'e2e/commands/sync/safety/native-unicode-alias.test.ts',
     'src/infrastructure/fs/transaction-permissions.test.ts',
