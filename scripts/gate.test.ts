@@ -9,7 +9,7 @@ import {createBareRepo} from '../e2e/framework/git'
 import {runPipe} from '../e2e/framework/pipe'
 import {readEvidence, writeEvidence} from './evidence-io'
 import type {EvidenceContext} from './evidence-schema'
-import {readinessFixture} from './fixtures/readiness'
+import {laneFixture} from './fixtures/lanes'
 import {artifactName, deterministicGate as actualDeterministicGate, runGate as actualRunGate} from './gate'
 import {githubJSON} from './github-evidence'
 import {repositoryRoot} from './validation-context'
@@ -43,7 +43,7 @@ function runGate(context: EvidenceContext, incoming: string, pin: string, output
   })
 }
 async function fixture(kind: string) {
-  const bundle = readinessFixture(),
+  const bundle = laneFixture(),
     jobs = [],
     artifacts = []
   if (kind === 'attempt10') {
@@ -225,7 +225,7 @@ it.each([
   'expired',
   'malformed',
   'missing-log',
-])('AC-25,27 selected provider run rejects %s while reporting every sibling', async (kind) => {
+])('AC-25,27,32 selected provider run rejects %s while reporting every sibling', async (kind) => {
   const {bundle, jobs, artifacts} = await fixture(kind)
   const result = await deterministicGate(bundle.context, dir(), Bun.version, jobs, artifacts)
   expect(result.lanes).toHaveLength(10)
@@ -324,7 +324,6 @@ it('AC-25,27 actual gate entrypoint persists blocked rows after context failure'
     'validation-identity.ts',
     'evidence-io.ts',
     'evidence-schema.ts',
-    'producer-roles.ts',
     'github-evidence.ts',
     'validation-lanes.ts',
     'validation-policy.ts',

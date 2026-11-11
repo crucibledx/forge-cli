@@ -268,7 +268,7 @@ on every PR, with no path-based skips. Existing full suites stay intact; focused
 | Lane ID | Checks and command contract |
 | --- | --- |
 | quality | Existing `format:check`, `lint`, `typecheck`, including `scripts/`; separate steps preserve all diagnostics. |
-| business | `test:unit`, `test:properties`, `check:contracts`, and scripts' checker/readiness self-tests. |
+| business | `test:unit`, `test:properties`, `check:contracts`, and scripts' checker self-tests. |
 | e2e | Full `test:e2e`, including harness lifecycle/isolation and sync safety. |
 | human-dx | `test:human`: existing init/config/source/uninstall PTY journeys, invalid input, help, selection and cancellation-before-persistence; verify config/files, not just prompts. No screen-emulator claims. |
 | agent-cli | `test:agent`: `e2e/contracts/existing-cli.test.ts`, closed stdin, bounded exit, separate streams and safe outcomes for today's commands. |
@@ -301,16 +301,16 @@ Latency samples are advisory per OS/Bun/fixture; ongoing baseline aggregation, p
 regression thresholds belong to the performance follow-up, not an unimplemented 20-sample trigger here.
 
 New scripts: `test:contracts`, `test:properties`, `test:platform`, `test:human`, `test:agent`, `test:security`,
-`test:performance`, `check:contracts`, `check:lanes`, `collect:readiness`, `check:readiness`; isolate before imports.
+`test:performance`, `check:contracts`, `check:lanes`; isolate before imports.
 `scripts/run-tests.ts [--timeout-ms 20000|40000] -- <paths...>` spawns pinned `bun test --timeout <ms>`, forwards
 exit and disposes its sandbox in `finally`. `test:contracts` selects checker self-tests, `e2e/framework/contracts/`,
 `e2e/commands/sync/safety/` and `e2e/contracts/`; platform runs only native-safe safety tests plus platform.test.ts.
 `check:contracts` validates BR/AC IDs, existing mappings/paths, required lanes/workflow jobs, frozen exact toolchain
 and follow-up boundaries. Include scripts' self-tests in `test`; malformed fixture registries/workflows must fail.
 Retain `test` as the full suite. `check:lanes` runs applicable modules without short-circuiting; foreign native
-modules are blocked, not simulated. `check:readiness` consumes evidence without rerunning lanes.
+modules are blocked, not simulated.
 
-#### Timing, evidence and final readiness
+#### Timing, evidence and merge readiness
 
 Record per-job/test durations, OS/Bun version and flake results; always upload bounded sanitized artifacts for
 7 days, including failures. Upload failure cannot erase failure or satisfy required evidence.
@@ -320,14 +320,10 @@ execution-path ceiling 15 minutes (parallel lanes <=10 minutes, gate/summary <=5
 evidence/summary; report queue and independent-review time separately. Timeout blocks, never skips a lane.
 Unbounded queue/owner/LLM review is not a fabricated SLA. Local checks target <=10 seconds without flaky assertions.
 
-The proposed [readiness evidence amendment](../docs/quality-gate-readiness-contract.md) defines repository-local
-schemas, producer/adapter responsibilities, provenance, owner approvals, commands and exits. It requires its own
-amendment approval; the acceptance-contract section below remains byte-for-byte unchanged.
-Phase 1 verifies implementation checks and checker/CLI self-tests with synthetic bundles, then emits a completed
-independent attestation. Phase 2 aggregates the actual bundle; it never requires prior aggregation success or
-a verdict about its own output. Synthetic fixture verdicts are never actual PR readiness.
-Readiness needs every AC passing on the expected revision, all required lanes successful, independent code/security
-review without blockers, and no unapproved deviations. Missing/unavailable evidence blocks; no AI verdict overrides.
+Merge readiness is CI plus human review. A PR is ready when all required lanes and `Deterministic gate` pass on its
+exact tested merge revision, the hosted `review` check passes with no unresolved blocking findings, and the code
+owner approves. Missing/unavailable lane evidence fails the gate; no AI verdict overrides it. The repository keeps
+no readiness collector/checker, producer attestations or evidence bundles; the PR body and CI are the record.
 PR draft/non-draft is not readiness; avoid non-draft-only review trigger cycles. Update repo loop/contributor/safety
 guidance and owner setup for required `Deterministic gate`/reviews; report unenforced rules truthfully. No auto-merge.
 
@@ -373,6 +369,9 @@ below is shorthand for `bun run scripts/run-tests.ts -- <paths>`, with process i
 timeout; use `--timeout-ms 40000` before `--` for longer session tests. CI must use the launcher, not raw Bun.
 Test files must contain the named BR/scenario assertions; each must fail for its documented counterexample.
 
+Owner-approved amendment (crucibledx/forge-cli#29, merged by the owner): AC-32 now describes the CI merge gate.
+The earlier readiness collector/checker, producer attestations and `docs/quality-gate-readiness-contract.md` are withdrawn.
+
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 | --- | --- | --- | --- |
 | AC-1 | Ledger covers BR-01..10 with examples/counterexamples, layers, AC IDs and existing test paths; validator rejects malformed contracts. | test | `bun run check:contracts` and `bun test scripts/check-contracts.test.ts` |
@@ -406,4 +405,4 @@ Test files must contain the named BR/scenario assertions; each must fail for its
 | AC-29 | Human DX asserts input/invalid retry/selection/help/cancel-before-persistence and saved outcomes; agent CLI checks closed stdin/streams/errors separately; both report independently when another lane fails. | e2e | `bun run test:human` and `bun run test:agent`; registry fixtures verify required lane coverage |
 | AC-30 | Security tests never execute source scripts or leak secrets; audited high/critical, unavailable/invalid or unaudited results block without hiding sibling successes. No audit modifies dependencies. | test | `bun run test:security`; security wrapper fixtures inject each audit outcome and assert status/evidence/unchanged lock |
 | AC-31 | Performance smoke checks 10/1000-target output/state, records cold/warm timings, fails incorrect output/30-second timeout, reports insufficient baselines advisory; no invented hard latency threshold. | test | `bun run test:performance`; benchmark wrapper fixtures exercise timeout/wrong output/missing baseline |
-| AC-32 | Readiness is tied to current head and every AC, independent code/security review and verifier; failing/missing/stale evidence, unresolved blockers or unapproved deviations cannot become ready. | test | `bun run check:readiness`; `bun test scripts/readiness.test.ts` tests each negative fixture, two simultaneous failures and a fully evidenced ready fixture |
+| AC-32 | Merge readiness is the CI gate plus human review, not repository tooling: `Deterministic gate` passes only when every required lane passes on the current head's tested merge revision; failed/blocked/missing/stale/cancelled/skipped/malformed lane evidence fails it. The repository ships no readiness, producer or attestation collector/checker. The hosted `review` check and code-owner approval then decide the merge through owner-configured branch rules, not a repository test. | test | `bun run test:contracts` (`scripts/gate.test.ts` AC-32 cases: each rejected run, two failures, a complete run); `bun run check:contracts`; `git grep` for readiness/producer tooling and `collect:readiness`/`check:readiness` in `scripts`, `package.json`, `.factory` and `CONTRIBUTING.md` finds none; CI `Deterministic gate` on the PR |

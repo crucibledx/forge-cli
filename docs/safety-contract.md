@@ -147,16 +147,9 @@ fails the gate. An upload failure cannot turn a lane green.
 Unavailable or malformed provider lookups still persist a blocked all-lane gate summary, retaining independently
 available metadata and known failures. Invalid context is recorded as unavailable, never invented.
 The interactive driver shares the child's absolute session deadline, including unrelated waits after child disposal.
-Collector/report destinations cannot replace reserved source evidence or existing non-bundle/non-report data.
-Nested report, raw check-log and partial-result writes validate every existing ancestor against the original
+Nested raw check-log and partial-result writes validate every existing ancestor against the original
 selected evidence root before creating directories or temporary files. A pre-existing link beneath that root
 cannot redirect a write. This is additional evidence security, not an extension of frozen sync BR-07.
-Readiness selects that boundary from the input bundle's directory, not the report's parent. Its default report
-is `readiness.json` in that selected directory. Previous-report reads and stale cleanup use the same boundary;
-cleanup revalidates after asynchronous provider work. A selected-root alias is supported, links beneath it are not.
-Input/output equality uses the same portable case/NFC/expanding-case identity as other ownership comparisons.
-Existing files also compare exact device/inode identities, covering hardlinks and native short-name aliases.
-Both evidence CLIs reject source aliases before reading stale output or permitting cleanup, preserving the input bytes.
 Literal POSIX backslashes in generated target filenames are refused before the first apply; use real directories.
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 
@@ -186,90 +179,13 @@ Target automated feedback is normally 5–10 minutes, execution ceiling 15 minut
 Queue and independent-review times must be reported separately. Ten consecutive no-retry focused passes and native
 CI links are required evidence, not something inferred from one local run.
 
-## Readiness and owner boundaries
+## Merge readiness and owner boundaries
 
-Readiness is two-phase: independent exact-revision implementation checks and synthetic checker tests first;
-completed producer attestations, selected-run artifacts and one final aggregation second. No previous readiness
-report bootstraps its own success. The [approved supporting contract](quality-gate-readiness-contract.md) defines
-strict sidecars and provenance. Missing adapters/attestations remain blocked; prose saying “ready” is not evidence.
+A PR is ready for the owner when all ten lanes and the always-run `Deterministic gate` pass on its exact tested
+merge revision, and the hosted `review` check passes with no unresolved blocking findings. The code owner's approval
+is the final decision. The repository has no readiness, producer or attestation collector: the PR body and CI are
+the record, and prose saying “ready” is not evidence.
 
-Each check must cite its own `checks/<lane>/<check>.log`. The production provider validates its selected-run ZIP
-digest, original context and lane JSON, check bytes, completed job and citing lane.
-The selected run must also match the provider ID and canonical path of the independently required `ci.yml`
-workflow, with the exact PR-merge workflow reference. A supplied bundle cannot nominate a different workflow.
-Checkout/merge/live-PR and run/workflow identity are authenticated independently of job/artifact availability.
-An unavailable artifact listing blocks the affected evidence, not an independently authenticated producer failure.
-Authenticated failed/unavailable lane artifacts remain collectable for all-results diagnostics; a non-successful job cannot authenticate a passing
-lane. Producer reports cannot replace
-CI check logs, and one lane's log cannot stand in for another. Collection obtains the real selected gate job and
-requires `deviations.json` explicitly; a missing file is not evidence that no deviations exist.
-The output bundle must be colocated with its context/check evidence. Relocated `--out` paths are rejected before
-provider access instead of emitting a bundle whose relative paths cannot resolve. Unauthenticated/stale/unavailable
-verifiers produce blocked AC results; an invalid row's evidence or exit status blocks that row, not verified siblings.
-Lane results likewise become blocked when policy/context/artifact authentication fails; invalid evidence cannot
-establish a known failure. Report outputs cannot replace source sidecars/checks or existing non-report files, including
-on the stale-report cleanup path. Canonical PR conversation-comment approval URLs are accepted and authenticated.
-
-**Local session files are supporting reports, never independent approval.** The production adapter rejects
-`factory-session://` producers, even with valid schemas and hashes. Its supported authenticated producer is a
-provider-hosted `factory-droid[bot]` GitHub review on the selected PR and head. Its unique `forge-evidence-v1` block
-must contain `raw_report_markdown`, `reviews` and `verifier`, following the strict producer schema. Every record binds
-both head/tested SHAs, role, review ID, actor, exact review URI, raw-report SHA-256 and completion timestamp.
-The independently operated app must finalize that block with its own review ID/URI after creating the review;
-an implementer-posted copy or prose-only bot review is insufficient. Verification requires a different producer ID
-from code/security review. Readiness also checks the live PR head/base/merge rather than accepting stale evidence.
-
-Selecting a passing review ID cannot hide newer independent findings. The provider authenticates the complete
-paginated review history for this head/tested revision, separately per code/security/verifier role. An older
-role verdict is stale; unrelated heads, integrated revisions, actors and roles cannot supersede it. A blocking
-finding persists until a later same-role app-authored review explicitly resolves its ID with that review's
-authenticated URI, completed verdict and non-dismissed provider review. Unavailable findings cannot establish
-failure authority, and unavailable/dismissed resolutions cannot clear a completed historical blocker.
-Every historical finding's referenced evidence is authenticated before opening or clearing that blocker.
-Missing resolution evidence retains the prior proved failure and an explicit blocked-evidence diagnostic.
-Omitting the finding from a newer passing report is not resolution. New authenticated
-blockers retain known-failure exit1, even when later history pages are unavailable; missing/invalid/duplicate/
-oversized or incomplete history cannot establish readiness. Page and aggregate report-byte limits fail closed.
-Raw report-byte authentication is separate from current-verdict selection.
-Unknown/missing actor metadata and malformed older same-revision app reports are unavailable, not silently skipped.
-An older empty `COMMENTED` shell may be ignored only after validating its actor, head, timestamp, canonical review
-URI and complete review schema. It cannot be the selected ID or newer output. This exception does not cover
-nonempty Markdown, malformed attestation blocks, approvals, change requests, dismissals or any authenticated
-historical verdict. Supporting prose is never promoted to passing authority; uncertain history still blocks.
-Human dismissal never clears an app-authored blocker; a dismissed passing review cannot authorize readiness.
-Authenticated verifier failures survive history outages and obsolete selections only after each row's nonzero
-exit, evidence, revision, completed producer and independence are validated. A later passing row clears a prior
-failure only with its own valid evidence, not an incomplete or dismissed verdict. Invalid claims stay blocked2.
-Producer payloads reject duplicate roles. Collection imports each current role independently, so newer code can
-combine with still-current older security without importing the superseded code record.
-Collection assembles authenticated records even when current history is unavailable or proves failures; it
-does not grant passing authority. An obsolete record is retained as a routing fallback if no selected replacement
-exists, rather than dropping its role and hiding newer historical blockers.
-All bounded unique routing references stay in `producers.json`. The checker authenticates every selected candidate
-before history lookup and retains their records through per-finding/per-row evidence, completion, revision, exit
-and producer-independence validation. A representative bundle sidecar or URI sort is not adverse-verdict authority.
-An incomplete/invalid claimed failure cannot suppress a different candidate's valid failing AC during an outage;
-this includes an unavailable primary review, an edited sidecar, or a non-independent routing record.
-Producer independence uses authenticated identities and the app report's own role participation, not merely
-claimed local review IDs or missing local review sidecars.
-The routing list admits at most100 unique producer URIs, so overlapping old/new role producers are retained
-without granting any URI verdict authority. A changed authenticated same-ID report retains both versions'
-adverse findings/rows, but neither version's pass/resolution can clear a failure. This contested identity applies
-across overlapping role lookups; history is merged in provider submission order, not lookup order.
-Each authenticated source carries the complete parsed provider object's version hash, so cross-lookup changes
-to role participation or other records are contested even when one role's record remains byte-identical.
-Verifier independence is bound to that authenticated version's own role participation; a later edit cannot
-retroactively erase an earlier independently proved failure. Neither contested version grants passing authority.
-failure1 takes precedence over blocked2. Provider report/artifact outages and invalid remote payloads are
-reported as unavailable without discarding independently authenticated siblings. Collection emits a schema-valid
-partial bundle and the checker reauthenticates it; collection success is never a readiness verdict.
-Malformed local bundles, invalid routing lists, conflicting source sidecars and unsafe output paths still stop collection.
-Untrusted collection and readiness error diagnostics are credential-redacted and visibly terminal-escaped.
-Deviation approval requires an exact owner-authored structured decision. A review must be submitted and
-non-dismissed; pending, missing, unknown or withdrawn states cannot approve it. Authenticated issue/PR comments
-retain the separate explicit-decision route. A general PR review state alone never grants a deviation.
-Tests preserve the actual
-collector-then-checker boundary in both URI orders, without extending the strict bundle schema or bootstrapping readiness.
 Injected emergency-handler subprocess tests live beside the application sync tests and remain in contracts,
 security and platform selections. They do not claim to invoke the real CLI entrypoint.
 
@@ -279,13 +195,6 @@ Escaping presentation does not rewrite stored paths or user files. Tests inspect
 ordinary sync and preview, not a transcript sanitizer that could hide an emitted clipboard/title control.
 The same boundary protects unconditional emergency stderr, including silent mode and simultaneous report-storage
 failure. Recovery guidance remains mandatory; terminal escaping happens only after credential redaction.
-
-This adapter does not make the existing review service emit such an attestation. If the existing independently
-operated review/verifier cannot provide it, readiness stays **blocked**. Normally keep the PR draft; an explicit owner
-request may mark it ready for review to start independent automation, without granting readiness or merge approval.
-Do not manufacture
-a payload, post as the owner, reuse a local transcript as authentication, or change shared reviewer services/settings.
-The Nov5 readiness result for PR6 used the weaker local trust path and is withdrawn as sufficient approval.
 
 The owner must configure required `Deterministic gate` and independent reviews in branch rules after inspecting
 the actual check names. Agents do not change repository settings, merge, release or grant deviations. Report
