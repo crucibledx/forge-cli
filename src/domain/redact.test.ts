@@ -122,12 +122,12 @@ it('AC-15,30 a long public key after a JSON primitive keeps retained contexts bo
   )
 })
 it.each(['msg   ', 'ERROR:  ', 'log - '])(
-  'AC-15,30 mid-line spaces before %j are not a line indent for a multiline credential',
+  'AC-15,30 mid-line spaces before %j are not a line indent once the credential key is retained',
   (prefix) => {
     const secret = 'MIDLINE_PRIVATE_Q'
     const input = `${prefix}password:\n  ${secret}\nnext: public`
     const keyEnd = input.indexOf('password:') + 'password:'.length
-    const word = prefix.trimEnd()
+    const word = prefix.slice(0, prefix.indexOf(' '))
     const contexts = [word, prefix.slice(word.length), 'password:'].reduce<string[]>(
       (retained, chunk) => redactionContext(chunk, retained),
       [],
