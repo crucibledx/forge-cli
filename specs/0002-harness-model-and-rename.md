@@ -77,10 +77,12 @@ model the other two build on.
 | `io/plugin`, `PluginRequest`/`PluginResponse`, reserved `plugins: []` | `io/extension`, `ExtensionRequest`/`ExtensionResponse` | Forge's own extension point, still unbuilt |
 
 Config `version` stays `"1"`. If a config has both `assistants:` and `harnesses:`, loading fails with a message that
-names both keys and asks the user to keep one. The alias conversion is a **surgical text edit of the `assistants:`
-key line on first write**, done before the config writer runs: the existing writer reserializes the whole document
-(`CONFIG_HEADER + stringifyYaml`, `src/infrastructure/config/writer.ts`) and already drops comments on every write,
-so routing the rename through it would silently extend comment loss to user-edited files. Sync state needs no
+names both keys and asks the user to keep one. The alias conversion is a **standalone, rename-only text
+edit of the `assistants:` key line**, landing as its own write before the config writer runs: the existing writer
+reserializes the whole document (`CONFIG_HEADER + stringifyYaml`, `src/infrastructure/config/writer.ts`) and already
+drops comments on every write, so routing the rename through it would silently extend comment loss to user-edited
+files. If the operation that triggered the first write also carries other config changes, those go through the
+reserializing writer as a second write, with its existing comment-dropping behavior. Sync state needs no
 migration: state entries store only `{hash, sourceName, baseline}` (`src/infrastructure/config/state.ts`), no
 harness IDs.
 
@@ -207,7 +209,7 @@ harnesses:
 |------|----------------------------|--------------|-----------------------|
 | AC-1 | A config with only `assistants:` loads unchanged and behaves exactly as before | test | config loader unit test with a v0.6 fixture |
 | AC-2 | A config with both `assistants:` and `harnesses:` fails to load with an error naming both keys | test | config loader unit test |
-| AC-3 | The first write after loading an `assistants:` config renames the key to `harnesses:` via a surgical text edit; every other byte, including comments, is unchanged | test | alias-conversion unit test (byte comparison minus the key line) |
+| AC-3 | The alias conversion is a standalone, rename-only text edit of the config file: byte-identical except the `assistants:` key line, comments included. It lands as its own write; when the triggering operation also carries other config changes, the reserializing writer applies them in a second write with its existing comment-dropping behavior | test | alias-conversion unit test (byte comparison minus the key line) + write-ordering test |
 | AC-4 | Every built-in harness's `targetMappings` destinations and transforms match its `components` entry for the same kind | test | registry consistency test in `src/domain/harnesses/` |
 | AC-5 | `forge init`, `forge status` and `forge health` show "harness" wording and no "assistant" remains in user-facing CLI output or the README | cli snapshot + grep | grep of `--help` output, init/status fixtures, `README.md` |
 | AC-6 | `forge health` reads a v0.6 report that has `assistants` and displays it | test | report reader unit test with an old-format fixture |
