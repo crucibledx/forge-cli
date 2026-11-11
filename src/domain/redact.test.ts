@@ -126,6 +126,26 @@ it('AC-15,30 a long public key after a JSON primitive keeps retained contexts bo
     'LONG_KEY_PRIVATE_Q',
   )
 })
+it.each([
+  '{"password":null\n  ',
+  '{"password": true\n    ',
+  '{\n  "password": -1.5\n     ',
+  '{"password":\n  null\n   ',
+])('AC-15,30 an unconfirmed JSON primitive in %j still continues as a private YAML scalar', (head) => {
+  expectPrivateAcrossCuts(`${head}PENDING_PRIVATE_Q\npublic: ok`, 'PENDING_PRIVATE_Q', 'public: ok')
+})
+it.each([
+  [20, 21],
+  [21, 20],
+  [48, 49],
+  [49, 48],
+  [4, 2],
+])('AC-15,30 a numeric JSON credential stays private with key indent %i and value column %i', (indent, column) => {
+  expectPrivateAcrossCuts(
+    `{\n${' '.repeat(indent)}"password":\n${' '.repeat(column)}987654321,"error":"repository not found"}`,
+    '987654321',
+  )
+})
 it.each(['msg   ', 'ERROR:  ', 'log - '])(
   'AC-15,30 mid-line spaces before %j are not a line indent once the credential key is retained',
   (prefix) => {

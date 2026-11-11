@@ -36,7 +36,7 @@ const flowPrimitive = new RegExp(String.raw`^${JSON_PRIMITIVE}(?=\s*(?:}|,\s*"${
 const pendingFlowPrimitive = new RegExp(
   String.raw`^(?:t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?|-|-?(?:0|[1-9]\d*)(?:\.(?:\d+(?:[eE][+-]?\d*)?)?|[eE][+-]?\d*)?|${JSON_PRIMITIVE}\s*(?:,\s*(?:"${JSON_KEY_BODY}\\?(?:"\s*)?)?)?)$`,
 )
-const FLOW_INDENT_LIMIT = 48
+const FLOW_INDENT_LIMIT = 20
 const flowDelimiterEnd = /[,{]\s*$/
 
 /**
@@ -50,6 +50,17 @@ function flowLine(text: string): string | undefined {
   while (delimiter > 0 && /\s/.test(text[delimiter - 1])) delimiter--
   if (start === delimiter || !/[,{]/.test(text[delimiter - 1] ?? '')) return undefined
   return `{\n${' '.repeat(Math.min(FLOW_INDENT_LIMIT, text.length - start))}`
+}
+
+/**
+ * Replay a line's column against a key indent capped like flowValueContext. Whether the line is deeper
+ * than the key decides a YAML continuation, so that relation survives the cap. A value's own first
+ * line also keeps its bounded depth, which a YAML sequence under the key measures its items against.
+ */
+function flowColumn(indent: number, column: number, depth = false): number {
+  const replayed = Math.min(FLOW_INDENT_LIMIT, indent)
+  if (column <= indent) return Math.max(0, column - indent + replayed)
+  return replayed + (depth ? Math.min(FLOW_INDENT_LIMIT, column - indent) : 1)
 }
 
 /** The key's line indent keeps later YAML lines from reading as part of a replayed JSON value. */
@@ -76,12 +87,20 @@ function credentialOrigins(prefixes: readonly string[]): readonly string[] {
 /**
  * Keep only the syntax that decides whether a split JSON primitive ends before its next member.
  * Digits shrink to their grammar class and key names to one letter: a numeric value may be private.
+ * Line breaks keep their column relation to the key: an unconfirmed primitive may continue a YAML scalar.
  */
-function flowValueReplay(pending: string): string {
-  return pending
-    .replace(new RegExp(`"${JSON_KEY_BODY}(\\\\?)("?)`), (_, slash: string, close: string) => `"q${slash}${close}`)
-    .replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? '\n' : ' '))
-    .replace(/\d+/g, (run) => (run[0] === '0' ? run.slice(0, 2).replace(/\d/g, '0') : '1'))
+function flowValueReplay(pending: string, indent: number, column: number | null): string {
+  const lineBreak = (column: number) => '\n' + ' '.repeat(flowColumn(indent, column))
+  return (
+    (column === null ? '' : lineBreak(column)) +
+    pending
+      .replace(new RegExp(`"${JSON_KEY_BODY}(\\\\?)("?)`), (_, slash: string, close: string) => `"q${slash}${close}`)
+      .replace(/\s+/g, (run) => {
+        const end = Math.max(run.lastIndexOf('\n'), run.lastIndexOf('\r'))
+        return end < 0 ? ' ' : lineBreak(run.length - end - 1)
+      })
+      .replace(/\d+/g, (run) => (run[0] === '0' ? run.slice(0, 2).replace(/\d/g, '0') : '1'))
+  )
 }
 
 /** Go's JSON encoder writes "&" as \u0026; reading it as "&" at the same length lets query rules apply. */
@@ -399,12 +418,14 @@ function credentialValue(
         continuation: flow
           ? column === null
             ? ''
-            : '\n' + ' '.repeat(Math.min(FLOW_INDENT_LIMIT, column))
+            : '\n' + ' '.repeat(flowColumn(indent, column, true))
           : valueContext({indent, kind, column}),
       }
     if (scalar && column !== null && column >= indent && sequenceItem(text, start))
       return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
-    if (column !== null && column <= indent && !(quoted && /["'[{]/.test(text[start])))
+    // JSON ignores indentation, so a dedented JSON primitive is still the member's value.
+    const primitive = flow && (flowPrimitive.test(text.slice(start)) || pendingFlowPrimitive.test(text.slice(start)))
+    if (column !== null && column <= indent && !(quoted && /["'[{]/.test(text[start])) && !primitive)
       return {start: original, end: original, continuation: undefined}
   }
   let end = start
@@ -458,7 +479,8 @@ function credentialValue(
     if (primitive) return {start, end: start + primitive[0].length, continuation: undefined}
     // Emitted text cannot wait for the boundary, but the next chunk can still confirm the primitive.
     const pending = text.slice(start)
-    if (pendingFlowPrimitive.test(pending)) return {start, end: text.length, continuation: flowValueReplay(pending)}
+    if (pendingFlowPrimitive.test(pending))
+      return {start, end: text.length, continuation: flowValueReplay(pending, indent, column)}
   }
   if (!token && completeScalar) return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/\s/.test(text[end]))) end++
@@ -703,7 +725,8 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
       }
     }
     // A replayed JSON line break sets the first line's indent, like a line-anchored KEY state.
-    if (prefix.startsWith('{\n')) firstIndent = Math.max(firstIndent, lineKey(prefix.slice(2) + text, 0).indent)
+    const flowBreak = prefix.startsWith('{') ? Math.max(prefix.lastIndexOf('\n'), prefix.lastIndexOf('\r')) : -1
+    if (flowBreak >= 0) firstIndent = Math.max(firstIndent, lineKey(prefix.slice(flowBreak + 1) + text, 0).indent)
     const state = valueState(prefix)
     if (!state) continue
     if (state.kind === VALUE_KINDS.KEY) {
