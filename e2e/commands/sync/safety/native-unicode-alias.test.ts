@@ -6,9 +6,18 @@ import {protectedBytes, syncFixture} from '@test-helpers/sync-fixture'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
+import {SESSION_MS} from '@e2e/framework/process'
+
 import {command, config} from './helpers'
 
 const dir = useTmpDir('native-unicode-alias')
+// The session deadline also covers sandbox setup before spawn; elapsed time against the budget separates a
+// deadline kill from an early signal exit.
+async function timedCommand(root: string, args?: string[]) {
+  const started = performance.now()
+  const result = await command(root, args)
+  return {...result, elapsedMs: Math.round(performance.now() - started), budgetMs: SESSION_MS}
+}
 it.each(['apply', 'silent', 'preview', 'silent-preview'] as const)(
   'AC-6 AC-9 AC-14 native sigma aliases refuse before target/backup/state mutation on every OS: %s',
   async (mode) => {
@@ -38,7 +47,7 @@ it.each(['apply', 'silent', 'preview', 'silent-preview'] as const)(
       ...(mode.includes('silent') ? ['--silent'] : []),
     ]
     for (let invocation = 0; invocation < 2; invocation++) {
-      const result = await command(root, args)
+      const result = await timedCommand(root, args)
       expect(result, JSON.stringify({mode, invocation, ...result})).toMatchObject({
         exitCode: 1,
         signal: null,
@@ -68,7 +77,8 @@ it('AC-6/14 ordinary Unicode spelling and installed bytes survive conservative a
   await config(root, [{name: 'team', type: 'local', path: source}])
   const key = `.claude/rules/${filename}`
   for (let invocation = 0; invocation < 2; invocation++) {
-    expect((await command(root)).exitCode).toBe(0)
+    const result = await timedCommand(root)
+    expect(result, JSON.stringify({invocation, ...result})).toMatchObject({exitCode: 0, signal: null, timedOut: false})
     expect(await readFile(join(root, key), 'utf8')).toBe(content)
     const state = JSON.parse(await readFile(join(root, '.crucible/sync-state.json'), 'utf8'))
     expect(Object.keys(state.files)).toEqual([key])
