@@ -69,7 +69,11 @@ it.each([
 })
 it.each(
   [null, true, false, 0, -12.5, 6e24, {}, [], [1, 'x']].flatMap((value) =>
-    ['compact', 'spaced', 'pretty', 'nested'].map((shape) => ({value, shape, json: JSON.stringify(value)})),
+    ['compact', 'spaced', 'pretty', 'tabs', 'nested', 'nested-pretty'].map((shape) => ({
+      value,
+      shape,
+      json: JSON.stringify(value),
+    })),
   ),
 )('AC-15,30 JSON $shape non-string credential $json keeps its public sibling at every cut', ({value, shape, json}) => {
   const secret = 'NON_STRING_PRIVATE_Q'
@@ -77,10 +81,70 @@ it.each(
     compact: JSON.stringify({auth: value, error: 'repository not found', token: secret}),
     spaced: `{"auth": ${json}, "error": "repository not found", "token": "${secret}"}`,
     pretty: JSON.stringify({password: value, error: 'repository not found', token: secret}, null, 2),
+    tabs: JSON.stringify({password: value, error: 'repository not found', token: secret}, null, '\t'),
     nested: JSON.stringify({request: {api_key: value}, error: 'repository not found', client_secret: secret}),
+    'nested-pretty': JSON.stringify(
+      {request: {password: value, error: 'repository not found'}, token: secret},
+      null,
+      4,
+    ),
   }
   expectPrivateAcrossCuts(inputs[shape], secret)
 })
+it.each(['987654321', '-987654321.25', '987654321e3'])(
+  'AC-15,30 a numeric JSON credential %s stays private and out of retained contexts',
+  (value) => {
+    const secret = '987654321'
+    for (const input of [
+      `{"password":${value},"error":"repository not found"}`,
+      `{"password": ${value} , "error": "repository not found"}`,
+      `{\n  "password": ${value},\n  "error": "repository not found"\n}`,
+    ]) {
+      expectPrivateAcrossCuts(input, secret)
+      for (const size of [1, 2, 3]) {
+        let contexts: string[] = []
+        for (let cut = 0; cut < input.length; cut += size) {
+          contexts = redactionContext(input.slice(cut, cut + size), contexts)
+          expect({size, cut, contexts: contexts.filter((context) => /\d{3}/.test(context))}).toEqual({
+            size,
+            cut,
+            contexts: [],
+          })
+        }
+      }
+    }
+  },
+)
+it('AC-15,30 a long public key after a JSON primitive keeps retained contexts bounded', () => {
+  expectPrivateAcrossCuts(
+    `{"auth":null,"${'k'.repeat(200)}":"public","error":"repository not found","token":"LONG_KEY_PRIVATE_Q"}`,
+    'LONG_KEY_PRIVATE_Q',
+  )
+})
+it.each(['msg   ', 'ERROR:  ', 'log - '])(
+  'AC-15,30 mid-line spaces before %j are not a line indent for a multiline credential',
+  (prefix) => {
+    const secret = 'MIDLINE_PRIVATE_Q'
+    const input = `${prefix}password:\n  ${secret}\nnext: public`
+    const keyEnd = input.indexOf('password:') + 'password:'.length
+    const word = prefix.trimEnd()
+    const contexts = [word, prefix.slice(word.length), 'password:'].reduce<string[]>(
+      (retained, chunk) => redactionContext(chunk, retained),
+      [],
+    )
+    expect(redact(input.slice(keyEnd), {credentialPrefixes: contexts})).not.toContain(secret)
+    for (const size of [1, 2, 3]) {
+      let retained: string[] = []
+      for (let cut = 0; cut < input.length; cut += size) {
+        retained = redactionContext(input.slice(cut, cut + size), retained)
+        if (cut + size < keyEnd) continue
+        const output = redact(input.slice(cut + size), {credentialPrefixes: retained})
+        const surviving = secret.slice(Math.max(0, cut + size - input.indexOf(secret)))
+        if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      }
+    }
+  },
+)
 
 it.each([
   'password=[]SCALAR_PRIVATE_Q',

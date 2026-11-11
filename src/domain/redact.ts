@@ -30,20 +30,24 @@ const assignmentStart = new RegExp(
 const pendingNameEnd = new RegExp(NAME_BOUNDARY + String.raw`([a-z_%][a-z\d_.%+-]*)[ \t]*$`, 'i')
 const authStart = /(?:Bearer|Basic)\s+/gi
 const JSON_PRIMITIVE = String.raw`(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)`
-const JSON_KEY = String.raw`"(?:\\.|[^"\\\r\n])*"`
-const flowPrimitive = new RegExp(String.raw`^${JSON_PRIMITIVE}(?=\s*(?:}|,\s*${JSON_KEY}\s*:))`)
+const JSON_KEY_BODY = String.raw`(?:\\.|[^"\\\r\n])*`
+const flowPrimitive = new RegExp(String.raw`^${JSON_PRIMITIVE}(?=\s*(?:}|,\s*"${JSON_KEY_BODY}"\s*:))`)
 // A primitive, or the following member key, may be split by a cut before the primitive can be confirmed.
 const pendingFlowPrimitive = new RegExp(
-  String.raw`^(?:t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?|-|-?(?:0|[1-9]\d*)(?:\.(?:\d+(?:[eE][+-]?\d*)?)?|[eE][+-]?\d*)?|${JSON_PRIMITIVE}\s*(?:,\s*(?:"(?:\\.|[^"\\\r\n])*\\?(?:"\s*)?)?)?)$`,
+  String.raw`^(?:t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?|-|-?(?:0|[1-9]\d*)(?:\.(?:\d+(?:[eE][+-]?\d*)?)?|[eE][+-]?\d*)?|${JSON_PRIMITIVE}\s*(?:,\s*(?:"${JSON_KEY_BODY}\\?(?:"\s*)?)?)?)$`,
 )
 const FLOW_VALUE_CONTEXT = '{"secret":'
 const flowDelimiterEnd = /[,{][ \t]*$/
 
-/** A retained flow delimiter is a fresh origin that also knows a quoted key's primitive value is JSON. */
+/**
+ * Some retained contexts are fresh origins with more structure than an empty one: a flow delimiter,
+ * which makes a quoted key's primitive value JSON, or the indent of a line whose break was observed.
+ * Indentation is only known after a line break; mid-line spaces are not a line start.
+ */
 function credentialOrigins(prefixes: readonly string[]): readonly string[] {
   const fresh = prefixes.some((prefix) => {
     const state = valueState(prefix)
-    return prefix === '{' || (state?.kind === VALUE_KINDS.KEY && state.length === prefix.length)
+    return prefix === '{' || (state?.kind === VALUE_KINDS.KEY && state.column === 0 && state.length === prefix.length)
   })
   return fresh ? prefixes : ['', ...prefixes]
 }
@@ -54,7 +58,7 @@ function credentialOrigins(prefixes: readonly string[]): readonly string[] {
  */
 function flowValueReplay(pending: string): string {
   return pending
-    .replace(/"(?:\\.|[^"\\])*(\\?)("?)/, (_, slash: string, close: string) => `"q${slash}${close}`)
+    .replace(new RegExp(`"${JSON_KEY_BODY}(\\\\?)("?)`), (_, slash: string, close: string) => `"q${slash}${close}`)
     .replace(/\s+/g, ' ')
     .replace(/\d+/g, (run) => (run[0] === '0' ? run.slice(0, 2).replace(/\d/g, '0') : '1'))
 }
@@ -914,9 +918,13 @@ function discardedContext(discarded: string): string[] {
   const trailingLine = discarded.slice(Math.max(discarded.lastIndexOf('\n'), discarded.lastIndexOf('\r')) + 1)
   if (trailingLine && /^[ \t]*(?:-[ \t]+)*-?$/.test(trailingLine)) {
     const line = lineKey(discarded, discarded.length)
-    const indent = line.indent + (state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded) ? state.indent : 0)
-    contexts.add(valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) + discarded.slice(line.key))
+    const inherited = state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded)
+    const indent = line.indent + (inherited ? state.indent : 0)
+    // A KEY context's column 0 records that this whitespace follows an observed line break.
+    const anchored = inherited ? state.column === 0 : /[\r\n]/.test(discarded)
+    contexts.add(valueContext({indent, kind: VALUE_KINDS.KEY, column: anchored ? 0 : null}) + discarded.slice(line.key))
   }
+  if (/[\r\n]$/.test(discarded)) contexts.add(valueContext({indent: 0, kind: VALUE_KINDS.KEY, column: 0}))
   const scheme = finalMatch(discarded, /(?<![a-z\d+.-])[a-z][a-z\d+.-]*:(\/?)$/i)
   if (scheme) contexts.add(`https:${scheme[1]}`)
   // A partial URI scheme can coexist with another recognizer, such as Bearer.
@@ -952,8 +960,9 @@ export function redactionContext(discarded: string, prefixes: readonly string[] 
       const syntax = context.slice(state.length)
       // A fresh suffix of an already observed whitespace line is not another
       // indentation origin. Keep the complete observed column for this syntax.
-      if (!keys.has(syntax) || keys.get(syntax)!.indent < state.indent)
-        keys.set(syntax, {indent: state.indent, context})
+      // A line-anchored indent and a mid-line one are different origins.
+      const key = `${state.column ?? '-'};${syntax}`
+      if (!keys.has(key) || keys.get(key)!.indent < state.indent) keys.set(key, {indent: state.indent, context})
     }
   }
   return [...contexts, ...[...keys.values()].map(({context}) => context)]
