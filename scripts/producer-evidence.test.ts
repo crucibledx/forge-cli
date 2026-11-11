@@ -127,7 +127,7 @@ it.each([
   ).rejects.toThrow()
   if (kind === 'local-session' || kind === 'comment') expect(calls).toBe(0)
 })
-it.each(['success', 'failure', 'missing', 'in_progress'])(
+it.each(['success', 'failure', 'missing', 'in_progress', 'stale-success', 'stale-no-end'])(
   'AC-32 collector obtains the actual selected provider gate: %s',
   async (kind) => {
     const context = readinessFixture().context
@@ -143,13 +143,16 @@ it.each(['success', 'failure', 'missing', 'in_progress'])(
                   {
                     id: 456,
                     name: 'Deterministic gate',
-                    status: kind === 'in_progress' ? kind : 'completed',
-                    conclusion: kind,
+                    status: ['in_progress', 'stale-success', 'stale-no-end'].includes(kind)
+                      ? 'in_progress'
+                      : 'completed',
+                    conclusion: kind.startsWith('stale-') ? 'success' : kind,
+                    completed_at: kind === 'stale-success' ? '2026-11-04T10:01:00Z' : null,
                   },
                 ],
         }
       })
-    if (kind === 'missing' || kind === 'in_progress') await expect(result()).rejects.toThrow()
-    else expect((await result()).conclusion).toBe(kind)
+    if (['missing', 'in_progress', 'stale-no-end'].includes(kind)) await expect(result()).rejects.toThrow()
+    else expect((await result()).conclusion).toBe(kind === 'failure' ? 'failure' : 'success')
   },
 )

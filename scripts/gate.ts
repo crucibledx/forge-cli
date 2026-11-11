@@ -8,13 +8,26 @@ import type {EvidenceContext} from './evidence-schema'
 import {evidencePath} from './evidence-schema'
 import {blockedGateSummary} from './gate-summary'
 import type {providerArtifact} from './github-evidence'
-import {githubJSON, providerArtifactInJobWindow, providerArtifacts, providerJob} from './github-evidence'
+import {
+  githubJSON,
+  providerArtifactInJobWindow,
+  providerArtifacts,
+  providerJob,
+  providerJobFinished,
+} from './github-evidence'
 import {repositoryRoot, validationContext} from './validation-context'
 import {validationLanes} from './validation-lanes'
 import {assessLane} from './validation-policy'
 
 export const artifactName = (context: EvidenceContext, lane: string) =>
   `validation-${context.run_id}-${context.run_attempt}-${lane}`
+function providerJobDefect(jobs: z.infer<typeof providerJob>[]) {
+  if (jobs.length === 0) return 'Required provider job missing'
+  if (jobs.length > 1) return 'Required provider job duplicated'
+  if (!providerJobFinished(jobs[0]) && jobs[0].conclusion !== 'failure')
+    return `Required provider job unfinished (status ${jobs[0].status})`
+  if (jobs[0].conclusion !== 'success') return `Required provider job concluded ${jobs[0].conclusion}`
+}
 export async function deterministicGate(
   context: EvidenceContext,
   pin: string,
@@ -30,8 +43,8 @@ export async function deterministicGate(
     const job = jobs.filter((job) => job.name === definition.id)
     const artifact = artifacts.filter((artifact) => artifact.name === artifactName(context, definition.id))
     try {
-      if (job.length !== 1 || job[0].status !== 'completed' || job[0].conclusion !== 'success')
-        throw new Error(`Required provider job ${job[0]?.conclusion ?? 'missing/incomplete'}`)
+      const defect = providerJobDefect(job)
+      if (defect) throw new Error(defect)
       if (artifact.length !== 1 || artifact[0].expired)
         throw new Error('Missing/duplicate/expired selected-run artifact')
       if (!providerArtifactInJobWindow(artifact[0], job[0]))

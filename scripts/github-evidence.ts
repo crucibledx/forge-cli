@@ -19,6 +19,14 @@ export const providerArtifact = z.object({
 })
 
 const providerTimestamp = z.iso.datetime({offset: true})
+/** GitHub's jobs API can keep reporting a finished job as in_progress after recording its conclusion and end time. */
+export function providerJobFinished(
+  job: Pick<z.infer<typeof providerJob>, 'status' | 'conclusion' | 'completed_at'>,
+): boolean {
+  return (
+    job.status === 'completed' || (job.conclusion !== null && providerTimestamp.safeParse(job.completed_at).success)
+  )
+}
 /** Validate temporal provenance per selected row, preserving unrelated job outcomes. */
 export function providerArtifactInJobWindow(
   artifact: z.infer<typeof providerArtifact>,
@@ -94,11 +102,11 @@ export async function providerGate(context: EvidenceContext, read = githubJSON) 
   const response = z
     .object({
       total_count: z.number().int().max(100),
-      jobs: z.array(providerJob.pick({id: true, name: true, status: true, conclusion: true})),
+      jobs: z.array(providerJob.pick({id: true, name: true, status: true, conclusion: true, completed_at: true})),
     })
     .parse(await read(context, `/actions/runs/${context.run_id}/attempts/${context.run_attempt}/jobs?per_page=100`))
   const gates = response.jobs.filter((job) => job.name === 'Deterministic gate')
-  if (gates.length !== 1 || gates[0].status !== 'completed')
+  if (gates.length !== 1 || !providerJobFinished(gates[0]))
     throw new Error('Selected provider gate is missing or incomplete')
   const job = gates[0]
   return gateSchema.parse({

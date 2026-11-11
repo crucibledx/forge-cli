@@ -268,6 +268,49 @@ it.each([
   }
   if (kind === 'jobs-unavailable') expect(result.lanes[0].artifact_id).toBe(artifacts[0].id)
 })
+it.each([
+  ['stale-success', 'pass', ''],
+  ['stale-success-no-end', 'blocked', 'Required provider job unfinished (status in_progress)'],
+  ['stale-success-invalid-end', 'blocked', 'Required provider job unfinished (status in_progress)'],
+  ['unfinished', 'blocked', 'Required provider job unfinished (status in_progress)'],
+  ['queued', 'blocked', 'Required provider job unfinished (status queued)'],
+  ['stale-failure', 'fail', 'Required provider job concluded failure'],
+  ['unfinished-failure', 'fail', 'Required provider job concluded failure'],
+  ['completed-failure', 'fail', 'Required provider job concluded failure'],
+  ['cancelled', 'blocked', 'Required provider job concluded cancelled'],
+  ['missing', 'blocked', 'Required provider job missing'],
+  ['duplicate', 'blocked', 'Required provider job duplicated'],
+])('provider job state %s gives lane %s and names the defect', async (kind, status, reason) => {
+  const {bundle, jobs, artifacts} = await fixture('complete')
+  const state: Record<string, object> = {
+    'stale-success': {status: 'in_progress'},
+    'stale-success-no-end': {status: 'in_progress', completed_at: null},
+    'stale-success-invalid-end': {status: 'in_progress', completed_at: 'not-an-ISO-date'},
+    unfinished: {status: 'in_progress', conclusion: null, completed_at: null},
+    queued: {status: 'queued', conclusion: null, started_at: null, completed_at: null},
+    'stale-failure': {status: 'in_progress', conclusion: 'failure'},
+    'unfinished-failure': {status: 'in_progress', conclusion: 'failure', completed_at: null},
+    'completed-failure': {conclusion: 'failure'},
+    cancelled: {conclusion: 'cancelled'},
+  }
+  Object.assign(jobs[0], state[kind])
+  const provided = kind === 'missing' ? jobs.slice(1) : kind === 'duplicate' ? [...jobs, {...jobs[0], id: 99}] : jobs
+  const result = await runGate(
+    bundle.context,
+    dir(),
+    Bun.version,
+    join(dir(), 'summary.json'),
+    async (_context, endpoint) =>
+      endpoint.includes('/jobs?')
+        ? {total_count: provided.length, jobs: provided}
+        : {total_count: artifacts.length, artifacts},
+  )
+  expect(result.provider_errors).toEqual([])
+  expect(result.lanes[0]).toMatchObject({status, reason})
+  expect(result.lanes[0].reason).not.toContain('success')
+  expect(result.lanes.slice(1).every((lane) => lane.status === 'pass')).toBe(true)
+  expect(result.conclusion).toBe(status === 'pass' ? 'success' : 'failure')
+})
 it('AC-25,27 actual gate entrypoint persists blocked rows after context failure', async () => {
   const repository = await createBareRepo(dir(), {'skills/deploy.md': SKILL_DEPLOY})
   const root = join(dir(), 'checkout')
