@@ -154,7 +154,10 @@ it.each(['new file', 'replacement'])(
     ])
     if (process.platform === 'win32')
       await writeAccessMetadata(parent, await accessMetadataFromSddl(lockedDacl('(D;;0x00000006;;;WD)')))
-    else await chmod(parent, 0o500)
+    else {
+      await chmod(parent, 0o500)
+      await expect(access(parent, constants.W_OK)).rejects.toThrow()
+    }
     try {
       // The target was never replaced, so compensation must not report it as unrestored.
       await expect(prepared.commit()).rejects.toThrow('Rollback complete')

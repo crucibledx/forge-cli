@@ -120,7 +120,7 @@ export async function checkDirectoryCreationAccess(path: string, newDirectories:
       privilegeLength = Buffer.alloc(4)
     let privileges = Buffer.alloc(20)
     // Request only FILE_ADD_FILE or FILE_ADD_SUBDIRECTORY, not generic write.
-    const permits = (target: number, requested: number) => {
+    const permits = (target: number, requested: number, directory: string) => {
       const check = () => {
         privilegeLength.writeUInt32LE(privileges.length)
         return security.symbols.AccessCheck(
@@ -138,20 +138,21 @@ export async function checkDirectoryCreationAccess(path: string, newDirectories:
         const error = kernel.symbols.GetLastError(),
           required = privilegeLength.readUInt32LE()
         if (error !== 122 || required < 20 || required > 65536)
-          throw new Error(`Cannot evaluate Windows directory ACL: ${path}`)
+          throw new Error(`Cannot evaluate Windows directory ACL: ${directory}`)
         privileges = Buffer.alloc(required)
-        if (!check()) throw new Error(`Cannot evaluate Windows directory ACL: ${path}`)
+        if (!check()) throw new Error(`Cannot evaluate Windows directory ACL: ${directory}`)
       }
       return allowed.readInt32LE() !== 0 && (granted.readUInt32LE() & requested) === requested
     }
-    let current: number = ptr(descriptor)
+    // Take the existing descriptor's address at each use so its Buffer stays referenced.
+    let inheritedDescriptor: number | null = null
     for (const [level, directory] of [path, ...newDirectories].entries()) {
       if (level > 0) {
         // Same inheritance CreateDirectoryW applies when no explicit descriptor is passed.
         const inherited = Buffer.alloc(8)
         if (
           !security.symbols.CreatePrivateObjectSecurityEx(
-            current,
+            inheritedDescriptor ?? ptr(descriptor),
             null,
             ptr(inherited),
             null,
@@ -163,9 +164,10 @@ export async function checkDirectoryCreationAccess(path: string, newDirectories:
         )
           throw new Error(`Cannot derive inherited Windows directory ACL: ${directory}`)
         derived.push(inherited)
-        current = Number(inherited.readBigUInt64LE())
+        inheritedDescriptor = Number(inherited.readBigUInt64LE())
       }
-      if (!permits(current, level < newDirectories.length ? FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE))
+      const requested = level < newDirectories.length ? FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE
+      if (!permits(inheritedDescriptor ?? ptr(descriptor), requested, directory))
         throw new Error(`Directory creation access denied: ${directory}`)
     }
   } finally {
