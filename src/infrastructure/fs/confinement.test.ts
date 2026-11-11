@@ -42,7 +42,8 @@ describe('BR-07 confinement (AC-12)', () => {
       const base = await realpath(dir()),
         root = join(base, 'team\\notes'),
         alias = join(base, 'team/notes')
-      // Bun's realpath maps this root onto the alias, so both must exist natively.
+      // Bun's realpath maps this root onto the alias. Create both outside Bun so the
+      // fixture does not depend on the runtime under test.
       const created = spawnSync('/bin/sh', [
         '-c',
         'mkdir -p "$1" "$2" && printf literal > "$1/kept.md" && printf literal > "$1/gone.md" && printf alias > "$2/kept.md" && printf alias > "$2/gone.md"',
@@ -50,7 +51,7 @@ describe('BR-07 confinement (AC-12)', () => {
         root,
         alias,
       ])
-      expect(created.status).toBe(0)
+      expect({status: created.status, stderr: String(created.stderr)}).toEqual({status: 0, stderr: ''})
       const boundary = await createConfinement(root)
       expect(boundary.root).toBe(root)
       const target = await boundary.resolve('.claude/rules/a.md')
@@ -78,6 +79,30 @@ describe('BR-07 confinement (AC-12)', () => {
       expect(await readFile(join(alias, 'kept.md'), 'utf8')).toBe('alias')
       expect(await readFile(join(alias, 'gone.md'), 'utf8')).toBe('alias')
       await expect(readFile(join(alias, '.claude/rules/a.md'))).rejects.toThrow()
+    },
+  )
+  it.skipIf(process.platform === 'win32')(
+    'follows relative, absolute and parent-traversing symlinks to a literal-backslash root, never its alias',
+    async () => {
+      const base = await realpath(dir()),
+        expected = join(base, 'real', 'team\\notes'),
+        alias = join(base, 'real', 'team/notes')
+      const created = spawnSync('/bin/sh', [
+        '-c',
+        'cd "$1" && mkdir -p "real/team\\notes" real/team/notes real/x && printf alias > real/team/notes/a.md && ln -s real via && ln -s "real/x/../team\\notes" "pick\\me" && ln -s "$1/real/team\\notes" "abs\\link"',
+        'native-fixture',
+        base,
+      ])
+      expect({status: created.status, stderr: String(created.stderr)}).toEqual({status: 0, stderr: ''})
+      const selections = [join(base, 'via', 'team\\notes'), join(base, 'pick\\me'), join(base, 'abs\\link')]
+      for (const [index, selected] of selections.entries()) {
+        const boundary = await createConfinement(selected)
+        expect(boundary.root).toBe(expected)
+        expect(await boundary.resolve(join(selected, 'a.md'))).toBe(join(expected, 'a.md'))
+        await (await prepareTransaction(selected, [{path: 'a.md', content: `selected ${index}`}])).commit()
+        expect(await readFile(join(expected, 'a.md'), 'utf8')).toBe(`selected ${index}`)
+        expect(await readFile(join(alias, 'a.md'), 'utf8')).toBe('alias')
+      }
     },
   )
   it.skipIf(process.platform === 'win32')(

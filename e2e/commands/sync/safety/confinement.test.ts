@@ -52,7 +52,8 @@ for (const global of [false, true])
           source = join(base, 'up\\stream'),
           aliasSource = join(base, 'up/stream'),
           sentinel = join(base, 'outside-sentinel')
-        // Bun's realpath maps literal backslashes onto separators; create both trees natively.
+        // Bun's realpath maps literal backslashes onto separators. Create both trees outside
+        // Bun so the fixture does not depend on the runtime under test.
         const created = await runPipe(base, [
           '/bin/sh',
           '-c',
@@ -63,16 +64,26 @@ for (const global of [false, true])
           source,
           aliasSource,
         ])
-        expect(created.exitCode).toBe(0)
+        expect(created).toMatchObject({exitCode: 0, output: ''})
         await writeFile(sentinel, 'outside sentinel')
         await config(root, [{name: 'source', type: 'local', path: source}])
         await config(alias, [{name: 'source', type: 'local', path: aliasSource}])
         const aliasBefore = await readTree(alias)
-        for (const args of [['sync', '--dry-run'], ['sync'], ['sync'], ['status']]) {
+        const steps = [
+          {args: ['sync', '--dry-run'], plan: '(new)'},
+          {args: ['sync'], plan: '(new)'},
+          {args: ['sync'], plan: '(no change)'},
+          {args: ['status'], plan: '(in sync)'},
+        ]
+        for (const {args, plan} of steps) {
           const result = await runPipe(root, [process.execPath, CLI_ENTRY, ...(global ? ['--global'] : []), ...args], {
             env: global ? {HOME: root} : {},
           })
           expect(result).toMatchObject({exitCode: 0, signal: null, timedOut: false})
+          // The alias holds different bytes at the same target, so reading it would plan an update.
+          expect(result.output).toContain('.claude/skills/a.md')
+          expect(result.output).toContain(plan)
+          for (const wrong of ['(update)', 'b.md']) expect(result.output).not.toContain(wrong)
           if (args.includes('--dry-run')) await expect(readFile(join(root, '.claude/skills/a.md'))).rejects.toThrow()
           else {
             expect(await readFile(join(root, '.claude/skills/a.md'), 'utf8')).toBe('# literal')
@@ -80,7 +91,6 @@ for (const global of [false, true])
             const state = JSON.parse(await readFile(join(root, '.crucible/sync-state.json'), 'utf8'))
             expect(Object.keys(state.files)).toEqual(['.claude/skills/a.md'])
           }
-          if (args[0] === 'status') expect(result.output).toContain('in sync')
           expect(await readTree(alias)).toBe(aliasBefore)
           expect(await readFile(sentinel, 'utf8')).toBe('outside sentinel')
         }
