@@ -6,7 +6,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {accessMetadataFromSddl} from '@test-helpers/windows-access'
 import {expect, it} from 'bun:test'
 
-import {prepareTransaction} from './transaction'
+import {prepareTransaction, TransactionError, transactionIO} from './transaction'
 import {readAccessMetadata, writeAccessMetadata} from './windows-access'
 
 const dir = useTmpDir('transaction-permissions')
@@ -61,6 +61,82 @@ it('AC-8/10 Windows direct-file creation does not demand subdirectory creation r
     await expect(prepareTransaction(dir(), [{path: 'locked/new/a.md', content: 'after'}])).rejects.toThrow(
       'Directory creation access denied',
     )
+    expect(await readdir(parent)).toEqual([])
+  } finally {
+    await writeAccessMetadata(parent, original!)
+  }
+})
+// Inheritable owner/SYSTEM access keeps existing and newly created children usable.
+const inheritedOwnerAccess = '(A;OICI;FA;;;OW)(A;OICI;FA;;;SY)'
+const lockedDacl = (deniedRights: string) =>
+  `D:P${deniedRights ? `(D;;${deniedRights};;;WD)` : ''}${inheritedOwnerAccess}`
+it.each([
+  ['writable directory, new file', '', 'locked/new.md', 'allowed'],
+  ['file creation denied, new file', '0x00000002', 'locked/new.md', 'denied'],
+  ['file creation denied, replacement', '0x00000002', 'locked/a.md', 'denied'],
+  ['file creation denied, file in a new subdirectory', '0x00000002', 'locked/new/a.md', 'allowed'],
+  ['subdirectory creation denied, new file', '0x00000004', 'locked/new.md', 'allowed'],
+  ['subdirectory creation denied, file in a new subdirectory', '0x00000004', 'locked/new/a.md', 'denied'],
+] as const)(
+  'AC-8/10 Windows preflight verdict matches the native write outcome: %s',
+  async (_, deniedRights, path, expected) => {
+    if (process.platform !== 'win32') return
+    const parent = join(dir(), 'locked')
+    await mkdir(parent)
+    await writeFile(join(parent, 'a.md'), 'before')
+    const original = await readAccessMetadata(parent)
+    await writeAccessMetadata(parent, await accessMetadataFromSddl(lockedDacl(deniedRights)))
+    try {
+      const before = await readdir(parent),
+        acl = await readAccessMetadata(parent)
+      const operations = [{path, content: 'after'}]
+      const preflight = await prepareTransaction(dir(), operations).then(
+        () => 'allowed',
+        (error: Error) => {
+          expect(error.message).toContain('Directory creation access denied')
+          return 'denied'
+        },
+      )
+      expect(await readdir(parent)).toEqual(before)
+      // Bypass only the preflight so the native file APIs decide the apply outcome.
+      const native = await prepareTransaction(dir(), operations, {
+        ...transactionIO,
+        checkDirectoryCreationAccess: async () => {},
+      })
+        .then((prepared) => prepared.commit())
+        .then(
+          () => 'allowed',
+          (error: unknown) => {
+            expect(error).toBeInstanceOf(TransactionError)
+            return 'denied'
+          },
+        )
+      expect({preflight, native}).toEqual({preflight: expected, native: expected})
+      expect(await readAccessMetadata(parent)).toEqual(acl)
+      if (expected === 'denied') {
+        expect(await readdir(parent)).toEqual(before)
+        expect(await readFile(join(parent, 'a.md'), 'utf8')).toBe('before')
+      } else expect(await readFile(join(dir(), path), 'utf8')).toBe('after')
+    } finally {
+      await writeAccessMetadata(parent, original!)
+    }
+  },
+)
+it('AC-8/10 Windows denial that appears after a passing preflight fails at apply and compensates', async () => {
+  if (process.platform !== 'win32') return
+  const parent = join(dir(), 'locked'),
+    open = join(dir(), 'open')
+  await mkdir(parent)
+  await mkdir(open)
+  const original = await readAccessMetadata(parent)
+  const prepared = await prepareTransaction(dir(), [
+    {path: 'open/b.md', content: 'neighbor'},
+    {path: 'locked/new.md', content: 'after'},
+  ])
+  await writeAccessMetadata(parent, await accessMetadataFromSddl(lockedDacl('0x00000006')))
+  try {
+    await expect(prepared.commit()).rejects.toThrow('Rollback complete')
+    expect(await readdir(open)).toEqual([])
     expect(await readdir(parent)).toEqual([])
   } finally {
     await writeAccessMetadata(parent, original!)
