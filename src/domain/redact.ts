@@ -29,6 +29,35 @@ const assignmentStart = new RegExp(
 )
 const pendingNameEnd = new RegExp(NAME_BOUNDARY + String.raw`([a-z_%][a-z\d_.%+-]*)[ \t]*$`, 'i')
 const authStart = /(?:Bearer|Basic)\s+/gi
+const JSON_PRIMITIVE = String.raw`(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)`
+const JSON_KEY = String.raw`"(?:\\.|[^"\\\r\n])*"`
+const flowPrimitive = new RegExp(String.raw`^${JSON_PRIMITIVE}(?=\s*(?:}|,\s*${JSON_KEY}\s*:))`)
+// A primitive, or the following member key, may be split by a cut before the primitive can be confirmed.
+const pendingFlowPrimitive = new RegExp(
+  String.raw`^(?:t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?|-|-?(?:0|[1-9]\d*)(?:\.(?:\d+(?:[eE][+-]?\d*)?)?|[eE][+-]?\d*)?|${JSON_PRIMITIVE}\s*(?:,\s*(?:"(?:\\.|[^"\\\r\n])*\\?(?:"\s*)?)?)?)$`,
+)
+const FLOW_VALUE_CONTEXT = '{"secret":'
+const flowDelimiterEnd = /[,{][ \t]*$/
+
+/** A retained flow delimiter is a fresh origin that also knows a quoted key's primitive value is JSON. */
+function credentialOrigins(prefixes: readonly string[]): readonly string[] {
+  const fresh = prefixes.some((prefix) => {
+    const state = valueState(prefix)
+    return prefix === '{' || (state?.kind === VALUE_KINDS.KEY && state.length === prefix.length)
+  })
+  return fresh ? prefixes : ['', ...prefixes]
+}
+
+/**
+ * Keep only the syntax that decides whether a split JSON primitive ends before its next member.
+ * Digits shrink to their grammar class and key names to one letter: a numeric value may be private.
+ */
+function flowValueReplay(pending: string): string {
+  return pending
+    .replace(/"(?:\\.|[^"\\])*(\\?)("?)/, (_, slash: string, close: string) => `"q${slash}${close}`)
+    .replace(/\s+/g, ' ')
+    .replace(/\d+/g, (run) => (run[0] === '0' ? run.slice(0, 2).replace(/\d/g, '0') : '1'))
+}
 
 /** Go's JSON encoder writes "&" as \u0026; reading it as "&" at the same length lets query rules apply. */
 function escapedAmpersands(text: string): string {
@@ -337,7 +366,8 @@ function credentialValue(
       : quoted
         ? VALUE_KINDS.QUOTED
         : VALUE_KINDS.PLAIN
-    if (start === text.length) return {start, end: start, continuation: valueContext({indent, kind, column})}
+    if (start === text.length)
+      return {start, end: start, continuation: flow && column === null ? '' : valueContext({indent, kind, column})}
     if (scalar && column !== null && column >= indent && sequenceItem(text, start))
       return assignmentValue(text, start, {indent: column, kind: VALUE_KINDS.SEQUENCE, column})
     if (column !== null && column <= indent && !(quoted && /["'[{]/.test(text[start])))
@@ -390,11 +420,11 @@ function credentialValue(
   }
   if (flow) {
     // Typed JSON scalars end before sibling fields, unlike free-form credentials.
-    const primitive =
-      /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*(?:}|,\s*"(?:\\.|[^"\\\r\n])*"\s*:))/.exec(
-        text.slice(start),
-      )
+    const primitive = flowPrimitive.exec(text.slice(start))
     if (primitive) return {start, end: start + primitive[0].length, continuation: undefined}
+    // Emitted text cannot wait for the boundary, but the next chunk can still confirm the primitive.
+    const pending = text.slice(start)
+    if (pendingFlowPrimitive.test(pending)) return {start, end: text.length, continuation: flowValueReplay(pending)}
   }
   if (!token && completeScalar) return assignmentValue(text, start, {indent, kind: VALUE_KINDS.VALUE, column: null})
   while (end < text.length && (token ? /[a-z\d._~+/=-]/i.test(text[end]) : !/\s/.test(text[end]))) end++
@@ -646,7 +676,7 @@ export function redactionSpans(text: string, options: RedactionOptions = {}): Re
     } else continuedEnd = Math.max(continuedEnd, assignmentValue(text, 0, state).end)
   }
   for (const span of options.spans ?? []) add(span.start, span.end)
-  for (const prefix of ['', ...(options.credentialPrefixes ?? [])]) {
+  for (const prefix of credentialOrigins(options.credentialPrefixes ?? [])) {
     const container = containerState(prefix)
     if (container) {
       const value = containerValue(text, 0, container)
@@ -784,12 +814,12 @@ function discardedContext(discarded: string): string[] {
     if (value.continuation) contexts.add(value.continuation)
   }
   const state = valueState(discarded)
-  const retainValue = (continuation: string | undefined, quoted: boolean) => {
+  const retainValue = (continuation: string | undefined, quoted: boolean, flow = false) => {
     if (continuation !== undefined)
       contexts.add(
         valueState(continuation) || escapedValueState(continuation) || containerState(continuation)
           ? continuation
-          : (quoted ? '"secret":' : 'secret=') + continuation,
+          : (flow ? FLOW_VALUE_CONTEXT : quoted ? '"secret":' : 'secret=') + continuation,
       )
   }
   if (state) {
@@ -803,7 +833,9 @@ function discardedContext(discarded: string): string[] {
         ? line.indent +
           (state?.kind === VALUE_KINDS.KEY && !/[\r\n]/.test(discarded.slice(0, index)) ? state.indent : 0)
         : 0
-    contexts.add((indent ? valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) : '') + syntax)
+    // Without "{" or "," before a quoted key, its primitive value would read as a YAML scalar.
+    const flow = !indent && flowDelimiterEnd.test(discarded.slice(0, index)) ? '{' : ''
+    contexts.add((indent ? valueContext({indent, kind: VALUE_KINDS.KEY, column: null}) : flow) + syntax)
   }
   if (finalMatch(lastCredentialQuerySuffix(discarded), /^[?&#][^?&#=\s]+=[^&#\s]*$/)) contexts.add('?token=x')
   const queryName = unfinishedQueryName(discarded)
@@ -832,13 +864,14 @@ function discardedContext(discarded: string): string[] {
       match.flow,
     )
     covered = value.end
-    retainValue(value.continuation, match.quoted)
+    retainValue(value.continuation, match.quoted, match.flow)
   }
   const quotedKey = quotedKeyContext(discarded)
   const encodedKey = escapedKeyContext(discarded)
   if (quotedKey && !encodedKey && pendingQuery === undefined) retainKey(quotedKey.syntax, quotedKey.index)
   if (encodedKey && pendingQuery === undefined) retainKey(encodedKey.syntax, encodedKey.index)
   if (discarded.endsWith('\\')) contexts.add('\\')
+  if (flowDelimiterEnd.test(discarded)) contexts.add('{')
   // Keep a trailing, possibly split escape so a key in the next chunk still sees its separator.
   const escapeTail = finalMatch(discarded, /\\(?:[bfnrt]|u[\da-fA-F]{0,4})$/)?.[0]
   if (escapeTail) contexts.add(escapeTail)
@@ -907,7 +940,7 @@ export function redactionContext(discarded: string, prefixes: readonly string[] 
   const contexts = new Set<string>()
   const keys = new Map<string, {indent: number; context: string}>()
   const escapedBoundary = prefixes.includes('\\') && discarded.startsWith('"')
-  for (const prefix of ['', ...prefixes]) {
+  for (const prefix of credentialOrigins(prefixes)) {
     // Do not reinterpret a split encoded quote as a fresh, ordinary key delimiter.
     const boundary = escapedBoundary && !prefix.endsWith('\\') && !escapedValueState(prefix) ? '\\' : ''
     for (const context of discardedContext(prefix + boundary + discarded)) {

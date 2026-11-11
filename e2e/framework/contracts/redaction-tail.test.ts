@@ -152,6 +152,24 @@ it.each(['mixed', 'array', 'object', 'escaped-tab'])(
     }
   },
 )
+it.each(['null', 'true', '-12.5', '{}', '[]'].flatMap((value) => ['value', 'member'].map((cut) => ({value, cut}))))(
+  'AC-15,16,30 public JSON sibling after non-string credential $value survives $cut eviction',
+  ({value, cut}) => {
+    const input = `{"auth":${value},"error":"repository not found","token":"EVICTED_PRIVATE_Q"}`
+    const at = cut === 'value' ? input.indexOf(value) : input.indexOf('"error"')
+    const transcript = createTranscript()
+    transcript.append(Buffer.from(input.slice(0, at) + ' '.repeat(TAIL_BYTES)))
+    transcript.append(Buffer.from(input.slice(at)))
+    for (const finish of [false, true]) {
+      if (finish) transcript.finish()
+      for (const output of [transcript.diagnostic(), transcript.visibleDiagnostic()]) {
+        expect(output).not.toContain('EVICTED_PRIVATE_Q')
+        expect(output).toContain('repository not found')
+        expect(Buffer.byteLength(output)).toBeLessThanOrEqual(TAIL_BYTES)
+      }
+    }
+  },
+)
 it.each([
   {prefix: '"api_keys":', suffix: '\n- PENDING_PRIVATE_Q'},
   {prefix: "'api_keys':", suffix: '\n- PENDING_PRIVATE_Q'},

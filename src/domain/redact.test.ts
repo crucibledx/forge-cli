@@ -37,6 +37,50 @@ it.each([
 ])('AC-15,30 JSON-looking string credentials remain private: %j', (input) => {
   expect(redact(input)).not.toContain('JSON_PRIVATE_Q')
 })
+it.each([
+  '"token": false,JSON_PRIVATE_Q',
+  'prefix, "token": false,JSON_PRIVATE_Q',
+  '{"token":false,JSON_PRIVATE_Q}',
+  '{"token":falseJSON_PRIVATE_Q,"path":"public"}',
+  '{"token":"false,JSON_PRIVATE_Q","path":"public"}',
+  '{"token":12JSON_PRIVATE_Q,"path":"public"}',
+  '{"token":null,"JSON_PRIVATE_Q',
+  '{"token":null, JSON_PRIVATE_Q "path":"public"}',
+  '{"auth":null,"token":"JSON_PRIVATE_Q","path":"public"}',
+])('AC-15,30 JSON-looking credentials remain private at every retained cut: %j', (input) => {
+  const secret = 'JSON_PRIVATE_Q',
+    at = input.indexOf(secret)
+  for (let cut = 0; cut <= input.length; cut++) {
+    const contexts = redactionContext(input.slice(0, cut))
+    const output = redact(input.slice(cut), {credentialPrefixes: contexts})
+    const surviving = secret.slice(Math.max(0, cut - at))
+    if (surviving) expect({cut, leaked: output.includes(surviving)}).toEqual({cut, leaked: false})
+  }
+  for (const size of [1, 3, 7]) {
+    let contexts: string[] = []
+    for (let cut = 0; cut < input.length; cut += size) {
+      contexts = redactionContext(input.slice(cut, cut + size), contexts)
+      const output = redact(input.slice(cut + size), {credentialPrefixes: contexts})
+      const surviving = secret.slice(Math.max(0, cut + size - at))
+      if (surviving) expect({size, cut, leaked: output.includes(surviving)}).toEqual({size, cut, leaked: false})
+      expect(contexts.every((context) => context.length < 128 && !context.includes(secret))).toBe(true)
+    }
+  }
+})
+it.each(
+  [null, true, false, 0, -12.5, 6e24, {}, [], [1, 'x']].flatMap((value) =>
+    ['compact', 'spaced', 'pretty', 'nested'].map((shape) => ({value, shape, json: JSON.stringify(value)})),
+  ),
+)('AC-15,30 JSON $shape non-string credential $json keeps its public sibling at every cut', ({value, shape, json}) => {
+  const secret = 'NON_STRING_PRIVATE_Q'
+  const inputs: Record<string, string> = {
+    compact: JSON.stringify({auth: value, error: 'repository not found', token: secret}),
+    spaced: `{"auth": ${json}, "error": "repository not found", "token": "${secret}"}`,
+    pretty: JSON.stringify({password: value, error: 'repository not found', token: secret}, null, 2),
+    nested: JSON.stringify({request: {api_key: value}, error: 'repository not found', client_secret: secret}),
+  }
+  expectPrivateAcrossCuts(inputs[shape], secret)
+})
 
 it.each([
   'password=[]SCALAR_PRIVATE_Q',
