@@ -9,7 +9,7 @@ import {runPipe} from '../e2e/framework/pipe'
 import {TAIL_BYTES, terminateTree} from '../e2e/framework/process'
 import {createTestSandbox, testEnvironment} from './test-sandbox'
 import type {StructuredCommandOutput} from './validation-process'
-import {commandMetadata, executeCheck, MAX_STRUCTURED_BYTES} from './validation-process'
+import {executeCheck, MAX_STRUCTURED_BYTES} from './validation-process'
 
 const dir = useTmpDir('validation-process')
 const ports = {createSandbox: createTestSandbox, spawn: spawnOwnedPipe, terminate: terminateTree}
@@ -41,7 +41,6 @@ it.each(['split-utf8', 'beyond-tail', 'at-cap', 'over-cap', 'invalid-utf8', 'tra
         spawn: async () =>
           ({
             exited: Promise.resolve(0),
-            signalCode: null,
             stdout: stream(chunks),
             stderr: stream([Buffer.from('Bearer STDERR_PRIVATE_Q')]),
           }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,
@@ -130,7 +129,6 @@ it('AC-27 failed command artifacts remove native, escaped and expanded Windows s
     spawn: async () =>
       ({
         exited: Promise.resolve(19),
-        signalCode: null,
         stdout: stream(),
         stderr: stream(),
       }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,
@@ -201,7 +199,6 @@ it.each([
       actual = args
       return {
         exited: Promise.resolve(0),
-        signalCode: null,
         stdout: closed(),
         stderr: closed(),
       } as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>
@@ -273,12 +270,9 @@ it.each(['setup-error', 'setup-string', 'cleanup-error', 'cleanup-string'])(
     if (kind.startsWith('cleanup')) expect(result.stdout).toContain('visible-child')
   },
 )
-it.each(['observed-signal', 'cleanup-signal', 'late-signal'])(
-  'AC-18,25,27 captures signal and supplied replay before cleanup: %s',
+it.each(['nonzero-exit', 'zero-exit', 'exit-after-deadline'])(
+  'AC-18,25,27 keeps the exit observed before cleanup: %s',
   async (kind) => {
-    const saved = {seed: process.env.FC_SEED, replay: process.env.FC_PATH}
-    process.env.FC_SEED = '123'
-    process.env.FC_PATH = '0:1'
     let finish!: (code: number) => void
     const closed = () =>
       new ReadableStream<Uint8Array>({
@@ -288,77 +282,41 @@ it.each(['observed-signal', 'cleanup-signal', 'late-signal'])(
       })
     const child = {
       exited:
-        kind === 'late-signal'
+        kind === 'exit-after-deadline'
           ? new Promise<number>((resolve) => {
               finish = resolve
             })
-          : Promise.resolve(kind === 'observed-signal' ? 143 : 0),
-      signalCode: kind === 'observed-signal' ? 'SIGTERM' : null,
+          : Promise.resolve(kind === 'nonzero-exit' ? 143 : 0),
       stdout: closed(),
       stderr: closed(),
     } as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>
-    try {
-      const result = await executeCheck(['injected-signal'], kind === 'late-signal' ? 30 : 5000, {
-        ...ports,
-        spawn: async () => child,
-        terminate: async () => {
-          Object.defineProperty(child, 'signalCode', {value: 'SIGKILL'})
-          finish?.(137)
-          process.env.FC_SEED = '456'
-          process.env.FC_PATH = '0:2'
-        },
-      })
-      expect(result).toMatchObject({
-        signal: kind === 'observed-signal' ? 'SIGTERM' : null,
-        exit_code: kind === 'late-signal' ? null : kind === 'observed-signal' ? 143 : 0,
-        timed_out: kind === 'late-signal',
-        cwd: '.',
-        seed: '123',
-        replay: '0:1',
-      })
-    } finally {
-      if (saved.seed === undefined) delete process.env.FC_SEED
-      else process.env.FC_SEED = saved.seed
-      if (saved.replay === undefined) delete process.env.FC_PATH
-      else process.env.FC_PATH = saved.replay
-    }
+    const result = await executeCheck(['injected-exit'], kind === 'exit-after-deadline' ? 30 : 5000, {
+      ...ports,
+      spawn: async () => child,
+      terminate: async () => {
+        finish?.(137)
+      },
+    })
+    expect(result).toMatchObject({
+      exit_code: kind === 'exit-after-deadline' ? null : kind === 'nonzero-exit' ? 143 : 0,
+      timed_out: kind === 'exit-after-deadline',
+    })
   },
 )
 it.each(['SIGTERM', 'SIGKILL'])(
-  'AC-18,25,27 real command %s is retained independently of owned cleanup',
+  'AC-18,25,27 real command killed by %s keeps a failing exit independently of owned cleanup',
   async (signal) => {
     if (process.platform === 'win32') return
     const result = await executeCheck(
       [process.execPath, '-e', `process.stderr.write('before-signal');process.kill(process.pid, '${signal}')`],
       5000,
     )
-    expect(result.signal).toBe(signal)
     expect(result.exit_code).not.toBe(0)
     expect(result.exit_code).not.toBeNull()
     expect(result.timed_out).toBe(false)
-    expect(result.cwd).toBe('.')
     expect(result.stderr).toBe('before-signal')
   },
 )
-it('AC-27,30 replay metadata is bounded private diagnostic text, not an environment dump', () => {
-  const saved = {seed: process.env.FC_SEED, replay: process.env.FC_PATH}
-  process.env.FC_SEED = 'https://user:Q_PRIVATE'
-  process.env.FC_PATH = 'Bearer Q_PRIVATE'
-  try {
-    const metadata = commandMetadata()
-    expect(metadata).toMatchObject({cwd: '.', signal: null})
-    for (const value of [metadata.seed!, metadata.replay!]) {
-      expect(value).toContain('[redacted]')
-      expect(value).not.toContain('Q_PRIVATE')
-    }
-    expect(Object.keys(metadata).sort()).toEqual(['cwd', 'replay', 'seed', 'signal'])
-  } finally {
-    if (saved.seed === undefined) delete process.env.FC_SEED
-    else process.env.FC_SEED = saved.seed
-    if (saved.replay === undefined) delete process.env.FC_PATH
-    else process.env.FC_PATH = saved.replay
-  }
-})
 it('AC-25 setup failure returns a blocked diagnostic without spawning a command', async () => {
   let spawns = 0
   let setupBudget: number | undefined
@@ -454,6 +412,7 @@ it('AC-25 a proven failure survives a later pipe deadline', async () => {
   expect(result.reason).toContain('deadline')
 })
 it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure diagnostics', async () => {
+  const start = performance.now()
   const result = await executeCheck(
     [process.execPath, '-e', "process.stdout.write('out');process.stderr.write('err');setInterval(()=>{},1000)"],
     2000,
@@ -462,7 +421,7 @@ it('AC-25,30,31 bounds a hanging command and preserves separate bounded failure 
   expect(result.exit_code).toBeNull()
   expect(result.stdout).toBe('out')
   expect(result.stderr).toBe('err')
-  expect(result.duration_ms).toBeLessThan(5000)
+  expect(performance.now() - start).toBeLessThan(5000)
 })
 it('AC-25 validation execution uses the checkout authority, not caller working directories', async () => {
   const result = await executeCheck([process.execPath, '-e', 'process.stdout.write(process.cwd())'], 5000)

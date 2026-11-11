@@ -5,7 +5,7 @@ import {z} from 'zod'
 
 import {redact, redactData} from '../src/domain/redact'
 import {hashContent} from '../src/domain/sync/state'
-import {repositoryRoot} from './validation-identity'
+import {repositoryRoot} from './repository-root'
 import type {CommandOutcome, StructuredCommandOutput} from './validation-process'
 import {executeCheck} from './validation-process'
 

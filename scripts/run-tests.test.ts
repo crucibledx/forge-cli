@@ -5,8 +5,8 @@ import {describe, expect, it} from 'bun:test'
 
 import {runPipe} from '../e2e/framework/pipe'
 import {useTmpDir} from '../src/test-helpers/tmp'
+import {repositoryRoot} from './repository-root'
 import {createTestSandbox, testEnvironment} from './test-sandbox'
-import {repositoryRoot} from './validation-identity'
 
 describe('isolated launcher regressions (BR-09,10)', () => {
   const dir = useTmpDir('launcher-contracts')

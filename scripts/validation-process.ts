@@ -6,19 +6,14 @@ import type {PipeProcess} from '../e2e/framework/owned-pipe'
 import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
 import {createTranscript, diagnosticHead, drainTranscript, terminateTree} from '../e2e/framework/process'
 import {redact} from '../src/domain/redact'
+import {repositoryRoot} from './repository-root'
 import type {TestSandbox} from './test-sandbox'
 import {createTestSandbox} from './test-sandbox'
-import {repositoryRoot} from './validation-identity'
 
 export const MAX_STRUCTURED_BYTES = 2 * 1024 * 1024
 
 export interface CommandOutcome {
-  signal: string | null
-  cwd: string
-  seed: string | null
-  replay: string | null
   exit_code: number | null
-  duration_ms: number
   timed_out: boolean
   stdout: string
   stderr: string
@@ -57,18 +52,6 @@ function commandReason(value: string): string {
   )
 }
 
-/** Snapshot only allowlisted replay inputs, before setup or cleanup can change them. */
-export function commandMetadata() {
-  const safe = (value: string | undefined) => {
-    if (value === undefined) return null
-    const transcript = createTranscript(redact)
-    transcript.append(Buffer.from(value))
-    transcript.finish()
-    return transcript.visibleDiagnostic()
-  }
-  return {signal: null as string | null, cwd: '.', seed: safe(process.env.FC_SEED), replay: safe(process.env.FC_PATH)}
-}
-
 /** Bounded diagnostics, closed stdin, isolated HOME/cache and owned process group. */
 export async function executeCheck(
   command: string[],
@@ -77,7 +60,6 @@ export async function executeCheck(
   structured?: StructuredCommandOutput,
 ): Promise<CommandOutcome> {
   const start = performance.now()
-  const metadata = commandMetadata()
   let sandbox: TestSandbox | undefined
   const privateRoots = new Set<string>()
   const stdout = createTranscript(redact),
@@ -130,10 +112,7 @@ export async function executeCheck(
         drainTranscript(stdoutStream, stdout, readers),
         drainTranscript(child.stderr, stderr, readers),
         child.exited.then((code) => {
-          if (observing) {
-            exit = code
-            metadata.signal = child?.signalCode ? String(child.signalCode) : null
-          }
+          if (observing) exit = code
         }),
       ]),
       new Promise<void>((resolve) => {
@@ -182,9 +161,7 @@ export async function executeCheck(
     return privatePath(text, repositoryRoot, '<repository>')
   }
   return {
-    ...metadata,
     exit_code: exit !== null && exit !== 0 ? exit : timedOut ? null : exit,
-    duration_ms: performance.now() - start,
     timed_out: timedOut,
     stdout: clean(stdout.visibleDiagnostic()),
     stderr: clean(stderr.visibleDiagnostic()),

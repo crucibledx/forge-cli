@@ -6,12 +6,7 @@ import {createTestSandbox} from './test-sandbox'
 import {executeCheck} from './validation-process'
 
 const clean = {
-  signal: null,
-  cwd: '.',
-  seed: null,
-  replay: null,
   exit_code: 0,
-  duration_ms: 1,
   timed_out: false,
   stdout: '{}',
   stderr: '',
@@ -50,7 +45,6 @@ it.each(
       spawn: async () =>
         ({
           exited: Promise.resolve(severity === 'moderate' ? 0 : 1),
-          signalCode: null,
           stdout: stream(input),
           stderr: stream(''),
         }) as unknown as Awaited<ReturnType<typeof spawnOwnedPipe>>,

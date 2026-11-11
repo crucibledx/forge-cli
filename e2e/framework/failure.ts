@@ -1,4 +1,4 @@
-import {repositoryRoot} from '../../scripts/validation-identity'
+import {repositoryRoot} from '../../scripts/repository-root'
 import {createTranscript, diagnosticHead, diagnosticJSON, diagnosticTail, sanitize, TAIL_BYTES} from './process'
 
 interface SessionContext {

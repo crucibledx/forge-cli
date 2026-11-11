@@ -20,25 +20,23 @@ const execute = async () => timedOut
 const dir = useTmpDir('compatibility-failure')
 it('AC-15,27 escaped diagnostic budgets follow actual JSON bytes without breaking Unicode', () => {
   for (const unit of ['a', '"', '\\', '\b', '\t', '\n', '\r', '\f', '\0', '\x01', 'é', 'λ', '😀', '\ud800', '\udc00'])
-    for (const budget of [13, 16, 32, 127, 1024])
-      for (const tail of [false, true]) {
-        const input = unit.repeat(80),
-          output = diagnosticJSON(input, budget, tail)
-        expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(budget)
-        expect(JSON.parse(JSON.stringify(output))).toBe(output)
-        if (Buffer.byteLength(JSON.stringify(input)) <= budget) expect(output).toBe(input)
-        if (unit === '😀')
-          expect(output).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u)
-      }
+    for (const budget of [13, 16, 32, 127, 1024]) {
+      const input = unit.repeat(80),
+        output = diagnosticJSON(input, budget)
+      expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(budget)
+      expect(JSON.parse(JSON.stringify(output))).toBe(output)
+      if (Buffer.byteLength(JSON.stringify(input)) <= budget) expect(output).toBe(input)
+      if (unit === '😀')
+        expect(output).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u)
+    }
 })
 it('AC-27 diagnostic JSON rejects budgets too small to mark truncation, even for fitting input', () => {
-  for (const budget of [...Array.from({length: 13}, (_, index) => index), -1, 13.5, NaN, Infinity])
-    for (const tail of [false, true]) {
-      expect(() => diagnosticJSON('', budget, tail)).toThrow(RangeError)
-      expect(() => diagnosticJSON('oversized'.repeat(20), budget, tail)).toThrow('budget must be >=13')
-    }
+  for (const budget of [...Array.from({length: 13}, (_, index) => index), -1, 13.5, NaN, Infinity]) {
+    expect(() => diagnosticJSON('', budget)).toThrow(RangeError)
+    expect(() => diagnosticJSON('oversized'.repeat(20), budget)).toThrow('budget must be >=13')
+  }
   expect(diagnosticJSON('x'.repeat(11), 13)).toBe('x'.repeat(11))
-  for (const tail of [false, true]) expect(diagnosticJSON('x'.repeat(12), 13, tail)).toBe('[truncated]')
+  expect(diagnosticJSON('x'.repeat(12), 13)).toBe('[truncated]')
 })
 it('AC-15,27 failure metadata stays parseable in message AND stack, including escaped and private fields', () => {
   for (const value of ['https://user:STACK_PRIVATE', '\x01'.repeat(4000)])

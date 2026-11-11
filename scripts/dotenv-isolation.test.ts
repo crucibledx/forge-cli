@@ -4,8 +4,8 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
+import {repositoryRoot} from './repository-root'
 import {testEnvironment} from './test-sandbox'
-import {repositoryRoot} from './validation-identity'
 
 const dir = useTmpDir('dotenv-isolation')
 const keys = ['FORGE_SECRET', 'SSH_AUTH_SOCK', 'GITHUB_TOKEN']
