@@ -141,6 +141,112 @@ it.each([
   if (kind === 'ci-alias') input.package.scripts['ci:gate'] = 'echo passed'
   expect(validateContracts(input).length).toBeGreaterThan(0)
 })
+type ReleaseStep = {uses?: string; run?: string; if?: string}
+type ReleaseWorkflow = {
+  on: {workflow_dispatch: {inputs: Record<string, unknown>}}
+  jobs: Record<string, {needs?: string | string[]; steps: ReleaseStep[]}>
+}
+const findStep = (release: ReleaseWorkflow, job: string, match: (step: ReleaseStep) => boolean) =>
+  release.jobs[job].steps.find(match)!
+const releaseDrift: Record<string, [string, (release: ReleaseWorkflow) => void]> = {
+  'npm-before-build': [
+    'npm must publish after the CI gate and the binary smoke test',
+    (release) => {
+      release.jobs['publish-npm'].needs = ['ci-gate', 'quality', 'test']
+    },
+  ],
+  'npm-without-ci-gate': [
+    'npm must publish after the CI gate and the binary smoke test',
+    (release) => {
+      release.jobs['publish-npm'].needs = ['quality', 'test', 'build']
+    },
+  ],
+  'github-release-before-npm': [
+    'GitHub release must wait for npm',
+    (release) => {
+      release.jobs['github-release'].needs = 'build'
+    },
+  ],
+  'homebrew-before-github-release': [
+    'Homebrew and Scoop must wait for the GitHub release',
+    (release) => {
+      release.jobs.homebrew.needs = 'build'
+    },
+  ],
+  'scoop-before-github-release': [
+    'Homebrew and Scoop must wait for the GitHub release',
+    (release) => {
+      release.jobs.scoop.needs = 'build'
+    },
+  ],
+  'ci-gate-removed': [
+    'Release CI gate missing',
+    (release) => {
+      delete release.jobs['ci-gate']
+    },
+  ],
+  'smoke-test-removed': [
+    'Release binary smoke test missing',
+    (release) => {
+      release.jobs.build.steps = release.jobs.build.steps.filter((step) => !step.run?.includes('--version'))
+    },
+  ],
+  'dry-run-input-removed': [
+    'Release dry_run input missing',
+    (release) => {
+      delete release.on.workflow_dispatch.inputs.dry_run
+    },
+  ],
+  'github-release-unguarded': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      delete findStep(release, 'github-release', (step) => !!step.uses?.startsWith('softprops/action-gh-release@')).if
+    },
+  ],
+  'tap-token-unguarded': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      delete findStep(release, 'homebrew', (step) => !!step.uses?.startsWith('actions/create-github-app-token@')).if
+    },
+  ],
+  'bucket-push-unguarded': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      delete findStep(release, 'scoop', (step) => !!step.run?.includes('git push')).if
+    },
+  ],
+  'npm-publish-unguarded': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      delete findStep(
+        release,
+        'publish-npm',
+        (step) => !!step.run?.includes('npm publish --access public --provenance'),
+      ).if
+    },
+  ],
+  'npm-publish-guard-bypassed': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public --provenance')).if =
+        '${{ !inputs.dry_run || true }}'
+    },
+  ],
+  'npm-publish-guard-prefixed-bypass': [
+    'Release publish step must be skipped in a dry run',
+    (release) => {
+      findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public --provenance')).if =
+        "${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' || true }}"
+    },
+  ],
+}
+it.each(Object.keys(releaseDrift))('release ordering and dry-run guards: rejects %s', (kind) => {
+  const original = contractInputs()
+  const input = {...original, release: structuredClone(original.release)}
+  const [message, mutate] = releaseDrift[kind]
+  mutate(input.release)
+  expect(validateContracts(input)).toContain(message)
+})
 it.each(['missing-suite-path', 'unmapped-suite-file', 'uncovered-native-ac', 'uncovered-security-ac'])(
   'AC-25 rejects curated suite drift: %s',
   (kind) => {
