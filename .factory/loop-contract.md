@@ -17,5 +17,8 @@ Read by the Crucible loop agents (`implement-spec`, `verifier`). Keep it accurat
 - **Commit style:** `feat(v0.x.y): ...` / `fix(v0.x.y): ...`, matching `git log`.
 - **Specs:** `specs/NNNN-slug.md`, see `crucibledx/hq` `specs/README.md`. Older version specs live in `docs/`.
 - **Assets:** diagrams and demos live in `crucibledx/assets`; README images use raw GitHub URLs from there.
-- **Release:** manual. Pushing a `v*` tag runs `release.yml` (npm, GitHub Releases, Homebrew tap, Scoop bucket). Loop
-  PRs never bump versions, edit `CHANGELOG.md` release headers, or push tags.
+- **Release:** manual. Pushing a `v*` tag runs `release.yml`: it waits for a green `Deterministic gate` on the tagged
+  commit, builds and smoke-tests the binary, then publishes npm first, then GitHub Releases, then the Homebrew tap and
+  Scoop bucket. Re-runs skip an npm version that is already published. A `workflow_dispatch` with `dry_run: true` runs
+  every check and build but publishes nothing. Loop PRs never bump versions, edit `CHANGELOG.md` release headers, or
+  push tags.

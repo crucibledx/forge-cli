@@ -212,6 +212,34 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
         (step) => (step.with as Record<string, unknown>)?.['bun-version-file'] === '.bun-version',
       ), 'Release Bun pin differs')
   }
+  const releaseJobs = (input.release.jobs ?? {}) as Record<
+    string,
+    {needs?: string | string[]; steps?: Record<string, unknown>[]}
+  >
+  const releaseNeeds = (id: string) => [releaseJobs[id]?.needs ?? []].flat()
+  require(releaseJobs['ci-gate']?.steps?.some((step) =>
+    String(step.run).includes('"Deterministic gate"'),
+  ), 'Release CI gate missing')
+  require(releaseJobs.build?.steps?.some((step) =>
+    String(step.run).includes('dist/forge-linux-x64 --version'),
+  ), 'Release binary smoke test missing')
+  require(['ci-gate', 'build'].every((id) =>
+    releaseNeeds('publish-npm').includes(id),
+  ), 'npm must publish after the CI gate and the binary smoke test')
+  require(releaseNeeds('github-release').includes('publish-npm'), 'GitHub release must wait for npm')
+  require(['homebrew', 'scoop'].every((id) =>
+    releaseNeeds(id).includes('github-release'),
+  ), 'Homebrew and Scoop must wait for the GitHub release')
+  require(input.release.on?.workflow_dispatch?.inputs?.dry_run?.type === 'boolean', 'Release dry_run input missing')
+  for (const job of Object.values(releaseJobs))
+    for (const step of job.steps ?? [])
+      if (
+        ['softprops/action-gh-release@', 'actions/create-github-app-token@'].some((action) =>
+          String(step.uses).startsWith(action),
+        ) ||
+        String(step.run).includes('git push')
+      )
+        require(step.if === '${{ !inputs.dry_run }}', 'Release publish step must be skipped in a dry run')
   const safety = input.docs.find((doc) => doc.path === 'docs/safety-contract.md')?.text ?? ''
   require(businessRuleIds.every((id) => safety.includes(id)), 'Documented safety ledger incomplete')
   require([
