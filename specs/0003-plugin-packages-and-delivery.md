@@ -27,26 +27,20 @@ archive/CDN source, and no lockfile.
 
 - **Agent Plugins 1.0** is the package format. Forge **vendors its Apache-2.0 JSON Schemas** (`plugin.schema.json`,
   `mcp.schema.json`) and validates with ajv, honoring the spec's two non-fatal cases (unknown top-level fields;
-  non-object `extensions` in 1.0) so validation is conformant. The `dev.crucibledx.forge` extension namespace needs
-  no registration (reverse-domain convention, spec §8). Forge joins the spec's open hooks PR (#89) and subagents
-  Discussion (#91) with implementer evidence instead of proposing new formats.
-- **Microsoft APM** owns dependency resolution, transitive deps, and org policy. Forge does not rebuild them; it
-  rejects multi-plugin dependency graphs and points users at APM for that. APM's new-target admissions are frozen
-  (tracker #3047, 2026-11-10: Kilo/Devin/Cline requests deferred), so upstreaming a Droid target is a post-v0.7
-  revisit with forge itself as the evidence of demand. Accepting `apm.yml` as a forge source is a v0.8 candidate.
-- **Vercel `skills`**: forge adopts its `skills-lock.json` v2 `computedHash` algorithm verbatim for plugin content
-  hashes (stable, documented, MIT) so the ecosystems stay hash-interoperable, and uses its ~80-agent path table
-  (which includes Droid and Devin) as cross-check data for the 0002 components model.
-- **Vercel `plugins`** (the `npx plugins` installer; its repo is no longer public, so it is treated as a black box):
-  forge's `agent-plugins` emitter output stays installable by it, so teams can mix native installers with forge.
-- **add-mcp** (Apache-2.0, TS, library API, already covers Factory Droid's `mcp.json` paths) is the reference for
-  per-harness MCP config locations; forge reuses its path table rather than re-deriving it.
-- **`jsonc-parser`** (MIT, comment/format-preserving) powers JSONC keyed merges; **`smol-toml`** (BSD-3) powers TOML
-  merges. SKILL.md frontmatter validation ports the small Apache-2.0 `skills-ref` rules to TS (the official Python
-  validator is demo-only; a Python runtime dependency is not acceptable).
-- Harness marketplaces stay the vendors'; forge reads their catalogs and generates all four formats for producers
-  (section 4) instead of running a registry. The official `agent-plugins-conformance` plugins are reused as
-  verification fixtures (0004).
+  non-object `extensions` in 1.0). The `dev.crucibledx.forge` namespace needs no registration (spec §8). Forge joins
+  the open hooks PR (#89) and subagents Discussion (#91) with implementer evidence instead of proposing new formats.
+- **Microsoft APM** owns dependency resolution, transitive deps, and org policy; forge rejects multi-plugin dependency
+  graphs and points users there. APM's new-target admissions are frozen (tracker #3047, 2026-11-10), so upstreaming
+  a Droid target is a post-v0.7 revisit with forge as the demand evidence; `apm.yml` as a source is a v0.8 candidate.
+- **Vercel `skills`**: forge adopts its `skills-lock.json` v2 `computedHash` algorithm verbatim for content hashes
+  (MIT) and uses its ~80-agent path table (includes Droid and Devin) as cross-check data for the 0002 model.
+- **Vercel `plugins`** (`npx plugins`; repo no longer public, so a black box): forge's `agent-plugins` emitter output
+  stays installable by it, so teams can mix native installers with forge.
+- **add-mcp** (Apache-2.0, covers Factory Droid) is the reference for per-harness MCP config locations.
+  **`jsonc-parser`** (MIT, comment-preserving) and **`smol-toml`** (BSD-3) power keyed merges. SKILL.md validation
+  ports the Apache-2.0 `skills-ref` rules to TS (no Python runtime dependency).
+- Harness marketplaces stay the vendors'; forge reads their catalogs and emits them for producers (section 4) instead
+  of running a registry. The official `agent-plugins-conformance` plugins are reused as verification fixtures (0004).
 - What forge adds that nobody has: delivery into Droid, Kilo, OpenCode and Cline; pinned, scheduled, transactional
   installs with drift and rollback; and the cross-harness verification lane.
 
@@ -55,7 +49,7 @@ archive/CDN source, and no lockfile.
 - Deliver an Agent Plugins 1.0 package, versioned and pinned, into every tier-1 harness.
 - Use each harness's native plugin system where it exists; manage a pseudo-plugin where it doesn't.
 - Source plugins from git (any host, with ref/tag/sha and semver ranges), local folders, HTTPS archives/private CDNs,
-  and marketplace catalogs.
+  and marketplace catalogs; publish producer catalogs in every harness's format.
 - Record exactly what was installed in a committed lockfile; support update, outdated, and drift reporting.
 - Keep every write inside the safety contract, including keyed merges into harness settings files.
 - Leave seams for the future compiler (per-harness emit stage), without designing it.
@@ -169,11 +163,19 @@ This design means **forge owns authentication once**: harnesses install from for
 need marketplace credentials — sidestepping Copilot's sign-in-only auth, Codex's undocumented CLI git auth, Cursor's
 dashboard-only imports, and headless CI with no credential helper.
 
-Producer side: `forge marketplace emit` generates `.claude-plugin/`, `.factory-plugin/`, `.agents/plugins/`,
-`.cursor-plugin/`, and `.github/plugin/` catalogs from one forge manifest, using relative-path sources (the only
-universally supported entry type). A forge-built plugin repo is then installable by native harness flows even without
-forge. (Deferred if it pushes v0.7 over scope; marked optional in the rollout.)
+Producer side: `forge marketplace emit` turns a repo of plugin packages into a marketplace that native harness flows
+can install from without forge. Input is a `marketplace:` section in the producer's forge config (`name`, `owner`,
+and `plugins:`, a list of package paths). Output is one catalog per location, four schemas in five places:
+`.claude-plugin/`, `.factory-plugin/`, `.agents/plugins/`, `.cursor-plugin/`, and `.github/plugin/` (Copilot reads
+the Claude schema there). Each entry carries the package's manifest `name` and `version` and a relative-path source,
+the only entry type every harness supports. Rules:
 
+- Every declared package passes `forge plugin validate` first; one failure aborts emit before any write.
+- Catalogs are written through the keyed-merge mutation (section 7). Forge owns only the `plugins[]` entries for
+  the packages it declares, plus top-level fields when it creates the file; hand-written entries survive. An entry
+  name already owned by the Codex registrar in the same `.agents/plugins/marketplace.json` is a named error.
+- `--check` writes nothing and exits non-zero, naming each stale catalog, when the files differ from what emit
+  would write. Producers run it in CI.
 ### 5. Versioning and lockfile
 
 - **Plugin version:** `plugin.json` `version`, required by forge to be semver even though the standard makes it
@@ -312,7 +314,7 @@ New commands (all with `--json`, `--yes`, and full flag equivalents; cancel exit
 | `forge plugin update [name]` / `outdated` / `revert <name>` | Lockfile lifecycle |
 | `forge plugin validate [path]` | Static validation + per-harness portability report (also runs pre-install) |
 | `forge plugin pack --harness <id> --out <dir>` | Emit exact per-harness output (dev + golden snapshots); `agent-plugins` output stays installable by `npx plugins` |
-| `forge marketplace emit` | Generate all catalog formats for a producer repo (optional, see rollout) |
+| `forge marketplace emit [--check]` | Generate (or, with `--check`, verify) all catalog formats for a producer repo (section 4) |
 
 `forge sync` installs/updates everything in `plugins:` per the lockfile, and `forge status`/`health` include plugin
 drift. Validation failure aborts before any write (BR-01 discipline).
@@ -321,9 +323,8 @@ drift. Validation failure aborts before any write (BR-01 discipline).
 
 Emitters consume an intermediate `PluginPackage` record (parsed manifest + components + resolved assets), not raw
 files. The future compiler ([hq research](https://github.com/crucibledx/hq/blob/main/research/forge-compiler-research.md))
-plugs in between parse and emit — optimizing, tree-shaking, and ordering components before the same emitters run —
-without any adapter changes. The lockfile's per-harness output hashes double as the compiler's change-detection
-input. No compiler work is in this spec.
+plugs in between parse and emit without adapter changes; the lockfile's per-harness output hashes double as its
+change-detection input. No compiler work is in this spec.
 
 ## Rollout
 
@@ -342,19 +343,17 @@ Milestones, each shipped as small PRs (dependency order):
 - **M6:** `cursor` emitter + Copilot, Cursor, Devin registrars; `antigravity` emitter + registrar only if the
   conditional Antigravity scope (0002 Goals) lands.
 - **M7:** `pseudo` emitter (Kilo, Cline, Cursor project scope, custom harnesses) + `shim` emitter (OpenCode, Kilo).
-- **M8 (optional):** marketplace catalogs as a source + `forge marketplace emit` for producers. Ships only if M1–M7
-  land early; otherwise v0.8. If it ships, AC-6 gains the producer direction (emitted catalogs parse with each
-  vendor's own tooling).
+- **M8:** marketplace catalogs as a source (after M3) + `forge marketplace emit` and `--check` for producers (after
+  M4). In v0.7 scope by owner decision.
 - Repo-root `SKILL.md` (forge's agent surface) ships with M3. Docs per milestone; web repo after v0.7 (0002).
 
-**De-scope fallback (no estimates, ordering only).** If milestones slip, v0.7a is M1–M5 plus the `pseudo` emitter
-from M7: rename, model, package, sources, lockfile, and delivery into Droid, Claude, Codex, Cline and custom
-harnesses. The first candidates to move to v0.7b are the M6 registrars (Copilot, Cursor, Devin), then the `shim`
-emitter, then the conditional Antigravity scope. M8 is always the first cut.
+**De-scope fallback (no estimates, ordering only).** If milestones slip, v0.7a is M1–M5, the `pseudo` emitter
+from M7, and M8: rename, model, package, sources, marketplaces, lockfile, and delivery into Droid, Claude, Codex,
+Cline and custom harnesses. The first candidates to move to v0.7b are the M6 registrars (Copilot, Cursor, Devin),
+then the `shim` emitter, then the conditional Antigravity scope. M8 is owner-committed and never a slip candidate.
 
 ## Open questions
 
-- Should `forge marketplace emit` (producer catalogs in all four formats) be in v0.7 scope or deferred to v0.8? Recommended: defer unless M1–M7 finish early; it is marked M8-optional above.
 - Registrar details marked UNVERIFIED in the research (Claude reading Agent Plugins natively, Droid `portableOnly`, Cursor/Devin cache layouts, which file `kilo plugin` writes) are engineering spikes during M5–M7, not product decisions.
 
 ## Acceptance contract
@@ -382,7 +381,7 @@ emitter, then the conditional Antigravity scope. M8 is always the first cut.
 | AC-19 | Keyed merges preserve comments, formatting, and user sibling keys; external edits to a forge-owned key block the sync without `--force`; an unparseable settings file blocks with a named error; `--force` overrides drift and the plan lists what it overrode | test | jsonc/toml merge unit tests + drift/force cases |
 | AC-20 | `forge plugin remove` and `forge uninstall` delete exactly the forge-owned keys and files recorded in state v3, nothing else | e2e | removal e2e with pre-seeded user keys |
 | AC-21 | Settings delivery is opt-in: applied with `--accept-settings` or `settings: allow`, shown as a diff interactively, skipped-and-reported otherwise; `--yes` never implies acceptance | cli snapshot + e2e | `plugin add` output on a settings-carrying fixture; non-interactive skip case |
-| AC-22 | Every plugin command supports `--json`, `--yes`, full flag equivalents, and exits non-zero on cancel; `plugin list` and `plugin pack` produce the documented output | e2e | agent-mode command e2e |
+| AC-22 | Every plugin and marketplace command supports `--json`, `--yes`, full flag equivalents, and exits non-zero on cancel; `plugin list` and `plugin pack` produce the documented output | e2e | agent-mode command e2e |
 | AC-23 | The repo-root `SKILL.md` validates against the ported skills-ref rules and describes the plugin workflow | test | skill validation test |
 | AC-24 | A plugin that fails validation aborts the sync before any write (BR-01 discipline); a missing plugin cache with an unreachable source also aborts before any write with a source error naming the plugin | e2e | failing-validation + offline-cache-miss sync e2e |
 | AC-25 | A failed install rolls back the pre-run snapshot, including keyed-merged settings files; `check:contracts` passes with the amended ledger | e2e + contract | rollback e2e with injected apply failure; `bun run check:contracts` |
@@ -390,6 +389,10 @@ emitter, then the conditional Antigravity scope. M8 is always the first cut.
 | AC-27 | `forge status` and `forge health` report drift between lock, installed copy, and harness state (including keyed-merge drift) | e2e | status/health e2e with seeded drift |
 | AC-28 | `forge plugin pack --harness agent-plugins` output installs with `npx plugins` | e2e | pack + install round-trip |
 | AC-29 | A custom harness with `plugin.mode: native` using a data-only emitter (`agent-plugins`/`claude`/`pseudo`) and registrar (`dropIn`/`settings-keys`) is accepted; any other combination is rejected at load with a named error | test | definition registry validation tests |
+| AC-30 | `forge marketplace emit` writes the five catalogs (`.claude-plugin/`, `.factory-plugin/`, `.agents/plugins/`, `.cursor-plugin/`, `.github/plugin/` `marketplace.json`) from the `marketplace:` config, one entry per declared package with its manifest `name`, `version` and a relative-path source; a rerun is byte-identical | test | golden snapshot per catalog from a two-package producer fixture + rerun diff |
+| AC-31 | Every emitted catalog round-trips: forge's own catalog parser (AC-6) reads it and resolves each entry to the declared package path and version | test | AC-6 parser run on the AC-30 golden output |
+| AC-32 | Emit preserves hand-written entries and top-level fields in an existing catalog; an entry name already owned by the Codex registrar fails with a named error; a declared package that fails validation aborts emit before any write | e2e | emit e2e: pre-seeded hand-written catalog, registrar collision, invalid package |
+| AC-33 | `forge marketplace emit --check` writes nothing; it exits non-zero naming each stale catalog when files differ from what emit would write, and exits 0 when they match | e2e | check-mode e2e, stale and current cases |
 
 ## Sources
 
