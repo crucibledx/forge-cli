@@ -20,6 +20,8 @@ const mockSyncState: SyncState = {
 
 let rendererCalls: Array<{method: string; args: unknown[]}> = []
 let confirmResponse = true
+let confirmCalls = 0
+let stateError: Error | undefined
 let schedulerInstalled = true
 let schedulerUninstalled = false
 let crucibleDirRemoved = false
@@ -37,7 +39,10 @@ const cleanupQueries = {...(await import('../shared/source.cleanup'))}
 mock.module('@infrastructure/cli/prompts', () => ({
   intro: track('intro'),
   outro: track('outro'),
-  confirm: async () => confirmResponse,
+  confirm: async () => {
+    confirmCalls++
+    return confirmResponse
+  },
 }))
 
 mock.module('@infrastructure/cli/renderer', () => ({
@@ -50,7 +55,10 @@ mock.module('@infrastructure/cli/renderer', () => ({
 
 mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async () => mockConfig,
-  loadSyncState: async () => mockSyncState,
+  loadSyncState: async () => {
+    if (stateError) throw stateError
+    return mockSyncState
+  },
   removeCrucibleDir: async () => {
     crucibleDirRemoved = true
   },
@@ -90,6 +98,8 @@ const {runUninstall} = await import('./handler')
 beforeEach(() => {
   rendererCalls = []
   confirmResponse = true
+  confirmCalls = 0
+  stateError = undefined
   schedulerInstalled = true
   schedulerUninstalled = false
   crucibleDirRemoved = false
@@ -119,6 +129,17 @@ describe('runUninstall', () => {
     expect(schedulerUninstalled).toBe(false)
     expect(crucibleDirRemoved).toBe(false)
     expect(rendererCalls.some((c) => c.method === 'outro' && String(c.args[0]).includes('cancelled'))).toBe(true)
+  })
+
+  it('refuses invalid tracked state before prompting or removing anything', async () => {
+    stateError = new Error('Ambiguous tracked backslash path on POSIX: notes/a\\b.md')
+
+    await expect(runUninstall()).rejects.toThrow('Ambiguous tracked backslash path')
+
+    expect(confirmCalls).toBe(0)
+    expect(schedulerUninstalled).toBe(false)
+    expect(deletedFiles).toEqual([])
+    expect(crucibleDirRemoved).toBe(false)
   })
 
   it('skips scheduler when not installed', async () => {

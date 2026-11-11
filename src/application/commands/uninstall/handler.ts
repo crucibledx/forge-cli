@@ -1,3 +1,4 @@
+import type {SyncState} from '@domain/sync/state'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig, loadSyncState, removeCrucibleDir} from '@infrastructure/config'
@@ -17,6 +18,8 @@ export async function runUninstall(): Promise<void> {
   if (!config) {
     throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
   }
+  // Unreadable or ambiguous tracked state must refuse before the prompt and before any scheduler or file change.
+  const syncState = await loadSyncState(projectRoot)
 
   prompts.intro(M.intro)
 
@@ -33,7 +36,7 @@ export async function runUninstall(): Promise<void> {
   await uninstallScheduler(projectRoot)
 
   // 2. Remove synced files
-  await removeSyncedFiles(projectRoot)
+  await removeSyncedFiles(projectRoot, syncState)
 
   // 3. Remove .crucible directory
   await removeCrucibleDir(projectRoot)
@@ -60,8 +63,7 @@ async function uninstallScheduler(projectRoot: string): Promise<void> {
   }
 }
 
-async function removeSyncedFiles(projectRoot: string): Promise<void> {
-  const syncState = await loadSyncState(projectRoot)
+async function removeSyncedFiles(projectRoot: string, syncState: SyncState): Promise<void> {
   const allFiles = Object.keys(syncState.files)
 
   if (allFiles.length === 0) {

@@ -5,6 +5,7 @@ import type {SyncState} from '@domain/sync/state'
 // ─── Mock state ─────────────────────────────────────────────────────────────
 
 let rendererCalls: Array<{method: string; args: unknown[]}> = []
+let stateError: Error | undefined
 let mockConfig: unknown = {
   version: '1',
   assistants: [{id: 'claude-code', enabled: true}],
@@ -54,7 +55,10 @@ mock.module('@infrastructure/cli/prompts', () => ({
 
 mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async () => mockConfig,
-  loadSyncState: async () => mockSyncState,
+  loadSyncState: async () => {
+    if (stateError) throw stateError
+    return mockSyncState
+  },
   writeProjectConfig: writeProjectConfigMock,
   writeSyncState: writeSyncStateMock,
 }))
@@ -90,6 +94,7 @@ const {runSourceList, runSourceAdd, runSourceEdit, runSourceRemove} = await impo
 
 beforeEach(() => {
   rendererCalls = []
+  stateError = undefined
   selectMock.mockClear()
   confirmMock.mockClear()
   writeProjectConfigMock.mockClear()
@@ -144,6 +149,15 @@ describe('runSourceEdit', () => {
 })
 
 describe('runSourceRemove', () => {
+  it('refuses invalid tracked state before deleting files or writing state and config', async () => {
+    stateError = new Error('Ambiguous tracked backslash path on POSIX: notes/a\\b.md')
+
+    await expect(runSourceRemove()).rejects.toThrow('Ambiguous tracked backslash path')
+
+    expect(writeSyncStateMock).not.toHaveBeenCalled()
+    expect(writeProjectConfigMock).not.toHaveBeenCalled()
+  })
+
   it('removes source and cleans files when confirmed', async () => {
     await runSourceRemove()
 
