@@ -1,0 +1,502 @@
+[
+ {
+  "prompt": "Set up our internal gRPC services so each one presents a client cert and verifies the peer's cert against our private CA before accepting traffic.",
+  "expected": "mtls-configuration",
+  "style": "direct"
+ },
+ {
+  "prompt": "Security flagged that any pod in the cluster can call the billing API directly over plain HTTP. How do we make services prove who they are to each other?",
+  "expected": "mtls-configuration",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Harden scripts/deploy.sh: add strict mode, trap cleanup on exit, quote all the variables and handle failures properly.",
+  "expected": "bash-defensive-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our nightly backup script silently kept going after rsync failed and then deleted the old snapshots. Can you make it stop doing dumb things when a step breaks?",
+  "expected": "bash-defensive-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Install the Linkerd control plane on our staging cluster, inject the proxy into the payments namespace, and add a retry budget for the inventory service.",
+  "expected": "linkerd-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Istio is way too heavy for our five-node cluster but we still want automatic encryption between pods and per-route success metrics. What's a lighter option and how do we roll it out?",
+  "expected": "linkerd-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add Stripe Checkout to the Express backend with a monthly subscription plan and a webhook handler for invoice.paid.",
+  "expected": "stripe-integration",
+  "style": "direct"
+ },
+ {
+  "prompt": "Customers are getting charged twice because our payment_intent.succeeded handler runs again whenever the provider retries delivery. How do I make that endpoint safe to replay?",
+  "expected": "stripe-integration",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Nazar just dropped a rough idea in Slack about a CLI that lints agent prompts. Can you research it and ask him a few sharp questions before anyone writes a spec?",
+  "expected": "idea-discovery",
+  "style": "direct"
+ },
+ {
+  "prompt": "There's a new hq issue that just says 'maybe we should auto-summarize PR reviews?' and nothing else. Figure out whether this is worth pursuing and what already exists out there.",
+  "expected": "idea-discovery",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Help me move our 1.x app to modern Angular incrementally using ngUpgrade so old controllers and new components can run side by side.",
+  "expected": "angular-migration",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our admin dashboard is still built on $scope and ng-controller from 2015 and nobody can hire for it anymore. How do we get off it without a big-bang rewrite?",
+  "expected": "angular-migration",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Build the settings screen in SwiftUI with a NavigationStack, grouped Form sections, and proper Dynamic Type support so it feels native on iPhone.",
+  "expected": "mobile-ios-design",
+  "style": "direct"
+ },
+ {
+  "prompt": "App Store review bounced our build saying the UI doesn't match platform conventions, and users say the tab bar and sheets feel like a web page. What should we change?",
+  "expected": "mobile-ios-design",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Our fine-tuned Llama checkpoint passed promotion; convert it to GGUF with an importance matrix at Q4_K_M and also produce a merged safetensors copy.",
+  "expected": "quantized-export",
+  "style": "direct"
+ },
+ {
+  "prompt": "We need to ship the new 8B adapter to both a vLLM box with H100s and people running llama.cpp on laptops. Which artifact formats should I produce and how?",
+  "expected": "quantized-export",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Write a workflow in .github/workflows that runs lint and tests on every PR, builds the Docker image, and deploys to Fly on merges to main.",
+  "expected": "github-actions-templates",
+  "style": "direct"
+ },
+ {
+  "prompt": "Right now someone runs npm test on their laptop and then scp's the build to the server. I'd like that to happen automatically whenever we push to our GitHub repo.",
+  "expected": "github-actions-templates",
+  "style": "indirect"
+ },
+ {
+  "prompt": "I'm starting a new notification service in Python. Help me lay out the modules so responsibilities stay separated and I favor composition instead of deep class hierarchies.",
+  "expected": "python-design-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our utils.py has grown to 3,000 lines and the ReportGenerator class inherits from four mixins. Every change breaks something unrelated. How should this be restructured?",
+  "expected": "python-design-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Install the Hermes plugin that lets my agent read X timelines and analyze tweets, with posting gated behind my approval.",
+  "expected": "hermes-tweet",
+  "style": "direct"
+ },
+ {
+  "prompt": "I want my Hermes agent to pull the last day of posts from a few accounts on X and summarize sentiment, but it must never reply or like anything without asking me first.",
+  "expected": "hermes-tweet",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Define availability and latency targets for the checkout API, compute an error budget from our Prometheus metrics, and set up burn-rate alerts.",
+  "expected": "slo-implementation",
+  "style": "direct"
+ },
+ {
+  "prompt": "Product keeps asking 'is the site reliable enough to ship this feature?' and engineering keeps paging on every 500. We need an objective way to decide when to slow down releases.",
+  "expected": "slo-implementation",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add Vitest unit tests for src/cart/reducer.ts and React Testing Library tests for the CartSummary component, mocking the fetch calls.",
+  "expected": "javascript-testing-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our TypeScript frontend has zero coverage and last release a refactor of the date formatter broke the invoice page. Where do I even start to get confidence before merging?",
+  "expected": "javascript-testing-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Configure turbo.json pipelines for our pnpm workspace and enable Vercel remote cache so CI reuses build outputs across runs.",
+  "expected": "turborepo-caching",
+  "style": "direct"
+ },
+ {
+  "prompt": "Every CI run rebuilds all twelve packages in our JS monorepo even when only the docs app changed, and it takes 25 minutes. How do we skip work that hasn't changed?",
+  "expected": "turborepo-caching",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Look through this repository and tell me what language, framework, package manager, and build tooling it uses.",
+  "expected": "detect-stack",
+  "style": "direct"
+ },
+ {
+  "prompt": "I just cloned this project for a contract gig and there's no README. What is it built with and how is it laid out?",
+  "expected": "detect-stack",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Write the GitLab pipeline config for this repo with build, test, and deploy stages, caching node_modules between jobs and running on our tagged Docker runners.",
+  "expected": "gitlab-ci-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our self-hosted GitLab pipelines take 40 minutes and every job reinstalls dependencies from scratch. The runners are idle half the time too. Can you help speed it up?",
+  "expected": "gitlab-ci-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Refactor this C++ file parser to use unique_ptr and RAII wrappers instead of raw new/delete and manual fclose calls.",
+  "expected": "memory-safety-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Valgrind reports leaks and a use-after-free in our C image decoder whenever an early return happens on a malformed header. How should we restructure cleanup?",
+  "expected": "memory-safety-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Wrap our httpx calls to the shipping provider with retries using exponential backoff plus jitter, and a hard timeout per request.",
+  "expected": "python-resilience",
+  "style": "direct"
+ },
+ {
+  "prompt": "The inventory sync job crashes the whole batch whenever the supplier API returns a 503 for a second or hangs forever. I need it to ride out blips.",
+  "expected": "python-resilience",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Before I write this module in forge-cli, what Crucible conventions for structure, testing, and formatting will the PR reviewer hold me to?",
+  "expected": "engineering-standards",
+  "style": "direct"
+ },
+ {
+  "prompt": "The crucible-smith reviewer keeps flagging my PRs for things like comments that narrate code and missing tests. Is there a written bar I should be following?",
+  "expected": "engineering-standards",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Model our order fulfillment as a Temporal workflow with activities for charging, reserving stock, and shipping, including compensation on failure.",
+  "expected": "workflow-orchestration-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our signup flow spans four microservices and when the email service is down halfway through, we end up with half-created accounts and a cron job that tries to clean up. There has to be a better way.",
+  "expected": "workflow-orchestration-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Set up remote execution and a remote cache for our Bazel monorepo and tune .bazelrc so CI builds stop being so slow.",
+  "expected": "bazel-build-optimization",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our BUILD files keep growing and a one-line change in a common proto target triggers a 45-minute rebuild on every engineer's machine. How do we fix our build graph?",
+  "expected": "bazel-build-optimization",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Edit this blog post draft so it doesn't sound like ChatGPT wrote it: strip the 'delve', the em-dash pileups, and the 'in today's fast-paced world' openers.",
+  "expected": "avoid-ai-writing",
+  "style": "direct"
+ },
+ {
+  "prompt": "A reviewer said our release notes read like a bot generated them, all 'seamless' and 'robust' and tidy triplets. Can you make docs/RELEASE.md sound like an actual engineer wrote it?",
+  "expected": "avoid-ai-writing",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Before we start fine-tuning, set up a golden test set, graders for each failure mode, and calibrate the LLM judge against human labels, plus record base model scores.",
+  "expected": "eval-harness-first",
+  "style": "direct"
+ },
+ {
+  "prompt": "We've done three LoRA runs on our support bot and honestly can't tell if any of them is better than the base model. How should we be measuring this?",
+  "expected": "eval-harness-first",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Our API's p99 latency jumped after Tuesday's deploy and I can't reproduce it locally. Walk me through narrowing down the cause methodically.",
+  "expected": "debugging-strategies",
+  "style": "direct"
+ },
+ {
+  "prompt": "There's a flaky crash in the worker that only shows up maybe once a day in production with no useful stack trace. I've been guessing for two days. Help.",
+  "expected": "debugging-strategies",
+  "style": "indirect"
+ },
+ {
+  "prompt": "The spec for the forge-cli doctor command just got approved. Build it in that repo and keep the PR going until CI passes and review comments are resolved.",
+  "expected": "implement-spec",
+  "style": "direct"
+ },
+ {
+  "prompt": "Issue #42 in ember is scoped and labeled ready. Take it from here, open the pull request, and handle whatever the reviewers come back with.",
+  "expected": "implement-spec",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Convert our graded eval traces into supervised fine-tuning rows plus chosen/rejected pairs for DPO, filtering out low-scoring samples.",
+  "expected": "trace-to-training-data",
+  "style": "direct"
+ },
+ {
+  "prompt": "We have about 20k production conversations from the agent with thumbs up/down ratings sitting in S3. How do we turn that into something we can actually train on?",
+  "expected": "trace-to-training-data",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Draft an offer letter and a standard full-time agreement for a senior engineer joining in California, including at-will language and IP assignment.",
+  "expected": "employment-contract-templates",
+  "style": "direct"
+ },
+ {
+  "prompt": "We're hiring our first two people next month and we have no paperwork at all, not even a PTO policy. What documents do we need and can you write first drafts?",
+  "expected": "employment-contract-templates",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Before building the slides, gather the storyline, source material, and visual style guidance for an editable PowerPoint about our Q3 results.",
+  "expected": "pptx-deck-context",
+  "style": "direct"
+ },
+ {
+  "prompt": "I have to present the platform roadmap to the board next week. I've got a messy Notion page and some charts; help me figure out what the presentation should say and how it should look before anything gets made.",
+  "expected": "pptx-deck-context",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Design the append-only storage for our event-sourced ledger: stream per aggregate, optimistic concurrency on version, and snapshots. Should we use EventStoreDB or Postgres?",
+  "expected": "event-store-design",
+  "style": "direct"
+ },
+ {
+  "prompt": "Auditors want a full history of every balance change, and we keep losing that info because we UPDATE rows in place. We're thinking of persisting every change as an immutable fact instead; how should the tables look?",
+  "expected": "event-store-design",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Fine-tune Qwen2-VL on our labeled screenshots with LoRA on the language model only, keeping the vision encoder frozen.",
+  "expected": "vision-sft",
+  "style": "direct"
+ },
+ {
+  "prompt": "Off-the-shelf multimodal models can't read our handwritten lab forms at all. We have 5k scanned pages with transcriptions; can we teach a model to do this?",
+  "expected": "vision-sft",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add a subtle press animation to the buttons, skeleton loaders for the feed, and a smooth transition when the modal opens, respecting prefers-reduced-motion.",
+  "expected": "interaction-design",
+  "style": "direct"
+ },
+ {
+  "prompt": "Users say the app feels dead: you click Save and nothing visibly happens for a second, then the page just snaps. How do we make it feel responsive?",
+  "expected": "interaction-design",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Build a five-year spreadsheet model for our SaaS with MRR growth, headcount costs, burn, runway, and base/bear/bull cases.",
+  "expected": "startup-financial-modeling",
+  "style": "direct"
+ },
+ {
+  "prompt": "We're raising a seed round and investors keep asking how long the money lasts and when we break even. I have our current revenue and payroll; help me put together projections.",
+  "expected": "startup-financial-modeling",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Set up Argo CD to sync our Helm charts from the infra repo into the prod and staging clusters, with automated pruning and self-heal.",
+  "expected": "gitops-workflow",
+  "style": "direct"
+ },
+ {
+  "prompt": "People keep running kubectl apply from their laptops and prod drifts from what's in the repo. I want the cluster state to only change when a PR merges.",
+  "expected": "gitops-workflow",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Write pytest tests for app/services/pricing.py with fixtures for the DB session, parametrize the discount cases, and mock the tax client.",
+  "expected": "python-testing-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our Django tests take ten minutes, share state through a global, and half of them hit the real Redis. How do I set them up so they're isolated and quick?",
+  "expected": "python-testing-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Build a framework to simulate our momentum strategy on historical daily bars with slippage, commissions, and point-in-time universe membership.",
+  "expected": "backtesting-frameworks",
+  "style": "direct"
+ },
+ {
+  "prompt": "My mean-reversion strategy shows 80% annual returns on historical data but loses money live. I suspect I'm peeking at future prices somewhere. How should I evaluate it properly?",
+  "expected": "backtesting-frameworks",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Generate CHANGELOG.md automatically from conventional commits on each tagged release, in the keepachangelog.com format, using release-please or git-cliff.",
+  "expected": "changelog-automation",
+  "style": "direct"
+ },
+ {
+  "prompt": "Every release someone spends an hour scrolling git log to write up what changed, and they always miss things. Can we get that to happen on its own when we tag?",
+  "expected": "changelog-automation",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Should we use Zustand or Redux Toolkit for client data in this React app, and move our API caching to TanStack Query? Set up whichever you recommend.",
+  "expected": "react-state-management",
+  "style": "direct"
+ },
+ {
+  "prompt": "We pass the logged-in user and cart through six levels of props, and the product list refetches on every tab switch. Our React components are a mess; how should data flow?",
+  "expected": "react-state-management",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Convert our pages/ directory to the app/ directory using RSC, loading.tsx streaming, and parallel routes for the dashboard.",
+  "expected": "nextjs-app-router-patterns",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our Next 14 product page ships 400KB of JS and shows a spinner while it fetches data client-side in useEffect. How do we get the HTML rendered on the server and stream the slow parts?",
+  "expected": "nextjs-app-router-patterns",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Implement the onboarding screens in Jetpack Compose using Material 3 components, dynamic color, and proper top app bar scroll behavior.",
+  "expected": "mobile-android-design",
+  "style": "direct"
+ },
+ {
+  "prompt": "Our Kotlin app still uses XML layouts with custom-styled buttons and it looks nothing like other apps on Pixel phones. We want it to feel current on Android 14.",
+  "expected": "mobile-android-design",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add Semgrep and CodeQL scans to our pipeline with a custom ruleset, fail the build on high-severity findings, and upload SARIF results.",
+  "expected": "sast-configuration",
+  "style": "direct"
+ },
+ {
+  "prompt": "A pentest found SQL injection in a code path that had been there for a year. I want something that catches this kind of thing in our source on every pull request.",
+  "expected": "sast-configuration",
+  "style": "indirect"
+ },
+ {
+  "prompt": "Rename the `cust_id` field to `customer_id` in app/schemas/order.py and update the places that reference it.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "GET /orders/{id} returns 500 instead of 404 when the order doesn't exist; it looks like we're calling .dict() on None in app/routers/orders.py.",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add a `created_after` query parameter to the list orders endpoint that filters by created_at.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "Where is the database session created in this service, and how do the routers get access to it?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Squash my last three commits on this branch into one with the message 'Add order cancellation endpoint'.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "I accidentally committed .env to my feature branch, haven't pushed yet. How do I get it out of the commit and ignored going forward?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Bump fastapi to 0.111 in requirements.txt and fix whatever breaks in the imports.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "The order total is off by a cent on some orders; I think we're summing floats in calculate_total. Can you check?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add a docstring to every function in app/services/orders.py that doesn't have one.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "The OpenAPI docs page shows the status field as a plain string, but it should list pending, paid, shipped, cancelled. What am I missing in the model?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Change the default page size on GET /orders from 50 to 20 and cap it at 100.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "I get 'ModuleNotFoundError: No module named app' when I run uvicorn from the repo root. What's wrong with how I'm starting it?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Rebase my branch fix/order-status onto the latest main and resolve the conflict in app/models.py.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "What does the `reconcile_payments` function in app/tasks.py actually do? There's no comment and the name is vague.",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Add a /healthz endpoint that returns {\"status\": \"ok\"} and doesn't require auth.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "The PATCH /orders/{id} handler overwrites shipping_address with null when the client leaves it out of the body. It should only update fields that were sent.",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Delete the unused legacy_export router and remove its include_router line from main.py.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "Which branch was the discount code feature merged from, and who wrote the commit that changed apply_discount last month?",
+  "expected": null,
+  "style": "indirect"
+ },
+ {
+  "prompt": "Fix the typo in the error message 'Ordr not found' in app/routers/orders.py.",
+  "expected": null,
+  "style": "direct"
+ },
+ {
+  "prompt": "Timestamps in our order responses come back without a timezone and the mobile team is parsing them as local time. How do we return UTC with an offset?",
+  "expected": null,
+  "style": "indirect"
+ }
+]

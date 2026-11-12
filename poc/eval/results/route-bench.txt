@@ -1,0 +1,58 @@
+{
+ "router top-1 direct": "75% (30/40)",
+ "router top-3 direct": "80% (32/40)",
+ "router abstained direct": "5% (2/40)",
+ "router top-1 indirect": "28% (11/40)",
+ "router top-3 indirect": "33% (13/40)",
+ "router abstained indirect": "10% (4/40)",
+ "router top-3 all": "56% (45/80)",
+ "router false suggestion on no-skill prompts": "35% (7/20)",
+ "router suggested wrong skill (no expected in top-3, not abstained)": "36% (29/80)",
+ "router latency p50/max ms": "0.88 / 3.06",
+ "copy-all: expected skill has a visible description": "15% (6/40)",
+ "compiled: expected skill kept in listing": "25% (10/40)"
+}
+MISSES:
+  [direct] mtls-configuration <- ["before-you-build","prometheus-configuration","avoid-ai-writing"] :: Set up our internal gRPC services so each one presents a client cert and verifies the peer's cert against our 
+  [indirect] mtls-configuration <- ["connectivity-triage","k8s-security-policies","k8s-manifest-generator"] :: Security flagged that any pod in the cluster can call the billing API directly over plain HTTP. How do we make
+  [direct] bash-defensive-patterns <- [] :: Harden scripts/deploy.sh: add strict mode, trap cleanup on exit, quote all the variables and handle failures p
+  [indirect] bash-defensive-patterns <- ["spec-writer"] :: Our nightly backup script silently kept going after rsync failed and then deleted the old snapshots. Can you m
+  [indirect] linkerd-patterns <- [] :: Istio is way too heavy for our five-node cluster but we still want automatic encryption between pods and per-r
+  [indirect] stripe-integration <- [] :: Customers are getting charged twice because our payment_intent.succeeded handler runs again whenever the provi
+  [indirect] angular-migration <- [] :: Our admin dashboard is still built on $scope and ng-controller from 2015 and nobody can hire for it anymore. H
+  [indirect] mobile-ios-design <- ["web-component-design","before-you-build","visual-edit-precision"] :: App Store review bounced our build saying the UI doesn't match platform conventions, and users say the tab bar
+  [indirect] quantized-export <- ["hads","scan"] :: We need to ship the new 8B adapter to both a vLLM box with H100s and people running llama.cpp on laptops. Whic
+  [indirect] python-design-patterns <- [] :: Our utils.py has grown to 3,000 lines and the ReportGenerator class inherits from four mixins. Every change br
+  [indirect] slo-implementation <- ["social-evidence-research","before-you-build","changelog-automation"] :: Product keeps asking 'is the site reliable enough to ship this feature?' and engineering keeps paging on every
+  [indirect] javascript-testing-patterns <- ["before-you-build","review-agent-setup","acceptance-contract"] :: Our TypeScript frontend has zero coverage and last release a refactor of the date formatter broke the invoice 
+  [indirect] turborepo-caching <- ["nextjs-app-router-patterns","eval-harness-first","loop-orchestrator"] :: Every CI run rebuilds all twelve packages in our JS monorepo even when only the docs app changed, and it takes
+  [indirect] detect-stack <- ["block-no-verify-hook"] :: I just cloned this project for a contract gig and there's no README. What is it built with and how is it laid 
+  [direct] memory-safety-patterns <- ["idea-discovery"] :: Refactor this C++ file parser to use unique_ptr and RAII wrappers instead of raw new/delete and manual fclose 
+  [indirect] memory-safety-patterns <- ["spec-writer"] :: Valgrind reports leaks and a use-after-free in our C image decoder whenever an early return happens on a malfo
+  [indirect] python-resilience <- ["connectivity-triage","airflow-dag-patterns"] :: The inventory sync job crashes the whole batch whenever the supplier API returns a 503 for a second or hangs f
+  [direct] engineering-standards <- ["spec-writer","review-pr","python-project-structure"] :: Before I write this module in forge-cli, what Crucible conventions for structure, testing, and formatting will
+  [indirect] engineering-standards <- ["spec-writer","changelog-automation","multi-reviewer-patterns"] :: The crucible-smith reviewer keeps flagging my PRs for things like comments that narrate code and missing tests
+  [indirect] workflow-orchestration-patterns <- ["ml-pipeline-workflow","microservices-patterns","distributed-tracing"] :: Our signup flow spans four microservices and when the email service is down halfway through, we end up with ha
+  [indirect] bazel-build-optimization <- ["social-evidence-research"] :: Our BUILD files keep growing and a one-line change in a common proto target triggers a 45-minute rebuild on ev
+  [indirect] debugging-strategies <- ["trace-to-training-data","block-no-verify-hook"] :: There's a flaky crash in the worker that only shows up maybe once a day in production with no useful stack tra
+  [direct] pptx-deck-context <- ["pptx-visual-assets","before-you-build","visual-design-foundations"] :: Before building the slides, gather the storyline, source material, and visual style guidance for an editable P
+  [indirect] pptx-deck-context <- ["before-you-build","idea-discovery"] :: I have to present the platform roadmap to the board next week. I've got a messy Notion page and some charts; h
+  [indirect] event-store-design <- ["grounded-vault","social-evidence-research"] :: Auditors want a full history of every balance change, and we keep losing that info because we UPDATE rows in p
+  [indirect] vision-sft <- ["projection-patterns","cqrs-implementation","stride-analysis-patterns"] :: Off-the-shelf multimodal models can't read our handwritten lab forms at all. We have 5k scanned pages with tra
+  [indirect] interaction-design <- ["brand-landingpage","before-you-build"] :: Users say the app feels dead: you click Save and nothing visibly happens for a second, then the page just snap
+  [direct] gitops-workflow <- ["helm-chart-scaffolding"] :: Set up Argo CD to sync our Helm charts from the infra repo into the prod and staging clusters, with automated 
+  [indirect] gitops-workflow <- ["quantized-export","superself","changelog-automation"] :: People keep running kubectl apply from their laptops and prod drifts from what's in the repo. I want the clust
+  [indirect] python-testing-patterns <- ["react-state-management"] :: Our Django tests take ten minutes, share state through a global, and half of them hit the real Redis. How do I
+  [direct] backtesting-frameworks <- [] :: Build a framework to simulate our momentum strategy on historical daily bars with slippage, commissions, and p
+  [indirect] backtesting-frameworks <- ["trace-to-training-data"] :: My mean-reversion strategy shows 80% annual returns on historical data but loses money live. I suspect I'm pee
+  [indirect] react-state-management <- ["react-modernization","before-you-build","design-system-patterns"] :: We pass the logged-in user and cart through six levels of props, and the product list refetches on every tab s
+  [direct] sast-configuration <- ["scan","multi-reviewer-patterns"] :: Add Semgrep and CodeQL scans to our pipeline with a custom ruleset, fail the build on high-severity findings, 
+  [indirect] sast-configuration <- ["code-review-excellence","review-pr"] :: A pentest found SQL injection in a code path that had been there for a year. I want something that catches thi
+FALSE POSITIVES:
+  ["nextjs-app-router-patterns","spec-writer"] :: GET /orders/{id} returns 500 instead of 404 when the order doesn't exist; it looks like we're calling .dict() 
+  ["auth-implementation-patterns","stride-analysis-patterns"] :: Where is the database session created in this service, and how do the routers get access to it?
+  ["spec-writer"] :: I accidentally committed .env to my feature branch, haven't pushed yet. How do I get it out of the commit and 
+  ["hads"] :: The OpenAPI docs page shows the status field as a plain string, but it should list pending, paid, shipped, can
+  ["implement-spec","spark-training-gotchas","eval-harness-first"] :: I get 'ModuleNotFoundError: No module named app' when I run uvicorn from the repo root. What's wrong with how 
+  ["block-no-verify-hook","review-pr","review-agent-setup"] :: Which branch was the discount code feature merged from, and who wrote the commit that changed apply_discount l
+  ["nextjs-app-router-patterns"] :: Fix the typo in the error message 'Ordr not found' in app/routers/orders.py.

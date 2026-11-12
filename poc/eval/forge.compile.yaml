@@ -1,0 +1,19 @@
+# POC compile config. Paths are relative to this file.
+sources:
+  - { name: wshobson, type: claude-marketplace, path: /Users/smith/poc-scratch/corpus/wshobson-agents }
+  - { name: factory-loop, type: factory-marketplace, path: /Users/smith/crucible-agents/factory-loop }
+  - { name: forge-skills-starter, type: loose, path: /Users/smith/crucible-agents/forge-skills-starter }
+# Categories a backend code project can use. Marketing, business, finance, payments, gaming, blockchain, creative are out.
+categories:
+  allow: [development, languages, quality, testing, security, documentation, workflows, utilities, infrastructure,
+          operations, api, database, performance, modernization, data, ai-ml, accessibility, governance, memory, workflow]
+keep: []
+pin: []
+# Droid shows ~200 chars per skill description; minify to that so nothing is cut mid-sentence.
+minify:
+  descriptionChars: 200
+# Droid's measured listing caps: ~15k chars for skills (about 4.5k used by built-in skills), ~11k chars for droids.
+budget:
+  skillChars: 9500
+  agentChars: 9000
+  agentDescChars: 120

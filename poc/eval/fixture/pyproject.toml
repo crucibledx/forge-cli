@@ -1,0 +1,12 @@
+[project]
+name = "orders-service"
+version = "0.3.0"
+description = "Orders API for the shop backend"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115", "uvicorn>=0.32", "pydantic>=2.9", "asyncpg>=0.30"]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,16 @@
+{
+ "haiku picks from catalog top-1 direct": "100% (40/40)",
+ "haiku picks from catalog top-3 direct": "100% (40/40)",
+ "haiku picks from catalog top-1 indirect": "95% (38/40)",
+ "haiku picks from catalog top-3 indirect": "95% (38/40)",
+ "haiku picks from catalog false suggestion on no-skill prompts": "80% (16/20)",
+ "haiku query -> BM25 top-1 direct": "90% (36/40)",
+ "haiku query -> BM25 top-3 direct": "95% (38/40)",
+ "haiku query -> BM25 top-1 indirect": "58% (23/40)",
+ "haiku query -> BM25 top-3 indirect": "65% (26/40)",
+ "haiku query -> BM25 false suggestion on no-skill prompts": "55% (11/20)"
+}
+floor 6: top-3 recall 56% (45/80), false suggestion 35% (7/20), abstain on skill prompts 8% (6/80)
+floor 10: top-3 recall 48% (38/80), false suggestion 10% (2/20), abstain on skill prompts 34% (27/80)
+floor 14: top-3 recall 30% (24/80), false suggestion 0% (0/20), abstain on skill prompts 66% (53/80)
+floor 18: top-3 recall 24% (19/80), false suggestion 0% (0/20), abstain on skill prompts 76% (61/80)

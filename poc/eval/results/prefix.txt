@@ -1,0 +1,8 @@
+Trivial prompt "Reply with the single word OK." in the fixture, claude-sonnet-5, crucible-loop user plugin disabled,
+3 reps per condition (rep 1 is a cold cache write, reps 2-3 read the cache). Input = input + cache read + cache write.
+
+condition  input_tokens(all reps)  credits rep1/rep2/rep3
+empty      14812                   5096 / 1203 / 1203
+copy       23143                   13427 / 1869 / 1869
+compile    21180                   11464 / 1712 / 1712
+guardian   18255                   8539 / 1478 / 1478
