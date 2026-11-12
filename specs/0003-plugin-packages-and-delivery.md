@@ -134,8 +134,7 @@ Git source key reconciliation (the existing schema has `branch` plus `layout`/`i
 - Exactly one pin is in effect per plugin: a pin key on the source **or** the plugin-level `version:` (section 5).
   Both present is a named error telling the user which to keep.
 
-npm plugin sources are v0.8 (all of Claude, Droid, Codex, Kilo, OpenCode accept npm natively; forge's own npm fetch
-with integrity pinning is a separate piece of work).
+npm plugin sources are v0.8 (forge's own npm fetch with integrity pinning is separate work).
 
 ### 4. Marketplaces as sources
 
@@ -144,24 +143,19 @@ A marketplace is an **indirection layer**, not a package format. `forge plugin a
 1. Resolve `acme-tools` from the `marketplaces:` section of forge config (name → catalog location: git URL, local
    path, or hosted `marketplace.json` URL).
 2. Fetch the catalog with the user's own credentials (same git contract as sources).
-3. Parse any of the four catalog schemas and normalize:
-   - **Claude schema** `.claude-plugin/marketplace.json` — also used by Droid (fallback), Copilot (`.plugin/`,
-     `.github/plugin/`), Codex (legacy), APM. Sources: relative path, `github`, `url`, `git-subdir`, `npm`, `archive`,
-     `command`.
-   - **Droid schema** `.factory-plugin/marketplace.json` — same fields, no `archive`/`command`; npm with
-     `authTokenEnvVar`.
-   - **Codex schema** `.agents/plugins/marketplace.json` — `policy.installation`/`policy.authentication` fields;
-     string or object sources.
-   - **Cursor schema** `.cursor-plugin/marketplace.json` — relative sources only.
+3. Parse any of the four catalog schemas and normalize: **Claude** `.claude-plugin/marketplace.json` (also read by
+   Droid, Copilot at `.plugin/` and `.github/plugin/`, legacy Codex, APM; sources: relative path, `github`, `url`,
+   `git-subdir`, `npm`, `archive`, `command`); **Droid** `.factory-plugin/marketplace.json` (no `archive`/`command`;
+   npm with `authTokenEnvVar`); **Codex** `.agents/plugins/marketplace.json` (`policy.installation` and
+   `policy.authentication`; string or object sources); **Cursor** `.cursor-plugin/marketplace.json` (relative only).
 4. Resolve the entry's `source` into a forge source (section 3): git URL + ref/sha, git-subdir, or archive.
    - **`command` sources and inline `settings` catalogs are rejected** with a clear error (unpinnable, unsafe).
    - npm entries are rejected in v0.7 with a "supported in v0.8" message.
    - Floating `ref`s resolve to a SHA at lock time.
 5. Fetch, verify, lock, and install like any other source. The marketplace never participates after resolution.
 
-This design means **forge owns authentication once**: harnesses install from forge's local copy (section 6) and never
-need marketplace credentials — sidestepping Copilot's sign-in-only auth, Codex's undocumented CLI git auth, Cursor's
-dashboard-only imports, and headless CI with no credential helper.
+So **forge owns authentication once**: harnesses install from forge's local copy (section 6) and never need marketplace
+credentials (sidestepping Copilot's sign-in-only auth, Codex's undocumented git auth, and headless CI).
 
 Producer side: `forge marketplace emit` turns a repo of plugin packages into a marketplace that native harness flows
 can install from without forge. Input is a `marketplace:` section in the producer's forge config (`name`, `owner`,
@@ -176,6 +170,7 @@ the only entry type every harness supports. Rules:
   name already owned by the Codex registrar in the same `.agents/plugins/marketplace.json` is a named error.
 - `--check` writes nothing and exits non-zero, naming each stale catalog, when the files differ from what emit
   would write. Producers run it in CI.
+
 ### 5. Versioning and lockfile
 
 - **Plugin version:** `plugin.json` `version`, required by forge to be semver even though the standard makes it
@@ -208,26 +203,19 @@ the only entry type every harness supports. Rules:
 ### 6. Delivery: emitters and registrars
 
 **Emitters** (domain, pure): `PluginPackage` × harness → output files + a **portability report** (what was
-translated, adapted, or dropped, and why). Emitters: `agent-plugins` (passthrough: Codex, Copilot, Devin), `claude`
-(Claude Code), `factory` (Droid: `.factory-plugin/`, `droids/`, `mcp.json`, `${DROID_PLUGIN_ROOT}`), `cursor`
-(`.cursor-plugin/`), `antigravity`, `shim` (a generated JS plugin for OpenCode v2 `@opencode/plugin` and Kilo `@kilocode/plugin`
-carrying skills, commands, MCP, references, and defaults through their transform APIs), and `pseudo` (data-driven
-placement via the 0002 `components` model: Cline, Cursor project scope, custom harnesses, and as the fallback when a
-shim can't express a component). Cline is always files — its plugins don't run in the VS Code/JetBrains extensions.
+translated, adapted, or dropped, and why). Emitters: `agent-plugins` (passthrough: Codex, Copilot, Devin), `claude`,
+`factory` (Droid: `.factory-plugin/`, `droids/`, `mcp.json`, `${DROID_PLUGIN_ROOT}`), `cursor` (`.cursor-plugin/`),
+`antigravity`, `shim` (a generated JS plugin for OpenCode v2 `@opencode/plugin` and Kilo `@kilocode/plugin` carrying
+skills, commands, MCP, references, and defaults through their transform APIs), and `pseudo` (data-driven placement via
+the 0002 `components` model: Cline, Cursor project scope, custom harnesses, and the fallback when a shim can't express
+a component). Cline is always files: its plugins don't run in the VS Code/JetBrains extensions.
 
-**Custom-harness capability.** 0002's `HarnessPluginCapability` is:
-
-```ts
-interface HarnessPluginCapability { mode: 'native' | 'pseudo'; emit?: EmitterId; register?: RegistrarId }
-```
-
-For `mode: pseudo`, `emit` defaults to `pseudo` and `register` is derived from the harness's `components`, so a
-custom harness can declare just `plugin: {mode: pseudo}`. `mode: native` requires both fields.
-
-`mode: native` is allowed only with the **data-only** emitters `agent-plugins`, `claude`, `pseudo` and the
-**data-only** registrars `dropIn` (write the package into a declared folder) and `settings-keys` (declared keyed
-merge into a declared file). Anything else needs code forge cannot infer from a definition file, so it is rejected
-at load (0002 §4).
+**Custom-harness capability.** 0002's `HarnessPluginCapability` is `{mode: 'native' | 'pseudo'; emit?: EmitterId;
+register?: RegistrarId}`. For `mode: pseudo`, `emit` defaults to `pseudo` and `register` is derived from the
+harness's `components`, so `plugin: {mode: pseudo}` is enough. `mode: native` requires both fields and allows only
+the **data-only** emitters `agent-plugins`, `claude`, `pseudo` and registrars `dropIn` (write the package into a
+declared folder) and `settings-keys` (declared keyed merge into a declared file); anything else needs code forge
+cannot infer from a definition file, so it is rejected at load (0002 §4).
 
 **Where bytes live:** forge copies each resolved plugin to `.crucible/plugins/<name>/<version>/` (project) or
 `~/.crucible/forge/plugins/<name>/<version>/` (user). These directories are **gitignored caches**, never committed —
@@ -237,18 +225,16 @@ error naming the plugin (BR-01 discipline). Native harnesses install from a forg
 pointing at that copy, so the installed bytes are the tested bytes, CDN/archive sources work for every harness, and
 auth happens once in forge.
 
-**Registrars** (infrastructure) — prefer documented declarative files; harness CLIs only as fallback. v0.7
-registrars are file-only wherever a declarative mechanism exists. The one exception is Claude Code at project scope
-for plugins that carry MCP servers: the `.claude/skills/<n>/` drop-in (the default) cannot register MCP, so when the
-plugin carries MCP the registrar falls back to `claude plugin install --json -s project`, and says so in the plan.
-Any CLI invocation is a **post-commit step**: it runs only after the file transaction commits and before the state
-write, each step carries a compensating action (`claude plugin uninstall …`), and a failed step runs compensation
-and leaves state unwritten so the next sync re-plans cleanly. If the compensation itself fails, the step reports
-through the existing recovery-required path: minimal stderr naming the orphaned harness-side registration and the
-exact manual command to remove it (e.g. `claude plugin uninstall …`) — the contract forbids claiming recovery
-completed when it did not. Registrar steps never run arbitrary plugin code; they
-invoke the harness CLI with fixed arguments — pinned in CI (0004), and locally the user's installed CLI, with the
-plan recording the version found.
+**Registrars** (infrastructure) prefer documented declarative files and are file-only wherever one exists. The one
+exception is Claude Code at project scope for plugins that carry MCP servers: the `.claude/skills/<n>/` drop-in (the
+default) cannot register MCP, so the registrar falls back to `claude plugin install --json -s project` and says so in
+the plan. Any CLI invocation is a **post-commit step**: it runs after the file transaction commits and before the
+state write, carries a compensating action (`claude plugin uninstall …`), and on failure runs compensation and leaves
+state unwritten so the next sync re-plans cleanly. If compensation itself fails, the step reports through the
+existing recovery-required path: minimal stderr naming the orphaned registration and the exact manual removal command
+(the contract forbids claiming recovery completed when it did not). Registrar steps never run plugin code; they invoke
+the harness CLI with fixed arguments, pinned in CI (0004) and locally the user's installed CLI, with the plan
+recording the version found.
 
 | Harness | Project scope | User scope |
 |---|---|---|
@@ -274,23 +260,29 @@ BR-02; cleanup removes owned keys only, BR-03; state persistence, BR-04; snapsho
 BR-06), and `bun run check:contracts` must pass. Keyed-merge cases also join the native-macos/native-windows lanes
 in M4 — the existing lanes cover only the four file-level mutation kinds.
 
-- Forge owns specific key paths only: `extraKnownMarketplaces["<name>"]`, `enabledPlugins["<id>"]`, `mcpServers["<n>"]`,
-  `plugins[...]` array entries, etc. Sibling user keys are never touched.
+- Forge owns specific key paths only, never whole files: object members (`extraKnownMarketplaces["<name>"]`,
+  `enabledPlugins["<id>"]`, `mcpServers["<n>"]`) and array entries. Sibling user keys are never touched.
+- **Arrays merge by identity key, not by index.** Each owned array path declares its identity: a field
+  (`plugins[].name` in catalogs) or, for arrays of strings, the value itself (OpenCode's `plugin` list). Forge finds
+  the entries it owns (recorded in state) by identity and replaces each one whole, never deep-merging user fields into
+  it; it keeps existing order, appends new entries, and on removal deletes exactly its own. A user entry with a
+  forge-owned identity is a drift conflict; duplicate or missing identities in an owned array are a named error.
+  The identity-key approach follows the `mergeByKey` helper in
+  [AdaptUI](https://github.com/NazarUsik/AdaptUI/blob/main/src/utils/object/merge.ts) (MIT): same semantics, not the
+  code, which rebuilds objects through lodash (dropping comments), uses one key at every depth, folds keyless entries
+  into one, and cannot delete. Forge applies each change as a targeted `jsonc-parser`/`smol-toml` edit.
 - Planning rejects a merge when a forge-owned key was modified externally without `--force` (drift error, like file
   drift today), and when the file is unparseable. Backups cover the whole file; rollback restores the snapshot.
-- Libraries (new dependencies, checked per engineering standards): `jsonc-parser` (Microsoft, MIT) for JSONC with
-  comment/format preservation; TOML: `smol-toml` or equivalent with round-trip editing — final pick at
-  implementation, must preserve user formatting. Codex `config.toml` merges use dotted-key paths only.
+- New dependencies are checked per engineering standards. The TOML library (`smol-toml` or equivalent) is final at
+  implementation and must round-trip user formatting; Codex `config.toml` merges use dotted-key paths only.
 
-**State v3.** State entries gain `ownedKeys`: a record of key path → sha256 of the merged value (same algorithm state v2 uses
-for file hashes), so uninstall removes
-exactly forge's keys and drift detection compares values, not just files. Migration mirrors the v2 rules
+**State v3.** State entries gain `ownedKeys`: a record of key path (array entries by identity, e.g.
+`plugins[name=foo]`) → sha256 of the merged value (the algorithm state v2 uses for file hashes), so uninstall
+removes exactly forge's keys and drift detection compares values, not just files. Migration mirrors the v2 rules
 (`src/infrastructure/config/state.ts`): the v2→v3 upgrade happens only inside a committed transaction; the schema
 parses strictly; a v3 file is refused by older CLIs at state parse (the existing strict schema already rejects
 unknown versions); the v3 CLI adds a named downgrade-refusal error for any version greater than 3, so the same
-protection applies to future versions. A v2 file reads and upgrades transparently. `version: 3` files record `ownedKeys` per merged file; v2 entries upgrade with an
-empty `ownedKeys`.
-
+protection applies to future versions. A v2 file reads and upgrades transparently, with empty `ownedKeys`.
 **`--force`.** New flag on `forge sync`, `forge plugin add`, and `forge plugin update`: permits overwriting
 externally-modified forge-owned keys and files (drift), and nothing else. The plan always lists what `--force`
 overrode. `--force` wins for the run over any configured conflict strategy (`sync.local_conflict_strategy`,
@@ -319,12 +311,21 @@ New commands (all with `--json`, `--yes`, and full flag equivalents; cancel exit
 `forge sync` installs/updates everything in `plugins:` per the lockfile, and `forge status`/`health` include plugin
 drift. Validation failure aborts before any write (BR-01 discipline).
 
-### 9. Compiler seam
+### 9. Direction: from delivery to artifact management
 
-Emitters consume an intermediate `PluginPackage` record (parsed manifest + components + resolved assets), not raw
-files. The future compiler ([hq research](https://github.com/crucibledx/hq/blob/main/research/forge-compiler-research.md))
-plugs in between parse and emit without adapter changes; the lockfile's per-harness output hashes double as its
-change-detection input. No compiler work is in this spec.
+With this spec, forge stops being a file sync and becomes a package manager for coding harnesses. A plugin is an
+artifact: named, versioned, content-hashed, fetched from a repository (git, archive, marketplace), pinned in a
+lockfile, and installed into targets. The consumer side reads like npm (semver ranges, lockfile, `add`, `update`,
+`outdated`), but the closer model is the Maven/Gradle family: one declarative source, a fixed lifecycle (validate →
+resolve → emit → install), one output variant per target (per harness, like Gradle build variants), and output
+hashes for incremental work. Bazel's content-addressed, hermetic actions inform a future build cache.
+
+That matters because a compile step is next. Emitters consume an intermediate `PluginPackage` record (parsed
+manifest + components + resolved assets), not raw files, so the future compiler
+([hq research](https://github.com/crucibledx/hq/blob/main/research/forge-compiler-research.md)) can optimize,
+tree-shake, and order components between parse and emit without adapter changes; per-harness output hashes in the
+lockfile are its change-detection input. Boundaries stay: no transitive dependency resolution (APM), no registry
+hosting, and no compiler work, commands, or requirements in this spec.
 
 ## Rollout
 
@@ -354,7 +355,8 @@ then the `shim` emitter, then the conditional Antigravity scope. M8 is owner-com
 
 ## Open questions
 
-- Registrar details marked UNVERIFIED in the research (Claude reading Agent Plugins natively, Droid `portableOnly`, Cursor/Devin cache layouts, which file `kilo plugin` writes) are engineering spikes during M5–M7, not product decisions.
+- Registrar details marked UNVERIFIED in the research (Claude reading Agent Plugins natively, Droid `portableOnly`,
+  Cursor/Devin cache layouts, which file `kilo plugin` writes) are engineering spikes during M5–M7.
 
 ## Acceptance contract
 
@@ -393,6 +395,7 @@ then the `shim` emitter, then the conditional Antigravity scope. M8 is owner-com
 | AC-31 | Every emitted catalog round-trips: forge's own catalog parser (AC-6) reads it and resolves each entry to the declared package path and version | test | AC-6 parser run on the AC-30 golden output |
 | AC-32 | Emit preserves hand-written entries and top-level fields in an existing catalog; an entry name already owned by the Codex registrar fails with a named error; a declared package that fails validation aborts emit before any write | e2e | emit e2e: pre-seeded hand-written catalog, registrar collision, invalid package |
 | AC-33 | `forge marketplace emit --check` writes nothing; it exits non-zero naming each stale catalog when files differ from what emit would write, and exits 0 when they match | e2e | check-mode e2e, stale and current cases |
+| AC-34 | Keyed merges into arrays match entries by the declared identity key, not index: with user entries inserted before, between, and after forge's entries (including arrays of strings), a re-run neither duplicates nor drops entries and keeps user order; removal deletes only forge's entries; a duplicate identity or a keyless entry in an owned array fails with a named error | test | jsonc/toml array-merge unit tests on Claude and Codex catalog and OpenCode `plugin` fixtures |
 
 ## Sources
 
