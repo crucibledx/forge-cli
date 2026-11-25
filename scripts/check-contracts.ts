@@ -185,7 +185,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   }
   const releaseJobs = (input.release.jobs ?? {}) as Record<
     string,
-    {needs?: string | string[]; steps?: Record<string, unknown>[]}
+    {needs?: string | string[]; if?: string; steps?: Record<string, unknown>[]}
   >
   const releaseNeeds = (id: string) => [releaseJobs[id]?.needs ?? []].flat()
   require(releaseJobs['ci-gate']?.steps?.some((step) =>
@@ -202,6 +202,17 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     releaseNeeds(id).includes('github-release'),
   ), 'Homebrew and Scoop must wait for the GitHub release')
   require(input.release.on?.workflow_dispatch?.inputs?.dry_run?.type === 'boolean', 'Release dry_run input missing')
+  const stableOnly = "${{ !contains(github.event.inputs.tag || github.ref_name, '-') }}"
+  require(['homebrew', 'scoop'].every(
+    (id) => releaseJobs[id]?.if === stableOnly,
+  ), 'Prereleases must not update Homebrew or Scoop')
+  const npmSteps = releaseJobs['publish-npm']?.steps ?? []
+  require(npmSteps.some((step) => String(step.run).includes('echo "dist_tag=next"')) &&
+    npmSteps
+      .filter((step) => String(step.run).includes('npm publish'))
+      .every((step) =>
+        String(step.run).includes('${DIST_TAG:+--tag "${DIST_TAG}"}'),
+      ), 'npm prereleases must publish under the next dist-tag')
   // Exact expressions only: a prefix check would accept `!inputs.dry_run && x || true`.
   const dryRunGuards = [
     '${{ !inputs.dry_run }}',

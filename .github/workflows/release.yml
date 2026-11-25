@@ -229,6 +229,11 @@ jobs:
           fi
           echo "published=${published}" >> "$GITHUB_OUTPUT"
 
+          # npm refuses a prerelease without --tag, and it must never become latest.
+          if [[ "${version}" == *-* ]]; then
+            echo "dist_tag=next" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish (dry run)
         if: ${{ inputs.dry_run }}
         run: |
@@ -240,21 +245,23 @@ jobs:
           if [ "${PUBLISHED}" = true ]; then
             npm pack --dry-run
           else
-            npm publish --access public --dry-run
+            npm publish --access public --dry-run ${DIST_TAG:+--tag "${DIST_TAG}"}
           fi
         env:
           PUBLISHED: ${{ steps.npm-version.outputs.published }}
+          DIST_TAG: ${{ steps.npm-version.outputs.dist_tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish
         if: ${{ !inputs.dry_run && steps.npm-version.outputs.published != 'true' }}
         # npm uses trusted publishing when it is configured for this workflow, else NODE_AUTH_TOKEN.
         run: |
-          if ! npm publish --access public --provenance; then
+          if ! npm publish --access public --provenance ${DIST_TAG:+--tag "${DIST_TAG}"}; then
             echo "::error::npm rejected the publish. Configure npm trusted publishing for crucibledx/forge-cli and release.yml, or set the NPM_TOKEN secret."
             exit 1
           fi
         env:
+          DIST_TAG: ${{ steps.npm-version.outputs.dist_tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── 4. GitHub Release with binaries + release notes ──────────────
@@ -323,6 +330,7 @@ jobs:
         if: ${{ !inputs.dry_run }}
         with:
           tag_name: ${{ env.TAG }}
+          prerelease: ${{ contains(env.TAG, '-') }}
           body_path: release-notes.md
           files: |
             dist/*.tar.gz
@@ -334,6 +342,8 @@ jobs:
   homebrew:
     name: Update Homebrew Tap
     needs: github-release
+    # Prereleases (v0.7.0-rc.1) go to npm `next` and a GitHub prerelease only.
+    if: ${{ !contains(github.event.inputs.tag || github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -430,6 +440,7 @@ jobs:
   scoop:
     name: Update Scoop Bucket
     needs: github-release
+    if: ${{ !contains(github.event.inputs.tag || github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
