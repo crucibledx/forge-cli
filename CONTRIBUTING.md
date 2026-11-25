@@ -37,6 +37,7 @@ bun run check:security-audit # public advisory metadata, 60-second bound
 bun run test:performance   # offline 10/1000-target correctness and advisory timings
 bun run test:platform      # current OS only; the other native OS runs only in its CI lane
 bun run check:contracts    # ledger, registry, workflow/toolchain boundaries
+bun run build && bun run test:harness-smoke  # real sync smoke, see below
 ```
 
 Named suite membership is maintained in `scripts/registry/suites.ts`; package scripts only select a suite.
@@ -61,6 +62,12 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   imports: nested launchers, validators and test processes reuse the nearest enclosing sandbox's build. A fixture
   materializes its independent file copy when its command environment is requested, never for pure filesystem
   setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
+- `test:harness-smoke` needs network access and no credentials. The compiled binary syncs the pinned
+  `forge-skills-starter` tag into fresh Claude Code and Droid project folders in a disposable sandbox, and pinned
+  `@anthropic-ai/claude-code` and `droid` packages run through `bunx` there (about 1 GB of temporary cache, removed
+  afterwards). Claude Code must list the synced skills and commands without making a model call. Droid has no offline
+  listing command, so it gets the closest non-model checks (`droid doctor --json`, `droid exec --list-tools`) and the
+  synced files are checked on disk. Forge has no Droid sync target yet.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
 - A successful local build is not a native Windows/macOS substitute. CI runs all eleven independent lanes, one step
   per check with its output in the job log, and an always-run `Deterministic gate` that fails unless every lane

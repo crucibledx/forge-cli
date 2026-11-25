@@ -115,7 +115,7 @@ export const validationLanes: readonly ValidationLane[] = [
   {
     id: 'harness-smoke',
     fixture_scope:
-      'compiled binary syncing the live forge-skills-starter into fresh project folders, verified by the real Droid and Claude Code CLIs without API keys or model calls',
+      'compiled binary syncing a pinned forge-skills-starter tag over the network into fresh project folders; Claude Code (pinned) lists the synced skills and commands, Droid (pinned) gets doctor and tool-enumeration checks plus on-disk assertions; no API keys or model calls',
     ac_ids: [],
     br_ids: [],
     checks: [run('build'), run('test:harness-smoke')],
