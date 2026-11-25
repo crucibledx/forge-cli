@@ -190,7 +190,9 @@ same-name `extraKnownMarketplaces` entry from the highest-precedence settings fi
 is user-wide, so a shared name would let a project entry shadow the user catalog or another project's. Forge writes
 both catalog files — `.claude-plugin/marketplace.json` (read by Claude Code) and
 `.factory-plugin/marketplace.json` (read by Droid) — each with one entry per installed plugin carrying the plugin's
-`name`, `version` and a relative-path `source` pointing at its emitted output. Forge rewrites these files whole on
+`name`, `version` and a relative-path `source` pointing at that harness's own emitted output
+(`<name>/<version>/claude-code/` or `<name>/<version>/droid/`), so per-harness vendor overrides reach the right
+harness. Forge rewrites these files whole on
 every install; they are cache files, not user files. Because the harness installs from forge's copy of the locked
 bytes, the installed bytes are the locked bytes and a harness's own update cannot move off the lock.
 
@@ -271,16 +273,20 @@ exits non-zero.
 from without forge. Input is a `marketplace:` section in the producer's forge config (`name`, `owner`, `plugins:`,
 a list of package paths, and `output:`, a repo-relative directory, default `dist/plugins/`). Neither harness reads
 the Agent Plugins source layout directly (the `dev.crucibledx.forge/` namespace, portable `mcp.json`), so emit
-**publishes harness-ready packages**: it runs the §5 emitter for each package into `<output>/<name>/` and points the
-catalogs at those trees, never at the source packages. One tree serves both harnesses (Droid translates the Claude
-layout). Because no forge runs on the consumer side to place loose files, rules in a published package always use
+**publishes harness-ready packages**: it runs the §5 emitter for each package and harness into
+`<output>/<name>/<harness>/` (`claude-code`, `droid`) and points each catalog at its own harness's tree, never at the
+source packages. Trees are per harness because §1's vendor-folder precedence can resolve different component bodies
+for each harness (for example `com.anthropic/commands/review.md` vs `ai.factory/commands/review.md`); Droid's layout
+translation changes paths, not which override forge selected. Both trees use the canonical Claude layout. Because no
+forge runs on the consumer side to place loose files, rules in a published package always use
 the generated `SessionStart` rule hook (Claude Code also adds `SessionStart` hook output to context); path-scoped
 rules are approximated as always-on and reported. Output is the emitted trees plus
-`.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json`, one entry per declared package with its
-manifest `name`, `version` and a relative-path source pointing at `<output>/<name>/`. Producers commit all of it.
+`.claude-plugin/marketplace.json` (entries → `<output>/<name>/claude-code/`) and `.factory-plugin/marketplace.json`
+(entries → `<output>/<name>/droid/`), one entry per declared package with its manifest `name`, `version` and that
+relative-path source. Producers commit all of it.
 
 - Every declared package passes `forge plugin validate` first; one failure aborts emit before any write.
-- Forge owns `<output>/<name>/` for each declared package whole and rewrites it on every emit.
+- Forge owns `<output>/<name>/` for each declared package whole (both harness trees) and rewrites it on every emit.
 - Catalogs are written through the keyed-merge mutation (section 6). Forge owns only the `plugins[]` entries for the
   packages it declares, plus top-level fields when it creates the file; hand-written entries survive.
 - `--check` writes nothing and exits non-zero, naming each stale catalog or emitted tree, when the files differ from
@@ -363,10 +369,10 @@ v0.8.0 is the first four steps; the rest lands as v0.8.x before v0.9 work starts
 | AC-19 | v0.8.x | `plugin add`, `remove`, `update` and `list` support `--json` and full flag equivalents, mutating ones support `--yes`, and cancel exits non-zero; `update` relocks a moved `ref` to its new SHA; `list --json` includes `variants` | e2e | agent-mode plugin command e2e |
 | AC-20 | v0.8.x | `forge status` and `forge health` report drift between lock, cache and harness settings, including keyed-merge drift | e2e | status/health e2e with seeded drift |
 | AC-21 | v0.8.x | The repo-root `SKILL.md` validates against the ported skills-ref rules and describes the plugin workflow | test | skill validation test |
-| AC-22 | v0.8.x | `forge marketplace emit` writes the emitted harness-ready tree `<output>/<name>/` per declared package (rules as the `SessionStart` hook) and `.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json` from the `marketplace:` config, one entry per package with its manifest `name`, `version` and a relative-path source pointing at the emitted tree, never the source package; a rerun is byte-identical | test | golden snapshot per catalog and tree from a two-package producer fixture + rerun diff |
+| AC-22 | v0.8.x | `forge marketplace emit` writes one harness-ready tree per declared package and harness, `<output>/<name>/claude-code/` and `<output>/<name>/droid/` (rules as the `SessionStart` hook), and `.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json` from the `marketplace:` config, one entry per package with its manifest `name`, `version` and a relative-path source pointing at that catalog's harness tree, never the source package; a package with conflicting `com.anthropic/` and `ai.factory/` overrides for the same command yields each harness's own body in its tree; a rerun is byte-identical | test | golden snapshot per catalog and tree from a two-package producer fixture (one with conflicting vendor overrides) + rerun diff |
 | AC-23 | v0.8.x | Emit preserves hand-written entries and top-level fields; a declared package that fails validation aborts emit before any write; `--check` writes nothing, exits non-zero naming each stale catalog or emitted tree, and exits 0 when current | e2e | emit e2e: pre-seeded catalog, invalid package, stale and current check cases |
 | AC-24 | v0.8.0 | Marketplace identities are distinct per cache root: with a user-scope and a project-scope plugin installed together, and with two projects on one machine, each settings file names its own marketplace, every enabled plugin ID resolves against the catalog that contains it, and removing one scope's or project's plugin leaves the others' keys untouched | e2e | registration e2e: simultaneous scopes, two project roots, both harnesses |
-| AC-25 | v0.8.x | A published producer tree installs without forge: each harness's own `plugin marketplace add <dir>` + `plugin install <name>@<marketplace>` lists the plugin enabled at the manifest version, and `claude plugin validate` passes on each emitted tree | e2e | producer case in the 0004 load-check jobs (added by whichever of emit and the load check lands second) |
+| AC-25 | v0.8.x | A published producer marketplace installs without forge: each harness's own `plugin marketplace add <dir>` + `plugin install <name>@<marketplace>` installs from that harness's tree and lists the plugin enabled at the manifest version, and `claude plugin validate` passes on each emitted tree | e2e | producer case in the 0004 load-check jobs (added by whichever of emit and the load check lands second) |
 
 ## Sources
 
