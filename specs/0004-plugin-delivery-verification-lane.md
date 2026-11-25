@@ -12,7 +12,7 @@ created: 2026-11-11
 
 # 0004: Plugin delivery verification lane
 
-Part of forge v0.7, with [0002](0002-harness-model-and-rename.md) and [0003](0003-plugin-packages-and-delivery.md).
+Part of forge v0.8, with [0002](0002-harness-model-and-rename.md) and [0003](0003-plugin-packages-and-delivery.md).
 Owner requirement: "don't deliver untested rules" — every tier-1 harness gets a verification job that delivers a
 plugin the way forge delivers it and proves, through the harness's own inspection surface, that every resource
 landed. No model calls and no API keys: verification is structural. Model-level smoke tests move to the later
@@ -29,7 +29,7 @@ file. Nothing in the ecosystem verifies one plugin across many harnesses.
 Reuses each vendor's own inspection commands rather than building a parallel verification harness. Uses the official
 [agent-plugins-conformance](https://github.com/agentplugins/agent-plugins-conformance) plugins as additional fixtures
 where their Apache-2.0 format fits. When the optimization phase adds model-level evals, the agentskills.io eval
-guidance and promptfoo's harness providers are the prior art to build on — explicitly not v0.7.
+guidance and promptfoo's harness providers are the prior art to build on — explicitly not v0.8.
 
 ## Goals
 
@@ -43,7 +43,7 @@ guidance and promptfoo's harness providers are the prior art to build on — exp
 
 ## Non-goals
 
-- No LLM invocations and no API keys in v0.7. Model-level smoke tests (does the skill trigger well, does the rule
+- No LLM invocations and no API keys in v0.8. Model-level smoke tests (does the skill trigger well, does the rule
   influence output) move to the later optimization phase, when skill quality matters.
 - No testing of harness surfaces without a scriptable CLI or readable config (pure VS Code extension UI state).
 - No changes to the existing ten lanes' semantics; the new lane joins the gate like any other.
@@ -70,7 +70,7 @@ Each job asserts on the strongest inspection surface the harness CLI offers, fal
 A list command that turns out to require an account login degrades the job to file/settings checks only; the job
 records which mode it ran in. The job fails if neither the list command nor the files show the delivery. Be plain
 about the consequence: **for harnesses stuck in file-only mode (Copilot and Devin are the likely candidates), the
-v0.7 guarantee is file/settings assertions plus the portability report and owned-key diff — not harness-confirmed
+v0.8 guarantee is file/settings assertions plus the portability report and owned-key diff — not harness-confirmed
 registration.** That is still a stronger guarantee than any competitor offers, and the degrade rule keeps it honest.
 
 Assertion order per job: (1) `forge plugin add --yes --accept-settings` exits 0 with the expected portability
@@ -109,7 +109,7 @@ report, not just placement. This lane consumes the fixture and may extend it; it
 ### 4. What this deliberately does not check
 
 Whether the model uses a resource well (skill quality, instruction following). That belongs to the optimization phase
-with model-level evals. The v0.7 guarantee is: **the harness sees exactly what forge delivered, and nothing else
+with model-level evals. The v0.8 guarantee is: **the harness sees exactly what forge delivered, and nothing else
 changed.**
 
 ## Rollout

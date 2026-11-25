@@ -12,14 +12,14 @@ created: 2026-11-11
 
 # 0002: Coding harness model, rename, and custom harnesses
 
-Part of forge v0.7, together with [0003 plugin packages and delivery](0003-plugin-packages-and-delivery.md) and
+Part of forge v0.8, together with [0003 plugin packages and delivery](0003-plugin-packages-and-delivery.md) and
 [0004 delivery verification lane](0004-plugin-delivery-verification-lane.md). This spec owns the vocabulary and the harness data
 model the other two build on.
 
 ## Problem
 
 - **Outdated vocabulary.** Forge calls Claude Code, Cursor, Copilot and the rest "AI assistants". The org now calls
-  them coding harnesses, and v0.7 adds "plugins", a word forge already uses for its own unbuilt extension mechanism
+  them coding harnesses, and v0.8 adds "plugins", a word forge already uses for its own unbuilt extension mechanism
   (`src/infrastructure/io/plugin`, `PluginRequest` in `src/domain/protocol/types.ts`, the reserved `plugins: []` key in
   `docs/forge.config.yaml`).
 - **The model only knows three content globs** (`skills/**`, `rules/**`, `workflows/**`). Plugins also carry
@@ -46,20 +46,20 @@ model the other two build on.
 - Rename forge's own unbuilt "plugin" concept to "extension", so "plugin" means a harness plugin from here on.
 - Extend the harness definition with a component model that can describe every resource kind 0003 delivers.
 - Add built-in definitions for Droid, Codex, Kilo Code, OpenCode and Devin; **Antigravity is conditional** — it
-  ships if capacity allows (the owner's decision was "if capacity allows"), otherwise v0.8. Mark Windsurf legacy.
+  ships if capacity allows (the owner's decision was "if capacity allows"), otherwise a later release. Mark Windsurf legacy.
 - Let users declare custom harnesses in config, validated at the boundary.
 
 ## Non-goals
 
 - Plugin packaging, install, versioning and adapters (0003) and delivery verification (0004).
-- Changing v0.6 sync behaviour for existing built-in harnesses. Their target paths and transforms stay byte-identical.
-- Website copy. The web repo is updated after v0.7 lands.
+- Changing v0.7 sync behaviour for existing built-in harnesses. Their target paths and transforms stay byte-identical.
+- Website copy. The web repo is updated after v0.8 lands.
 - Custom harnesses that run code. Definitions are data only.
 - The hq design docs that use "plugin" for the planned Smelt shared engine. Those are updated separately; this spec
   only frees the word inside forge-cli.
 - Comment-preserving config writes in general (the existing writer reserializes and drops comments). The surgical
   alias edit avoids extending that to the rename; a comment-preserving writer is a tracked follow-up, out of scope
-  for v0.7.
+  for v0.8.
 
 ## Design
 
@@ -108,14 +108,14 @@ export interface HarnessDefinition {
   name: string
   status: 'supported' | 'legacy'
   detection: DetectionRule
-  targetMappings: TargetMapping[]                                  // v0.6 resource sync, unchanged
+  targetMappings: TargetMapping[]                                  // v0.7 resource sync, unchanged
   components: Partial<Record<ComponentKind, ComponentTarget>>      // what the harness can load, and where
   plugin?: HarnessPluginCapability                                 // defined in 0003 §6
 }
 ```
 
 - `components` is the source of truth for new code. For the five existing built-ins, `components[skill|rule|command]`
-  mirror their v0.6 `targetMappings` exactly — same destinations and same transforms — and a registry test checks
+  mirror their v0.7 `targetMappings` exactly — same destinations and same transforms — and a registry test checks
   that every mapping's destination **and transforms** match `components[kind]` (`skills/**` → `skill`,
   `rules/**` → `rule`, `workflows/**` → `command`).
 - New built-ins hand-write both `targetMappings` and `components`; the same consistency test keeps them aligned.
@@ -139,7 +139,7 @@ are project paths, with the global path after `|` where it differs. Keyed target
 | output-style | `.claude/output-styles/` | `.factory/output-styles/`? UNVERIFIED | — | — | — | — | — | — | — | — |
 
 Detection rules follow the existing pattern: the harness's project folder, plus its home folder for global mode.
-`windsurf` keeps its v0.6 mappings, gets `status: legacy`, and `forge init` no longer preselects it. Health and status
+`windsurf` keeps its v0.7 mappings, gets `status: legacy`, and `forge init` no longer preselects it. Health and status
 show "legacy (now Devin Desktop)" next to it. Antigravity's definition ships only if the conditional scope lands
 (Goals); the column documents the intended paths either way.
 
@@ -194,8 +194,8 @@ harnesses:
   lands), plus Windsurf legacy. The Droid PR resolves its UNVERIFIED loose-resource cells (rule, hook, output-style)
   against a local Droid install before the paths are committed.
 - **M5:** custom harnesses (inline and file-based).
-- Docs: `README.md` table, `docs/how-to-add-harness.md`, and a new `docs/custom-harnesses.md`. CHANGELOG under v0.7.0.
-  The web repo is updated after v0.7 lands, including a redirect from `/forge/assistants`.
+- Docs: `README.md` table, `docs/how-to-add-harness.md`, and a new `docs/custom-harnesses.md`. CHANGELOG under v0.8.0.
+  The web repo is updated after v0.8 lands, including a redirect from `/forge/assistants`.
 
 ## Open questions
 
@@ -207,13 +207,13 @@ harnesses:
 
 | ID | Behavior that must be true | Check (type) | How to run / evidence |
 |------|----------------------------|--------------|-----------------------|
-| AC-1 | A config with only `assistants:` loads unchanged and behaves exactly as before | test | config loader unit test with a v0.6 fixture |
+| AC-1 | A config with only `assistants:` loads unchanged and behaves exactly as before | test | config loader unit test with a v0.7 fixture |
 | AC-2 | A config with both `assistants:` and `harnesses:` fails to load with an error naming both keys | test | config loader unit test |
 | AC-3 | The alias conversion is a standalone, rename-only text edit of the config file: byte-identical except the `assistants:` key line, comments included. It lands as its own write; when the triggering operation also carries other config changes, the reserializing writer applies them in a second write with its existing comment-dropping behavior | test | alias-conversion unit test (byte comparison minus the key line) + write-ordering test |
 | AC-4 | Every built-in harness's `targetMappings` destinations and transforms match its `components` entry for the same kind | test | registry consistency test in `src/domain/harnesses/` |
 | AC-5 | `forge init`, `forge status` and `forge health` show "harness" wording and no "assistant" remains in user-facing CLI output or the README | cli snapshot + grep | grep of `--help` output, init/status fixtures, `README.md` |
-| AC-6 | `forge health` reads a v0.6 report that has `assistants` and displays it | test | report reader unit test with an old-format fixture |
-| AC-7 | The five existing harnesses sync the same files to the same paths as v0.6 | e2e | existing sync e2e suites pass unmodified apart from renames |
+| AC-6 | `forge health` reads a v0.7 report that has `assistants` and displays it | test | report reader unit test with an old-format fixture |
+| AC-7 | The five existing harnesses sync the same files to the same paths as v0.7 | e2e | existing sync e2e suites pass unmodified apart from renames |
 | AC-8 | Each new built-in harness (droid, codex, kilo, opencode, devin; antigravity if the conditional scope lands) is detected from its documented folders and syncs skills/rules/workflows to the documented paths | e2e | per-harness sync e2e fixture |
 | AC-9 | `windsurf` is marked legacy, is not preselected by `forge init`, still syncs as before when enabled, and `forge status`/`health` show "legacy (now Devin Desktop)" | e2e | init fixture + windsurf sync e2e + status snapshot |
 | AC-10 | A custom harness declared inline syncs skills, rules and commands to its declared paths, with declared transforms applied | e2e | custom-harness sync e2e fixture |

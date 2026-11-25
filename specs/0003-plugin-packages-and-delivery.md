@@ -12,7 +12,7 @@ created: 2026-11-11
 
 # 0003: Plugin packages and delivery
 
-Part of forge v0.7, together with [0002 harness model and rename](0002-harness-model-and-rename.md) (harness model,
+Part of forge v0.8, together with [0002 harness model and rename](0002-harness-model-and-rename.md) (harness model,
 vocabulary) and [0004 delivery verification lane](0004-plugin-delivery-verification-lane.md) (CI testing of plugins in real
 harnesses). This spec owns the plugin package format, sources, versioning, and per-harness delivery.
 
@@ -31,7 +31,7 @@ archive/CDN source, and no lockfile.
   the open hooks PR (#89) and subagents Discussion (#91) with implementer evidence instead of proposing new formats.
 - **Microsoft APM** owns dependency resolution, transitive deps, and org policy; forge rejects multi-plugin dependency
   graphs and points users there. APM's new-target admissions are frozen (tracker #3047, 2026-11-10), so upstreaming
-  a Droid target is a post-v0.7 revisit with forge as the demand evidence; `apm.yml` as a source is a v0.8 candidate.
+  a Droid target is a post-v0.8 revisit with forge as the demand evidence; `apm.yml` as a source is a later candidate.
 - **Vercel `skills`**: forge adopts its `skills-lock.json` v2 `computedHash` algorithm verbatim for content hashes
   (MIT) and uses its ~80-agent path table (includes Droid and Devin) as cross-check data for the 0002 model.
 - **Vercel `plugins`** (`npx plugins`; repo no longer public, so a black box): forge's `agent-plugins` emitter output
@@ -58,10 +58,10 @@ archive/CDN source, and no lockfile.
 
 - No registry, marketplace hosting, or package-manager features (dependency resolution, transitive deps). APM's territory.
 - No plugin signing, attestation, or evidence tooling.
-- No npm plugin source (v0.8).
-- No `forge plugin import` converter (v0.8).
+- No npm plugin source (later release).
+- No `forge plugin import` converter (later release).
 - No hooks on code-only-plugin harnesses (Kilo, OpenCode, Cline) beyond documented fallbacks.
-- Website copy (after v0.7, per 0002).
+- Website copy (after v0.8, per 0002).
 
 ## Design
 
@@ -134,7 +134,7 @@ Git source key reconciliation (the existing schema has `branch` plus `layout`/`i
 - Exactly one pin is in effect per plugin: a pin key on the source **or** the plugin-level `version:` (section 5).
   Both present is a named error telling the user which to keep.
 
-npm plugin sources are v0.8 (forge's own npm fetch with integrity pinning is separate work).
+npm plugin sources come in a later release (forge's own npm fetch with integrity pinning is separate work).
 
 ### 4. Marketplaces as sources
 
@@ -150,7 +150,7 @@ A marketplace is an **indirection layer**, not a package format. `forge plugin a
    `policy.authentication`; string or object sources); **Cursor** `.cursor-plugin/marketplace.json` (relative only).
 4. Resolve the entry's `source` into a forge source (section 3): git URL + ref/sha, git-subdir, or archive.
    - **`command` sources and inline `settings` catalogs are rejected** with a clear error (unpinnable, unsafe).
-   - npm entries are rejected in v0.7 with a "supported in v0.8" message.
+   - npm entries are rejected with a named "npm sources are not supported yet" error.
    - Floating `ref`s resolve to a SHA at lock time.
 5. Fetch, verify, lock, and install like any other source. The marketplace never participates after resolution.
 
@@ -320,7 +320,7 @@ lockfile, and installed into targets. The consumer side reads like npm (semver r
 resolve → emit → install), one output variant per target (per harness, like Gradle build variants), and output
 hashes for incremental work. Bazel's content-addressed, hermetic actions inform a future build cache.
 
-That matters because a compile step is next. Emitters consume an intermediate `PluginPackage` record (parsed
+That matters because a compile step is next (planned for v0.9). Emitters consume an intermediate `PluginPackage` record (parsed
 manifest + components + resolved assets), not raw files, so the future compiler
 ([hq research](https://github.com/crucibledx/hq/blob/main/research/forge-compiler-research.md)) can optimize,
 tree-shake, and order components between parse and emit without adapter changes; per-harness output hashes in the
@@ -345,12 +345,12 @@ Milestones, each shipped as small PRs (dependency order):
   conditional Antigravity scope (0002 Goals) lands.
 - **M7:** `pseudo` emitter (Kilo, Cline, Cursor project scope, custom harnesses) + `shim` emitter (OpenCode, Kilo).
 - **M8:** marketplace catalogs as a source (after M3) + `forge marketplace emit` and `--check` for producers (after
-  M4). In v0.7 scope by owner decision.
-- Repo-root `SKILL.md` (forge's agent surface) ships with M3. Docs per milestone; web repo after v0.7 (0002).
+  M4). In v0.8 scope by owner decision.
+- Repo-root `SKILL.md` (forge's agent surface) ships with M3. Docs per milestone; web repo after v0.8 (0002).
 
-**De-scope fallback (no estimates, ordering only).** If milestones slip, v0.7a is M1–M5, the `pseudo` emitter
+**De-scope fallback (no estimates, ordering only).** If milestones slip, v0.8a is M1–M5, the `pseudo` emitter
 from M7, and M8: rename, model, package, sources, marketplaces, lockfile, and delivery into Droid, Claude, Codex,
-Cline and custom harnesses. The first candidates to move to v0.7b are the M6 registrars (Copilot, Cursor, Devin),
+Cline and custom harnesses. The first candidates to move to v0.8b are the M6 registrars (Copilot, Cursor, Devin),
 then the `shim` emitter, then the conditional Antigravity scope. M8 is owner-committed and never a slip candidate.
 
 ## Open questions
@@ -367,10 +367,10 @@ then the `shim` emitter, then the conditional Antigravity scope. M8 is owner-com
 | AC-3 | A git source with a semver range resolves to the highest matching tag and locks its SHA | test | git resolver unit test with a fixture bundle |
 | AC-4 | `ref`/`tag`/`sha` pins resolve exactly; combining two pin keys, `branch` plus a pin key, a source pin plus plugin `version:`, or plugin sources with `layout`/`include`/`exclude`/`map` each fails with a named error | test | git resolver + config schema unit tests |
 | AC-5 | The archive source verifies `sha256`, refuses mismatches, and never persists the auth env value in config, lock, logs, or reports | test + e2e | archive loader tests + redaction grep |
-| AC-6 | A marketplace entry from each of the four catalog schemas resolves to a forge source; `command` sources and inline `settings` catalogs are rejected with a named error; npm entries are rejected with a "v0.8" message | test | catalog parser fixtures (4 schemas + reject cases) |
+| AC-6 | A marketplace entry from each of the four catalog schemas resolves to a forge source; `command` sources and inline `settings` catalogs are rejected with a named error; npm entries are rejected with the named "not supported yet" error | test | catalog parser fixtures (4 schemas + reject cases) |
 | AC-7 | The lockfile records name, resolved version, source descriptor, resolved SHA/sha256, content hash (skills-lock v2 algorithm), per-harness output hashes, and `previous:`; `forge sync` installs exactly the locked content | test + e2e | lockfile unit tests + sync e2e |
 | AC-8 | `plugin update` moves within the range, `outdated` lists newer tags, `revert` restores the `previous:` locked version | e2e | plugin lifecycle e2e |
-| AC-9 | Every emitter (`agent-plugins`, `claude`, `factory`, `cursor`, `pseudo`; `shim` unless the de-scope fallback moves it to v0.7b; `antigravity` if its scope lands) reproduces its golden output from the `cover-all` fixture | test | golden snapshot suite per emitter |
+| AC-9 | Every emitter (`agent-plugins`, `claude`, `factory`, `cursor`, `pseudo`; `shim` unless the de-scope fallback moves it to v0.8b; `antigravity` if its scope lands) reproduces its golden output from the `cover-all` fixture | test | golden snapshot suite per emitter |
 | AC-10 | The portability report names every adaptation and drop per harness at validate and at sync | cli snapshot | `forge plugin validate` output on the fixture |
 | AC-11 | Droid registration writes `extraKnownMarketplaces` + `enabledPlugins` pinned to the locked SHA in `.factory/settings.json`; a harness auto-update cannot move the install off the lock | e2e | Droid registration e2e |
 | AC-12 | Claude Code registration defaults to the `.claude/skills/<n>/` drop-in with the MCP-skipped warning, and uses the post-commit `claude plugin install` step only for MCP-carrying plugins; a failed CLI step runs its compensating uninstall and leaves state unwritten; a failed compensation reports the orphaned registration and the manual removal command | e2e | Claude registration e2e, both paths + injected CLI failure + injected compensation failure |
