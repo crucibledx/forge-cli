@@ -19,7 +19,7 @@ plus measurements on the locally installed Droid 1.12.1 (section 2) and the comp
 
 | Surface | Droid (Factory) | Claude Code | Codex CLI | Copilot CLI |
 |---|---|---|---|---|
-| Skill listing entry | `name: description` | name always; `description` + `when_to_use` | `- name: description (kind: path)` | XML entry with name + description |
+| Skill listing entry | DOCUMENTED/OBSERVED: `name: description` | DOCUMENTED: name always; `description` + `when_to_use` | SOURCE: `- name: description (kind: path)` | OBSERVED: XML entry with name + description |
 | Skill listing budget | **Not documented.** OBSERVED: descriptions cut to name-only past a char budget (sections 2, 7); ~15k chars measured on 1.8.0, re-measured on 1.12.1 below | DOCUMENTED: 1% of the context window (`skillListingBudgetFraction`, default 0.01; legacy `SLASH_COMMAND_TOOL_CHAR_BUDGET` falls back to 8,000 chars) | SOURCE: 2% of the window (`SKILL_METADATA_CONTEXT_WINDOW_PERCENT = 2`, 4 bytes/token) or 8,000 chars if unknown (`DEFAULT_SKILL_METADATA_CHAR_BUDGET`); `skills.max_context_tokens` overrides, capped at 10,000 | OBSERVED: fixed `SKILL_CHAR_BUDGET` of 30,000 chars, not scaled to the window; env var can raise it; undocumented |
 | Per-description cap | OBSERVED: ~200 chars (199 + "…") | DOCUMENTED: 1,536 chars (`skillListingMaxDescChars`) | SOURCE: 1,024 chars (`MAX_CATALOG_SKILL_DESCRIPTION_CHARS`) | DOCUMENTED: 1,024 chars max; OBSERVED: a longer description gets the skill **silently dropped** (copilot-cli#3494) |
 | Over budget | OBSERVED: later entries lose their description (name-only), in load order, **no omission notice** | DOCUMENTED: descriptions dropped starting with least-invoked skills, names stay, warning in `--debug` log | SOURCE: descriptions shrunk evenly round-robin; then whole skills dropped from the end of a fixed order (user scope first), with a warning | OBSERVED: filled in arrival order; rest listed name-only as "Additional skills available"; no warning |
@@ -171,9 +171,10 @@ context-management, optimize-ai-usage), changelog through v1.0.115, github/copil
   has not finished. Tool output over 20 KiB goes to a file (`COPILOT_LARGE_OUTPUT_THRESHOLD_BYTES`).
 - DOCUMENTED: `userPromptSubmitted` hook's `additionalContext` bug (#2652) was fixed in v1.0.85.
 
-## 7. What the POC adds (input, not re-measured here)
+## 7. What the POC adds (OBSERVED, secondary input, not re-measured here)
 
-From `poc/forge-compiler` (48 `droid exec` runs, Droid 1.8.0, claude-sonnet-5; read-only input):
+Every finding in this section is OBSERVED from the `poc/forge-compiler` branch (48 `droid exec` runs,
+Droid 1.8.0, claude-sonnet-5; read-only input), not re-measured in this pass:
 
 - With 92 public plugins installed, a trivial prompt cost 23.1k input tokens vs 14.8k empty; the compiled
   layout cut that to 21.2k (−24% of the overhead) and the guardian layout to 18.3k (−59%). After turn one
@@ -183,15 +184,18 @@ From `poc/forge-compiler` (48 `droid exec` runs, Droid 1.8.0, claude-sonnet-5; r
   compiled passed 3/3 at 1.2x baseline cost vs copy-all 1/3 at 2.0x.
 - A deterministic BM25 router is not good enough to be the gate (top-3: 80% direct / 33% indirect, 35%
   false suggestions); a model-written query over the same index reaches 95%/65%.
-- Cache arithmetic: with 0.05–0.1x cache reads, rewriting the prefix to remove T tool tokens pays back only
-  after ~12–24x P/T unchanged turns. Per-request tool filtering loses money. Append-only hints after the
-  cached prefix are the cache-safe shape.
+- Cache arithmetic: rewriting the prefix to remove T tool tokens saves about r·T per turn (r = cache-read
+  multiplier, 0.05–0.1x), but the rewrite costs (w−r)·(P−T) once (P = unchanged cached-prefix tokens,
+  w = cache-write multiplier, 1.25x). Break-even is N ≈ ((w−r)/r)·(P−T)/T unchanged turns, roughly 11.5–24x
+  P/T for w = 1.25, r = 0.05–0.1 and P >> T. Per-request tool filtering loses money in normal sessions.
+  Append-only hints after the cached prefix are the cache-safe shape.
 
 ## 8. Compile rules Forge should apply
 
-Rules 1–6 apply to every target; rule 7+ are per harness. "Budget" numbers are conservative targets derived
-from section 1; where a cap is undocumented (Droid), the rule is based on measurement and must be
-re-checked when Factory documents it.
+These rules are INFERRED recommendations derived from the findings above; they are Forge policy proposals
+for spec 0005, not harness facts. Rules 1–6 apply to every target; rule 7+ are per harness. "Budget"
+numbers are conservative targets derived from section 1; where a cap is undocumented (Droid), the rule is
+based on measurement and must be re-checked when Factory documents it.
 
 1. **Descriptions are routing; write them for the listing, not the body.** Put the trigger ("Use when…")
    keywords in the first sentence. Cap emitted descriptions at the strictest target in the compile:
@@ -203,9 +207,14 @@ re-checked when Factory documents it.
    Droid ~9,500 chars of skill descriptions (measured cap ~15k incl. names, minus built-ins) and ~9,000
    chars for droids; Claude Code 1% of the window (≈8,000 chars fallback); Codex 8,000 chars (2% rule);
    Copilot 28,000 chars (30k budget minus slack). Order kept entries by relevance score so truncation, if
-   it ever happens, cuts the least relevant. What does not fit gets `disable-model-invocation: true`
-   (Droid, Claude, Copilot) or `policy.allow_implicit_invocation: false` (Codex) — deferred, never deleted,
-   still user-invocable and guardian-findable.
+   it ever happens, cuts the least relevant. **What does not fit is deferred, never deleted.** The
+   guaranteed mechanism is emit-side: the harness discovery location receives only what fits the budget,
+   and overflow components stay in the Forge store (`.crucible/store`, guardian-findable, nothing
+   installed where the harness scans them). Where a defer flag is documented to remove an entry from the
+   model's listing, emit it too: `disable-model-invocation: true` on Droid and Claude Code. For Codex
+   (`policy.allow_implicit_invocation: false`) and Copilot (`disable-model-invocation`), whether the flag
+   frees listing budget is unverified (section 9), so treat those flags as a possible extra on top of the
+   emit-side fit, never as the mechanism that makes the listing fit.
 4. **Dedupe and normalize per target first.** The POC found real breakage in public corpora (duplicate
    agents, missing `name`, Claude-only model aliases). Name clashes get renamed with a diagnostic; exact
    body duplicates are removed and references rewritten.
@@ -217,7 +226,8 @@ re-checked when Factory documents it.
 6. **Make output deterministic, byte for byte.** No timestamps, no random ordering, stable sort
    everywhere. Every harness invalidates or dilutes its prompt cache when the prefix changes; compiled
    output should diff-empty between runs when inputs are unchanged. Emit once, at build time; never rewrite
-   files mid-session (Codex/Claude append edits as extra context, Copilot ignores them until next session).
+   files mid-session — Codex appends the edit as extra context, Claude keeps serving the old project
+   context until `/clear` or a restart, and Copilot applies instruction edits only next session.
 7. **Droid target:** skill descriptions ≤199 chars with the trigger first; droid descriptions ≤500 chars
    (validation warning) and keep the total droid listing small — at ~80 droids Droid cuts every description
    to ~55 chars, so prefer fewer, sharper droids over many; use `disabledSkills`/`enabledTools` in
