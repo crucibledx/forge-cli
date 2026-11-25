@@ -212,7 +212,7 @@ it.each(['release-setup-removed', 'ci-setup-removed', 'release-job-removed', 'ch
 type ReleaseStep = {uses?: string; run?: string; if?: string}
 type ReleaseWorkflow = {
   on: {workflow_dispatch: {inputs: Record<string, unknown>}}
-  jobs: Record<string, {needs?: string | string[]; steps: ReleaseStep[]}>
+  jobs: Record<string, {needs?: string | string[]; if?: string; steps: ReleaseStep[]}>
 }
 const findStep = (release: ReleaseWorkflow, job: string, match: (step: ReleaseStep) => boolean) =>
   release.jobs[job].steps.find(match)!
@@ -298,6 +298,25 @@ const releaseDrift: Record<string, [string, (release: ReleaseWorkflow) => void]>
     (release) => {
       findStep(release, 'publish-npm', (step) => !!step.run?.includes('npm publish --access public --provenance')).if =
         '${{ !inputs.dry_run || true }}'
+    },
+  ],
+  'homebrew-on-prerelease': [
+    'Prereleases must not update Homebrew or Scoop',
+    (release) => {
+      delete release.jobs.homebrew.if
+    },
+  ],
+  'scoop-on-prerelease': [
+    'Prereleases must not update Homebrew or Scoop',
+    (release) => {
+      delete release.jobs.scoop.if
+    },
+  ],
+  'prerelease-dist-tag-dropped': [
+    'npm prereleases must publish under the next dist-tag',
+    (release) => {
+      const publish = findStep(release, 'publish-npm', (step) => !!step.run?.includes('--provenance'))
+      publish.run = publish.run!.replace(' ${DIST_TAG:+--tag "${DIST_TAG}"}', '')
     },
   ],
   'npm-publish-guard-prefixed-bypass': [

@@ -20,5 +20,6 @@ Read by the Crucible loop agents (`implement-spec`, `verifier`). Keep it accurat
 - **Release:** manual. Pushing a `v*` tag runs `release.yml`: it waits for a green `Deterministic gate` on the tagged
   commit, builds and smoke-tests the binary, then publishes npm first, then GitHub Releases, then the Homebrew tap and
   Scoop bucket. Re-runs skip an npm version that is already published. A `workflow_dispatch` with `dry_run: true` runs
-  every check and build but publishes nothing. Loop PRs never bump versions, edit `CHANGELOG.md` release headers, or
+  every check and build but publishes nothing. A prerelease tag (`v0.7.0-rc.1`) publishes to the npm `next` dist-tag and
+  a GitHub prerelease only, without Homebrew or Scoop. Loop PRs never bump versions, edit `CHANGELOG.md` release headers, or
   push tags.
