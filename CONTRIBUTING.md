@@ -62,7 +62,7 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   materializes its independent file copy when its command environment is requested, never for pure filesystem
   setup and never through a shared mutable executable. Both `sandbox.env` and `testEnvironment()` prepare it before use.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
-- A successful local build is not a native Windows/macOS substitute. CI runs all ten independent lanes, one step
+- A successful local build is not a native Windows/macOS substitute. CI runs all eleven independent lanes, one step
   per check with its output in the job log, and an always-run `Deterministic gate` that fails unless every lane
   succeeded. "Re-run failed jobs" works.
   See the [safety contract](docs/safety-contract.md).

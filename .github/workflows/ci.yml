@@ -36,6 +36,7 @@ jobs:
           - {lane: native-macos, os: macos-15-intel, checks: ['build', 'test:platform', 'test:compiled']}
           - {lane: native-windows, os: windows-latest, checks: ['build', 'test:platform', 'test:compiled']}
           - {lane: build, os: ubuntu-latest, checks: ['build', 'test:compiled']}
+          - {lane: harness-smoke, os: ubuntu-latest, checks: ['build', 'test:harness-smoke']}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +46,11 @@ jobs:
           bun-version-file: .bun-version
       - id: install
         run: bun install --frozen-lockfile
+      # The harness smoke asks the real Droid CLI to inspect the synced project; Claude Code is
+      # fetched by the check itself via bunx. Pin the Droid CLI so its output contract stays stable.
+      - name: Install the Droid CLI
+        if: matrix.lane == 'harness-smoke'
+        run: npm install -g droid@1.20.0 && droid --version
       # Separate always() steps: an early failing check must not hide later checks' results.
       - name: ${{ matrix.checks[0] || 'no check registered at this index' }}
         if: always() && steps.install.outcome == 'success' && matrix.checks[0]

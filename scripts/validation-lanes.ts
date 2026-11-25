@@ -112,6 +112,14 @@ export const validationLanes: readonly ValidationLane[] = [
     br_ids: ['BR-09', 'BR-10'],
     checks: [run('build'), run('test:compiled')],
   },
+  {
+    id: 'harness-smoke',
+    fixture_scope:
+      'compiled binary syncing the live forge-skills-starter into fresh project folders, verified by the real Droid and Claude Code CLIs without API keys or model calls',
+    ac_ids: [],
+    br_ids: [],
+    checks: [run('build'), run('test:harness-smoke')],
+  },
 ]
 export const acceptanceIds = [
   'AC-1',
