@@ -61,17 +61,27 @@ folder:
 
 | Harness | Load assertion | Extra checks |
 |---|---|---|
-| Claude Code | `claude plugin list --json` shows `cover-all@crucible-forge`, enabled, at the locked version | `claude plugin validate <cache>/cover-all/<version>/claude-code/` passes (warnings allowed); the rule files `~/.claude/rules/cover-all--*.md` (user scope) or `.claude/rules/cover-all--*.md` (project scope) exist with the fixture's rule text |
-| Droid | `droid plugin list --scope <scope>` shows `cover-all@crucible-forge`, `Enabled`, at the locked version | the emitted plugin's `hooks/hooks.json` registers a `SessionStart` hook that prints the fixture's rule text |
+| Claude Code | `claude plugin list --json` shows `cover-all@<marketplace>` (the name the sync report prints, 0003 §5), enabled, at the locked version | `claude plugin validate <cache>/cover-all/<version>/claude-code/` passes (warnings allowed); the rule files `~/.claude/rules/cover-all--*.md` (user scope) or `.claude/rules/cover-all--*.md` (project scope) exist with the fixture's rule text |
+| Droid | `droid plugin list --scope <scope>` shows `cover-all@<marketplace>`, `Enabled`, at the locked version | the emitted plugin's `hooks/hooks.json` registers a `SessionStart` hook that prints the fixture's rule text |
 
 4. Remove the plugin from the config, run `forge sync --yes`, and assert the list no longer shows it and the rule
    files are gone.
 
 If a harness only materializes settings-declared plugins when a session starts, the job triggers that with the
 harness's own non-model command (for example a marketplace update) and records which one. If the list command needs
-a login or a step that cannot run without a model call, the job falls back to the harness's validate command (where
-one exists) plus a check of the forge-written settings keys, and prints `load-check mode: fallback (<reason>)`. A job
-in fallback mode still fails when its checks fail; it never passes silently.
+a login or a step that cannot run without a model call, the job falls back and prints
+`load-check mode: fallback (<reason>)`. Fallback checks the forge-written settings keys **and** an offline layout
+check that follows the same path the harness would: the settings key's marketplace source → that directory's
+catalog (`.claude-plugin/marketplace.json` for Claude Code, `.factory-plugin/marketplace.json` for Droid) → the
+entry's `source` → a plugin directory containing `.claude-plugin/plugin.json` whose `name` and `version` match the
+lock, plus the harness's validate command where one exists. If no check available in that mode can tell a valid
+delivery from the AC-7 broken fixture, the job fails closed. A job in fallback mode still fails when its checks
+fail; it never passes silently.
+
+**Producer case (0003 AC-25).** Once `forge marketplace emit` exists, each job also emits a producer fixture's
+marketplace and installs it with the harness's own CLI only (`plugin marketplace add <dir>`, then
+`plugin install <name>@<marketplace> --scope user`), then lists it as above. Whichever of emit and this lane lands
+second adds the step.
 
 Session-level rule application (the model actually seeing the rule) is verified at the byte level only in v0.8; the
 follow-up is `forge bench` and the optimization phase.
@@ -86,7 +96,8 @@ follow-up is `forge bench` and the optimization phase.
   name the new lane.
 - A failing job prints the forge plan, the portability report, and the harness command output.
 - The job script is runnable locally. The negative case (AC-7) runs through it locally against a broken fixture
-  variant; its log is attached to the PR as evidence. No permanently failing job exists in CI.
+  variant, once normally and once with fallback forced (`LOAD_CHECK_FORCE_FALLBACK=1`); both logs are attached to
+  the PR as evidence. No permanently failing job exists in CI.
 - Adding a harness later is one matrix entry plus its row in the table above.
 
 ## Rollout
@@ -106,10 +117,10 @@ follow-up is `forge bench` and the optimization phase.
 | AC-1 | The load check runs one job per v0.8 plugin harness (Claude Code, Droid) per automatable scope in parallel, and the Deterministic gate fails when the lane fails or is missing | e2e | `requiredLaneIds` names the lane; gate run with the lane failed |
 | AC-2 | No job references a secret, receives auth env, or makes a model API call | test | workflow lint: no `secrets.` in the lane and the job env matches a declared allowlist |
 | AC-3 | Harness CLIs are pinned and each job logs the version it ran; no unpinned network script runs | e2e | version line in each job log; install provenance in the workflow |
-| AC-4 | After `forge sync --yes`, each job proves through the harness's own list command that `cover-all@crucible-forge` is enabled at the locked version, or prints the fallback mode and its reason and passes the fallback checks | e2e | job log per harness and scope |
+| AC-4 | After `forge sync --yes`, each job proves through the harness's own list command that `cover-all@<marketplace>` is enabled at the locked version, or prints the fallback mode and its reason and passes the fallback checks (settings keys + offline layout check) | e2e | job log per harness and scope |
 | AC-5 | The Claude Code job passes `claude plugin validate` on the emitted plugin directory | e2e | job log |
 | AC-6 | Each job asserts the rule delivery of section 1: Claude rule files exist with the fixture's text, the Droid plugin registers the `SessionStart` rule hook; after removal the rules are gone and the harness list no longer shows the plugin | e2e | job log |
-| AC-7 | A deliberately broken delivery (fixture variant with a wrong manifest path) fails the job script; the negative case runs locally and its log is attached to the PR | test | negative-case log in the PR |
+| AC-7 | A deliberately broken delivery (fixture variant with a wrong manifest path) fails the job script in normal mode and in forced fallback mode; the negative case runs locally and its log is attached to the PR | test | negative-case logs (both modes) in the PR |
 | AC-8 | A failing job prints the forge plan, the portability report, and the harness command output | e2e | negative-case log in the PR |
 | AC-9 | The lane's network policy and gate wiring are documented in `docs/safety-contract.md`, including the updated "ten required modules" sentence, and `check:contracts` passes | contract | `bun run check:contracts` on the PR |
 

@@ -145,7 +145,10 @@ plugins:
 
 - **Lockfile** `.crucible/forge.lock` (project, committed) and `~/.crucible/forge/forge.lock` (user). Per plugin:
   name, manifest `version`, source descriptor, resolved commit SHA (git), `contentHash` (skills-lock v2 algorithm over
-  the package files), and `outputs[<harness>]` (the same hash over that harness's emitted plugin directory).
+  the package files), and `outputs[<harness>]`: the same hash over **everything forge delivers to that harness for
+  the plugin**, i.e. the emitted plugin directory plus any loose files placed outside it (Claude rule files), each
+  keyed by a scope-independent relative destination (`plugin/<path>`, `claude-rules/<file>`). Registrar settings
+  keys are not part of it: they carry machine paths and no plugin content.
 - **Sync lock discipline (v0.8.0).** `forge sync` is the only locking command until the §7 commands land. For each
   `plugins:` entry: no lock entry → resolve, lock, install. Lock entry present and the source descriptor in config
   is unchanged → install the locked content verbatim. Source descriptor changed (different `url`/`path`/`ref`/
@@ -180,7 +183,11 @@ unset in 0002; #56 sets it on `droid` (`factory`, `droid-settings`) and #57 on `
 `claude-settings`). An enabled harness without a capability (Cursor, Copilot, Cline, Windsurf today) keeps its
 loose-resource sync and gets one report line per plugin: "plugins are not supported for <harness> yet".
 
-**Local marketplace.** Each scope's cache root is a forge-owned marketplace named `crucible-forge`. Forge writes
+**Local marketplace.** Each cache root is a forge-owned marketplace with its own name: `crucible-forge-user` for
+the user cache, and `crucible-forge-<id>` for a project cache, where `<id>` is the first 12 hex characters of the
+sha256 of the project root's canonical absolute path. Distinct names are required: Claude Code resolves a
+same-name `extraKnownMarketplaces` entry from the highest-precedence settings file whole, and its marketplace state
+is user-wide, so a shared name would let a project entry shadow the user catalog or another project's. Forge writes
 both catalog files — `.claude-plugin/marketplace.json` (read by Claude Code) and
 `.factory-plugin/marketplace.json` (read by Droid) — each with one entry per installed plugin carrying the plugin's
 `name`, `version` and a relative-path `source` pointing at its emitted output. Forge rewrites these files whole on
@@ -188,8 +195,9 @@ every install; they are cache files, not user files. Because the harness install
 bytes, the installed bytes are the locked bytes and a harness's own update cannot move off the lock.
 
 **Registrars** (infrastructure) are file-only and run no harness CLI. Each writes two keyed entries (section 6):
-`extraKnownMarketplaces["crucible-forge"]` (source: the cache root, an absolute path) and
-`enabledPlugins["<name>@crucible-forge"] = true`.
+`extraKnownMarketplaces["<marketplace>"]` (source: the cache root, an absolute path) and
+`enabledPlugins["<name>@<marketplace>"] = true`, with `<marketplace>` the scope's name above. The sync report prints
+the marketplace name and plugin IDs.
 
 | Harness | Project scope | User scope | Rules |
 |---|---|---|---|
@@ -260,16 +268,23 @@ exits non-zero.
 ### 8. Marketplace emit (producer side, v0.8.x)
 
 `forge marketplace emit` turns a repo of plugin packages into a marketplace that Droid and Claude Code can install
-from without forge. Input is a `marketplace:` section in the producer's forge config (`name`, `owner`, and
-`plugins:`, a list of package paths). Output is `.claude-plugin/marketplace.json` and
-`.factory-plugin/marketplace.json`, one entry per declared package with its manifest `name`, `version` and a
-relative-path source.
+from without forge. Input is a `marketplace:` section in the producer's forge config (`name`, `owner`, `plugins:`,
+a list of package paths, and `output:`, a repo-relative directory, default `dist/plugins/`). Neither harness reads
+the Agent Plugins source layout directly (the `dev.crucibledx.forge/` namespace, portable `mcp.json`), so emit
+**publishes harness-ready packages**: it runs the §5 emitter for each package into `<output>/<name>/` and points the
+catalogs at those trees, never at the source packages. One tree serves both harnesses (Droid translates the Claude
+layout). Because no forge runs on the consumer side to place loose files, rules in a published package always use
+the generated `SessionStart` rule hook (Claude Code also adds `SessionStart` hook output to context); path-scoped
+rules are approximated as always-on and reported. Output is the emitted trees plus
+`.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json`, one entry per declared package with its
+manifest `name`, `version` and a relative-path source pointing at `<output>/<name>/`. Producers commit all of it.
 
 - Every declared package passes `forge plugin validate` first; one failure aborts emit before any write.
+- Forge owns `<output>/<name>/` for each declared package whole and rewrites it on every emit.
 - Catalogs are written through the keyed-merge mutation (section 6). Forge owns only the `plugins[]` entries for the
   packages it declares, plus top-level fields when it creates the file; hand-written entries survive.
-- `--check` writes nothing and exits non-zero, naming each stale catalog, when the files differ from what emit would
-  write. Producers run it in CI.
+- `--check` writes nothing and exits non-zero, naming each stale catalog or emitted tree, when the files differ from
+  what emit would write. Producers run it in CI.
 
 ### 9. Later releases
 
@@ -331,11 +346,11 @@ v0.8.0 is the first four steps; the rest lands as v0.8.x before v0.9 work starts
 | AC-2 | v0.8.0 | A git plugin source's `ref` (branch, tag or SHA) resolves to a commit SHA that is locked; with neither `ref` nor `branch`, `main` is assumed; an explicit `branch` warns; `branch` explicitly written with `ref` (checked before the schema default), and plugin sources with `layout`/`include`/`exclude`/`map`, each fail with a named error | test | git resolver + config schema unit tests |
 | AC-3 | v0.8.0 | The lockfile records name, version, source descriptor, resolved SHA, `contentHash` (skills-lock v2 algorithm) and per-harness `outputs`; `forge sync` installs exactly the locked content even after the source branch moves | test + e2e | lockfile unit tests + sync e2e with an advanced fixture branch |
 | AC-4 | v0.8.0 | Sync follows the §4 lock discipline: creates a lock entry when missing, installs the lock verbatim when the source descriptor is unchanged, relocks on a descriptor change or a changed `local` content hash (and reports it), and aborts before any write when a `local` path does not exist | test + e2e | sync e2e per branch of the discipline |
-| AC-5 | v0.8.0 | `variants[<harness>]` follows the section 4 formula: identical for the same delivered bytes regardless of config order, project path or time, and different when any delivered byte for that harness changes | test | variant unit tests: two project roots, reordered config, one-byte change |
+| AC-5 | v0.8.0 | `outputs[<harness>]` covers the plugin directory and loose rule files; `variants[<harness>]` follows the section 4 formula: identical for the same delivered bytes regardless of config order, project path, scope or time, and different when any delivered byte for that harness changes, including an edit to rule text only | test | variant unit tests: two project roots, reordered config, one-byte change in the plugin, rule-text-only change with an unchanged manifest version |
 | AC-6 | v0.8.0 | A plugin that fails validation aborts the sync before any write; a cache miss with an unreachable source aborts before any write with a source error naming the plugin | e2e | failing-validation + offline-cache-miss sync e2e |
 | AC-7 | v0.8.0 | The portability report names every adaptation and drop in section 2 per harness, at validate and at sync | cli snapshot | `forge plugin validate` and `forge sync` output on the `cover-all` fixture |
 | AC-8 | v0.8.0 | The `claude` and `factory` emitters reproduce their golden output from the `cover-all` fixture (same canonical layout; `factory` adds the `SessionStart` hook), with no absolute paths in it | test | golden snapshot suite per emitter + absolute-path grep |
-| AC-9 | v0.8.0 | Droid registration writes `extraKnownMarketplaces["crucible-forge"]` and `enabledPlugins["<name>@crucible-forge"]` into `.factory/settings.local.json` (project) or `~/.factory/settings.json` (user), invokes no harness CLI, and the local marketplace lists the locked version | e2e | Droid registration e2e, both scopes; process-spawn assertion |
+| AC-9 | v0.8.0 | Droid registration writes `extraKnownMarketplaces["<marketplace>"]` and `enabledPlugins["<name>@<marketplace>"]` (marketplace names per §5) into `.factory/settings.local.json` (project) or `~/.factory/settings.json` (user), invokes no harness CLI, and the local marketplace lists the locked version | e2e | Droid registration e2e, both scopes; process-spawn assertion |
 | AC-10 | v0.8.0 | Claude Code registration writes the same keys into `.claude/settings.local.json` (project) or `~/.claude/settings.json` (user) with a `directory` source, writes rules as `.claude/rules/<plugin>--<name>.md`, invokes no harness CLI, and the plan notes the folder-trust requirement | e2e | Claude registration e2e, both scopes; process-spawn assertion |
 | AC-11 | v0.8.0 | Keyed merges preserve comments, formatting, and user sibling keys; external edits to a forge-owned key block the sync without `--force`; an unparseable settings file blocks with a named error; `--force` overrides drift and the plan lists what it overrode | test | jsonc merge unit tests + drift/force cases |
 | AC-12 | v0.8.0 | Keyed merges into arrays match entries by the declared identity key, not index: with user entries before, between and after forge's entries (including arrays of strings), a re-run neither duplicates nor drops entries and keeps user order; removal deletes only forge's entries; a duplicate identity or a keyless entry in an owned array fails with a named error | test | array-merge unit tests on catalog and string-array fixtures |
@@ -348,8 +363,10 @@ v0.8.0 is the first four steps; the rest lands as v0.8.x before v0.9 work starts
 | AC-19 | v0.8.x | `plugin add`, `remove`, `update` and `list` support `--json` and full flag equivalents, mutating ones support `--yes`, and cancel exits non-zero; `update` relocks a moved `ref` to its new SHA; `list --json` includes `variants` | e2e | agent-mode plugin command e2e |
 | AC-20 | v0.8.x | `forge status` and `forge health` report drift between lock, cache and harness settings, including keyed-merge drift | e2e | status/health e2e with seeded drift |
 | AC-21 | v0.8.x | The repo-root `SKILL.md` validates against the ported skills-ref rules and describes the plugin workflow | test | skill validation test |
-| AC-22 | v0.8.x | `forge marketplace emit` writes `.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json` from the `marketplace:` config, one entry per declared package with its manifest `name`, `version` and a relative-path source; a rerun is byte-identical | test | golden snapshot per catalog from a two-package producer fixture + rerun diff |
-| AC-23 | v0.8.x | Emit preserves hand-written entries and top-level fields; a declared package that fails validation aborts emit before any write; `--check` writes nothing, exits non-zero naming each stale catalog, and exits 0 when current | e2e | emit e2e: pre-seeded catalog, invalid package, stale and current check cases |
+| AC-22 | v0.8.x | `forge marketplace emit` writes the emitted harness-ready tree `<output>/<name>/` per declared package (rules as the `SessionStart` hook) and `.claude-plugin/marketplace.json` and `.factory-plugin/marketplace.json` from the `marketplace:` config, one entry per package with its manifest `name`, `version` and a relative-path source pointing at the emitted tree, never the source package; a rerun is byte-identical | test | golden snapshot per catalog and tree from a two-package producer fixture + rerun diff |
+| AC-23 | v0.8.x | Emit preserves hand-written entries and top-level fields; a declared package that fails validation aborts emit before any write; `--check` writes nothing, exits non-zero naming each stale catalog or emitted tree, and exits 0 when current | e2e | emit e2e: pre-seeded catalog, invalid package, stale and current check cases |
+| AC-24 | v0.8.0 | Marketplace identities are distinct per cache root: with a user-scope and a project-scope plugin installed together, and with two projects on one machine, each settings file names its own marketplace, every enabled plugin ID resolves against the catalog that contains it, and removing one scope's or project's plugin leaves the others' keys untouched | e2e | registration e2e: simultaneous scopes, two project roots, both harnesses |
+| AC-25 | v0.8.x | A published producer tree installs without forge: each harness's own `plugin marketplace add <dir>` + `plugin install <name>@<marketplace>` lists the plugin enabled at the manifest version, and `claude plugin validate` passes on each emitted tree | e2e | producer case in the 0004 load-check jobs (added by whichever of emit and the load check lands second) |
 
 ## Sources
 
