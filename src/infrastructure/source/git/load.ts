@@ -12,6 +12,7 @@ import type {SourceLoaderEntry} from '../types'
 import type {GitSourceConfig} from './types'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
+const FETCHED_REF = 'refs/forge/fetched'
 const acquisitions = new Map<string, Promise<unknown>>()
 
 export const gitCacheKey = (source: GitSourceConfig) => hashContent(`${source.url}#${source.branch}`)
@@ -38,9 +39,11 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
   let fresh: boolean
   if (existsSync(join(cacheDir, '.git'))) {
     logger.debug('git source: fetching updates', {url: git.url, branch: git.branch})
-    await runGit(cacheDir, ['fetch', 'origin', git.branch])
+    // A tag has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under fetch.writeFetchHEAD=false,
+    // so fetch branches and tags alike into a private ref and reset to that.
+    await runGit(cacheDir, ['fetch', 'origin', `+${git.branch}:${FETCHED_REF}`])
     await runGit(cacheDir, ['checkout', git.branch])
-    await runGit(cacheDir, ['reset', '--hard', `origin/${git.branch}`])
+    await runGit(cacheDir, ['reset', '--hard', FETCHED_REF])
     fresh = false
   } else {
     logger.debug('git source: cloning', {url: git.url, branch: git.branch})

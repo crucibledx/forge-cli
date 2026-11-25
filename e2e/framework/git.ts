@@ -55,3 +55,12 @@ export async function addBranchToBareRepo(
 ): Promise<void> {
   await exec(baseDir, ['git', '-C', barePath, 'fetch', history, `refs/heads/${fixtureFor(files)}:refs/heads/${branch}`])
 }
+/** Create or move any ref (e.g. `refs/tags/v1`) to a fixture commit, even when the move is not a fast-forward. */
+export async function setBareRepoRef(
+  baseDir: string,
+  barePath: string,
+  ref: string,
+  files: Record<string, string>,
+): Promise<void> {
+  await exec(baseDir, ['git', '-C', barePath, 'fetch', history, `+refs/heads/${fixtureFor(files)}:${ref}`])
+}
