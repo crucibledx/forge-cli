@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.7.0] — 2026-11-25
+
+Hardening release: sync now fails closed, keeps what it cannot prove it owns, and recovers or names what it could not
+restore. See [Safety and migration](https://github.com/crucibledx/forge-cli#safety-and-migration) and the
+[safety contract](https://github.com/crucibledx/forge-cli/blob/main/docs/safety-contract.md).
+
+### Changed
+
+- **Sync fails closed** — every source outcome is collected first; any failed source aborts the whole sync before protected writes, instead of being treated as empty.
+- **Ownership** — disabled assistants and untracked files are retained; only tracked stale outputs are cleaned. Empty readable sources can clean tracked stale files with `keep_local: false`.
+- **State v2** — sync state records installed bytes per file. Existing state is read as conservative `legacy-unknown` baselines. Do not downgrade without restoring a consistent target/config/state snapshot.
+- **Planning blocks collisions** — differing existing backups and portable case, Unicode and path collisions (including case-fold-equivalent spellings) stop the plan instead of overwriting.
+- **Rollback** — handled failures restore targets and metadata; an incomplete recovery names the untrusted paths instead of claiming success. `--silent` still prints incomplete-recovery emergencies.
+- **Dry run** — `forge sync --dry-run` never writes reports, timestamps or protected files.
+- **Bun** — requires Bun 1.4.2 or later.
+- **Release pipeline** — releases wait for green CI on the tagged commit, smoke-test the built binary, and publish to npm first via npm trusted publishing with provenance; GitHub Releases, Homebrew and Scoop follow only after npm succeeds. Prereleases publish to the npm `next` tag only.
+
+### Fixed
+
+- **npm** — `@crucibledx/forge-cli` on npm was stuck at 0.6.22 while Homebrew and Scoop had 0.6.24; this release brings npm back in line.
+- **Legacy POSIX state** — refuses ambiguous backslash state keys instead of deleting unrelated files; literal-backslash project roots are supported.
+- **Windows** — the directory preflight evaluates inherited deny ACLs, so a dry run that passes no longer fails at apply.
+- **Diagnostics** — credentials are redacted after escaped whitespace and non-string values in JSON diagnostics; CR/CRLF YAML diagnostics keep their public siblings.
+- **Cleanup** — cleanup probes are bounded within the cleanup deadline.
 ## [0.6.24] — 2026-08-13
 
 ### Changed
