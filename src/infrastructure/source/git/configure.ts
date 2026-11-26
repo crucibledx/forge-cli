@@ -2,7 +2,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
 import type {SourceLoaderEntry} from '../types'
-import {assertGitArguments, GitError, resolveRemoteRef} from './load'
+import {assertGitArguments, assertRemoteCommit, GitError, resolveRemoteRef} from './load'
 import {GIT_SOURCE_MESSAGES} from './messages'
 import {gitSourceSchema, isOptionLike} from './schema.types'
 import type {GitSourceConfig} from './types'
@@ -58,10 +58,9 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
 export async function verifyGitSource(url: string, branch: string): Promise<{success: boolean; error?: string}> {
   try {
     assertGitArguments(url, branch)
-    await resolveRemoteRef(url, branch, {
-      timeoutMs: 10_000,
-      env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
-    })
+    const options = {timeoutMs: 10_000, env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'}}
+    const ref = await resolveRemoteRef(url, branch, options)
+    if (!ref.startsWith('refs/')) await assertRemoteCommit(url, ref, options)
     return {success: true}
   } catch (err) {
     return {
