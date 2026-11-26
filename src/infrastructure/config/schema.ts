@@ -1,8 +1,8 @@
 import {z} from 'zod'
 
-import {getAssistantIds} from '@domain/assistants'
 import type {LocalConflictStrategy, SourceConflictStrategy} from '@domain/config/types'
 import {LOCAL_CONFLICT_STRATEGIES, SOURCE_CONFLICT_STRATEGIES} from '@domain/config/types'
+import {getHarnessIds} from '@domain/harnesses'
 import {isValidCron} from '@domain/scheduler'
 import {sourceConfigSchema} from '@infrastructure/source'
 
@@ -17,10 +17,15 @@ const localConflictValues = Object.values(LOCAL_CONFLICT_STRATEGIES) as [
   ...LocalConflictStrategy[],
 ]
 
-const assistantIdSchema = z.enum(getAssistantIds() as [string, ...string[]])
+export const HARNESS_KEY_MESSAGES = {
+  both: 'Config has both `harnesses:` and `assistants:`. Keep one: `assistants:` is the old name of `harnesses:`.',
+  missing: 'Config needs a `harnesses:` list.',
+}
 
-const assistantConfigSchema = z.object({
-  id: assistantIdSchema,
+const harnessIdSchema = z.enum(getHarnessIds() as [string, ...string[]])
+
+const harnessConfigSchema = z.object({
+  id: harnessIdSchema,
   enabled: z.boolean(),
   config: z.record(z.string(), z.unknown()).optional(),
 })
@@ -54,7 +59,9 @@ export const projectConfigSchema = z
         description: z.string().optional(),
       })
       .optional(),
-    assistants: z.array(assistantConfigSchema),
+    harnesses: z.array(harnessConfigSchema).optional(),
+    // Read alias for configs written before the harness rename; removed at v1.0.
+    assistants: z.array(harnessConfigSchema).optional(),
     source: sourceConfigSchema.optional(),
     sources: z.array(sourceConfigSchema).optional(),
     plugins: pluginsConfigSchema.optional(),
@@ -62,8 +69,15 @@ export const projectConfigSchema = z
     telemetry: telemetryConfigSchema,
     lastSync: z.string().optional(),
   })
-  .transform(({source, sources, ...rest}) => ({
+  .superRefine((config, ctx) => {
+    if (config.harnesses && config.assistants)
+      ctx.addIssue({code: 'custom', path: ['assistants'], message: HARNESS_KEY_MESSAGES.both})
+    else if (!config.harnesses && !config.assistants)
+      ctx.addIssue({code: 'custom', path: ['harnesses'], message: HARNESS_KEY_MESSAGES.missing})
+  })
+  .transform(({source, sources, assistants, harnesses, ...rest}) => ({
     ...rest,
+    harnesses: harnesses ?? assistants ?? [],
     sources: sources ?? (source ? [source] : []),
   }))
 

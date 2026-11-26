@@ -1,4 +1,4 @@
-import type {AssistantConfig} from '@domain/assistants'
+import type {HarnessConfig} from '@domain/harnesses'
 import type {PluginConfig} from '@domain/plugins'
 import type {SourceLayoutOption} from '@domain/sync/layout'
 
@@ -62,7 +62,7 @@ export interface ProjectConfig {
     name: string
     description?: string
   }
-  assistants: AssistantConfig[]
+  harnesses: HarnessConfig[]
   sources: Source[]
   plugins?: PluginConfig[]
   sync?: Partial<SyncConfig>

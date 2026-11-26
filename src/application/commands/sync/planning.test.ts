@@ -15,7 +15,7 @@ const target = (targetPath: string, content = 'incoming') => ({
   content,
   sourcePath: 'rules/incoming.md',
   sourceName: 'team',
-  assistantId: 'claude-code',
+  harnessId: 'claude-code',
 })
 const collisions = [
   ['case alias', '.claude/rules/A.md', '.claude/rules/a.md'],

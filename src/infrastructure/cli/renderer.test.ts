@@ -1,6 +1,6 @@
 import {describe, expect, it, spyOn} from 'bun:test'
 
-import type {DetectionResult} from '@domain/assistants'
+import type {DetectionResult} from '@domain/harnesses'
 import type {OutputEntry} from '@domain/protocol/types'
 
 import * as renderer from './renderer'
@@ -75,7 +75,7 @@ describe('renderHeader', () => {
 })
 
 describe('renderDetectionResults', () => {
-  it('prints detected assistant with checkmark', () => {
+  it('prints detected harness with checkmark', () => {
     const logs: string[] = []
     const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 
@@ -88,7 +88,7 @@ describe('renderDetectionResults', () => {
     expect(logs[0]).toContain('Cursor')
   })
 
-  it('prints undetected assistant with dim marker', () => {
+  it('prints undetected harness with dim marker', () => {
     const logs: string[] = []
     const spy = spyOn(console, 'log').mockImplementation((...args) => logs.push(String(args[0])))
 

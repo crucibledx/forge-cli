@@ -1,7 +1,7 @@
-import type {AssistantDefinition} from '@domain/assistants'
-import {getAllAssistants, getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import type {HarnessDefinition} from '@domain/harnesses'
+import {getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
 import {redact} from '@domain/redact'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
@@ -13,12 +13,11 @@ import {hashContent} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
-import {terminalText} from '@infrastructure/cli/terminal-text'
-import {loadSyncState, serializeProjectConfig} from '@infrastructure/config'
+import {convertAssistantsAlias, loadSyncState, serializeProjectConfig} from '@infrastructure/config'
 import {createConfinement} from '@infrastructure/fs/confinement'
 import {createFileReader} from '@infrastructure/fs/reader'
 import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
-import {prepareTransaction, TransactionError, transactionIO} from '@infrastructure/fs/transaction'
+import {prepareTransaction, reportUnrestoredRecovery, transactionIO} from '@infrastructure/fs/transaction'
 import type {IOContext, IOService} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
@@ -68,11 +67,11 @@ export async function runSyncWithDependencies(
     config = context.projectConfig ?? undefined
     if (!config) throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
     validateConfig(config, true)
-    const enabled = new Set(config.assistants.filter((assistant) => assistant.enabled).map((assistant) => assistant.id))
-    const definitions = [...enabled].map(getAssistant)
+    const enabled = new Set(config.harnesses.filter((harness) => harness.enabled).map((harness) => harness.id))
+    const definitions = [...enabled].map(getHarness)
     logger.info('sync acquisition started', {
       sources: config.sources.map((source) => source.name),
-      assistants: [...enabled],
+      harnesses: [...enabled],
     })
     const acquired = await fetchAndResolve(config.sources, definitions, dependencies.loadSource)
     const syncConfig = {...SYNC_CONFIG_DEFAULTS, ...config.sync}
@@ -91,7 +90,14 @@ export async function runSyncWithDependencies(
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
     const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
     if (options.dryRun) return
-    await commitPrepared(prepared)
+    const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
+    try {
+      await commitPrepared(prepared)
+    } catch (error) {
+      // A failed compensation is an emergency: report it even when --silent suppresses warnings.
+      await alias?.undo?.().catch(() => console.error(M.errors.aliasUndoFailed))
+      throw error
+    }
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,
     ).length
@@ -125,13 +131,13 @@ export async function runSyncWithDependencies(
 export function validateConfig(config: ProjectConfig, configExists = false): void {
   if (!config.sources.length)
     throw new CommandError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
-  if (!config.assistants.some((assistant) => assistant.enabled))
-    throw new CommandError(M.errors.noAssistants, M.errors.noAssistantsHint)
+  if (!config.harnesses.some((harness) => harness.enabled))
+    throw new CommandError(M.errors.noHarnesses, M.errors.noHarnessesHint)
 }
 
 export async function fetchAndResolve(
   sources: Source[],
-  definitions: AssistantDefinition[],
+  definitions: HarnessDefinition[],
   load = loadSourceFiles,
 ): Promise<ResolvedTarget[]> {
   const outcomes = await Promise.allSettled(
@@ -165,7 +171,7 @@ export async function buildPlan(
   targets: ResolvedTarget[],
   state: SyncState,
   config: SyncConfig,
-  enabled = new Set(getAllAssistants().map((assistant) => assistant.id)),
+  enabled = new Set(getAllHarnesses().map((harness) => harness.id)),
 ): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]; warnings: string[]}> {
   const summaries: SyncFileSummary[] = []
   const mutations: Mutation[] = []
@@ -173,15 +179,15 @@ export async function buildPlan(
   const errors: string[] = []
   const backups: string[] = []
   const read = await createFileReader(root)
-  const selected = targets.filter((target) => enabled.has(target.assistantId))
+  const selected = targets.filter((target) => enabled.has(target.harnessId))
   const paths = selected.map((target) => target.targetPath)
   const desired = new Set(paths)
   const graph = [...paths, ...Object.keys(state.files).filter((path) => !desired.has(path)), STATE_PATH, CONFIG_PATH]
   // Validate desired/state/metadata aliases before planning can read any candidate.
   validatePathGraph(graph)
   const active = selected.filter((target) => {
-    const owner = resolveAssistantByPath(target.targetPath)
-    if (owner?.id === target.assistantId && enabled.has(owner.id)) return true
+    const owner = resolveHarnessByPath(target.targetPath)
+    if (owner?.id === target.harnessId && enabled.has(owner.id)) return true
     warnings.push(`Retaining target with disabled, unknown, ambiguous or mismatched ownership: ${target.targetPath}`)
     return false
   })
@@ -216,7 +222,7 @@ export async function buildPlan(
       summaries.push({
         targetPath: target.targetPath,
         sourcePath: target.sourcePath,
-        assistantId: target.assistantId,
+        harnessId: target.harnessId,
         status,
       })
       if (status === S.NEW || status === S.UPDATE)
@@ -227,7 +233,7 @@ export async function buildPlan(
   }
   for (const [path, entry] of Object.entries(state.files)) {
     if (desired.has(path)) continue
-    const owner = resolveAssistantByPath(path)
+    const owner = resolveHarnessByPath(path)
     if (!owner || !enabled.has(owner.id)) {
       warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
       continue
@@ -241,7 +247,7 @@ export async function buildPlan(
         if (changed && config.backup) await backup(path, existing!)
         mutations.push({type: MT.FILE_DELETE, path})
       }
-      summaries.push({targetPath: path, sourcePath: '', assistantId: owner.id, status: skip ? S.SKIPPED : S.DELETED})
+      summaries.push({targetPath: path, sourcePath: '', harnessId: owner.id, status: skip ? S.SKIPPED : S.DELETED})
     } catch (error) {
       errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -280,12 +286,7 @@ export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepare
   try {
     await prepared.commit()
   } catch (error) {
-    if (error instanceof TransactionError && error.unrestored.length) {
-      // Presentation suppression must never hide a manual recovery requirement.
-      console.error(
-        `Recovery required; unrestored/untrusted paths: ${error.unrestored.map(terminalText).join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.map(terminalText).join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
-      )
-    }
+    reportUnrestoredRecovery(error)
     throw error
   }
 }
@@ -308,8 +309,8 @@ export function displayPlan(
 ): void {
   if (dryRun) renderer.renderInfo(M.output.wouldSync(sources.map((source) => source.name).join(', ')))
   renderer.renderDim(M.output.strategyBanner(config.source_conflict_strategy, config.local_conflict_strategy))
-  for (const [id, files] of Object.entries(Object.groupBy(summaries, (item) => item.assistantId))) {
-    renderer.render(`${id === 'unknown' ? 'Other' : getAssistant(id).name}:`)
+  for (const [id, files] of Object.entries(Object.groupBy(summaries, (item) => item.harnessId))) {
+    renderer.render(`${id === 'unknown' ? 'Other' : getHarness(id).name}:`)
     files?.forEach((file) => renderer.renderSyncFile(file.targetPath, file.status, dryRun))
   }
   if (dryRun) renderer.renderDim(M.output.dryRunHint)

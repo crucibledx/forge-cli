@@ -1,14 +1,14 @@
-import '../assistants/claude-code'
-import '../assistants/cursor'
-import '../assistants/windsurf'
-import '../assistants/copilot'
-import '../assistants/cline'
+import '../harnesses/claude-code'
+import '../harnesses/cursor'
+import '../harnesses/windsurf'
+import '../harnesses/copilot'
+import '../harnesses/cline'
 import '../transforms/frontmatter-rename'
 import '../transforms/rename'
 
 import {afterEach, describe, expect, it} from 'bun:test'
 
-import type {AssistantDefinition} from '../assistants/types'
+import type {HarnessDefinition} from '../harnesses/types'
 import {setGlobalMode} from '../scope'
 import {SOURCE_LAYOUT_OPTIONS} from './layout'
 import {resolveTargets} from './resolver'
@@ -16,7 +16,7 @@ import type {SourceFile} from './types'
 
 afterEach(() => setGlobalMode(false))
 
-const cursorDef: AssistantDefinition = {
+const cursorDef: HarnessDefinition = {
   id: 'cursor',
   name: 'Cursor',
   detection: {directories: ['.cursor'], files: []},
@@ -34,7 +34,7 @@ const cursorDef: AssistantDefinition = {
   ],
 }
 
-const claudeDef: AssistantDefinition = {
+const claudeDef: HarnessDefinition = {
   id: 'claude-code',
   name: 'Claude Code',
   detection: {directories: ['.claude'], files: []},
@@ -44,7 +44,7 @@ const claudeDef: AssistantDefinition = {
   ],
 }
 
-const windsurfDef: AssistantDefinition = {
+const windsurfDef: HarnessDefinition = {
   id: 'windsurf',
   name: 'Windsurf',
   detection: {directories: ['.windsurf'], files: []},
@@ -75,7 +75,7 @@ describe('resolveTargets', () => {
     expect(result).toHaveLength(0)
   })
 
-  it('returns empty array when no assistants', () => {
+  it('returns empty array when no harnesses', () => {
     const result = resolveTargets(sourceFiles, [])
     expect(result).toHaveLength(0)
   })
@@ -85,7 +85,7 @@ describe('resolveTargets', () => {
     const skill = result.find((r) => r.sourcePath === 'skills/typescript.md')
     expect(skill).toBeDefined()
     expect(skill!.targetPath).toBe('.cursor/skills/typescript.md')
-    expect(skill!.assistantId).toBe('cursor')
+    expect(skill!.harnessId).toBe('cursor')
   })
 
   it('applies rename transform for cursor rules (.md → .mdc)', () => {
@@ -107,12 +107,10 @@ describe('resolveTargets', () => {
     expect(unrelated).toBeUndefined()
   })
 
-  it('resolves files for multiple assistants', () => {
+  it('resolves files for multiple harnesses', () => {
     const result = resolveTargets(sourceFiles, [cursorDef, claudeDef])
-    const cursorSkills = result.filter((r) => r.assistantId === 'cursor' && r.sourcePath === 'skills/typescript.md')
-    const claudeSkills = result.filter(
-      (r) => r.assistantId === 'claude-code' && r.sourcePath === 'skills/typescript.md',
-    )
+    const cursorSkills = result.filter((r) => r.harnessId === 'cursor' && r.sourcePath === 'skills/typescript.md')
+    const claudeSkills = result.filter((r) => r.harnessId === 'claude-code' && r.sourcePath === 'skills/typescript.md')
     expect(cursorSkills).toHaveLength(1)
     expect(claudeSkills).toHaveLength(1)
   })
@@ -134,7 +132,7 @@ describe('resolveTargets', () => {
   })
 
   it('ignores unknown transformer id gracefully (returns filename unchanged)', () => {
-    const defWithBadTransform: AssistantDefinition = {
+    const defWithBadTransform: HarnessDefinition = {
       ...cursorDef,
       targetMappings: [
         {
@@ -166,7 +164,7 @@ describe('resolveTargets', () => {
   })
 
   it('renames paths to applyTo in frontmatter for copilot rules', () => {
-    const copilotDef: AssistantDefinition = {
+    const copilotDef: HarnessDefinition = {
       id: 'copilot',
       name: 'GitHub Copilot',
       detection: {directories: [], files: []},
@@ -213,7 +211,7 @@ describe('resolveTargets', () => {
   })
 
   it('ignores unknown content transformer gracefully', () => {
-    const defWithBadContent: AssistantDefinition = {
+    const defWithBadContent: HarnessDefinition = {
       ...cursorDef,
       targetMappings: [
         {
@@ -236,8 +234,8 @@ describe('resolveTargets', () => {
 
 // ── Pre-structured resolver (auto-detected via resolveTargets) ──────────
 
-const claudeOnlyDefs: readonly AssistantDefinition[] = [claudeDef]
-const multiDefs: readonly AssistantDefinition[] = [claudeDef, cursorDef, windsurfDef]
+const claudeOnlyDefs: readonly HarnessDefinition[] = [claudeDef]
+const multiDefs: readonly HarnessDefinition[] = [claudeDef, cursorDef, windsurfDef]
 
 function preFiles(...paths: string[]): SourceFile[] {
   return paths.map((p) => ({relativePath: p, content: `content of ${p}`}))
@@ -250,18 +248,18 @@ describe('resolveTargets — pre-structured layout', () => {
     expect(result).toHaveLength(2)
     expect(result[0].targetPath).toBe('.claude/rules/api.md')
     expect(result[0].sourcePath).toBe('.claude/rules/api.md')
-    expect(result[0].assistantId).toBe('claude-code')
+    expect(result[0].harnessId).toBe('claude-code')
     expect(result[0].sourceName).toBe('src')
   })
 
-  it('filters out files for disabled assistants', () => {
+  it('filters out files for disabled harnesses', () => {
     const result = resolveTargets(preFiles('.claude/rules/api.md', '.cursor/rules/api.mdc'), claudeOnlyDefs)
 
     expect(result).toHaveLength(1)
-    expect(result[0].assistantId).toBe('claude-code')
+    expect(result[0].harnessId).toBe('claude-code')
   })
 
-  it('includes files for multiple enabled assistants', () => {
+  it('includes files for multiple enabled harnesses', () => {
     const result = resolveTargets(
       preFiles('.claude/rules/api.md', '.cursor/rules/api.mdc', '.windsurf/rules/api.md'),
       multiDefs,
@@ -270,7 +268,7 @@ describe('resolveTargets — pre-structured layout', () => {
     expect(result).toHaveLength(3)
   })
 
-  it('returns empty for files with no matching assistant', () => {
+  it('returns empty for files with no matching harness', () => {
     const result = resolveTargets(preFiles('random/file.md'), claudeOnlyDefs)
 
     expect(result).toHaveLength(0)
@@ -296,12 +294,12 @@ describe('resolveTargets — hybrid layout', () => {
     const preStructured = result.find((r) => r.targetPath === '.claude/rules/special.md')
     expect(preStructured).toBeDefined()
     expect(preStructured!.content).toBe('# Claude special')
-    expect(preStructured!.assistantId).toBe('claude-code')
+    expect(preStructured!.harnessId).toBe('claude-code')
 
     const canonical = result.find((r) => r.sourcePath === 'rules/shared.md')
     expect(canonical).toBeDefined()
     expect(canonical!.targetPath).toBe('.claude/rules/shared.md')
-    expect(canonical!.assistantId).toBe('claude-code')
+    expect(canonical!.harnessId).toBe('claude-code')
   })
 
   it('applies transforms to canonical portion only', () => {
@@ -322,7 +320,7 @@ describe('resolveTargets — hybrid layout', () => {
     expect(canonical!.content).not.toContain('paths:')
   })
 
-  it('distributes canonical files to all enabled assistants', () => {
+  it('distributes canonical files to all enabled harnesses', () => {
     const hybridFiles: SourceFile[] = [
       {relativePath: '.claude/rules/claude-only.md', content: '# Claude only'},
       {relativePath: 'rules/shared.md', content: '# Shared'},
@@ -334,10 +332,10 @@ describe('resolveTargets — hybrid layout', () => {
 
     const sharedTargets = result.filter((r) => r.sourcePath === 'rules/shared.md')
     expect(sharedTargets.length).toBeGreaterThanOrEqual(3)
-    const assistantIds = new Set(sharedTargets.map((r) => r.assistantId))
-    expect(assistantIds.has('claude-code')).toBe(true)
-    expect(assistantIds.has('cursor')).toBe(true)
-    expect(assistantIds.has('windsurf')).toBe(true)
+    const harnessIds = new Set(sharedTargets.map((r) => r.harnessId))
+    expect(harnessIds.has('claude-code')).toBe(true)
+    expect(harnessIds.has('cursor')).toBe(true)
+    expect(harnessIds.has('windsurf')).toBe(true)
   })
 
   it('pre-structured wins over canonical for same targetPath', () => {
@@ -356,7 +354,7 @@ describe('resolveTargets — hybrid layout', () => {
 
 // ── Global mode ─────────────────────────────────────────────────────────
 
-const windsurfGlobalDef: AssistantDefinition = {
+const windsurfGlobalDef: HarnessDefinition = {
   id: 'windsurf',
   name: 'Windsurf',
   detection: {directories: ['.windsurf'], files: []},
@@ -429,7 +427,7 @@ describe('resolveTargets — global mode (hybrid)', () => {
 // ── Layout override ──────────────────────────────────────────────────────
 
 describe('resolveTargets — layout override', () => {
-  it('forces canonical layout even when files have assistant dirs', () => {
+  it('forces canonical layout even when files have harness dirs', () => {
     const files: SourceFile[] = [{relativePath: '.claude/rules/api.md', content: '# API'}]
     const result = resolveTargets(files, claudeOnlyDefs, '', SOURCE_LAYOUT_OPTIONS.CANONICAL)
     expect(result).toHaveLength(0)
@@ -444,7 +442,7 @@ describe('resolveTargets — layout override', () => {
   it('auto-detects when layoutOverride is "auto"', () => {
     const result = resolveTargets(sourceFiles, [cursorDef], '', SOURCE_LAYOUT_OPTIONS.AUTO)
     expect(result.length).toBeGreaterThan(0)
-    expect(result[0].assistantId).toBe('cursor')
+    expect(result[0].harnessId).toBe('cursor')
   })
 
   it('auto-detects when layoutOverride is undefined', () => {

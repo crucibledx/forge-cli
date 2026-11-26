@@ -1,5 +1,5 @@
-export type {AssistantScanResult} from './assistant.prompt'
-export {ASSISTANT_PROMPT_MESSAGES, promptAssistantSelection, runAssistantScan} from './assistant.prompt'
+export type {HarnessScanResult} from './harness.prompt'
+export {HARNESS_PROMPT_MESSAGES, promptHarnessSelection, runHarnessScan} from './harness.prompt'
 export {SHARED_MESSAGES} from './messages'
 export {resolveForgeCommand} from './resolve-command'
 export {promptSchedule, SCHEDULER_PROMPT_MESSAGES} from './scheduler.prompt'

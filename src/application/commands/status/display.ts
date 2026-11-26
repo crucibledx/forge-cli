@@ -1,6 +1,6 @@
-import type {AssistantId} from '@domain/assistants'
-import {getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import {formatTimeAgo} from '@domain/format'
+import type {HarnessId} from '@domain/harnesses'
+import {getHarness, resolveHarnessByPath} from '@domain/harnesses'
 import type {DriftSummary} from '@domain/sync/drift'
 import {DRIFT_STATUSES} from '@domain/sync/drift'
 import * as renderer from '@infrastructure/cli/renderer'
@@ -9,8 +9,8 @@ import {STATUS_MESSAGES as M} from './messages'
 
 export {formatTimeAgo}
 
-function assistantIdForPath(targetPath: string): AssistantId {
-  return resolveAssistantByPath(targetPath)?.id ?? 'unknown'
+function harnessIdForPath(targetPath: string): HarnessId {
+  return resolveHarnessByPath(targetPath)?.id ?? 'unknown'
 }
 
 // ─── Display ─────────────────────────────────────────────────────────────────
@@ -24,12 +24,12 @@ export function displayDrift(summary: DriftSummary): void {
     return
   }
 
-  const byAssistant = Object.groupBy(summary.files, (f) => assistantIdForPath(f.targetPath))
+  const byHarness = Object.groupBy(summary.files, (f) => harnessIdForPath(f.targetPath))
 
-  for (const [assistantId, files] of Object.entries(byAssistant)) {
+  for (const [harnessId, files] of Object.entries(byHarness)) {
     if (!files) continue
     renderer.render(
-      `${assistantId === 'unknown' ? 'Unknown or ambiguous ownership' : getAssistant(assistantId as AssistantId).name}:`,
+      `${harnessId === 'unknown' ? 'Unknown or ambiguous ownership' : getHarness(harnessId as HarnessId).name}:`,
     )
     for (const file of files) {
       renderer.renderDriftFile(file.targetPath, file.status)

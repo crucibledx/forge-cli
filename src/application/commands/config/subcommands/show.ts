@@ -1,8 +1,8 @@
 import pc from 'picocolors'
 
-import {getAllAssistants} from '@domain/assistants'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS, TELEMETRY_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses} from '@domain/harnesses'
 import {describeCron} from '@domain/scheduler'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig} from '@infrastructure/config'
@@ -16,7 +16,7 @@ export const SHOW_MESSAGES = {
   header: 'Current Configuration',
   noConfig: CONFIG_MESSAGES.noConfig,
   project: 'Project',
-  assistants: 'Assistants',
+  harnesses: 'Harnesses',
   sources: 'Sources',
   sync: 'Sync Settings',
   schedule: 'Schedule',
@@ -79,7 +79,7 @@ export async function runConfigShow(): Promise<void> {
 
   renderer.renderHeader(SHOW_MESSAGES.header)
   renderProjectSection(config)
-  renderAssistantsSection(config)
+  renderHarnessesSection(config)
   renderSourcesSection(config)
   renderSyncSection(config)
   renderScheduleSection(config)
@@ -94,14 +94,14 @@ function renderProjectSection(config: ProjectConfig): void {
   if (config.project.description) field('description', config.project.description)
 }
 
-function renderAssistantsSection(config: ProjectConfig): void {
-  section(SHOW_MESSAGES.assistants)
-  if (config.assistants.length === 0) {
+function renderHarnessesSection(config: ProjectConfig): void {
+  section(SHOW_MESSAGES.harnesses)
+  if (config.harnesses.length === 0) {
     console.log(`    ${dim(SHOW_MESSAGES.none)}`)
     return
   }
-  const registry = getAllAssistants()
-  for (const a of config.assistants) {
+  const registry = getAllHarnesses()
+  for (const a of config.harnesses) {
     const def = registry.find((r) => r.id === a.id)
     const name = def?.name ?? a.id
     const status = a.enabled ? pc.green('✓') : pc.red('✗')

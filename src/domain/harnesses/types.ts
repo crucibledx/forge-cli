@@ -1,6 +1,6 @@
 import type {TransformStep} from '../transforms/types'
 
-export type AssistantId = string
+export type HarnessId = string
 
 export interface TargetDestination {
   project: string
@@ -20,23 +20,23 @@ export interface DetectionRule {
   files: string[]
 }
 
-export interface AssistantDefinition {
-  id: AssistantId
+export interface HarnessDefinition {
+  id: HarnessId
   name: string
   detection: DetectionRule
   targetMappings: TargetMapping[]
 }
 
 export interface DetectionResult {
-  id: AssistantId
+  id: HarnessId
   name: string
   detected: boolean
   scope?: 'project' | 'global'
   evidence?: string // e.g., ".claude/ directory found, 3 items"
 }
 
-export interface AssistantConfig {
-  id: AssistantId
+export interface HarnessConfig {
+  id: HarnessId
   enabled: boolean
   config?: Record<string, unknown>
 }

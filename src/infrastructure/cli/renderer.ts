@@ -1,6 +1,6 @@
 import pc from 'picocolors'
 
-import type {DetectionResult} from '@domain/assistants'
+import type {DetectionResult} from '@domain/harnesses'
 import type {OutputEntry} from '@domain/protocol/types'
 import type {DriftStatus} from '@domain/sync/drift'
 import {DRIFT_STATUSES} from '@domain/sync/drift'

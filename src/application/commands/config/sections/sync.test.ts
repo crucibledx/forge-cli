@@ -39,7 +39,7 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('syncSection', () => {
-  const baseConfig: ProjectConfig = {version: '1', assistants: [], sources: []}
+  const baseConfig: ProjectConfig = {version: '1', harnesses: [], sources: []}
 
   it('hint returns "using defaults" when no sync config', async () => {
     const {syncSection} = await import('./sync')
@@ -120,7 +120,7 @@ describe('syncSection', () => {
     const {syncSection, SYNC_PROMPT_MESSAGES: SP} = await import('./sync')
     const config: ProjectConfig = {
       ...baseConfig,
-      assistants: [{id: 'cursor', enabled: true}],
+      harnesses: [{id: 'cursor', enabled: true}],
       sources: [{name: 'team', type: 'git'}],
     }
 
@@ -132,7 +132,7 @@ describe('syncSection', () => {
     }
 
     const result = await syncSection.edit(config, '/fake')
-    expect(result.assistants).toEqual(config.assistants)
+    expect(result.harnesses).toEqual(config.harnesses)
     expect(result.sources).toEqual(config.sources)
   })
 })

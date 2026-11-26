@@ -284,7 +284,7 @@ describe('AC-2 plugin source config', () => {
   it('leaves loose-resource git sources and their branch default untouched', () => {
     const config = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
       sources: [{name: 's', type: 'git', url: 'u', layout: 'canonical'}],
       plugins: [{name: 'p', source: {type: 'git', url: 'u', ref: 'v1'}, scope: 'user'}],
     })

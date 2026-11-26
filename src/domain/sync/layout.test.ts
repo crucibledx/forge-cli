@@ -1,8 +1,8 @@
-import '../assistants/claude-code'
-import '../assistants/cursor'
-import '../assistants/windsurf'
-import '../assistants/copilot'
-import '../assistants/cline'
+import '../harnesses/claude-code'
+import '../harnesses/cursor'
+import '../harnesses/windsurf'
+import '../harnesses/copilot'
+import '../harnesses/cline'
 
 import {describe, expect, it} from 'bun:test'
 
@@ -42,11 +42,11 @@ describe('detectSourceLayout', () => {
     expect(detectSourceLayout([])).toBe(SOURCE_LAYOUTS.CANONICAL)
   })
 
-  it('returns hybrid when both assistant dirs and canonical files present', () => {
+  it('returns hybrid when both harness dirs and canonical files present', () => {
     expect(detectSourceLayout(files('rules/api.md', '.claude/rules/api.md'))).toBe(SOURCE_LAYOUTS.HYBRID)
   })
 
-  it('returns pre-structured when only assistant dirs present', () => {
+  it('returns pre-structured when only harness dirs present', () => {
     expect(detectSourceLayout(files('.claude/rules/api.md', '.cursor/rules/api.mdc'))).toBe(
       SOURCE_LAYOUTS.PRE_STRUCTURED,
     )
@@ -61,13 +61,13 @@ describe('partitionByLayout', () => {
     expect(result.canonical).toHaveLength(2)
   })
 
-  it('returns all canonical when no assistant dirs', () => {
+  it('returns all canonical when no harness dirs', () => {
     const result = partitionByLayout(files('rules/api.md', 'skills/deploy.md'))
     expect(result.preStructured).toHaveLength(0)
     expect(result.canonical).toHaveLength(2)
   })
 
-  it('returns all pre-structured when only assistant dirs', () => {
+  it('returns all pre-structured when only harness dirs', () => {
     const result = partitionByLayout(files('.claude/rules/api.md', '.cursor/rules/api.mdc'))
     expect(result.preStructured).toHaveLength(2)
     expect(result.canonical).toHaveLength(0)

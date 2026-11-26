@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-import {getAssistantIds} from '@domain/assistants'
+import {getHarnessIds} from '@domain/harnesses'
 import {PLUGIN_HARNESS_IDS, PLUGIN_SCOPES} from '@domain/plugins'
 
 import {PLUGIN_CONFIG_ERRORS as E} from './errors'
@@ -57,7 +57,7 @@ export const pluginConfigSchema = z
     harnesses: z
       .array(z.string())
       .superRefine((ids, ctx) => {
-        const known = [...new Set([...getAssistantIds(), ...PLUGIN_HARNESS_IDS])].sort()
+        const known = [...new Set([...getHarnessIds(), ...PLUGIN_HARNESS_IDS])].sort()
         for (const id of ids.filter((id) => !known.includes(id)))
           ctx.addIssue({code: 'custom', message: `${E.UNKNOWN_HARNESS}: "${id}"; expected one of ${known.join(', ')}`})
       })

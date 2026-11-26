@@ -2,9 +2,9 @@ import * as prompts from '@infrastructure/cli/prompts'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
 import type {SourceLoaderEntry} from '../types'
-import {GitError, runGit} from './load'
+import {assertGitArguments, GitError, resolveRemoteRef} from './load'
 import {GIT_SOURCE_MESSAGES} from './messages'
-import {gitSourceSchema} from './schema.types'
+import {gitSourceSchema, isOptionLike} from './schema.types'
 import type {GitSourceConfig} from './types'
 
 export {gitSourceSchema}
@@ -17,6 +17,7 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
     initialValue: prev?.url,
     validate: (val) => {
       if (!val?.trim()) return GIT_SOURCE_MESSAGES.url.required
+      if (isOptionLike(val.trim())) return GIT_SOURCE_MESSAGES.optionLike('url')
       return undefined
     },
   })
@@ -25,6 +26,7 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
     placeholder: 'main',
     initialValue: prev?.branch,
     defaultValue: 'main',
+    validate: (val) => (val && isOptionLike(val.trim()) ? GIT_SOURCE_MESSAGES.optionLike('branch') : undefined),
   })
   const path = await prompts.text({
     message: GIT_SOURCE_MESSAGES.subdirectory.message,
@@ -55,7 +57,8 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
 
 export async function verifyGitSource(url: string, branch: string): Promise<{success: boolean; error?: string}> {
   try {
-    await runGit(undefined, ['ls-remote', '--exit-code', url, `refs/heads/${branch}`], {
+    assertGitArguments(url, branch)
+    await resolveRemoteRef(url, branch, {
       timeoutMs: 10_000,
       env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
     })

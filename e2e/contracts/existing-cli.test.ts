@@ -76,7 +76,7 @@ describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', 
       const result = await command(kind === 'invalid-option' ? ['sync', '--not-a-forge-option'] : ['sync'])
       outcome(result, 1)
       if (kind === 'invalid-option') expect(result.stderr).toContain("unknown option '--not-a-forge-option'")
-      expect(result.stdout + result.stderr).not.toContain('Select assistants')
+      expect(result.stdout + result.stderr).not.toContain('Select harnesses')
       expect(await snapshot(dir())).toEqual(before)
       expect(existsSync(join(dir(), '.crucible/sync-state.json'))).toBe(false)
     },

@@ -18,7 +18,7 @@ export interface SyncReport {
   timestamp: string
   duration_ms: number
   sources: string[]
-  assistants: string[]
+  harnesses: string[]
   files: SyncReportFiles
   drift: SyncReportDrift
   success: boolean
@@ -28,7 +28,7 @@ export interface SyncReport {
 export function buildSyncReport(opts: {
   startTime: number
   sources: string[]
-  assistants: string[]
+  harnesses: string[]
   synced: number
   skipped: number
   conflicts: number
@@ -42,7 +42,7 @@ export function buildSyncReport(opts: {
     timestamp: new Date().toISOString(),
     duration_ms: Date.now() - opts.startTime,
     sources: opts.sources,
-    assistants: opts.assistants,
+    harnesses: opts.harnesses,
     files: {
       synced: opts.synced,
       skipped: opts.skipped,

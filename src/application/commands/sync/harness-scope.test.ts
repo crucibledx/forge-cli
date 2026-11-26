@@ -4,8 +4,8 @@ import {dirname, join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterEach, expect, it} from 'bun:test'
 
-import {assistantsRegistry, getAllAssistants} from '@domain/assistants'
 import {type ProjectConfig, SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses, harnessesRegistry} from '@domain/harnesses'
 import {setGlobalMode} from '@domain/scope'
 import {hashContent} from '@domain/sync/state'
 
@@ -21,13 +21,13 @@ for (const global of [false, true])
     for (let index = 0; index < 5; index++)
       it(`BR-02 retained disabled/removed/unknown/ambiguous entries, scope=${global ? 'global' : 'project'}, owner=${index}, keep_local=${keep_local} (AC-4,26)`, async () => {
         const root = dir(),
-          all = getAllAssistants(),
+          all = getAllHarnesses(),
           disabled = all[index],
           removed = all[(index + 1) % 5],
           ambiguous = all[(index + 2) % 5]
         setGlobalMode(global)
-        const destination = (assistant: typeof disabled) => {
-          const mapping = assistant.targetMappings[0].destination
+        const destination = (harness: typeof disabled) => {
+          const mapping = harness.targetMappings[0].destination
           return `${(global ? (mapping.global ?? mapping.project) : mapping.project).replace(/\/$/, '')}/retained.md`
         }
         const paths = [destination(disabled), destination(removed), 'unknown/retained.md', destination(ambiguous)]
@@ -50,13 +50,13 @@ for (const global of [false, true])
           version: '1',
           sources: [{name: 'empty', type: 'local', path: root}],
           sync: {...SYNC_CONFIG_DEFAULTS, keep_local},
-          assistants: [
+          harnesses: [
             {id: disabled.id, enabled: false},
             {id: ambiguous.id, enabled: true},
           ],
         }
         await writeFile(join(root, '.crucible/forge.config.yaml'), 'original config')
-        assistantsRegistry.push({...ambiguous, id: 'ambiguous-fixture'})
+        harnessesRegistry.push({...ambiguous, id: 'ambiguous-fixture'})
         try {
           await runSyncWithDependencies(
             {dryRun: false, verbose: false, silent: true},
@@ -80,6 +80,6 @@ for (const global of [false, true])
           expect(next.files).toEqual(files)
           for (const path of paths) expect(await readFile(join(root, path), 'utf8')).toBe(`unchanged ${path}`)
         } finally {
-          assistantsRegistry.pop()
+          harnessesRegistry.pop()
         }
       })

@@ -5,10 +5,21 @@
  * then configures forge to sync from it.
  */
 
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
+
 import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '@e2e/fixtures'
-import {addBranchToBareRepo, createBareRepo, runSync, setBareRepoRef, useTmpDir} from '@e2e/framework'
+import {
+  addBranchToBareRepo,
+  bareRepoCommit,
+  createBareRepo,
+  runSync,
+  setBareRepoRef,
+  testEnvironment,
+  useTmpDir,
+} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-git')
 
@@ -119,4 +130,34 @@ describe('forge sync — git source', () => {
     },
     30_000,
   )
+
+  it.each([
+    ['url', {url: '--quiet', branch: 'main'}],
+    ['branch', {url: 'https://example.invalid/repo.git', branch: '--quiet'}],
+  ])('rejects a source %s that starts with "-" before running git', async (field, gitSource) => {
+    const dir = getDir()
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource}))
+
+    const {exitCode, output} = await runSync(dir)
+    expect(exitCode).not.toBe(0)
+    expect(output).toContain(`Git source ${field} must not start with '-'`)
+    expect(existsSync(join(testEnvironment(dir).TMPDIR, 'forge-cache'))).toBe(false)
+  })
+
+  it('syncs a source pinned to a commit SHA and keeps it pinned when the branch moves', async () => {
+    const dir = getDir()
+    const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
+    const sha = await bareRepoCommit(dir, repoPath, 'main')
+
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath, branch: sha}}))
+
+    for (let sync = 0; sync < 2; sync++) {
+      const {exitCode, stdout} = await runSync(dir)
+      expect(stdout).not.toContain('Failed to fetch source')
+      expect(exitCode).toBe(0)
+      expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY)
+      await setBareRepoRef(dir, repoPath, 'refs/heads/main', {'skills/review.md': '# Review skill'})
+    }
+    expect(existsSync(join(dir, '.claude/skills/review.md'))).toBe(false)
+  }, 30_000)
 })

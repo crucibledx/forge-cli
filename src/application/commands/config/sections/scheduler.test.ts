@@ -65,7 +65,7 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('schedulerSection', () => {
-  const baseConfig: ProjectConfig = {version: '1', assistants: [], sources: []}
+  const baseConfig: ProjectConfig = {version: '1', harnesses: [], sources: []}
 
   it('hint returns "not configured" when no schedule', async () => {
     const {schedulerSection} = await import('./scheduler')
@@ -122,14 +122,14 @@ describe('schedulerSection', () => {
     const {schedulerSection} = await import('./scheduler')
     const config: ProjectConfig = {
       ...baseConfig,
-      assistants: [{id: 'cursor', enabled: true}],
+      harnesses: [{id: 'cursor', enabled: true}],
       sources: [{name: 'team', type: 'git'}],
     }
 
     promptResponses = {[M.action]: 'done'}
 
     const result = await schedulerSection.edit(config, '/fake')
-    expect(result.assistants).toEqual(config.assistants)
+    expect(result.harnesses).toEqual(config.harnesses)
     expect(result.sources).toEqual(config.sources)
   })
 })

@@ -114,7 +114,7 @@ describe('load', () => {
 
     const spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
       exited: Promise.resolve(0),
-      stdout: '',
+      stdout: 'abc123\trefs/heads/main\n',
       stderr: '',
       kill: () => {},
     })) as never)
@@ -139,7 +139,7 @@ describe('load', () => {
 
     const spawnSpy = spyOn(Bun, 'spawn').mockImplementation((() => ({
       exited: Promise.resolve(0),
-      stdout: '',
+      stdout: 'abc123\trefs/heads/main\n',
       stderr: '',
       kill: () => {},
     })) as never)

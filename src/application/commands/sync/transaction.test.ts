@@ -32,7 +32,7 @@ describe('BR-06 state/config commit and recovery (AC-7,11,23)', () => {
                   targetPath: trackedPath,
                   sourcePath: 'rules/a.md',
                   sourceName: 'team',
-                  assistantId: 'claude-code',
+                  harnessId: 'claude-code',
                   content: 'after',
                 },
               ]
@@ -118,7 +118,7 @@ describe('BR-06 state/config commit and recovery (AC-7,11,23)', () => {
       targetPath: path,
       sourcePath: 'rules/source.bak',
       content: 'incoming source target',
-      assistantId: 'claude-code',
+      harnessId: 'claude-code',
       sourceName: 'team',
     }
     const plan = await buildPlan(dir(), [target], {lastSync: '', files: {}}, {...SYNC_CONFIG_DEFAULTS, backup: false})

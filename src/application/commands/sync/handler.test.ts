@@ -5,25 +5,25 @@ import {validateConfig} from './handler'
 
 describe('sync configuration validation', () => {
   it('requires a configured source even for deliberate cleanup', () => {
-    expect(() => validateConfig({version: '1', sources: [], assistants: [{id: 'cursor', enabled: true}]})).toThrow(
+    expect(() => validateConfig({version: '1', sources: [], harnesses: [{id: 'cursor', enabled: true}]})).toThrow(
       CommandError,
     )
   })
-  it('requires an enabled assistant', () => {
+  it('requires an enabled harness', () => {
     expect(() =>
       validateConfig({
         version: '1',
         sources: [{name: 'local', type: 'local'}],
-        assistants: [{id: 'cursor', enabled: false}],
+        harnesses: [{id: 'cursor', enabled: false}],
       }),
     ).toThrow(CommandError)
   })
-  it('accepts a configured source and enabled assistant', () => {
+  it('accepts a configured source and enabled harness', () => {
     expect(() =>
       validateConfig({
         version: '1',
         sources: [{name: 'local', type: 'local'}],
-        assistants: [{id: 'cursor', enabled: true}],
+        harnesses: [{id: 'cursor', enabled: true}],
       }),
     ).not.toThrow()
   })

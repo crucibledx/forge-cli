@@ -24,7 +24,7 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
 - Source load/read/resolve errors now fail the whole sync with exit 1 before protected mutation. Diagnostics still
   collect every configured source. A readable empty or fully filtered source is successful input and can clean
   tracked stale files with `keep_local:false`; removing the final configured source remains an error.
-- Disabled assistants retain their files and state. Stale locally edited and legacy-unknown targets obey the same
+- Disabled harnesses retain their files and state. Stale locally edited and legacy-unknown targets obey the same
   conflict policy as updates. Untracked files and generated backups are not discovered for cleanup.
 - Different existing backups, target/backup/metadata collisions, file ancestors, and separator/case/Unicode-NFC
   aliases block the complete plan on every OS. Move the conflicting file deliberately before retrying a dry-run.
@@ -51,8 +51,8 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
   They must not disappear silently, whether malformed or carrying unknown ownership. Rejection preserves
   protected bytes during apply/preview; ordinary `constructor` and `prototype` keys remain supported.
 - Newly generated backups are private, including under umask022. Reusing an existing identical backup does not
-  change its permissions. Status resolves upstream content for configured disabled assistants as well as enabled
-  ones; disabling an assistant does not imply that its source disappeared.
+  change its permissions. Status resolves upstream content for configured disabled harnesses as well as enabled
+  ones; disabling a harness does not imply that its source disappeared.
 - Silent mode suppresses normal presentation, not failure exits. Incomplete compensation always emits minimal
   recovery-required stderr, even if reports also fail. Preserve backups/recovery temporaries, restore targets,
   config and state from one known-good snapshot, then dry-run. Do not retry writes with untrusted metadata.

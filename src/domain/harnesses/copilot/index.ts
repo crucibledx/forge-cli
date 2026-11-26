@@ -1,7 +1,7 @@
-import {assistantsRegistry} from '../registry'
-import type {AssistantDefinition} from '../types'
+import {harnessesRegistry} from '../registry'
+import type {HarnessDefinition} from '../types'
 
-export const copilot: AssistantDefinition = {
+export const copilot: HarnessDefinition = {
   id: 'copilot',
   name: 'GitHub Copilot',
   detection: {
@@ -21,4 +21,4 @@ export const copilot: AssistantDefinition = {
   ],
 }
 
-assistantsRegistry.push(copilot)
+harnessesRegistry.push(copilot)

@@ -1,7 +1,7 @@
-import {assistantsRegistry} from '../registry'
-import type {AssistantDefinition} from '../types'
+import {harnessesRegistry} from '../registry'
+import type {HarnessDefinition} from '../types'
 
-export const windsurf: AssistantDefinition = {
+export const windsurf: HarnessDefinition = {
   id: 'windsurf',
   name: 'Windsurf',
   detection: {
@@ -25,4 +25,4 @@ export const windsurf: AssistantDefinition = {
   ],
 }
 
-assistantsRegistry.push(windsurf)
+harnessesRegistry.push(windsurf)

@@ -16,12 +16,12 @@ const target = {
   content: 'desired',
   sourcePath: 'rules/a.md',
   sourceName: 'new',
-  assistantId: 'claude-code',
+  harnessId: 'claude-code',
 }
 const summary = (status: SyncFileStatus) => ({
   targetPath: path,
   sourcePath: '',
-  assistantId: 'claude-code',
+  harnessId: 'claude-code',
   status,
 })
 

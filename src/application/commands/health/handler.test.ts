@@ -50,7 +50,7 @@ mock.module('@infrastructure/io', () => ({
     buildContext: async () => ({
       projectRoot: '/fake',
       projectConfig: mockHasConfig
-        ? {assistants: [{id: 'claude-code', enabled: true}], sources: [], sync: {schedule: '0 9 * * 1'}}
+        ? {harnesses: [{id: 'claude-code', enabled: true}], sources: [], sync: {schedule: '0 9 * * 1'}}
         : null,
       hasProjectConfig: mockHasConfig,
     }),
@@ -150,7 +150,7 @@ describe('runHealth', () => {
     expect(headerCalls[0].args[0]).toBe(M.header)
   })
 
-  it('shows sources and assistants', async () => {
+  it('shows sources and harnesses', async () => {
     await runHealth({} as never)
 
     const dimCalls = rendererCalls.filter((c) => c.method === 'renderDim')

@@ -71,9 +71,9 @@ export const runHealth: HealthCommandAction = async () => {
   }
   renderer.renderDim(M.sources(sourceCount, reachable))
 
-  // Assistants
-  const activeAssistants = config.assistants.filter((a) => a.enabled !== false).map((a) => a.id)
-  renderer.renderDim(M.assistants(activeAssistants))
+  // Harnesses
+  const activeHarnesses = config.harnesses.filter((a) => a.enabled !== false).map((a) => a.id)
+  renderer.renderDim(M.harnesses(activeHarnesses))
 
   // Logs
   const logDir = getLogDir()

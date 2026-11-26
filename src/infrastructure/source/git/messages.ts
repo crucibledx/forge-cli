@@ -4,7 +4,9 @@ export const GIT_SOURCE_MESSAGES = {
     placeholder: 'git@github.com:your-org/ai-configs.git',
     required: 'URL is required',
   },
-  branch: 'Branch:',
+  branch: 'Branch, tag or commit SHA:',
+  refNotFound: (name: string) => `Remote has no branch or tag named "${name}"`,
+  optionLike: (field: 'url' | 'branch') => `Git source ${field} must not start with '-'`,
   subdirectory: {
     message: 'Subdirectory within repo (optional):',
     placeholder: 'leave empty for repo root',
