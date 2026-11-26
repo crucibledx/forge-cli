@@ -9,6 +9,8 @@ import {createFileLogger} from '@infrastructure/logger'
 
 import {createConfinement} from '../../fs/confinement'
 import type {SourceLoaderEntry} from '../types'
+import {GIT_SOURCE_MESSAGES} from './messages'
+import {isOptionLike} from './schema.types'
 import type {GitSourceConfig} from './types'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
@@ -30,9 +32,16 @@ export async function withGitCache<T>(source: GitSourceConfig, acquire: () => Pr
   }
 }
 
+/** Checked before every git call: sources also arrive from prompts and callers that never ran the config schema. */
+export function assertGitArguments(url: string, branch: string): void {
+  if (isOptionLike(url)) throw new GitError(GIT_SOURCE_MESSAGES.optionLike('url'))
+  if (isOptionLike(branch)) throw new GitError(GIT_SOURCE_MESSAGES.optionLike('branch'))
+}
+
 export const load: SourceLoaderEntry['load'] = async (source) => {
   const logger = createFileLogger()
   const git = source as GitSourceConfig
+  assertGitArguments(git.url, git.branch)
   const cacheKey = gitCacheKey(git)
   const cacheDir = join(CACHE_DIR, cacheKey)
 
@@ -41,14 +50,15 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
     logger.debug('git source: fetching updates', {url: git.url, branch: git.branch})
     // A tag has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under fetch.writeFetchHEAD=false,
     // so fetch branches and tags alike into a private ref and reset to that.
-    await runGit(cacheDir, ['fetch', 'origin', `+${git.branch}:${FETCHED_REF}`])
+    await runGit(cacheDir, ['fetch', '--', 'origin', `+${git.branch}:${FETCHED_REF}`])
+    // checkout has no separator that keeps a revision from being read as an option; assertGitArguments covers it.
     await runGit(cacheDir, ['checkout', git.branch])
     await runGit(cacheDir, ['reset', '--hard', FETCHED_REF])
     fresh = false
   } else {
     logger.debug('git source: cloning', {url: git.url, branch: git.branch})
     await mkdir(CACHE_DIR, {recursive: true})
-    await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', git.url, cacheDir])
+    await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', '--', git.url, cacheDir])
     fresh = true
   }
 

@@ -5,6 +5,7 @@ export const GIT_SOURCE_MESSAGES = {
     required: 'URL is required',
   },
   branch: 'Branch:',
+  optionLike: (field: 'url' | 'branch') => `Git source ${field} must not start with '-'`,
   subdirectory: {
     message: 'Subdirectory within repo (optional):',
     placeholder: 'leave empty for repo root',
