@@ -1,4 +1,5 @@
 import type {HarnessConfig} from '@domain/harnesses'
+import type {PluginConfig} from '@domain/plugins'
 import type {SourceLayoutOption} from '@domain/sync/layout'
 
 export type DeepPartial<T> = {
@@ -63,6 +64,7 @@ export interface ProjectConfig {
   }
   harnesses: HarnessConfig[]
   sources: Source[]
+  plugins?: PluginConfig[]
   sync?: Partial<SyncConfig>
   telemetry?: Partial<TelemetryConfig>
   lastSync?: string

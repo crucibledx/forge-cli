@@ -32,12 +32,12 @@ export function createProgram(commands: CommandDefinition[]): Command {
 
   return program
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function wrapAction(action: (options: any) => Promise<void>) {
+  function wrapAction(action: CommandDefinition['action']) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return async (options: any) => {
+    return async (...args: any[]) => {
       try {
-        await action(options)
+        // Commander passes declared arguments, then options, then the Command itself.
+        await action(...args.slice(0, -1))
       } catch (err) {
         setTelemetryContext({success: false})
         renderer.renderNewline()

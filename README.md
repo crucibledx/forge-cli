@@ -137,6 +137,7 @@ Only active tools are synced. If your project doesn't use Windsurf, Forge won't 
 | `forge source remove`     | Remove a source + optional cleanup                     |
 | `forge source edit`       | Edit source with pre-filled values                     |
 | `forge scheduler install` | Register OS-level auto-sync (launchd/crontab/schtasks) |
+| `forge plugin validate`   | Validate a plugin package; per-harness portability    |
 | `forge uninstall`         | Remove config, scheduler, and synced files             |
 
 Full reference → [crucibledx.dev/forge/commands](https://crucibledx.dev/forge/commands)

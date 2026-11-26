@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
-import {mkdir, rm} from 'node:fs/promises'
+import {mkdir, mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {isAbsolute, join, resolve} from 'node:path'
 
 import {redact} from '@domain/redact'
 import {hashContent} from '@domain/sync/state'
@@ -38,17 +38,15 @@ export function assertGitArguments(url: string, branch: string): void {
   if (isOptionLike(branch)) throw new GitError(GIT_SOURCE_MESSAGES.optionLike('branch'))
 }
 
+type GitOptions = {timeoutMs?: number; env?: Record<string, string>}
+
 const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
 
 /**
  * Qualify a configured ref the way `clone --branch` does: branch first, then tag. A bare fetch refspec would prefer a
  * same-named tag. A full commit SHA is returned as is, because ls-remote lists refs, never commits.
  */
-export async function resolveRemoteRef(
-  url: string,
-  name: string,
-  options?: {timeoutMs?: number; env?: Record<string, string>},
-): Promise<string> {
+export async function resolveRemoteRef(url: string, name: string, options?: GitOptions): Promise<string> {
   const candidates = [`refs/heads/${name}`, `refs/tags/${name}`]
   const listed = new Set(
     (await runGit(undefined, ['ls-remote', '--', url, ...candidates], options))
@@ -59,6 +57,50 @@ export async function resolveRemoteRef(
   if (ref) return ref
   if (COMMIT_SHA.test(name)) return name
   throw new GitError(GIT_SOURCE_MESSAGES.refNotFound(name))
+}
+
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
+
+/**
+ * `remote add` stores the url verbatim and later fetches run inside that repository, so a relative path must be made
+ * absolute against the working directory that ls-remote and clone resolve it from. Like git, a colon before the first
+ * slash marks an scp-style `host:path` url, which is left alone.
+ */
+export function absoluteRemoteUrl(url: string): string {
+  if (isAbsolute(url) || URL_SCHEME.test(url)) return url
+  const colon = url.indexOf(':')
+  const slash = url.indexOf('/')
+  if (colon > 0 && (slash < 0 || colon < slash)) return url
+  return resolve(url)
+}
+
+/**
+ * `clone --branch` rejects a commit SHA. An empty repository cannot learn the remote's object format the way clone
+ * does, but the SHA's length gives it.
+ */
+async function initForCommit(dir: string, url: string, sha: string, options?: GitOptions): Promise<void> {
+  await runGit(dir, ['init', '--quiet', `--object-format=${sha.length === 64 ? 'sha256' : 'sha1'}`], options)
+  await runGit(dir, ['remote', 'add', '--', 'origin', absoluteRemoteUrl(url)], options)
+}
+
+/**
+ * ls-remote cannot list commits, so only a fetch, into a throwaway repository, shows the remote has this one. The fetch
+ * also succeeds for a blob or tree, so the object is then resolved as a commit; FETCH_HEAD is not used because
+ * fetch.writeFetchHEAD=false skips it.
+ */
+export async function assertRemoteCommit(url: string, sha: string, options?: GitOptions): Promise<void> {
+  const dir = await mkdtemp(join(tmpdir(), 'forge-verify-'))
+  try {
+    await initForCommit(dir, url, sha, options)
+    await runGit(dir, ['fetch', '--quiet', '--depth', '1', '--', 'origin', sha], options)
+    try {
+      await runGit(dir, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], options)
+    } catch {
+      throw new GitError(GIT_SOURCE_MESSAGES.notCommit(sha))
+    }
+  } finally {
+    await rm(dir, {recursive: true, force: true})
+  }
 }
 
 export const load: SourceLoaderEntry['load'] = async (source) => {
@@ -79,11 +121,8 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
       await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', '--', git.url, cacheDir])
     } else {
       if (fresh) {
-        // `clone --branch` rejects a commit SHA. An empty repository cannot learn the remote's object format the
-        // way clone does, but the SHA's length gives it.
         await mkdir(cacheDir, {recursive: true})
-        await runGit(cacheDir, ['init', '--quiet', `--object-format=${ref.length === 64 ? 'sha256' : 'sha1'}`])
-        await runGit(cacheDir, ['remote', 'add', '--', 'origin', git.url])
+        await initForCommit(cacheDir, git.url, ref)
       }
       // A tag or SHA has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under
       // fetch.writeFetchHEAD=false, so fetch the resolved ref into a private ref and check that out detached.
@@ -117,11 +156,7 @@ export async function cleanupAllCaches(): Promise<void> {
   }
 }
 
-export async function runGit(
-  cwd: string | undefined,
-  args: string[],
-  options?: {timeoutMs?: number; env?: Record<string, string>},
-): Promise<string> {
+export async function runGit(cwd: string | undefined, args: string[], options?: GitOptions): Promise<string> {
   const proc = Bun.spawn(['git', ...args], {
     cwd: cwd ?? undefined,
     stdout: 'pipe',
