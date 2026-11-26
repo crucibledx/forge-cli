@@ -4,7 +4,7 @@ export const GIT_SOURCE_MESSAGES = {
     placeholder: 'git@github.com:your-org/ai-configs.git',
     required: 'URL is required',
   },
-  branch: 'Branch:',
+  branch: 'Branch, tag or commit SHA:',
   subdirectory: {
     message: 'Subdirectory within repo (optional):',
     placeholder: 'leave empty for repo root',

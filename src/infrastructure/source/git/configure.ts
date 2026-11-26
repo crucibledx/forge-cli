@@ -53,9 +53,13 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
   return source
 }
 
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
+
 export async function verifyGitSource(url: string, branch: string): Promise<{success: boolean; error?: string}> {
+  // ls-remote lists refs, never commits, so a pinned SHA can only be checked for remote reachability.
+  const refs = COMMIT_SHA.test(branch) ? [] : ['--exit-code', url, `refs/heads/${branch}`, `refs/tags/${branch}`]
   try {
-    await runGit(undefined, ['ls-remote', '--exit-code', url, `refs/heads/${branch}`], {
+    await runGit(undefined, ['ls-remote', ...(refs.length ? refs : [url])], {
       timeoutMs: 10_000,
       env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
     })

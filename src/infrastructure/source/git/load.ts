@@ -36,20 +36,23 @@ export const load: SourceLoaderEntry['load'] = async (source) => {
   const cacheKey = gitCacheKey(git)
   const cacheDir = join(CACHE_DIR, cacheKey)
 
-  let fresh: boolean
-  if (existsSync(join(cacheDir, '.git'))) {
-    logger.debug('git source: fetching updates', {url: git.url, branch: git.branch})
-    // A tag has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under fetch.writeFetchHEAD=false,
-    // so fetch branches and tags alike into a private ref and reset to that.
-    await runGit(cacheDir, ['fetch', 'origin', `+${git.branch}:${FETCHED_REF}`])
-    await runGit(cacheDir, ['checkout', git.branch])
-    await runGit(cacheDir, ['reset', '--hard', FETCHED_REF])
-    fresh = false
-  } else {
-    logger.debug('git source: cloning', {url: git.url, branch: git.branch})
-    await mkdir(CACHE_DIR, {recursive: true})
-    await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', git.url, cacheDir])
-    fresh = true
+  const fresh = !existsSync(join(cacheDir, '.git'))
+  logger.debug(fresh ? 'git source: cloning' : 'git source: fetching updates', {url: git.url, branch: git.branch})
+  try {
+    if (fresh) {
+      // `clone --branch` rejects a commit SHA, so a cold cache is an empty repository that takes the same fetch.
+      await mkdir(cacheDir, {recursive: true})
+      await runGit(cacheDir, ['init', '--quiet'])
+      await runGit(cacheDir, ['remote', 'add', 'origin', git.url])
+    }
+    // A tag or SHA has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under
+    // fetch.writeFetchHEAD=false, so fetch any ref into a private ref and check that out detached.
+    await runGit(cacheDir, ['fetch', '--depth', '1', 'origin', `+${git.branch}:${FETCHED_REF}`])
+    await runGit(cacheDir, ['checkout', '--quiet', '--force', '--detach', FETCHED_REF])
+  } catch (error) {
+    // A half-initialised cache would otherwise be taken for a warm one on the next sync.
+    if (fresh) await rm(cacheDir, {recursive: true, force: true})
+    throw error
   }
 
   // Only dot-directory components select the root; never normalize away parent traversal.
