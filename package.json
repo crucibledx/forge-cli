@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@clack/prompts": "1.3.0",
+    "ajv": "^8.20.0",
     "lodash-es": "^4.17.21",
     "strip-ansi": "^7.1.0",
     "commander": "^14.0.3",

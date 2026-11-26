@@ -1,6 +1,7 @@
 import './config'
 import './health'
 import './init'
+import './plugin'
 import './scheduler'
 import './source'
 import './status'
