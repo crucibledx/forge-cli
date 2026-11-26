@@ -5,7 +5,7 @@
  */
 
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {mkdir, readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -35,18 +35,21 @@ describe('forge sync — droid', () => {
     expect(output).toContain('Droid has no location for rules/ files; they are not delivered to Droid.')
   })
 
-  it('syncs into ~/.factory with --global', async () => {
+  it('syncs into ~/.factory with --global, not into the current project', async () => {
     const home = getDir()
+    const projectDir = join(home, 'my-project')
     const sourceDir = join(home, 'global-source')
     await writeSourceTree(sourceDir, TREE)
     await writeConfig(home, buildConfigYaml({assistants: ['droid'], localSource: {path: sourceDir}}))
+    await mkdir(projectDir, {recursive: true})
 
-    const {exitCode, output} = await runCommand(home, '--global', ['sync'], {HOME: home})
+    const {exitCode, output} = await runCommand(projectDir, '--global', ['sync'], {HOME: home})
     expect(exitCode).toBe(0)
 
     expect(await readFile(join(home, '.factory', 'skills', 'deploy', 'SKILL.md'), 'utf-8')).toBe('# Deploy')
     expect(await readFile(join(home, '.factory', 'commands', 'review.md'), 'utf-8')).toBe('# Review')
     expect(existsSync(join(home, '.factory', 'rules'))).toBe(false)
+    expect(existsSync(join(projectDir, '.factory'))).toBe(false)
     expect(output).toContain('not delivered to Droid')
   })
 })

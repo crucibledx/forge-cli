@@ -1,8 +1,9 @@
 import {describe, expect, it} from 'bun:test'
+import {sortBy} from 'lodash-es'
 
 import {findUndelivered} from './coverage'
 import {droid} from './droid'
-import {getAllHarnesses} from './registry'
+import {getAllHarnesses} from './index'
 
 describe('findUndelivered', () => {
   it('reports source rules as not delivered to Droid', () => {
@@ -17,7 +18,7 @@ describe('findUndelivered', () => {
 
   it('reports only the gaps of each harness', () => {
     const gaps = findUndelivered(['rules/b.md', 'workflows/c.md'], getAllHarnesses())
-    expect(gaps).toEqual([
+    expect(sortBy(gaps, 'harnessId')).toEqual([
       {harnessId: 'copilot', sourceGlob: 'workflows/**'},
       {harnessId: 'droid', sourceGlob: 'rules/**'},
     ])
