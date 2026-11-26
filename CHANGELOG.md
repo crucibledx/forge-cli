@@ -7,6 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- **Droid** — built-in `droid` harness: detected from `.factory/` (project) and `~/.factory/` (global); skills sync to `.factory/skills/` and workflows to `.factory/commands/`. Droid has no rules directory, so `forge sync` reports source rules as not delivered to Droid.
+- **Harness components** — each harness definition lists the component kinds it can load (skills, rules, commands, subagents, hooks, MCP servers, output styles) and where, with a closed format registry. See `docs/how-to-add-harness.md`.
+
 ### Changed
 
 - **Assistants are now harnesses** — "AI assistants" are called coding harnesses in the CLI, config, reports and docs. The config key is `harnesses:`; `assistants:` is still read through v0.x and removed at v1.0. A config with both keys fails to load and asks you to keep one. The first forge write converts a canonical top-level `assistants:` key line in place, as a rename-only edit that keeps your comments; quoted or otherwise non-standard spellings are left as they are and reported. Sync reports record `harnesses`; `forge health` still reads older reports with `assistants`.

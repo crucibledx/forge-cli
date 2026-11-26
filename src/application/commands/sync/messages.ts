@@ -20,6 +20,8 @@ export const SYNC_MESSAGES = {
     dryRunHint: 'Run without --dry-run to apply.',
     strategyBanner: (source: string, local: string) => `Merging (source strategy: ${source}, local strategy: ${local})`,
     done: (count: number, names: string) => `Done. ${count} file(s) synced from ${names}.`,
+    notDelivered: (harness: string, glob: string) =>
+      `${harness} has no location for ${glob.replace('**', '')} files; they are not delivered to ${harness}.`,
     lastSync: (iso: string) => `Last sync: ${iso.replace('T', ' ').slice(0, 16)}`,
   },
 } as const

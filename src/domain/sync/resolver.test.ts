@@ -20,6 +20,7 @@ const cursorDef: HarnessDefinition = {
   id: 'cursor',
   name: 'Cursor',
   detection: {directories: ['.cursor'], files: []},
+  components: {},
   targetMappings: [
     {sourceGlob: 'skills/**', destination: {project: '.cursor/skills/'}},
     {
@@ -38,6 +39,7 @@ const claudeDef: HarnessDefinition = {
   id: 'claude-code',
   name: 'Claude Code',
   detection: {directories: ['.claude'], files: []},
+  components: {},
   targetMappings: [
     {sourceGlob: 'skills/**', destination: {project: '.claude/skills/'}},
     {sourceGlob: 'rules/**', destination: {project: '.claude/rules/'}},
@@ -48,6 +50,7 @@ const windsurfDef: HarnessDefinition = {
   id: 'windsurf',
   name: 'Windsurf',
   detection: {directories: ['.windsurf'], files: []},
+  components: {},
   targetMappings: [
     {sourceGlob: 'skills/**', destination: {project: '.windsurf/skills/'}},
     {sourceGlob: 'rules/**', destination: {project: '.windsurf/rules/'}},
@@ -134,6 +137,7 @@ describe('resolveTargets', () => {
   it('ignores unknown transformer id gracefully (returns filename unchanged)', () => {
     const defWithBadTransform: HarnessDefinition = {
       ...cursorDef,
+      components: {},
       targetMappings: [
         {
           sourceGlob: 'skills/**',
@@ -168,6 +172,7 @@ describe('resolveTargets', () => {
       id: 'copilot',
       name: 'GitHub Copilot',
       detection: {directories: [], files: []},
+      components: {},
       targetMappings: [
         {
           sourceGlob: 'rules/**',
@@ -213,6 +218,7 @@ describe('resolveTargets', () => {
   it('ignores unknown content transformer gracefully', () => {
     const defWithBadContent: HarnessDefinition = {
       ...cursorDef,
+      components: {},
       targetMappings: [
         {
           sourceGlob: 'rules/**',
@@ -358,6 +364,7 @@ const windsurfGlobalDef: HarnessDefinition = {
   id: 'windsurf',
   name: 'Windsurf',
   detection: {directories: ['.windsurf'], files: []},
+  components: {},
   targetMappings: [
     {sourceGlob: 'skills/**', destination: {project: '.windsurf/skills/', global: '.codeium/windsurf/skills/'}},
     {sourceGlob: 'rules/**', destination: {project: '.windsurf/rules/'}},

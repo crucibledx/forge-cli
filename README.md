@@ -89,13 +89,14 @@ my-source/
 
 Forge auto-detects the layout and maps each file to every harness's native format:
 
-| Harness          | Target paths                                             | Auto-transform               |
+| Harness            | Target paths                                             | Auto-transform               |
 |--------------------|----------------------------------------------------------|------------------------------|
 | **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/` | —                            |
 | **Cursor**         | `.cursor/rules/`                                         | `.md` → `.mdc` + frontmatter |
 | **Windsurf**       | `.windsurf/rules/`, `.windsurf/workflows/`               | frontmatter injection        |
 | **GitHub Copilot** | `.github/skills/`, `.github/instructions/`               | `.md` → `.instructions.md`   |
 | **Cline**          | `.cline/skills/`, `.clinerules/`                         | —                            |
+| **Droid**          | `.factory/skills/`, `.factory/commands/` (no rules)      | —                            |
 
 Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new harness is [one file](docs/how-to-add-harness.md).
 

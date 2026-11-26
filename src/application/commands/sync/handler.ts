@@ -1,7 +1,7 @@
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import type {HarnessDefinition} from '@domain/harnesses'
-import {getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
+import {findUndelivered, getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
 import {redact} from '@domain/redact'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
@@ -137,9 +137,16 @@ export async function fetchAndResolve(
   load = loadSourceFiles,
 ): Promise<ResolvedTarget[]> {
   const outcomes = await Promise.allSettled(
-    sources.map(async (source) => resolveTargets(await load(source), definitions, source.name, source.layout)),
+    sources.map(async (source) => {
+      const files = await load(source)
+      return {
+        targets: resolveTargets(files, definitions, source.name, source.layout),
+        paths: source.layout === 'pre-structured' ? [] : files.map((file) => file.relativePath),
+      }
+    }),
   )
   const resolved: ResolvedTarget[] = []
+  const sourcePaths: string[] = []
   const errors: string[] = []
   for (let i = 0; i < sources.length; i++) {
     const outcome = outcomes[i]
@@ -153,12 +160,15 @@ export async function fetchAndResolve(
       renderer.renderError(message)
       errors.push(message)
     } else {
-      renderer.renderDim(`Acquired "${name}": ${outcome.value.length} resolved targets (not yet installed).`)
-      resolved.push(...outcome.value)
+      renderer.renderDim(`Acquired "${name}": ${outcome.value.targets.length} resolved targets (not yet installed).`)
+      resolved.push(...outcome.value.targets)
+      sourcePaths.push(...outcome.value.paths)
     }
   }
   if (errors.length)
     throw new SafetyError(`Source acquisition failed; no protected data changed:\n${errors.join('\n')}`, errors.length)
+  for (const {harnessId, sourceGlob} of findUndelivered(sourcePaths, definitions))
+    renderer.renderWarning(M.output.notDelivered(getHarness(harnessId).name, sourceGlob))
   return resolved
 }
 

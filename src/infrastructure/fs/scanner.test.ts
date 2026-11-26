@@ -5,6 +5,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
 import type {HarnessDefinition} from '@domain/harnesses'
+import {droid} from '@domain/harnesses/droid'
 
 import {scanForHarnesses} from './scanner'
 
@@ -17,6 +18,7 @@ const cursorDef: HarnessDefinition = {
     directories: ['.cursor'],
     files: ['.cursorrules', '~/.cursor/mcp.json'],
   },
+  components: {},
   targetMappings: [],
 }
 
@@ -27,6 +29,7 @@ const windsurfDef: HarnessDefinition = {
     directories: ['.windsurf', '~/.codeium/windsurf'],
     files: [],
   },
+  components: {},
   targetMappings: [],
 }
 
@@ -37,6 +40,7 @@ const claudeDef: HarnessDefinition = {
     directories: ['.claude'],
     files: ['CLAUDE.md', '.claude/settings.json'],
   },
+  components: {},
   targetMappings: [],
 }
 
@@ -157,5 +161,23 @@ describe('scanForHarnesses', () => {
     const results = scanForHarnesses(getDir(), [claudeDef, cursorDef])
     expect(results[0].id).toBe('claude-code')
     expect(results[1].id).toBe('cursor')
+  })
+})
+
+describe('droid detection', () => {
+  it('detects .factory/ in the project', async () => {
+    const root = join(getDir(), 'project')
+    await mkdir(join(root, '.factory'), {recursive: true})
+    await writeFile(join(root, '.factory', 'settings.json'), '{}')
+    const [result] = scanForHarnesses(root, [droid], join(getDir(), 'empty-home'))
+    expect(result).toMatchObject({id: 'droid', detected: true, scope: 'project'})
+  })
+
+  it('detects ~/.factory/ in the home directory', async () => {
+    const home = join(getDir(), 'home')
+    await mkdir(join(home, '.factory'), {recursive: true})
+    await writeFile(join(home, '.factory', 'settings.json'), '{}')
+    const [result] = scanForHarnesses(join(getDir(), 'project'), [droid], home)
+    expect(result).toMatchObject({id: 'droid', detected: true, scope: 'global'})
   })
 })
