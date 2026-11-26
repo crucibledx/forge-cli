@@ -125,9 +125,7 @@ describe('forge init — e2e', () => {
     it(
       'cancels gracefully on Ctrl+C — no config written',
       async () => {
-        const {exitCode} = await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.harnesses.select).pressKey(CTRL_C),
-        )
+        const {exitCode} = await runInitSession(getDir(), (cli) => cli.waitForText(M.harnesses.select).pressKey(CTRL_C))
         expect(exitCode === 0 || exitCode === 1).toBe(true)
         expect(existsSync(configFilePath(getDir()))).toBe(false)
       },

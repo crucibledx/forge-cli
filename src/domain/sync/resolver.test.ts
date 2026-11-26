@@ -110,9 +110,7 @@ describe('resolveTargets', () => {
   it('resolves files for multiple harnesses', () => {
     const result = resolveTargets(sourceFiles, [cursorDef, claudeDef])
     const cursorSkills = result.filter((r) => r.harnessId === 'cursor' && r.sourcePath === 'skills/typescript.md')
-    const claudeSkills = result.filter(
-      (r) => r.harnessId === 'claude-code' && r.sourcePath === 'skills/typescript.md',
-    )
+    const claudeSkills = result.filter((r) => r.harnessId === 'claude-code' && r.sourcePath === 'skills/typescript.md')
     expect(cursorSkills).toHaveLength(1)
     expect(claudeSkills).toHaveLength(1)
   })

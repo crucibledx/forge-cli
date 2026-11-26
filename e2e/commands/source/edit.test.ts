@@ -41,7 +41,7 @@ describe('forge source edit', () => {
     'shows no-sources warning when sources are empty',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor'], rawSources: '[]'}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor'], rawSources: '[]'}))
 
       const {output} = await runSourceSession(dir, 'edit', (cli) => cli.waitForText(SM.errors.noSources))
       expect(output).toContain(SM.errors.noSources)
@@ -57,7 +57,7 @@ describe('forge source edit', () => {
       const newDir = join(dir, 'new-source')
       await mkdir(oldDir, {recursive: true})
       await mkdir(newDir, {recursive: true})
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor'], localSource: {path: oldDir}}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor'], localSource: {path: oldDir}}))
 
       await runSourceSession(dir, 'edit', (cli) =>
         cli
@@ -91,7 +91,7 @@ describe('forge source edit', () => {
       const dir = getDir()
       const sourceDir = join(dir, 'my-source')
       await mkdir(sourceDir, {recursive: true})
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor'], localSource: {path: sourceDir}}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor'], localSource: {path: sourceDir}}))
 
       await runSourceSession(dir, 'edit', (cli) =>
         cli
@@ -128,7 +128,7 @@ describe('forge source edit', () => {
       // Write config with advanced options directly
       const yaml = [
         'version: "1"',
-        'harnesses:',
+        'assistants:',
         '  - id: cursor',
         '    enabled: true',
         'sources:',

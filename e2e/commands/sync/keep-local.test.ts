@@ -23,7 +23,7 @@ describe('keep_local', () => {
 
     // First sync with a file
     await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy', 'review.md': '# Review'}})
-    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: sourceDir}}))
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
     await runSync(dir)
 
     expect(existsSync(join(dir, '.claude/skills/deploy.md'))).toBe(true)
@@ -47,7 +47,7 @@ describe('keep_local', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {keep_local: false},
       }),
@@ -75,7 +75,7 @@ describe('keep_local', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {keep_local: false},
       }),
@@ -100,7 +100,7 @@ describe('keep_local', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {keep_local: false},
       }),

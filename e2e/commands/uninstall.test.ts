@@ -30,7 +30,7 @@ describe('forge uninstall', () => {
     'removes .crucible directory when confirmed',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor']}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor']}))
       expect(existsSync(crucibleDirPath(dir))).toBe(true)
 
       await runUninstallSession(dir, (cli) => cli.waitForText('Continue?').pressKey(Y).waitForText(M.done))
@@ -44,7 +44,7 @@ describe('forge uninstall', () => {
     'cancels uninstall when user declines',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor']}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor']}))
 
       await runUninstallSession(dir, (cli) => cli.waitForText('Continue?').pressKey(N).waitForText(M.cancelled))
 
@@ -57,7 +57,7 @@ describe('forge uninstall', () => {
     'removes synced files during uninstall',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor']}))
+      await writeConfig(dir, buildConfigYaml({assistants: ['cursor']}))
 
       // Create a fake synced file and sync state
       const syncedFile = join(dir, '.claude', 'rules', 'deploy.md')
@@ -86,7 +86,7 @@ describe('forge uninstall', () => {
       `refuses ambiguous POSIX backslash state before prompting or changing files: ${literal}`,
       async () => {
         const dir = getDir()
-        await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code']}))
+        await writeConfig(dir, buildConfigYaml({assistants: ['claude-code']}))
         const paths = await writeAmbiguousPair(dir, literal)
         await writeFile(
           join(dir, '.crucible', 'sync-state.json'),

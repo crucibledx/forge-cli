@@ -7,9 +7,9 @@
 
 import {beforeEach, describe, expect, it, mock} from 'bun:test'
 
+import type {Source} from '@domain/config/types'
 import {cursor} from '@domain/harnesses/cursor'
 import {windsurf} from '@domain/harnesses/windsurf'
-import type {Source} from '@domain/config/types'
 
 import {INIT_MESSAGES as M} from './messages'
 

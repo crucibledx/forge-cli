@@ -2,6 +2,7 @@ import {getProjectConfigPath, loadProjectConfig, projectConfigExists} from './lo
 import type {ConfigService} from './types'
 import {writeProjectConfig} from './writer'
 
+export * from './alias'
 export * from './loader'
 export * from './state'
 export * from './types'

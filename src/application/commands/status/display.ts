@@ -1,6 +1,6 @@
+import {formatTimeAgo} from '@domain/format'
 import type {HarnessId} from '@domain/harnesses'
 import {getHarness, resolveHarnessByPath} from '@domain/harnesses'
-import {formatTimeAgo} from '@domain/format'
 import type {DriftSummary} from '@domain/sync/drift'
 import {DRIFT_STATUSES} from '@domain/sync/drift'
 import * as renderer from '@infrastructure/cli/renderer'

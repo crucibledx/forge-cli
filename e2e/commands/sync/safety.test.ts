@@ -126,7 +126,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   )
   it('rejects final-source removal without cleaning anything', async () => {
     await seed()
-    await writeConfig(dir(), buildConfigYaml({harnesses: ['claude-code'], sync: {keep_local: false}}))
+    await writeConfig(dir(), buildConfigYaml({assistants: ['claude-code'], sync: {keep_local: false}}))
     const before = await snapshot(dir())
     expect((await sync()).exitCode).toBe(1)
     expect(await snapshot(dir())).toEqual(before)
@@ -138,7 +138,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
     if (!empty) await writeSourceTree(source, {skills: {'deploy.md': 'changed'}})
     await writeConfig(
       dir(),
-      buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}, sync: {keep_local: false}}),
+      buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}, sync: {keep_local: false}}),
     )
     const before = await snapshot(dir())
     expect((await sync(['--dry-run'])).exitCode).toBe(0)
@@ -155,7 +155,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       await symlink(outside, join(root, '.claude'), process.platform === 'win32' ? 'junction' : 'dir')
       const source = join(dir(), 'source')
       await writeSourceTree(source, {skills: {'deploy.md': 'incoming'}})
-      await writeConfig(root, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}}))
+      await writeConfig(root, buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}}))
       const before = await readFile(join(root, '.crucible/forge.config.yaml'))
       const result = await sync(global ? ['--global'] : [])
       expect(result.exitCode).toBe(1)
@@ -187,7 +187,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   it('backs up exact non-UTF8 bytes rather than decoded replacement characters', async () => {
     const source = join(dir(), 'source')
     await writeSourceTree(source, {skills: {'deploy.md': '\uFFFD'}})
-    await writeConfig(dir(), buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}}))
+    await writeConfig(dir(), buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}}))
     await mkdir(join(dir(), '.claude/skills'), {recursive: true})
     await writeFile(join(dir(), tracked), Buffer.from([0xff]))
     expect((await sync()).exitCode).toBe(0)
@@ -197,7 +197,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   it('silent mode suppresses normal failure presentation but keeps failure exit and report', async () => {
     await writeConfig(
       dir(),
-      buildConfigYaml({harnesses: ['claude-code'], localSource: {path: join(dir(), 'missing')}}),
+      buildConfigYaml({assistants: ['claude-code'], localSource: {path: join(dir(), 'missing')}}),
     )
     const before = await snapshot(dir())
     const result = await sync(['--silent'])

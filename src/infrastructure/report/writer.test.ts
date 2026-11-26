@@ -1,4 +1,4 @@
-import {rm} from 'node:fs/promises'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
@@ -79,5 +79,31 @@ describe('report service', () => {
   it('getReportDir returns a path', () => {
     const dir = service.getReportDir()
     expect(dir).toContain('forge-report-test')
+  })
+})
+
+describe('report service with v0.7 reports', () => {
+  const dir = join(tmpdir(), `forge-report-v07-${Date.now()}`)
+  const v07 = JSON.stringify({
+    ...makeReport({timestamp: '2026-06-01T10:00:00.000Z'}),
+    harnesses: undefined,
+    assistants: ['cursor', 'cline'],
+  })
+
+  afterAll(async () => {
+    await rm(dir, {recursive: true, force: true})
+  })
+
+  it('reads assistants from an old latest and history report as harnesses', async () => {
+    await mkdir(join(dir, 'history'), {recursive: true})
+    await writeFile(join(dir, 'latest.json'), v07, 'utf-8')
+    await writeFile(join(dir, 'history', '2026-06-01-10-00-00-000.json'), v07, 'utf-8')
+    const service = createReportService(dir)
+
+    const latest = await service.readLatest()
+    expect(latest!.harnesses).toEqual(['cursor', 'cline'])
+    expect(latest).not.toHaveProperty('assistants')
+    expect(latest!.timestamp).toBe('2026-06-01T10:00:00.000Z')
+    expect((await service.readHistory()).map((r) => r.harnesses)).toEqual([['cursor', 'cline']])
   })
 })

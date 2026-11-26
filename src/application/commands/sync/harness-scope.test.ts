@@ -4,8 +4,8 @@ import {dirname, join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterEach, expect, it} from 'bun:test'
 
-import {harnessesRegistry, getAllHarnesses} from '@domain/harnesses'
 import {type ProjectConfig, SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses, harnessesRegistry} from '@domain/harnesses'
 import {setGlobalMode} from '@domain/scope'
 import {hashContent} from '@domain/sync/state'
 

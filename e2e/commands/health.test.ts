@@ -28,7 +28,7 @@ describe('forge health', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -48,7 +48,7 @@ describe('forge health', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -71,7 +71,7 @@ describe('forge health', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {schedule: '0 9 * * 1'},
       }),
@@ -90,7 +90,7 @@ describe('forge health', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )

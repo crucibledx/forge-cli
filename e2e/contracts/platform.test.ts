@@ -43,23 +43,23 @@ const destinations = [
   },
   {id: 'cline', project: '.clinerules/native.md', global: 'Documents/Cline/Rules/native.md'},
 ]
-it.each(destinations.flatMap((harness) => [false, true].map((global) => ({...harness, globalMode: global}))))(
+it.each(destinations.flatMap((assistant) => [false, true].map((global) => ({...assistant, globalMode: global}))))(
   'native $id persisted ownership and cleanup, global=$globalMode (AC-4,26)',
-  async (harness) => {
-    const root = harness.globalMode ? testEnvironment(dir()).HOME : dir()
-    const source = await setupLocalSync(dir(), [harness.id], {rules: {'native.md': '# Native fixture\n'}})
-    if (harness.globalMode)
+  async (assistant) => {
+    const root = assistant.globalMode ? testEnvironment(dir()).HOME : dir()
+    const source = await setupLocalSync(dir(), [assistant.id], {rules: {'native.md': '# Native fixture\n'}})
+    if (assistant.globalMode)
       await writeConfig(
         root,
-        buildConfigYaml({harnesses: [harness.id], localSource: {path: source}, sync: {keep_local: false}}),
+        buildConfigYaml({assistants: [assistant.id], localSource: {path: source}, sync: {keep_local: false}}),
       )
     else
       await writeConfig(
         root,
-        buildConfigYaml({harnesses: [harness.id], localSource: {path: source}, sync: {keep_local: false}}),
+        buildConfigYaml({assistants: [assistant.id], localSource: {path: source}, sync: {keep_local: false}}),
       )
-    const args = [process.execPath, CLI_ENTRY, ...(harness.globalMode ? ['--global'] : []), 'sync']
-    const path = harness.globalMode ? harness.global : harness.project
+    const args = [process.execPath, CLI_ENTRY, ...(assistant.globalMode ? ['--global'] : []), 'sync']
+    const path = assistant.globalMode ? assistant.global : assistant.project
     expect((await runPipe(dir(), args)).exitCode).toBe(0)
     const before = await readFile(join(root, path))
     expect(before.toString()).toContain('# Native fixture')
@@ -68,7 +68,7 @@ it.each(destinations.flatMap((harness) => [false, true].map((global) => ({...har
     // Disabled ownership must retain persisted bytes and entry under cleanup.
     await writeConfig(
       root,
-      `version: "1"\nharnesses:\n  - id: ${harness.id}\n    enabled: false\n  - id: ${harness.id === 'cline' ? 'cursor' : 'cline'}\n    enabled: true\nsources:\n  - name: local\n    type: local\n    path: ${JSON.stringify(source)}\nsync:\n  keep_local: false\n`,
+      `version: "1"\nassistants:\n  - id: ${assistant.id}\n    enabled: false\n  - id: ${assistant.id === 'cline' ? 'cursor' : 'cline'}\n    enabled: true\nsources:\n  - name: local\n    type: local\n    path: ${JSON.stringify(source)}\nsync:\n  keep_local: false\n`,
     )
     expect((await runPipe(dir(), args)).exitCode).toBe(0)
     expect(await readFile(join(root, path))).toEqual(before)
@@ -78,7 +78,7 @@ it.each(destinations.flatMap((harness) => [false, true].map((global) => ({...har
     await unlink(join(source, 'rules/native.md'))
     await writeConfig(
       root,
-      buildConfigYaml({harnesses: [harness.id], localSource: {path: source}, sync: {keep_local: false}}),
+      buildConfigYaml({assistants: [assistant.id], localSource: {path: source}, sync: {keep_local: false}}),
     )
     // This intentionally fails on builds that refuse Windows deletion: safe refusal
     // is a known limitation, not a passing native-cleanup acceptance result.

@@ -52,7 +52,7 @@ function readTelemetryEvents(homeDir: string): TelemetryEvent[] {
 describe('local telemetry backend', () => {
   it('does not write events when telemetry is disabled', async () => {
     const dir = getDir()
-    await writeConfig(dir, buildConfigYaml({harnesses: []}))
+    await writeConfig(dir, buildConfigYaml({assistants: []}))
 
     await runHealth(dir)
 
@@ -67,7 +67,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -86,7 +86,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -111,7 +111,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -132,7 +132,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -154,7 +154,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -175,7 +175,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -198,7 +198,7 @@ describe('local telemetry backend', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: [],
+        assistants: [],
         telemetry: {enabled: true},
       }),
     )
@@ -222,7 +222,7 @@ describe('local telemetry backend', () => {
       await writeConfig(
         dir,
         buildConfigYaml({
-          harnesses: ['claude-code'],
+          assistants: ['claude-code'],
           localSource: {path: sourceDir},
           telemetry: {enabled: true},
         }),

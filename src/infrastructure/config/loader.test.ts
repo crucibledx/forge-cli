@@ -71,3 +71,32 @@ describe('loadProjectConfig', () => {
     expect(loadProjectConfig(dir)).rejects.toThrow()
   })
 })
+
+describe('loadProjectConfig with the assistants alias', () => {
+  const V07_YAML = 'version: "1"\nassistants:\n  - id: cursor\n    enabled: true\nsources: []\n'
+
+  async function load(yaml: string) {
+    const dir = getDir()
+    await mkdir(join(dir, '.crucible'), {recursive: true})
+    await writeFile(join(dir, '.crucible', 'forge.config.yaml'), yaml, 'utf-8')
+    return loadProjectConfig(dir)
+  }
+
+  it('reads a v0.7 config with only assistants: as harnesses', async () => {
+    const config = await load(V07_YAML)
+    expect(config!.harnesses).toEqual([{id: 'cursor', enabled: true}])
+    expect(config).not.toHaveProperty('assistants')
+  })
+
+  it('loads the v0.7 config to the same result as its harnesses: spelling', async () => {
+    expect(await load(V07_YAML)).toEqual(await load(V07_YAML.replace('assistants:', 'harnesses:')))
+  })
+
+  it('fails when both assistants: and harnesses: are present, naming both keys', async () => {
+    const both = V07_YAML + 'harnesses:\n  - id: cline\n    enabled: true\n'
+    const error = await load(both).catch((e: Error) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain('`harnesses:`')
+    expect((error as Error).message).toContain('`assistants:`')
+  })
+})

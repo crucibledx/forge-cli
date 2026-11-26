@@ -1,8 +1,8 @@
 import {z} from 'zod'
 
-import {getHarnessIds} from '@domain/harnesses'
 import type {LocalConflictStrategy, SourceConflictStrategy} from '@domain/config/types'
 import {LOCAL_CONFLICT_STRATEGIES, SOURCE_CONFLICT_STRATEGIES} from '@domain/config/types'
+import {getHarnessIds} from '@domain/harnesses'
 import {isValidCron} from '@domain/scheduler'
 import {sourceConfigSchema} from '@infrastructure/source'
 

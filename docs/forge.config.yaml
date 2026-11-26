@@ -109,6 +109,6 @@ sync:
   # Keep local files not present in source
   keep_local: true
 
-# ── Plugin registry (future) ────────────────────────────────────
-# Will be used when forge core CLI arrives
-plugins: []
+# ── Extension registry (future) ─────────────────────────────────
+# Forge's own extension point, not yet built. Will be used when forge core CLI arrives
+extensions: []

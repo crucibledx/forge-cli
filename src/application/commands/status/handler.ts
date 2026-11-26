@@ -1,7 +1,7 @@
-import {getHarness} from '@domain/harnesses'
 import type {ProjectConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {formatShortDateTime} from '@domain/format'
+import {getHarness} from '@domain/harnesses'
 import {describeCron, nextCronRun} from '@domain/scheduler'
 import {detectDrift, detectFullDrift} from '@domain/sync/drift'
 import {resolveSourceConflicts} from '@domain/sync/merge'

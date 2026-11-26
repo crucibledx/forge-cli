@@ -33,7 +33,7 @@ export interface TelemetryConfigOptions {
 }
 
 export interface ConfigOptions {
-  harnesses: string[]
+  assistants: string[]
   localSource?: LocalSourceOptions
   localSources?: LocalSourceOptions[]
   gitSource?: GitSourceOptions
@@ -46,7 +46,7 @@ export interface ConfigOptions {
  * Builds a forge config YAML string from structured options.
  */
 export function buildConfigYaml(options: ConfigOptions): string {
-  const harnessLines = options.harnesses.map((a) => `  - id: ${a}\n    enabled: true`).join('\n')
+  const assistantLines = options.assistants.map((a) => `  - id: ${a}\n    enabled: true`).join('\n')
 
   let sourcesBlock: string
   if (options.rawSources) {
@@ -78,10 +78,10 @@ export function buildConfigYaml(options: ConfigOptions): string {
     sourcesBlock = '[]'
   }
 
-  const harnessesYaml = harnessLines ? `harnesses:\n${harnessLines}` : 'harnesses: []'
+  const assistantsYaml = assistantLines ? `assistants:\n${assistantLines}` : 'assistants: []'
   const sourcesYaml = sourcesBlock === '[]' ? 'sources: []' : `sources:\n${sourcesBlock}`
 
-  const parts = ['version: "1"', harnessesYaml, sourcesYaml]
+  const parts = ['version: "1"', assistantsYaml, sourcesYaml]
 
   if (options.sync) {
     const syncLines = ['sync:']
@@ -119,11 +119,11 @@ export async function writeConfig(projectDir: string, yaml: string): Promise<voi
  */
 export async function setupLocalSync(
   projectDir: string,
-  harnesses: string[],
+  assistants: string[],
   tree: SourceTreeDescriptor,
 ): Promise<string> {
   const sourceDir = join(projectDir, 'source')
   await writeSourceTree(sourceDir, tree)
-  await writeConfig(projectDir, buildConfigYaml({harnesses, localSource: {path: sourceDir}}))
+  await writeConfig(projectDir, buildConfigYaml({assistants, localSource: {path: sourceDir}}))
   return sourceDir
 }

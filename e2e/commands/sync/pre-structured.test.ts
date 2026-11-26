@@ -2,8 +2,8 @@
  * E2E tests for `forge sync` with pre-structured source layouts.
  *
  * Covers: auto-detection of pre-structured vs canonical sources,
- * passthrough (no transforms) for harness-specific directories,
- * and canonical transforms still applied when no harness dirs detected.
+ * passthrough (no transforms) for assistant-specific directories,
+ * and canonical transforms still applied when no assistant dirs detected.
  */
 
 import {existsSync} from 'node:fs'
@@ -27,7 +27,7 @@ describe('sync — pre-structured source (auto-detected)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -40,7 +40,7 @@ describe('sync — pre-structured source (auto-detected)', () => {
     expect(content).toContain('paths:')
   })
 
-  it('copies files for multiple harnesses', async () => {
+  it('copies files for multiple assistants', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     await writeSourceTree(sourceDir, {
@@ -50,7 +50,7 @@ describe('sync — pre-structured source (auto-detected)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code', 'cursor'],
+        assistants: ['claude-code', 'cursor'],
         localSource: {path: sourceDir},
       }),
     )
@@ -62,7 +62,7 @@ describe('sync — pre-structured source (auto-detected)', () => {
     expect(existsSync(join(dir, '.cursor', 'rules', 'api.mdc'))).toBe(true)
   })
 
-  it('skips files for disabled harnesses', async () => {
+  it('skips files for disabled assistants', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     await writeSourceTree(sourceDir, {
@@ -72,7 +72,7 @@ describe('sync — pre-structured source (auto-detected)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -95,7 +95,7 @@ describe('sync — canonical source (auto-detected)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['windsurf'],
+        assistants: ['windsurf'],
         localSource: {path: sourceDir},
       }),
     )
@@ -121,7 +121,7 @@ describe('sync — hybrid source (mixed canonical + pre-structured)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code', 'windsurf'],
+        assistants: ['claude-code', 'windsurf'],
         localSource: {path: sourceDir},
       }),
     )
@@ -133,7 +133,7 @@ describe('sync — hybrid source (mixed canonical + pre-structured)', () => {
     const claudeOnly = await readFile(join(dir, '.claude', 'rules', 'claude-only.md'), 'utf-8')
     expect(claudeOnly).toBe('# Claude-specific rule')
 
-    // Canonical: shared.md distributed to both harnesses with transforms
+    // Canonical: shared.md distributed to both assistants with transforms
     const claudeShared = await readFile(join(dir, '.claude', 'rules', 'shared.md'), 'utf-8')
     expect(claudeShared).toContain('paths:') // Claude has no frontmatter rename
 
@@ -142,7 +142,7 @@ describe('sync — hybrid source (mixed canonical + pre-structured)', () => {
     expect(windsurfShared).not.toContain('paths:')
   })
 
-  it('pre-structured files are not duplicated to other harnesses', async () => {
+  it('pre-structured files are not duplicated to other assistants', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     await writeSourceTree(sourceDir, {
@@ -152,7 +152,7 @@ describe('sync — hybrid source (mixed canonical + pre-structured)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code', 'windsurf'],
+        assistants: ['claude-code', 'windsurf'],
         localSource: {path: sourceDir},
       }),
     )

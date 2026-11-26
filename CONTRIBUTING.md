@@ -100,7 +100,7 @@ DDD with three layers:
 
 | What            | Where                               | How                                                                        |
 |-----------------|-------------------------------------|----------------------------------------------------------------------------|
-| New harness   | `domain/harnesses/<name>/index.ts` | Create file, add to `registry.ts`                                          |
+| New harness     | `domain/harnesses/<name>/index.ts`  | Create file, add to `registry.ts`                                          |
 | New source type | `infrastructure/source/<type>/`     | `messages.ts` + `loader.ts` + `index.ts`, add to `source/index.ts`         |
 | New command     | `application/commands/<name>/`      | `index.ts` (definition) + `handler.ts` (logic), add to `commands/index.ts` |
 | New transform   | `domain/transforms/<name>/index.ts` | Create file, add to `registry.ts`                                          |

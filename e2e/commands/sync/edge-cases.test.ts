@@ -39,7 +39,7 @@ describe('forge sync — edge cases', () => {
 
   it('exits with error when no sources are configured', async () => {
     const dir = getDir()
-    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code']}))
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code']}))
 
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
@@ -71,7 +71,7 @@ describe('forge sync — edge cases', () => {
     const dir = getDir()
     await writeConfig(
       dir,
-      buildConfigYaml({harnesses: ['claude-code'], localSource: {path: join(dir, 'does-not-exist')}}),
+      buildConfigYaml({assistants: ['claude-code'], localSource: {path: join(dir, 'does-not-exist')}}),
     )
 
     const {exitCode} = await runSync(dir)

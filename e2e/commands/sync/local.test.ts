@@ -2,7 +2,7 @@
  * E2E tests for `forge sync` with local source — core flow.
  *
  * Covers: file placement, dry-run, idempotency, update detection,
- * multi-harness sync, empty source handling.
+ * multi-assistant sync, empty source handling.
  */
 
 import {existsSync} from 'node:fs'
@@ -53,7 +53,7 @@ describe('forge sync — local source', () => {
     expect(content).toContain('Use strict mode.')
   })
 
-  it('syncs to multiple harnesses simultaneously', async () => {
+  it('syncs to multiple assistants simultaneously', async () => {
     const dir = getDir()
     await setupLocalSync(dir, ['claude-code', 'cursor', 'copilot', 'windsurf'], {
       skills: {'deploy.md': '# Deploy'},
@@ -82,7 +82,7 @@ describe('forge sync — local source', () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     await mkdir(sourceDir, {recursive: true})
-    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: sourceDir}}))
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
 
     const {output, exitCode} = await runSync(dir)
     expect(exitCode).toBe(0)
@@ -113,7 +113,7 @@ describe('forge sync — local source', () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     await writeSourceTree(sourceDir, {skills: {'deploy.md': SKILL_DEPLOY_V1}})
-    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: sourceDir}}))
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
 
     await runSync(dir)
 

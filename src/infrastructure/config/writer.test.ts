@@ -5,8 +5,8 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 import {parse as parseYaml} from 'yaml'
 
-import {cursor} from '@domain/harnesses/cursor'
 import type {ProjectConfig} from '@domain/config/types'
+import {cursor} from '@domain/harnesses/cursor'
 
 import {CONFIG_HEADER, writeProjectConfig} from './writer'
 

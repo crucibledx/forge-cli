@@ -4,9 +4,9 @@
 
 import {beforeEach, describe, expect, it, mock} from 'bun:test'
 
+import type {ProjectConfig} from '@domain/config/types'
 import {cursor} from '@domain/harnesses/cursor'
 import {windsurf} from '@domain/harnesses/windsurf'
-import type {ProjectConfig} from '@domain/config/types'
 
 import {HARNESSES_MESSAGES as M} from './harnesses'
 

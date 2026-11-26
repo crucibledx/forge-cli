@@ -1,11 +1,13 @@
 import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
 
-import {stringify as stringifyYaml} from 'yaml'
+import {parse as parseYaml, stringify as stringifyYaml} from 'yaml'
 
 import type {ProjectConfig} from '@domain/config/types'
 
+import {convertAssistantsAlias} from './alias'
 import {getProjectConfigPath} from './loader'
+import {projectConfigSchema} from './schema'
 import type {WriteProjectConfigFunction} from './types'
 
 export const CONFIG_HEADER = [
@@ -20,6 +22,13 @@ export const writeProjectConfig: WriteProjectConfigFunction = async (projectRoot
   const configPath = getProjectConfigPath(projectRoot)
 
   await mkdir(dirname(configPath), {recursive: true})
+
+  const converted = await convertAssistantsAlias(configPath)
+  if (converted !== null) {
+    // A rename-only operation stops after the surgical edit; anything else is a second, reserializing write.
+    const current = projectConfigSchema.safeParse(parseYaml(converted))
+    if (current.success && Bun.deepEquals(current.data, config)) return configPath
+  }
 
   await writeFile(configPath, serializeProjectConfig(config), 'utf-8')
 

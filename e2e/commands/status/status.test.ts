@@ -24,7 +24,7 @@ async function setupSynced(dir: string): Promise<string> {
   await writeConfig(
     dir,
     buildConfigYaml({
-      harnesses: ['claude-code'],
+      assistants: ['claude-code'],
       localSource: {path: sourceDir},
     }),
   )
@@ -53,7 +53,7 @@ describe('forge status', () => {
     const dir = getDir(),
       source = join(dir, 'source')
     await writeSourceTree(source, {rules: {'a.md': '# Rule'}})
-    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code', 'cursor'], localSource: {path: source}}))
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code', 'cursor'], localSource: {path: source}}))
     expect((await runSync(dir)).exitCode).toBe(0)
     const config = (await loadProjectConfig(dir))!
     config.harnesses.find((a) => a.id === 'cursor')!.enabled = false
@@ -73,7 +73,7 @@ describe('forge status', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: join(dir, 'source')},
       }),
     )
@@ -130,7 +130,7 @@ describe('forge status', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )

@@ -24,7 +24,7 @@ describe('forge source list', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         rawSources: '[]',
       }),
     )
@@ -41,7 +41,7 @@ describe('forge source list', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -60,7 +60,7 @@ describe('forge source list', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )
@@ -76,7 +76,7 @@ describe('forge source list', () => {
     const dir = getDir()
     const yaml = [
       'version: "1"',
-      'harnesses:',
+      'assistants:',
       '  - id: cursor',
       '    enabled: true',
       'sources:',
@@ -108,7 +108,7 @@ describe('forge source list', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        harnesses: ['claude-code'],
+        assistants: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )

@@ -1,7 +1,7 @@
-import type {HarnessDefinition} from '@domain/harnesses'
-import {getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import type {HarnessDefinition} from '@domain/harnesses'
+import {getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
 import {redact} from '@domain/redact'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
@@ -14,7 +14,7 @@ import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {terminalText} from '@infrastructure/cli/terminal-text'
-import {loadSyncState, serializeProjectConfig} from '@infrastructure/config'
+import {convertAssistantsAlias, loadSyncState, serializeProjectConfig} from '@infrastructure/config'
 import {createConfinement} from '@infrastructure/fs/confinement'
 import {createFileReader} from '@infrastructure/fs/reader'
 import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
@@ -91,6 +91,8 @@ export async function runSyncWithDependencies(
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
     const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
     if (options.dryRun) return
+    // The prepared snapshot still holds the original bytes, so a failed commit also undoes the rename.
+    await convertAssistantsAlias(await boundary.resolve(CONFIG_PATH))
     await commitPrepared(prepared)
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,

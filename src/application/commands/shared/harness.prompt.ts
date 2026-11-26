@@ -1,4 +1,4 @@
-import type {HarnessConfig, HarnessDefinition, HarnessId, DetectionResult} from '@domain/harnesses'
+import type {DetectionResult, HarnessConfig, HarnessDefinition, HarnessId} from '@domain/harnesses'
 import {getAllHarnesses} from '@domain/harnesses'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'

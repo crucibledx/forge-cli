@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Assistants are now harnesses** — "AI assistants" are called coding harnesses in the CLI, config, reports and docs. The config key is `harnesses:`; `assistants:` is still read through v0.x and removed at v1.0. A config with both keys fails to load and asks you to keep one. The first forge write converts a canonical top-level `assistants:` key line in place, as a rename-only edit that keeps your comments; quoted or otherwise non-standard spellings are left as they are and reported. Sync reports record `harnesses`; `forge health` still reads older reports with `assistants`.
+- **Downgrade note** — a converted config (only `harnesses:`) is rejected by forge 0.7 and earlier, whose schema requires `assistants:`. Rename the key back by hand before downgrading.
+- **Extensions** — forge's own unbuilt extension point is now named "extension" (`io/extension`, `ExtensionRequest`/`ExtensionResponse`), so "plugin" means a harness plugin from here on. The reserved `plugins: []` example key in `docs/forge.config.yaml` is now `extensions: []`.
+
+---
+
 ## [0.7.0] — 2026-11-25
 
 Hardening release: sync now fails closed, keeps what it cannot prove it owns, and recovers or names what it could not

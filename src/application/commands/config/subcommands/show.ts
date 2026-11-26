@@ -1,8 +1,8 @@
 import pc from 'picocolors'
 
-import {getAllHarnesses} from '@domain/harnesses'
 import type {ProjectConfig, Source} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS, TELEMETRY_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses} from '@domain/harnesses'
 import {describeCron} from '@domain/scheduler'
 import * as renderer from '@infrastructure/cli/renderer'
 import {loadProjectConfig} from '@infrastructure/config'

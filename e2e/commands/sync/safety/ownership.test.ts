@@ -13,7 +13,7 @@ import {hashContent} from '@domain/sync/state'
 import {command, config, nativePairBytes, readNativePair, writeAmbiguousPair} from './helpers'
 
 const dir = useTmpDir('cli-stale-matrix')
-// Inside a harness destination, and outside every destination where only uninstall/source cleanup would reach it.
+// Inside an assistant destination, and outside every destination where only uninstall/source cleanup would reach it.
 for (const literal of ['.claude/skills/a\\b.md', 'notes/a\\b.md'])
   for (const current of [false, true])
     for (const backup of [false, true])
