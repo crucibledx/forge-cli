@@ -1,4 +1,5 @@
 import {mkdir} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
 import {afterEach, describe, expect, it, spyOn} from 'bun:test'
@@ -15,7 +16,7 @@ const SAFE_URL = 'git@github.com:org/arguments.git'
 function stubGit() {
   return spyOn(Bun, 'spawn').mockImplementation((() => ({
     exited: Promise.resolve(0),
-    stdout: '',
+    stdout: 'abc123\trefs/heads/main\n',
     stderr: '',
     kill: () => {},
   })) as never)
@@ -60,26 +61,55 @@ describe.each([
 })
 
 describe('git calls end option parsing before positional arguments', () => {
-  it('clone', async () => {
-    spawnSpy = stubGit()
-    await gitLoader.load({name: 's', type: 'git', url: SAFE_URL, branch: 'main'})
-    const [clone] = gitArgs(spawnSpy)
-    expect(clone.slice(clone.indexOf('--'))).toEqual(['--', SAFE_URL, expect.stringContaining('forge-cache')])
-  })
+  const PINNED_SHA = 'a'.repeat(40)
 
-  it('fetch on the warm cache', async () => {
-    const source = {name: 's', type: 'git' as const, url: SAFE_URL, branch: 'main'}
-    const {tmpdir} = await import('node:os')
-    await mkdir(join(tmpdir(), 'forge-cache', gitCacheKey(source), '.git'), {recursive: true})
-    spawnSpy = stubGit()
-    await gitLoader.load(source)
-    const [fetch] = gitArgs(spawnSpy)
-    expect(fetch).toEqual(['fetch', '--', 'origin', '+main:refs/forge/fetched'])
-  })
+  afterEach(() => cleanupCache(SAFE_URL, PINNED_SHA))
+
+  function call(spy: ReturnType<typeof stubGit>, command: string): string[] {
+    const found = gitArgs(spy).find((args) => args[0] === command)
+    if (!found) throw new Error(`git ${command} was not run`)
+    return found
+  }
 
   it('ls-remote', async () => {
     spawnSpy = stubGit()
     await verifyGitSource(SAFE_URL, 'main')
-    expect(gitArgs(spawnSpy)).toEqual([['ls-remote', '--exit-code', '--', SAFE_URL, 'refs/heads/main']])
+    expect(gitArgs(spawnSpy)).toEqual([['ls-remote', '--', SAFE_URL, 'refs/heads/main', 'refs/tags/main']])
+  })
+
+  it('clone', async () => {
+    spawnSpy = stubGit()
+    await gitLoader.load({name: 's', type: 'git', url: SAFE_URL, branch: 'main'})
+    const clone = call(spawnSpy, 'clone')
+    expect(clone.slice(clone.indexOf('--'))).toEqual(['--', SAFE_URL, expect.stringContaining('forge-cache')])
+  })
+
+  it('remote add and fetch for a commit SHA source', async () => {
+    spawnSpy = stubGit()
+    await gitLoader.load({name: 's', type: 'git', url: SAFE_URL, branch: PINNED_SHA})
+    expect(call(spawnSpy, 'remote')).toEqual(['remote', 'add', '--', 'origin', SAFE_URL])
+    expect(call(spawnSpy, 'fetch')).toEqual([
+      'fetch',
+      '--depth',
+      '1',
+      '--',
+      'origin',
+      `+${PINNED_SHA}:refs/forge/fetched`,
+    ])
+  })
+
+  it('fetch on the warm cache', async () => {
+    const source = {name: 's', type: 'git' as const, url: SAFE_URL, branch: 'main'}
+    await mkdir(join(tmpdir(), 'forge-cache', gitCacheKey(source), '.git'), {recursive: true})
+    spawnSpy = stubGit()
+    await gitLoader.load(source)
+    expect(call(spawnSpy, 'fetch')).toEqual([
+      'fetch',
+      '--depth',
+      '1',
+      '--',
+      'origin',
+      '+refs/heads/main:refs/forge/fetched',
+    ])
   })
 })

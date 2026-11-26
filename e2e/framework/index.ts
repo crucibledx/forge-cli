@@ -1,7 +1,7 @@
 export {testEnvironment} from '../../scripts/test-sandbox'
 export {readConfig, readConfigRaw} from './config'
 export {CLI_ENTRY, TIMEOUT_MS} from './constants'
-export {addBranchToBareRepo, createBareRepo, setBareRepoRef} from './git'
+export {addBranchToBareRepo, bareRepoCommit, createBareRepo, setBareRepoRef} from './git'
 export {ARROW_DOWN, ARROW_UP, BACKSPACE, CTRL_C, ENTER, N, SPACE, Y} from './keys'
 export {
   runCommand,
