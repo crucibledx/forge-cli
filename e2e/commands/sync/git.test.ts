@@ -5,10 +5,13 @@
  * then configures forge to sync from it.
  */
 
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
+
 import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '@e2e/fixtures'
-import {addBranchToBareRepo, createBareRepo, runSync, setBareRepoRef, useTmpDir} from '@e2e/framework'
+import {addBranchToBareRepo, bareRepoCommit, createBareRepo, runSync, setBareRepoRef, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-git')
 
@@ -119,4 +122,21 @@ describe('forge sync — git source', () => {
     },
     30_000,
   )
+
+  it('syncs a source pinned to a commit SHA and keeps it pinned when the branch moves', async () => {
+    const dir = getDir()
+    const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
+    const sha = await bareRepoCommit(dir, repoPath, 'main')
+
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath, branch: sha}}))
+
+    for (let sync = 0; sync < 2; sync++) {
+      const {exitCode, stdout} = await runSync(dir)
+      expect(stdout).not.toContain('Failed to fetch source')
+      expect(exitCode).toBe(0)
+      expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY)
+      await setBareRepoRef(dir, repoPath, 'refs/heads/main', {'skills/review.md': '# Review skill'})
+    }
+    expect(existsSync(join(dir, '.claude/skills/review.md'))).toBe(false)
+  }, 30_000)
 })

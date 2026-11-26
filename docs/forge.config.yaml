@@ -58,6 +58,7 @@ sources:
   - name: team-backend
     type: git
     url: git@ssh.dev.azure.com:v3/acme/eng/backend-team-ai.git
+    # Branch to follow, or a tag or full commit SHA to pin the source to
     branch: main
     # Path inside the source repo containing skills
     # If omitted, entire repo root is used

@@ -2,7 +2,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
 import type {SourceLoaderEntry} from '../types'
-import {GitError, runGit} from './load'
+import {GitError, resolveRemoteRef} from './load'
 import {GIT_SOURCE_MESSAGES} from './messages'
 import {gitSourceSchema} from './schema.types'
 import type {GitSourceConfig} from './types'
@@ -55,7 +55,7 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
 
 export async function verifyGitSource(url: string, branch: string): Promise<{success: boolean; error?: string}> {
   try {
-    await runGit(undefined, ['ls-remote', '--exit-code', url, `refs/heads/${branch}`], {
+    await resolveRemoteRef(url, branch, {
       timeoutMs: 10_000,
       env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
     })
