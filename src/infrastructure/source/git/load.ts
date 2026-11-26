@@ -83,12 +83,21 @@ async function initForCommit(dir: string, url: string, sha: string, options?: Gi
   await runGit(dir, ['remote', 'add', '--', 'origin', absoluteRemoteUrl(url)], options)
 }
 
-/** ls-remote cannot list commits, so only a fetch, into a throwaway repository, shows the remote has this one. */
+/**
+ * ls-remote cannot list commits, so only a fetch, into a throwaway repository, shows the remote has this one. The fetch
+ * also succeeds for a blob or tree, so the object is then resolved as a commit; FETCH_HEAD is not used because
+ * fetch.writeFetchHEAD=false skips it.
+ */
 export async function assertRemoteCommit(url: string, sha: string, options?: GitOptions): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'forge-verify-'))
   try {
     await initForCommit(dir, url, sha, options)
     await runGit(dir, ['fetch', '--quiet', '--depth', '1', '--', 'origin', sha], options)
+    try {
+      await runGit(dir, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], options)
+    } catch {
+      throw new GitError(GIT_SOURCE_MESSAGES.notCommit(sha))
+    }
   } finally {
     await rm(dir, {recursive: true, force: true})
   }

@@ -8,7 +8,8 @@ import {SKILL_DEPLOY} from '../../../../e2e/fixtures/sources'
 import {bareRepoCommit, createBareRepo, setBareRepoRef} from '../../../../e2e/framework/git'
 import {createTestSandbox} from '../../../../scripts/test-sandbox'
 import {verifyGitSource} from './configure'
-import {absoluteRemoteUrl, gitCacheKey, load} from './load'
+import {absoluteRemoteUrl, gitCacheKey, load, runGit} from './load'
+import {GIT_SOURCE_MESSAGES} from './messages'
 
 let fixture: ReturnType<typeof createTestSandbox> | undefined
 let repo = ''
@@ -40,6 +41,15 @@ it('verification of a commit SHA still fails for an unreachable remote', async (
 
 it('verification rejects a full commit SHA the remote does not have, and leaves no probe repository behind', async () => {
   expect((await verifyGitSource(repo, UNKNOWN_SHA)).success).toBe(false)
+  expect(readdirSync(tmpdir()).filter((name) => name.startsWith('forge-verify-'))).toEqual([])
+})
+
+it.each([
+  ['a blob', 'main:skills/deploy.md'],
+  ['a tree', 'main^{tree}'],
+])('verification rejects the full SHA of %s the remote has', async (_kind, spec) => {
+  const object = (await runGit(repo, ['rev-parse', '--verify', spec])).trim()
+  expect(await verifyGitSource(repo, object)).toEqual({success: false, error: GIT_SOURCE_MESSAGES.notCommit(object)})
   expect(readdirSync(tmpdir()).filter((name) => name.startsWith('forge-verify-'))).toEqual([])
 })
 
