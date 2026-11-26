@@ -13,7 +13,8 @@ import {createTestSandbox} from './test-sandbox'
  * Real sync smoke: the compiled forge binary syncs a pinned forge-skills-starter release into a fresh
  * Claude Code project folder and a fresh Droid project folder, then each harness CLI reports what it
  * sees. Both CLIs are pinned npm packages run through bunx inside a disposable sandbox, so local and CI
- * runs use the same versions. No API keys and no model calls.
+ * runs use the same versions. No API keys and no model calls. The syncs share one git cache, so the smoke
+ * covers both the first clone of the tag and re-syncing it from the warm cache.
  *
  * Claude Code lists discovered skills and slash commands in the `system/init` event of
  * `claude -p --output-format stream-json`. Without credentials the run stops at a synthetic
@@ -194,16 +195,26 @@ async function harnessSmoke(): Promise<HarnessSmokeCheck[]> {
       await mkdir(join(dir, '.crucible'), {recursive: true, mode: 0o700})
       await writeFile(join(dir, '.crucible', 'forge.config.yaml'), forgeConfigYaml, {mode: 0o600})
     }
-    for (const [harness, dir] of Object.entries(projects)) {
-      // Each project gets its own temp root, so its git cache is a fresh clone like a first install.
-      // A shared cache would take forge's fetch path, which cannot reset to a tag ref.
-      const temp = join(sandbox.root, `tmp-${harness}`)
-      await mkdir(temp, {mode: 0o700})
-      // The sandbox pins git to the file protocol; this smoke intentionally fetches the public starter.
-      const forgeEnv = {...env, GIT_ALLOW_PROTOCOL: 'file:https', TMPDIR: temp, TMP: temp, TEMP: temp}
+    // The sandbox pins git to the file protocol; this smoke intentionally fetches the public starter.
+    const forgeEnv = {...env, GIT_ALLOW_PROTOCOL: 'file:https'}
+    const gitCache = join(env.TMPDIR, 'forge-cache')
+    // All syncs share the sandbox's git cache: the first clones the tag, every later one re-syncs it from the
+    // warm cache, the path that once failed for tag-pinned sources.
+    const syncs: [label: string, dir: string, warm: boolean][] = [
+      ['claude project, cold cache', projects.claude, false],
+      ['droid project, warm cache', projects.droid, true],
+      ['claude project again, warm cache', projects.claude, true],
+    ]
+    for (const [label, dir, warm] of syncs) {
+      const cacheState =
+        existsSync(gitCache) === warm ? '' : `expected git cache ${warm ? 'present' : 'absent'}: ${gitCache}`
       const sync = await run([binary, 'sync'], dir, forgeEnv, deadline, 90000)
-      record(`forge sync (${harness} project)`, succeeded(sync), diagnostic(sync))
-      for (const file of EXPECTED_FILES) record(`${harness} project: ${file} synced`, existsSync(join(dir, file)))
+      record(
+        `forge sync (${label})`,
+        succeeded(sync) && !cacheState,
+        [cacheState, diagnostic(sync)].filter(Boolean).join('\n'),
+      )
+      for (const file of EXPECTED_FILES) record(`${label}: ${file} synced`, existsSync(join(dir, file)))
     }
 
     // Package caches stay inside the sandbox, so each run fetches exactly the pinned versions.
