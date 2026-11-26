@@ -22,6 +22,7 @@ import {compareSemver} from './manifest'
 const base = {$schema: PLUGIN_SCHEMA_ID, name: 'demo', version: '1.0.0'}
 const MCP_SCHEMA_ID = 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json'
 const PLUGIN_DATA = '$' + '{PLUGIN_DATA}'
+const PLUGIN_ROOT = '$' + '{PLUGIN_ROOT}'
 
 describe('AC-1 manifest validation', () => {
   it('accepts the conformant cover-all package and reports its portability', async () => {
@@ -115,7 +116,11 @@ describe('Agent Plugins MCP semantics', () => {
       mcp({
         a: {type: 'stdio', command: './bin/server', cwd: './data'},
         b: {type: 'stdio', command: 'npx', args: ['x'], cwd: `${PLUGIN_DATA}/db`},
-        c: {type: 'streamable-http', url: 'https://example.com/mcp', headers: {'X-Tenant': 'public'}},
+        c: {
+          type: 'streamable-http',
+          url: 'https://example.com/mcp',
+          headers: {'X-Tenant': 'public', 'X-Note': 'a\tb c'},
+        },
         d: {type: 'sse', url: 'http://127.0.0.1:8080/sse'},
         e: {type: 'streamable-http', url: 'http://localhost/mcp'},
         f: {type: 'streamable-http', url: 'http://[::1]:9000/mcp'},
@@ -159,7 +164,47 @@ describe('Agent Plugins MCP semantics', () => {
     [
       'a header value with a line break',
       {type: 'sse', url: 'https://example.com', headers: {'X-A': 'a\r\nB: c'}},
-      'line breaks',
+      'not a valid HTTP field value',
+    ],
+    [
+      'a command escaping after ./ with a doubled slash',
+      {type: 'stdio', command: './/../outside'},
+      's/command: resolves outside the plugin root',
+    ],
+    [
+      'a cwd escaping after ./ with a doubled slash',
+      {type: 'stdio', command: 'node', cwd: './/../outside'},
+      's/cwd: resolves outside the plugin root',
+    ],
+    [
+      'a cwd escaping PLUGIN_ROOT with a doubled slash',
+      {type: 'stdio', command: 'node', cwd: `${PLUGIN_ROOT}//../outside`},
+      `s/cwd: resolves outside ${PLUGIN_ROOT}`,
+    ],
+    [
+      'a cwd escaping PLUGIN_DATA with a doubled slash',
+      {type: 'stdio', command: 'node', cwd: `${PLUGIN_DATA}//../outside`},
+      `s/cwd: resolves outside ${PLUGIN_DATA}`,
+    ],
+    [
+      'header names that differ only in case',
+      {type: 'sse', url: 'https://example.com', headers: {'X-Tenant': 'a', 'x-tenant': 'b'}},
+      's/headers/x-tenant: duplicates another header name',
+    ],
+    [
+      'a header value with a control character',
+      {type: 'sse', url: 'https://example.com', headers: {'X-A': 'a\u0001b'}},
+      's/headers/X-A: value is not a valid HTTP field value',
+    ],
+    [
+      'a header value with DEL',
+      {type: 'sse', url: 'https://example.com', headers: {'X-A': 'a\u007fb'}},
+      's/headers/X-A: value is not a valid HTTP field value',
+    ],
+    [
+      'a header value with surrounding whitespace',
+      {type: 'sse', url: 'https://example.com', headers: {'X-A': ' a'}},
+      's/headers/X-A: value is not a valid HTTP field value',
     ],
   ])('rejects %s', (_, server, message) => {
     expect(mcp({s: server}).join('\n')).toContain(message)

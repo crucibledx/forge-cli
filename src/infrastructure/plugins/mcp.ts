@@ -19,10 +19,16 @@ const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const CREDENTIAL_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie'])
 const LOOPBACK_V4 = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
 
-/** Symlinks are already confined by package acquisition; this catches `..` escapes in the configured string. */
+const ANCHOR = '/root'
+const FIELD_VALUE = /^(?:[\x21-\x7e\x80-\xff](?:[\t \x21-\x7e\x80-\xff]*[\x21-\x7e\x80-\xff])?)?$/
+
+/**
+ * Resolve the configured path against a stand-in root, then check it is still under that root. Stripping a prefix
+ * first would let `.//../x` through as the absolute `/../x`. Symlinks are already confined by package acquisition.
+ */
 function staysInside(relative: string): boolean {
-  const normalized = posix.normalize(relative.replaceAll('\\', '/') || '.')
-  return normalized !== '..' && !normalized.startsWith('../')
+  const resolved = posix.normalize(`${ANCHOR}/${relative.replaceAll('\\', '/')}`)
+  return resolved === ANCHOR || resolved.startsWith(`${ANCHOR}/`)
 }
 
 function commandError(command: string): string | undefined {
@@ -66,11 +72,20 @@ export function checkMcpServers(path: string, config: McpConfig): string[] {
       continue
     }
     report('url', urlError(server.url))
+    const seen = new Set<string>()
     for (const [header, value] of Object.entries(server.headers ?? {})) {
+      const lower = header.toLowerCase()
       if (!HEADER_NAME.test(header)) report(`headers/${header}`, 'is not a valid HTTP header name')
-      else if (CREDENTIAL_HEADERS.has(header.toLowerCase()))
+      else if (seen.has(lower))
+        report(`headers/${header}`, 'duplicates another header name (names are case-insensitive)')
+      else if (CREDENTIAL_HEADERS.has(lower))
         report(`headers/${header}`, 'carries credentials; headers are visible package data')
-      if (/[\r\n\0]/.test(value)) report(`headers/${header}`, 'value must not contain line breaks')
+      seen.add(lower)
+      if (!FIELD_VALUE.test(value))
+        report(
+          `headers/${header}`,
+          'value is not a valid HTTP field value (visible characters, spaces and tabs only, no surrounding whitespace)',
+        )
     }
   }
   return errors
