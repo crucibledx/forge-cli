@@ -45,7 +45,7 @@ describe('existing agent CLI, closed stdin and separate streams (AC-21,23,29)', 
     const path = '.claude/skills/agent.md'
     expect(await readFile(join(dir(), path), 'utf8')).toBe('# Agent fixture\n')
     const state = JSON.parse(await readFile(join(dir(), '.crucible/sync-state.json'), 'utf8'))
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.files[path]).toMatchObject({hash: hashContent('# Agent fixture\n'), baseline: 'installed'})
     const saved = await snapshot(dir())
     for (const args of [['config', 'show'], ['status']]) {

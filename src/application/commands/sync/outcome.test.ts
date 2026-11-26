@@ -163,7 +163,7 @@ describe('BR-04–08 truthful outcomes and incidental storage (AC-7,8,15,23)', (
     expect(await readFile(join(dir(), `${trackedPath}.bak`))).toEqual(beforeBackup)
     const state = JSON.parse(await readFile(join(dir(), '.crucible/sync-state.json'), 'utf8'))
     const config = parseYaml(await readFile(join(dir(), '.crucible/forge.config.yaml'), 'utf8'))
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.lastSync).toBe(config.lastSync)
     expect(state.files[trackedPath].baseline).toBe('installed')
     expect(deps.written.map((report) => report.success)).toEqual([true, true])

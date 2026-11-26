@@ -1,5 +1,5 @@
 import type {SyncState} from './state'
-import {hashContent} from './state'
+import {hashContent, isKeyedEntry} from './state'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,8 @@ export function detectDrift(
   const files: DriftEntry[] = []
 
   for (const [targetPath, entry] of Object.entries(syncState.files)) {
+    // Keyed entries own settings keys, not file bytes; whole-file hashing would misreport user edits as drift.
+    if (isKeyedEntry(entry)) continue
     const diskContent = diskContents[targetPath]
 
     if (diskContent === null || diskContent === undefined) {
@@ -78,6 +80,7 @@ export function detectFullDrift(
 
   for (const targetPath of allPaths) {
     const stored = syncState.files[targetPath]
+    if (stored && isKeyedEntry(stored)) continue
     const disk = diskContents[targetPath]
     const remote = remoteContents[targetPath]
 

@@ -2,17 +2,18 @@ import {rm} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import type {SyncState} from '@domain/sync/state'
+import {isKeyedEntry} from '@domain/sync/state'
 
 // ─── Query ──────────────────────────────────────────────────────────────────
 
 export function getFilesForSource(state: SyncState, sourceName: string): string[] {
   return Object.entries(state.files)
-    .filter(([, e]) => e.sourceName === sourceName)
+    .filter(([, e]) => e.sourceName === sourceName && !isKeyedEntry(e))
     .map(([path]) => path)
 }
 
 export function countFilesForSource(state: SyncState, sourceName: string): number {
-  return Object.values(state.files).filter((e) => e.sourceName === sourceName).length
+  return Object.values(state.files).filter((e) => e.sourceName === sourceName && !isKeyedEntry(e)).length
 }
 
 // ─── Mutation ───────────────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ export function countFilesForSource(state: SyncState, sourceName: string): numbe
 export function removeSourceFromState(state: SyncState, sourceName: string): SyncState {
   const files = {...state.files}
   for (const [path, entry] of Object.entries(files)) {
-    if (entry.sourceName === sourceName) delete files[path]
+    if (entry.sourceName === sourceName && !isKeyedEntry(entry)) delete files[path]
   }
   return {...state, files}
 }

@@ -37,11 +37,11 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   require(input.lock.includes('"lockfileVersion"') &&
     input.lock.includes('"fast-check"'), 'Committed frozen lock/property dependency missing')
   require(input.package.devDependencies?.['fast-check'] === '4.4.0', 'Property generator must remain pinned')
-  require(input.ledger.length === 10 &&
-    new Set(input.ledger.map((rule) => rule.id)).size === 10 &&
+  require(input.ledger.length === businessRuleIds.length &&
+    new Set(input.ledger.map((rule) => rule.id)).size === businessRuleIds.length &&
     businessRuleIds.every((id) =>
       input.ledger.some((rule) => rule.id === id),
-    ), 'Ledger must cover BR-01..10 exactly once')
+    ), 'Ledger must cover BR-01..11 exactly once')
   const covered = new Set<string>()
   for (const rule of input.ledger) {
     require(Object.values(SAFETY_LAYERS).includes(rule.layer) &&
@@ -79,10 +79,14 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     const labels = new Set<string>()
     for (const path of input.suites[suite] ?? []) {
       if (!input.exists(path)) continue
-      const ids = [...input.testText(path).matchAll(/\bAC-(\d+(?:[–-]\d+)?(?:,\d+(?:[–-]\d+)?)*)/g)].flatMap((match) =>
-        match[1].split(',').flatMap((part) => {
+      // A spec prefix (`0003-AC-12`) names another spec's row; bare `AC-n` stays spec 0001.
+      const ids = [
+        ...input.testText(path).matchAll(/\b(?:(\d{4})-)?AC-(\d+(?:[–-]\d+)?(?:,\d+(?:[–-]\d+)?)*)/g),
+      ].flatMap((match) =>
+        match[2].split(',').flatMap((part) => {
           const [start, end = start] = part.split(/[–-]/).map(Number)
-          return Array.from({length: Math.max(0, end - start + 1)}, (_, i) => `AC-${start + i}`)
+          const prefix = match[1] ? `${match[1]}-` : ''
+          return Array.from({length: Math.max(0, end - start + 1)}, (_, i) => `${prefix}AC-${start + i}`)
         }),
       )
       ids.forEach((id) => labels.add(id))

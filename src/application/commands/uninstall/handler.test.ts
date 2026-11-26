@@ -26,6 +26,8 @@ let schedulerInstalled = true
 let schedulerUninstalled = false
 let crucibleDirRemoved = false
 let deletedFiles: string[] = []
+let keyRemovalPlanned: SyncState | undefined
+let keyRemovalCommitted = false
 
 const track =
   (method: string) =>
@@ -89,6 +91,17 @@ mock.module('../shared/source.cleanup', () => ({
   },
 }))
 
+mock.module('../shared/keyed.cleanup', () => ({
+  planOwnedKeyRemoval: async (_root: string, state: SyncState) => {
+    keyRemovalPlanned = state
+    return {operations: [], kept: []}
+  },
+  commitOwnedKeyRemoval: async () => {
+    keyRemovalCommitted = true
+    return 0
+  },
+}))
+
 // ─── Import after mocks ─────────────────────────────────────────────────────
 
 const {runUninstall} = await import('./handler')
@@ -104,6 +117,9 @@ beforeEach(() => {
   schedulerUninstalled = false
   crucibleDirRemoved = false
   deletedFiles = []
+  keyRemovalPlanned = undefined
+  keyRemovalCommitted = false
+  delete mockSyncState.files['.claude/settings.local.json']
   mockConfig = {
     version: '1',
     assistants: [{id: 'cursor', enabled: true}],
@@ -140,6 +156,24 @@ describe('runUninstall', () => {
     expect(schedulerUninstalled).toBe(false)
     expect(deletedFiles).toEqual([])
     expect(crucibleDirRemoved).toBe(false)
+  })
+
+  it('0003-AC-13 plans keyed removal before the prompt and never deletes a shared settings file', async () => {
+    mockSyncState.files['.claude/settings.local.json'] = {
+      hash: 'a'.repeat(64),
+      sourceName: 'plugin',
+      baseline: 'installed',
+      ownedKeys: {'enabledPlugins["foo@crucible-forge-user"]': 'b'.repeat(64)},
+    }
+    confirmResponse = false
+    await runUninstall()
+    expect(keyRemovalPlanned).toBe(mockSyncState)
+    expect(keyRemovalCommitted).toBe(false)
+
+    confirmResponse = true
+    await runUninstall()
+    expect(deletedFiles).toEqual(['.claude/rules/deploy.md'])
+    expect(keyRemovalCommitted).toBe(true)
   })
 
   it('skips scheduler when not installed', async () => {

@@ -34,7 +34,7 @@ it('AC-6 reconciles installed, retained unknown, skipped new and deleted entries
       'new timestamp',
     )
     expect(state).toEqual({
-      version: 2,
+      version: 3,
       lastSync: 'new timestamp',
       files: {
         'disabled.md': {...previous.files['disabled.md'], baseline: 'legacy-unknown'},

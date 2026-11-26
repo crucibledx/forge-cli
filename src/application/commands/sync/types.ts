@@ -4,6 +4,7 @@ export interface SyncOptions {
   dryRun: boolean
   verbose: boolean
   silent?: boolean
+  force?: boolean
 }
 
 export type SyncCommandAction = (options: SyncOptions) => Promise<void>

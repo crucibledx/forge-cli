@@ -18,6 +18,30 @@ an example, a counterexample, acceptance IDs and existing test paths. `bun run c
 | BR-08 | Repeat preserves target/backup bytes; silent preserves outcomes | Hide an incomplete recovery emergency or reverse a committed exit after a report failure | Application; outcome tests                                    |
 | BR-09 | Drain bounded streams, own deadlines and descendants            | Reuse old prompt bytes or leave an orphan after leader exit                              | Harness; pipe, PTY and lifecycle contracts                    |
 | BR-10 | Disposable homes, isolated Git and fake schedulers              | Use operator credentials, live sources or invented readiness                             | Harness; isolation, lane and checker tests                    |
+| BR-11 | Own settings keys and array entries by identity, never the file | Rewrite a shared settings file, match array entries by index, delete a user sibling key  | Infrastructure; keyed-merge, sync planning and state tests    |
+
+### Keyed merges and state v3 (spec 0003 §6)
+
+BR-11 amends this contract with new rows instead of re-scoping BR-02..06. Its acceptance IDs carry the spec prefix
+(`0003-AC-11`) so they never alias spec 0001's `AC-11`.
+
+- **Key-level ownership.** In a shared JSON/JSONC settings file forge owns object members and array entries, never
+  the file. Edits are targeted `jsonc-parser` edits: comments, formatting and every key forge does not own keep their
+  bytes. Array entries are matched by their declared identity (a field such as `plugins[name=foo]`, or the string
+  itself), replaced whole, appended when new, and never matched by index. Duplicate or missing identities in an owned
+  array, and an unparseable file, block the plan with a named error.
+- **Drift.** An owned key whose value no longer matches its recorded hash, or a user value at a forge-owned key,
+  blocks the whole plan. `forge sync --force` overwrites drifted forge-owned files and keys, and nothing else; it wins
+  over `local_conflict_strategy` for the run, the plan lists every override, and `backup: true` keeps a `.bak` of a
+  file whose keys it overrode. `--dry-run` lists the same overrides without writing.
+- **Cleanup removes owned keys only.** Keys forge no longer declares are removed regardless of `keep_local`; the
+  shared file stays. `forge uninstall` removes owned keys and keeps keys changed outside forge, with a warning.
+- **State persistence.** State v3 entries for keyed files carry `ownedKeys` (key path → sha256 of the canonical
+  merged value); entries without it own the whole file. v2 and legacy state read as v3 in memory with no owned keys
+  and are written as v3 only by a committed transaction. Older CLIs refuse v3 at strict parse; a version above 3 fails
+  with an "Upgrade forge" error. Do not downgrade a v3 state file, for the same reasons as v2 below.
+- **Whole-file snapshot.** A keyed merge is a whole-file write in the transaction: the snapshot covers the file, and
+  rollback restores its exact bytes. Preparation refuses a file that changed since planning.
 
 ### Compatibility corrections
 

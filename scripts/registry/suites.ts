@@ -68,6 +68,8 @@ export const testSuites = {
     'e2e/contracts/platform.test.ts',
     'e2e/framework/contracts/pipe.test.ts',
     'scripts/test-sandbox.test.ts',
+    'src/infrastructure/config/keyed-merge.test.ts',
+    'src/application/commands/sync/keyed-merge.test.ts',
   ],
   performance: ['e2e/contracts/performance.test.ts', 'e2e/contracts/performance-wrapper.test.ts'],
   contracts: [
