@@ -91,9 +91,13 @@ export async function runSyncWithDependencies(
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
     const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
     if (options.dryRun) return
-    // The prepared snapshot still holds the original bytes, so a failed commit also undoes the rename.
-    await convertAssistantsAlias(await boundary.resolve(CONFIG_PATH))
-    await commitPrepared(prepared)
+    const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
+    try {
+      await commitPrepared(prepared)
+    } catch (error) {
+      await alias?.undo?.().catch(() => renderer.renderWarning(M.errors.aliasUndoFailed))
+      throw error
+    }
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,
     ).length
