@@ -10,14 +10,18 @@ import {COVER_ALL_DIR, COVER_ALL_EXPECTED, PLUGIN_SCHEMA_ID, pluginManifest} fro
 
 import {
   checkManifest,
+  checkMcpConfig,
   checkPluginDirectory,
   parsePluginLock,
   PluginLockError,
   pluginsConfigSchema,
   readPluginLock,
 } from '.'
+import {compareSemver} from './manifest'
 
 const base = {$schema: PLUGIN_SCHEMA_ID, name: 'demo', version: '1.0.0'}
+const MCP_SCHEMA_ID = 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json'
+const PLUGIN_DATA = '$' + '{PLUGIN_DATA}'
 
 describe('AC-1 manifest validation', () => {
   it('accepts the conformant cover-all package and reports its portability', async () => {
@@ -70,6 +74,95 @@ describe('AC-1 manifest validation', () => {
     expect((await checkPluginDirectory(join(dir, 'dev.crucibledx.forge'))).errors).toEqual([
       'plugin.json: missing at the package root',
     ])
+  })
+  it('fails a package whose MCP server command escapes the plugin root', async () => {
+    const check = await checkPluginDirectory(
+      await fixtureDir({
+        'plugin.json': pluginManifest('demo', '1.0.0'),
+        'mcp.json': JSON.stringify({$schema: MCP_SCHEMA_ID, mcpServers: {s: {type: 'stdio', command: '../outside'}}}),
+      }),
+    )
+    expect(check.pkg).toBeUndefined()
+    expect(check.errors).toEqual(['mcp.json/mcpServers/s/command: resolves outside the plugin root'])
+  })
+  it('orders prerelease identifiers per SemVer for minForgeVersion', () => {
+    const ordered = [
+      '1.0.0-alpha',
+      '1.0.0-alpha.1',
+      '1.0.0-alpha.beta',
+      '1.0.0-beta',
+      '1.0.0-beta.2',
+      '1.0.0-beta.11',
+      '1.0.0-rc.1',
+      '1.0.0',
+    ]
+    for (let i = 1; i < ordered.length; i++) {
+      expect(compareSemver(ordered[i - 1], ordered[i])).toBeLessThan(0)
+      expect(compareSemver(ordered[i], ordered[i - 1])).toBeGreaterThan(0)
+    }
+    expect(compareSemver('1.0.0+build.1', '1.0.0')).toBe(0)
+    const requires = (min: string) => ({...base, extensions: {'dev.crucibledx.forge': {minForgeVersion: min}}})
+    expect(checkManifest(requires('0.8.0-beta.2'), '0.8.0-beta.1').errors.join('\n')).toContain('upgrade forge')
+    expect(checkManifest(requires('0.8.0-beta.2'), '0.8.0-beta.10').errors).toEqual([])
+  })
+})
+
+describe('Agent Plugins MCP semantics', () => {
+  const mcp = (servers: Record<string, object>) =>
+    checkMcpConfig('mcp.json', {$schema: MCP_SCHEMA_ID, mcpServers: servers})
+  it('accepts plugin-relative and bare commands, contained cwd, https and loopback http URLs', () => {
+    expect(
+      mcp({
+        a: {type: 'stdio', command: './bin/server', cwd: './data'},
+        b: {type: 'stdio', command: 'npx', args: ['x'], cwd: `${PLUGIN_DATA}/db`},
+        c: {type: 'streamable-http', url: 'https://example.com/mcp', headers: {'X-Tenant': 'public'}},
+        d: {type: 'sse', url: 'http://127.0.0.1:8080/sse'},
+        e: {type: 'streamable-http', url: 'http://localhost/mcp'},
+        f: {type: 'streamable-http', url: 'http://[::1]:9000/mcp'},
+      }),
+    ).toEqual([])
+  })
+  it.each([
+    [
+      'a parent-relative command',
+      {type: 'stdio', command: '../bin/server'},
+      's/command: resolves outside the plugin root',
+    ],
+    ['a command escaping after ./', {type: 'stdio', command: './bin/../../x'}, 's/command: resolves outside'],
+    ['a path command without ./', {type: 'stdio', command: 'bin/server'}, 's/command: must be a bare executable'],
+    ['a shell command string', {type: 'stdio', command: 'npx server'}, 's/command: must be a single executable token'],
+    [
+      'a cwd escaping the plugin root',
+      {type: 'stdio', command: 'node', cwd: './../../outside'},
+      's/cwd: resolves outside the plugin root',
+    ],
+    [
+      'a cwd escaping PLUGIN_DATA',
+      {type: 'stdio', command: 'node', cwd: `${PLUGIN_DATA}/../x`},
+      's/cwd: resolves outside',
+    ],
+    ['a non-loopback http URL', {type: 'streamable-http', url: 'http://example.com/mcp'}, 's/url: must use https'],
+    ['a relative URL', {type: 'sse', url: '/mcp'}, 's/url: must be an absolute URL'],
+    ['a URL with user info', {type: 'streamable-http', url: 'https://u:p@example.com/mcp'}, 'user information'],
+    ['a URL with a fragment', {type: 'streamable-http', url: 'https://example.com/mcp#x'}, 'fragment'],
+    ['a non-HTTP URL', {type: 'streamable-http', url: 'ftp://example.com/mcp'}, 'http or https'],
+    [
+      'a credential header',
+      {type: 'sse', url: 'https://example.com', headers: {Authorization: 'Bearer x'}},
+      'carries credentials',
+    ],
+    [
+      'an invalid header name',
+      {type: 'sse', url: 'https://example.com', headers: {'Bad Header': 'x'}},
+      'not a valid HTTP header name',
+    ],
+    [
+      'a header value with a line break',
+      {type: 'sse', url: 'https://example.com', headers: {'X-A': 'a\r\nB: c'}},
+      'line breaks',
+    ],
+  ])('rejects %s', (_, server, message) => {
+    expect(mcp({s: server}).join('\n')).toContain(message)
   })
 })
 

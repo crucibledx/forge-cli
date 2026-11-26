@@ -26,6 +26,8 @@ export type PluginComponentKind = (typeof PLUGIN_COMPONENT_KINDS)[keyof typeof P
 export interface PluginFile {
   path: string
   content: Uint8Array
+  /** POSIX executable bit, carried to the cache and emitted trees; never part of a hash. */
+  executable?: boolean
 }
 
 export interface PluginManifest {

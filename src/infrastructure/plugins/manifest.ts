@@ -5,6 +5,7 @@ import type {PluginManifest} from '@domain/plugins'
 import {FORGE_NAMESPACE} from '@domain/plugins'
 
 import pkg from '../../../package.json'
+import {checkMcpServers, type McpConfig} from './mcp'
 import mcpSchema from './schemas/agent-plugins-1.0.0/mcp.schema.json'
 import pluginSchema from './schemas/agent-plugins-1.0.0/plugin.schema.json'
 
@@ -43,11 +44,30 @@ function formatErrors(file: string, errors: ErrorObject[] | null | undefined): s
   )
 }
 
+const compareNumeric = (a: string, b: string) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0)
+
+function comparePrerelease(a = '', b = ''): number {
+  if (a === b) return 0
+  if (!a || !b) return a ? -1 : 1
+  const [x, y] = [a.split('.'), b.split('.')]
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (x[i] === y[i]) continue
+    const [numericX, numericY] = [/^\d+$/.test(x[i]), /^\d+$/.test(y[i])]
+    if (numericX && numericY) return compareNumeric(x[i], y[i])
+    if (numericX !== numericY) return numericX ? -1 : 1
+    return x[i] < y[i] ? -1 : 1
+  }
+  return x.length - y.length
+}
+
+/** SemVer 2.0.0 §11 precedence; build metadata is ignored. */
 export function compareSemver(a: string, b: string): number {
-  const parse = (version: string) => SEMVER.exec(version)!
-  const [x, y] = [parse(a), parse(b)]
-  for (let i = 1; i <= 3; i++) if (Number(x[i]) !== Number(y[i])) return Number(x[i]) - Number(y[i])
-  return x[4] && !y[4] ? -1 : !x[4] && y[4] ? 1 : 0
+  const [x, y] = [SEMVER.exec(a)!, SEMVER.exec(b)!]
+  for (let i = 1; i <= 3; i++) {
+    const order = compareNumeric(x[i], y[i])
+    if (order) return order
+  }
+  return comparePrerelease(x[4], y[4])
 }
 
 /**
@@ -98,5 +118,5 @@ export function checkManifest(raw: unknown, forgeVersion: string = pkg.version):
 
 export function checkMcpConfig(path: string, raw: unknown): string[] {
   const {mcp} = schemaValidators()
-  return mcp(raw) ? [] : formatErrors(path, mcp.errors)
+  return mcp(raw) ? checkMcpServers(path, raw as McpConfig) : formatErrors(path, mcp.errors)
 }

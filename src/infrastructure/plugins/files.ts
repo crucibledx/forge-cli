@@ -26,7 +26,8 @@ export async function readPluginFiles(root: string, boundary?: string): Promise<
       } else if (!isDirectory && !entry.isFile()) continue
       if (isHashExcluded(entry.name, isDirectory)) continue
       if (!isDirectory) {
-        files.push({path, content: await readFile(full)})
+        const executable = process.platform !== 'win32' && ((await stat(full)).mode & 0o111) !== 0
+        files.push({path, content: await readFile(full), ...(executable ? {executable} : {})})
         continue
       }
       const real = await realpath(full)

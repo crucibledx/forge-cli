@@ -1,12 +1,12 @@
 import {existsSync} from 'node:fs'
-import {cp, mkdir, rename, rm, writeFile} from 'node:fs/promises'
+import {chmod, cp, mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
 
-import type {PluginConfig, PluginHarnessId, PluginLock, PluginPackage} from '@domain/plugins'
+import type {PluginConfig, PluginFile, PluginHarnessId, PluginLock, PluginPackage} from '@domain/plugins'
 import {emptyPluginLock, hashDelivered, hashPluginFiles} from '@domain/plugins'
 import {hashContent} from '@domain/sync/state'
 import {runGit} from '@infrastructure/source/git/load'
@@ -23,6 +23,8 @@ import {
   serializePluginLock,
   unreferencedCacheDirs,
 } from '.'
+import {readCachedPlugin} from './cache'
+import {readGitPlugin} from './git'
 
 /** Stand-in emitter: components in the plugin directory, rules as Claude rule files outside it. */
 const deliverTo = (harness: PluginHarnessId) => (pkg: PluginPackage) => {
@@ -109,6 +111,8 @@ describe('git plugin sources', () => {
     expect(existsSync(join(cacheRoot, 'hello/1.0.0/claude-code/skills/hello/SKILL.md'))).toBe(true)
     await mkdir(join(cacheRoot, 'hello', '0.9.0'), {recursive: true})
     await mkdir(join(cacheRoot, 'gone', '1.0.0'), {recursive: true})
+    await mkdir(join(cacheRoot, '.claude-plugin'), {recursive: true})
+    await mkdir(join(cacheRoot, '.factory-plugin'), {recursive: true})
     expect((await unreferencedCacheDirs(cacheRoot, first.lock)).sort()).toEqual(['gone', 'hello/0.9.0'])
     await rm(gitCache(url), {recursive: true, force: true})
     await rename(url, `${url}.offline`)
@@ -210,5 +214,35 @@ describe('local plugin sources', () => {
       {harness: 'claude-code', reason: 'not-in-manifest'},
       {harness: 'cursor', reason: 'no-plugin-support'},
     ])
+  })
+
+  it.skipIf(process.platform === 'win32')('keeps the executable bit through acquisition and the cache', async () => {
+    await write(dir(), {...hello, 'bin/server': '#!/bin/sh\n'})
+    await chmod(join(dir(), 'plugins/hello/bin/server'), 0o755)
+    const result = await lock([plugin])
+    const executable = (files: PluginFile[]) => files.filter((f) => f.executable).map((f) => f.path)
+    expect(executable(result.plugins[0].pkg.files)).toEqual(['bin/server'])
+    const cacheRoot = join(dir(), '.crucible', 'plugins')
+    const cached = pluginCacheFiles(result.lock.plugins[0], result.plugins[0].pkg.files, result.plugins[0].outputs)
+    expect(executable(cached)).toEqual(['hello/1.0.0/source/bin/server'])
+    for (const file of cached) {
+      await mkdir(join(cacheRoot, file.path, '..'), {recursive: true})
+      await writeFile(join(cacheRoot, file.path), file.content, {mode: file.executable ? 0o755 : 0o644})
+    }
+    expect(executable((await readCachedPlugin(cacheRoot, result.lock.plugins[0]))!)).toEqual(['bin/server'])
+
+    const bare = join(dir(), 'exec.git')
+    await mkdir(bare)
+    await runGit(bare, ['init', '--bare', '--quiet'])
+    const env = {GIT_INDEX_FILE: join(dir(), 'exec.index')}
+    for (const [mode, path] of [
+      ['100755', 'bin/server'],
+      ['100644', 'plugin.json'],
+    ]) {
+      const blob = (await runGit(bare, ['hash-object', '-w', join(dir(), 'plugins/hello', path)])).trim()
+      await runGit(bare, ['update-index', '--add', '--cacheinfo', `${mode},${blob},plugins/x/${path}`], {env})
+    }
+    const tree = (await runGit(bare, ['write-tree'], {env})).trim()
+    expect(executable(await readGitPlugin(bare, tree, 'plugins/x'))).toEqual(['bin/server'])
   })
 })

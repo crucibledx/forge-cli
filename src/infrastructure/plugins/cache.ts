@@ -6,6 +6,7 @@ import type {DeliveredFiles, PluginFile, PluginLock, PluginLockEntry, PluginScop
 import {hashPluginFiles, PLUGIN_SCOPES} from '@domain/plugins'
 
 import {readPluginFiles} from './files'
+import {PLUGIN_NAME} from './manifest'
 
 /** Relative to the project root (project scope) or home (user scope). Never committed: the lock is the truth. */
 export const PLUGIN_CACHE_DIRS: Record<PluginScope, string> = {
@@ -24,9 +25,9 @@ export function pluginCacheFiles(
   const base = `${entry.name}/${entry.version}`
   return [
     CACHE_GITIGNORE,
-    ...files.map((file) => ({path: `${base}/${SOURCE_DIR}/${file.path}`, content: file.content})),
+    ...files.map((file) => ({...file, path: `${base}/${SOURCE_DIR}/${file.path}`})),
     ...Object.entries(outputs).flatMap(([harness, delivered]) =>
-      delivered.plugin.map((file) => ({path: `${base}/${harness}/${file.path}`, content: file.content})),
+      delivered.plugin.map((file) => ({...file, path: `${base}/${harness}/${file.path}`})),
     ),
   ]
 }
@@ -39,12 +40,15 @@ export async function readCachedPlugin(cacheRoot: string, entry: PluginLockEntry
   return files && hashPluginFiles(files) === entry.contentHash ? files : null
 }
 
-/** Cache directories (`<name>` or `<name>/<version>`) that no lock entry references. */
+/**
+ * Cache directories (`<name>` or `<name>/<version>`) that no lock entry references. Only plugin-name directories
+ * count, so the marketplace catalogs (`.claude-plugin/`, `.factory-plugin/`) beside them are never pruned.
+ */
 export async function unreferencedCacheDirs(cacheRoot: string, lock: PluginLock): Promise<string[]> {
   const list = async (dir: string) =>
     (await readdir(dir, {withFileTypes: true}).catch(() => [])).filter((e) => e.isDirectory()).map((e) => e.name)
   const stale: string[] = []
-  for (const name of await list(cacheRoot)) {
+  for (const name of (await list(cacheRoot)).filter((dir) => PLUGIN_NAME.test(dir))) {
     const entry = lock.plugins.find((plugin) => plugin.name === name)
     if (!entry) stale.push(name)
     else
