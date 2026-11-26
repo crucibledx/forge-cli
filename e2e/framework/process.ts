@@ -259,6 +259,22 @@ export async function drainTranscript(
 
 export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode'>
 
+/** Time kept back from a stalled probe so its group can be killed and confirmed gone inside the same deadline. */
+const PROBE_REAP_RESERVE_MS = 250
+
+function processGroupExists(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ESRCH') return false
+    // Darwin reports EPERM for an orphan awaiting launchd's reap; keep polling until the deadline.
+    if (code === 'EPERM') return true
+    throw error
+  }
+}
+
 async function groupAlive(pid: number, env: Record<string, string>, deadline: number): Promise<boolean> {
   // On macOS, signal-zero may return EPERM for an orphan already awaiting init's
   // reap. Zombies have no running code or open descriptors, but are still PIDs.
@@ -270,6 +286,10 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'ignore',
+  })
+  let leaderExited = false
+  void probe.exited.then(() => {
+    leaderExited = true
   })
   const reader = probe.stdout.getReader()
   const output = async () => {
@@ -292,7 +312,7 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
         // Reserve reaping time inside the same cleanup deadline.
         timer = setTimeout(
           () => reject(new Error('Cleanup probe exceeded remaining budget')),
-          Math.max(1, remaining - 50),
+          Math.max(1, remaining - PROBE_REAP_RESERVE_MS),
         )
       }),
     ])
@@ -303,6 +323,7 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
     })
   } finally {
     clearTimeout(timer)
+    const killedLiveLeader = !leaderExited
     // The probe has its own group: a stalled PATH wrapper must not leave descendants behind.
     try {
       process.kill(-probe.pid, 'SIGKILL')
@@ -321,6 +342,11 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
       ])
     } finally {
       clearTimeout(timer)
+    }
+    // SIGKILL is delivered asynchronously: reaping a killed leader does not mean its descendants have died.
+    while (killedLiveLeader && processGroupExists(probe.pid)) {
+      if (performance.now() >= deadline) throw new Error('Cleanup probe descendants survived within remaining budget')
+      await new Promise((resolve) => setTimeout(resolve, 5))
     }
   }
 }
