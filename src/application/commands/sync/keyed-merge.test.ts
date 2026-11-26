@@ -119,6 +119,14 @@ describe('BR-11 keyed merge in sync planning (0003-AC-11,14,15)', () => {
     expect((await loadSyncState(dir())).files[settings]).toBeUndefined()
   })
 
+  it('BR-02 retains owned keys of a disabled harness instead of removing them', async () => {
+    const {next} = await install(dir())
+    const plan = await buildPlan(dir(), [], next, defaults, new Set<string>(), {keyed: []})
+    expect(plan.mutations).toEqual([])
+    expect(plan.keyed).toEqual({[settings]: next.files[settings]})
+    expect(plan.warnings).toEqual([`Retaining tracked path with disabled, unknown or ambiguous ownership: ${settings}`])
+  })
+
   it('0003-AC-14 rolls back the whole keyed-merged settings file and v2 state when a later write fails', async () => {
     const {context} = await syncFixture(dir())
     await writeFile(join(dir(), settings), userSettings)

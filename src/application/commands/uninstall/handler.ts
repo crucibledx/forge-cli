@@ -22,7 +22,7 @@ export async function runUninstall(): Promise<void> {
   }
   // Unreadable or ambiguous tracked state must refuse before the prompt and before any scheduler or file change.
   const syncState = await loadSyncState(projectRoot)
-  const keyRemoval = await planOwnedKeyRemoval(projectRoot, syncState)
+  await planOwnedKeyRemoval(projectRoot, syncState)
 
   prompts.intro(M.intro)
 
@@ -38,13 +38,17 @@ export async function runUninstall(): Promise<void> {
   // 1. Uninstall scheduler
   await uninstallScheduler(projectRoot)
 
-  // 2. Remove synced files
-  await removeSyncedFiles(projectRoot, syncState)
+  // 2. Remove forge-owned settings keys, planned again because the files may have changed during the prompt.
+  //    Before synced files, so a refused removal leaves the install whole.
+  const keyRemoval = await planOwnedKeyRemoval(projectRoot, syncState)
   const settingsFiles = await commitOwnedKeyRemoval(projectRoot, keyRemoval)
   if (settingsFiles) renderer.renderSuccess(M.ownedKeysRemoved(settingsFiles))
   keyRemoval.kept.forEach((key) => renderer.renderWarning(M.ownedKeyKept(key)))
 
-  // 3. Remove .crucible directory
+  // 3. Remove synced files
+  await removeSyncedFiles(projectRoot, syncState)
+
+  // 4. Remove .crucible directory
   await removeCrucibleDir(projectRoot)
   renderer.renderSuccess(M.configRemoved)
 

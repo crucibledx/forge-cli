@@ -21,6 +21,6 @@ export const SYNC_MESSAGES = {
     strategyBanner: (source: string, local: string) => `Merging (source strategy: ${source}, local strategy: ${local})`,
     done: (count: number, names: string) => `Done. ${count} file(s) synced from ${names}.`,
     lastSync: (iso: string) => `Last sync: ${iso.replace('T', ' ').slice(0, 16)}`,
-    forced: (item: string) => `--force overwrites drift: ${item}`,
+    forced: (item: string) => `--force overrides drift: ${item}`,
   },
 } as const

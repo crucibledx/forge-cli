@@ -132,7 +132,7 @@ export async function prepareTransaction(root: string, operations: FileOperation
         ? before !== operation.expect
         : !Buffer.from(before).equals(Buffer.from(operation.expect)))
     )
-      throw new Error(`Changed since planning: ${operation.path}; nothing was written. Retry the sync.`)
+      throw new Error(`Changed since planning: ${operation.path}; nothing was written. Retry the command.`)
     if (operation.content === null && before === null) continue
     let parent = dirname(path)
     const missing: string[] = []

@@ -41,7 +41,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     new Set(input.ledger.map((rule) => rule.id)).size === businessRuleIds.length &&
     businessRuleIds.every((id) =>
       input.ledger.some((rule) => rule.id === id),
-    ), 'Ledger must cover BR-01..11 exactly once')
+    ), `Ledger must cover ${businessRuleIds.join(', ')} exactly once`)
   const covered = new Set<string>()
   for (const rule of input.ledger) {
     require(Object.values(SAFETY_LAYERS).includes(rule.layer) &&

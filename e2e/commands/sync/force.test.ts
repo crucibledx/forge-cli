@@ -31,7 +31,7 @@ describe('forge sync --force (0003 §6)', () => {
 
     const preview = await runSync(dir, ['--force', '--dry-run'])
     expect(preview.exitCode).toBe(0)
-    expect(preview.stdout + preview.stderr).toContain('--force overwrites drift: .claude/skills/deploy.md')
+    expect(preview.stdout + preview.stderr).toContain('--force overrides drift: .claude/skills/deploy.md')
     expect(await readFile(target, 'utf-8')).toBe('# User Modified')
 
     expect((await runSync(dir, ['--force'])).exitCode).toBe(0)

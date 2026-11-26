@@ -2,7 +2,9 @@ import type {AssistantDefinition} from '@domain/assistants'
 import {getAllAssistants, getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {portablePath} from '@domain/portable-path'
 import {redact} from '@domain/redact'
+import {isGlobalMode} from '@domain/scope'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {CONFIG_PATH, STATE_PATH, validatePathGraph} from '@domain/sync/plan'
@@ -170,6 +172,23 @@ export async function fetchAndResolve(
   return resolved
 }
 
+/**
+ * A harness's settings file sits in the folder that holds its mapped targets, e.g. `.claude/settings.local.json`
+ * beside `.claude/skills/`, so ownership comes from that folder; a root-level or shared folder has no owner.
+ */
+function resolveSettingsOwner(path: string): AssistantDefinition | undefined {
+  const folder = portablePath(path).split('/').slice(0, -1).join('/')
+  if (!folder) return undefined
+  const owners = getAllAssistants().filter((assistant) =>
+    assistant.targetMappings.some(({destination}) =>
+      portablePath(isGlobalMode() ? (destination.global ?? destination.project) : destination.project).startsWith(
+        `${folder}/`,
+      ),
+    ),
+  )
+  return owners.length === 1 ? owners[0] : undefined
+}
+
 /** Settings keys forge should own in one shared JSON/JSONC file after this run. */
 export interface KeyedFile {
   path: string
@@ -303,6 +322,14 @@ export async function buildPlan(
     try {
       const file = keyedFiles.find((item) => item.path === path)
       const entry = state.files[path]
+      if (!file) {
+        const owner = resolveSettingsOwner(path)
+        if (!owner || !enabled.has(owner.id)) {
+          warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
+          keyed[path] = entry
+          continue
+        }
+      }
       if (desired.has(path)) throw new Error('A synced file and a keyed merge target the same path')
       if (entry && !isKeyedEntry(entry)) throw new Error('Tracked as a whole forge-owned file; keyed merge refused')
       const existing = await read(path)

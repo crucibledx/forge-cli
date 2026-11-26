@@ -108,9 +108,50 @@ describe('BR-11 keyed merge preserves user content (0003-AC-11)', () => {
     expect(merge({text: reformatted, owned: installed.owned, desired: forgeValues}).content).toBeNull()
   })
 
-  it('treats a user value at a forge key it never owned as drift', () => {
-    const text = '{"enabledPlugins": {"foo@crucible-forge-user": true}}'
+  it('treats a different user value at a forge key it never owned as drift, and adopts an equal one', () => {
+    const text = '{"enabledPlugins": {"foo@crucible-forge-user": false}}'
     expect(errorKind(() => merge({text, desired: [forgeValues[1]]}))).toBe(KEYED_MERGE_ERRORS.DRIFT)
+    const equal = '{"enabledPlugins": {"foo@crucible-forge-user": true}}'
+    expect(merge({text: equal, desired: [forgeValues[1]]})).toEqual({
+      content: null,
+      owned: ownedOf([forgeValues[1]]),
+      drifted: [],
+    })
+  })
+
+  it('restores the original bytes after an add then remove round trip', () => {
+    for (const text of [userSettings, userSettings.replaceAll('\n', '\r\n'), '{"model": "opus"}', '{}']) {
+      const installed = merge({text, desired: forgeValues})
+      expect(merge({text: installed.content, owned: installed.owned, desired: []}).content).toBe(text)
+    }
+  })
+
+  it('keeps inline objects inline and comments on the user lines they were written on', () => {
+    const text = '{"enabledPlugins": {"mine@team": false}, "list": [1, 2]}'
+    expect(merge({text, desired: [forgeValues[1]]}).content).toBe(
+      '{"enabledPlugins": {"mine@team": false, "foo@crucible-forge-user": true}, "list": [1, 2]}',
+    )
+    const commented = '{\n  "enabledPlugins": {\n    "mine@team": false // mine\n  }\n}\n'
+    expect(merge({text: commented, desired: [forgeValues[1]]}).content).toBe(
+      '{\n  "enabledPlugins": {\n    "mine@team": false, // mine\n    "foo@crucible-forge-user": true\n  }\n}\n',
+    )
+  })
+
+  it('keeps comments inside an owned container when removing forge entries', () => {
+    const text = '{\n  "enabledPlugins": {\n    // forge adds plugins here\n  }\n}\n'
+    const installed = merge({text, desired: [forgeValues[1]]})
+    expect(installed.content).toContain('// forge adds plugins here')
+    expect(merge({text: installed.content, owned: installed.owned, desired: []}).content).toBe(text)
+  })
+
+  it('keeps a byte order mark and edits the JSON after it', () => {
+    const result = merge({text: '\uFEFF{"model": "opus"}', desired: [forgeValues[1]]})
+    expect(result.content).toStartWith('\uFEFF{"model": "opus", "enabledPlugins": ')
+  })
+
+  it('fails with a named error on a duplicate member name on an owned path', () => {
+    const text = '{"enabledPlugins": {}, "enabledPlugins": {}}'
+    expect(errorKind(() => merge({text, desired: [forgeValues[1]]}))).toBe(KEYED_MERGE_ERRORS.DUPLICATE_KEY)
   })
 
   it('KEEP releases drifted keys instead of removing them', () => {
@@ -121,7 +162,7 @@ describe('BR-11 keyed merge preserves user content (0003-AC-11)', () => {
     expect(kept.owned).toEqual({})
     const value = parse(kept.content!, [], {allowTrailingComma: true})
     expect(value.enabledPlugins).toEqual({'mine@team': false, 'foo@crucible-forge-user': false})
-    expect(value.extraKnownMarketplaces).toEqual({})
+    expect(value.extraKnownMarketplaces).toBeUndefined()
   })
 
   it('re-adds an owned key the user deleted, like a deleted tracked file', () => {
@@ -197,11 +238,8 @@ describe('BR-11 arrays merge by identity, not index (0003-AC-12)', () => {
       'Bash(ls)',
       'Write',
     ])
-    expect(
-      errorKind(() =>
-        merge({text: '{"permissions": {"allow": ["Bash(forge:*)"]}}', desired: [allow('Bash(forge:*)')]}),
-      ),
-    ).toBe(KEYED_MERGE_ERRORS.DRIFT)
+    const adopted = merge({text: '{"permissions": {"allow": ["Bash(forge:*)"]}}', desired: [allow('Bash(forge:*)')]})
+    expect(adopted).toEqual({content: null, owned: first.owned, drifted: []})
   })
 
   it('creates a missing owned array', () => {
