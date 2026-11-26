@@ -58,11 +58,20 @@ describe('renameAssistantsKey', () => {
     expect(rename(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NON_CANONICAL})
   })
 
-  it('leaves a file that is not valid UTF-8 untouched', () => {
+  it('converts the canonical key and preserves non-UTF-8 comment bytes before it', () => {
     const raw = Buffer.concat([Buffer.from('# caf'), Buffer.from([0xe9]), Buffer.from('\nassistants: []\n')])
     const {bytes, status} = renameAssistantsKey(raw)
-    expect(status).toBe(ALIAS_STATUSES.NON_CANONICAL)
-    expect(bytes.equals(raw)).toBe(true)
+    expect(status).toBe(ALIAS_STATUSES.CONVERTED)
+    expect(
+      bytes.equals(Buffer.concat([Buffer.from('# caf'), Buffer.from([0xe9]), Buffer.from('\nharnesses: []\n')])),
+    ).toBe(true)
+  })
+
+  it('preserves non-UTF-8 bytes after the key', () => {
+    const raw = Buffer.concat([Buffer.from('assistants: []\n# caf'), Buffer.from([0xe9])])
+    const {bytes, status} = renameAssistantsKey(raw)
+    expect(status).toBe(ALIAS_STATUSES.CONVERTED)
+    expect(bytes.equals(Buffer.concat([Buffer.from('harnesses: []\n# caf'), Buffer.from([0xe9])]))).toBe(true)
   })
 
   it.each([
