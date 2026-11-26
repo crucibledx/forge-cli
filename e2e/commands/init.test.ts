@@ -17,6 +17,7 @@ import {claudeCode} from '@domain/harnesses/claude-code'
 import {cline} from '@domain/harnesses/cline'
 import {copilot} from '@domain/harnesses/copilot'
 import {cursor} from '@domain/harnesses/cursor'
+import {droid} from '@domain/harnesses/droid'
 import {windsurf} from '@domain/harnesses/windsurf'
 import {SCHEDULER_PROMPT_MESSAGES as SchM} from '@application/commands/shared/scheduler.prompt'
 import type {GitSourceConfig, LocalSourceConfig} from '@infrastructure/source'
@@ -186,7 +187,7 @@ describe('forge init — e2e', () => {
     it(
       'enables a single selected harness (Cursor — 4th in list)',
       async () => {
-        // List order: claudeCode(0), cline(1), copilot(2), cursor(3), windsurf(4)
+        // List order: claudeCode(0), cline(1), copilot(2), cursor(3), droid(4), windsurf(5)
         // Navigate to cursor: Down(×3), Space to toggle, Enter to confirm
         await runInitSession(getDir(), (cli) =>
           cli
@@ -245,7 +246,7 @@ describe('forge init — e2e', () => {
     )
 
     it(
-      'enables all harnesses when user selects all (Space×5 + Enter)',
+      'enables all harnesses when user selects all (Space×6 + Enter)',
       async () => {
         // Select each in turn: Space, Down, Space, Down, ..., Enter
         await runInitSession(getDir(), (cli) =>
@@ -259,6 +260,8 @@ describe('forge init — e2e', () => {
             .pressKey(ARROW_DOWN)
             .pressKey(SPACE) // cursor
             .pressKey(ARROW_DOWN)
+            .pressKey(SPACE) // droid
+            .pressKey(ARROW_DOWN)
             .pressKey(SPACE) // windsurf
             .pressEnter()
             .waitForText(M.source.addSource)
@@ -271,10 +274,10 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.harnesses).toHaveLength(5)
+        expect(config.harnesses).toHaveLength(6)
 
         const ids = map(config.harnesses, (a) => a.id)
-        expect(ids).toContainValues([claudeCode.id, cursor.id, windsurf.id, copilot.id, cline.id])
+        expect(ids).toContainValues([claudeCode.id, cursor.id, windsurf.id, copilot.id, cline.id, droid.id])
       },
       TIMEOUT_MS,
     )
