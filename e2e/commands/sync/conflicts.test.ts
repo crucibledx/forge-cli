@@ -29,7 +29,7 @@ async function setupTwoSources(
   await writeConfig(
     dir,
     buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       localSources: [
         {name: 'alpha', path: sourceA},
         {name: 'beta', path: sourceB},
@@ -97,7 +97,7 @@ describe('forge sync — source conflicts', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSources: [
           {name: 'alpha', path: sourceA},
           {name: 'beta', path: sourceB},

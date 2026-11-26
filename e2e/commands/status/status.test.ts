@@ -24,7 +24,7 @@ async function setupSynced(dir: string): Promise<string> {
   await writeConfig(
     dir,
     buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       localSource: {path: sourceDir},
     }),
   )
@@ -49,14 +49,14 @@ describe('forge status', () => {
     expect(result.output).toContain('1 file(s) deleted locally')
     expect(result.output).not.toContain('legacy_unknown')
   })
-  it('AC-4,6 disabled assistants retain real upstream status instead of false source removal', async () => {
+  it('AC-4,6 disabled harnesses retain real upstream status instead of false source removal', async () => {
     const dir = getDir(),
       source = join(dir, 'source')
     await writeSourceTree(source, {rules: {'a.md': '# Rule'}})
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code', 'cursor'], localSource: {path: source}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code', 'cursor'], localSource: {path: source}}))
     expect((await runSync(dir)).exitCode).toBe(0)
     const config = (await loadProjectConfig(dir))!
-    config.assistants.find((a) => a.id === 'cursor')!.enabled = false
+    config.harnesses.find((a) => a.id === 'cursor')!.enabled = false
     await writeProjectConfig(dir, config)
     expect((await runSync(dir)).exitCode).toBe(0)
     const status = await runStatus(dir)
@@ -73,7 +73,7 @@ describe('forge status', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: join(dir, 'source')},
       }),
     )
@@ -130,7 +130,7 @@ describe('forge status', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: sourceDir},
       }),
     )

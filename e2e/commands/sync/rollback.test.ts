@@ -24,9 +24,9 @@ describe('forge sync — preflight blocks unsafe apply', () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
 
-    // Two assistants so we get two target dirs. Block one to cause partial failure.
+    // Two harnesses so we get two target dirs. Block one to cause partial failure.
     await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy'}})
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code', 'cursor'], localSource: {path: sourceDir}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code', 'cursor'], localSource: {path: sourceDir}}))
 
     // Pre-create .claude target so we can verify rollback restores it
     await mkdir(join(dir, '.claude/skills'), {recursive: true})
@@ -54,7 +54,7 @@ describe('forge sync — preflight blocks unsafe apply', () => {
     const sourceDir = join(dir, 'source')
 
     await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy'}})
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code', 'cursor'], localSource: {path: sourceDir}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code', 'cursor'], localSource: {path: sourceDir}}))
 
     // Block cursor's target dir — file where directory should be
     await mkdir(join(dir, '.cursor'), {recursive: true})

@@ -10,7 +10,7 @@ How to work in this repo and where to find things. The linked documents are cano
 | Org context, delivery loop, approval boundaries          | `crucibledx/hq` `AGENTS.md`                                                                                     |
 | Org engineering standards                                | `engineering-standards` skill (`crucibledx/factory-loop` `plugins/crucible-loop/skills/engineering-standards/`) |
 | Architecture, layer and import rules, code style         | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                            |
-| Adding an assistant, source, command, section, transform | `docs/how-to-add-*.md`                                                                                          |
+| Adding a harness, source, command, section, transform | `docs/how-to-add-*.md`                                                                                          |
 | PR checks, merge gate, commit style, release limits      | [`.factory/loop-contract.md`](.factory/loop-contract.md)                                                        |
 | Sync safety rules, validation, merge readiness           | [`docs/safety-contract.md`](docs/safety-contract.md)                                                            |
 | Approved specs and acceptance contracts                  | [`specs/`](specs/)                                                                                              |

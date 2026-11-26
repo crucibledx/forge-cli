@@ -1,14 +1,14 @@
 /**
- * Unit tests for the assistants config section editor.
+ * Unit tests for the harnesses config section editor.
  */
 
 import {beforeEach, describe, expect, it, mock} from 'bun:test'
 
-import {cursor} from '@domain/assistants/cursor'
-import {windsurf} from '@domain/assistants/windsurf'
+import {cursor} from '@domain/harnesses/cursor'
+import {windsurf} from '@domain/harnesses/windsurf'
 import type {ProjectConfig} from '@domain/config/types'
 
-import {ASSISTANTS_MESSAGES as M} from './assistants'
+import {HARNESSES_MESSAGES as M} from './harnesses'
 
 // ─── Mock state ──────────────────────────────────────────────────────────────
 
@@ -17,15 +17,15 @@ let promptResponses: Record<string, unknown> = {}
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-mock.module('@domain/assistants/registry', () => ({
-  getAllAssistants: () => [
+mock.module('@domain/harnesses/registry', () => ({
+  getAllHarnesses: () => [
     {...cursor, detection: {directories: [], files: []}, targetMappings: []},
     {...windsurf, detection: {directories: [], files: []}, targetMappings: []},
   ],
 }))
 
 mock.module('@infrastructure/fs', () => ({
-  scanForAssistants: () => mockDetectionResults,
+  scanForHarnesses: () => mockDetectionResults,
 }))
 
 mock.module('@infrastructure/cli/renderer', () => ({
@@ -48,16 +48,16 @@ beforeEach(() => {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('assistantsSection', () => {
-  const baseConfig: ProjectConfig = {version: '1', assistants: [], sources: []}
+describe('harnessesSection', () => {
+  const baseConfig: ProjectConfig = {version: '1', harnesses: [], sources: []}
 
-  it('hint returns count of enabled assistants', async () => {
-    const {assistantsSection} = await import('./assistants')
-    expect(assistantsSection.hint(baseConfig)).toBe('none enabled')
+  it('hint returns count of enabled harnesses', async () => {
+    const {harnessesSection} = await import('./harnesses')
+    expect(harnessesSection.hint(baseConfig)).toBe('none enabled')
     expect(
-      assistantsSection.hint({
+      harnessesSection.hint({
         ...baseConfig,
-        assistants: [
+        harnesses: [
           {id: 'cursor', enabled: true},
           {id: 'windsurf', enabled: true},
         ],
@@ -65,21 +65,21 @@ describe('assistantsSection', () => {
     ).toBe('2 enabled')
   })
 
-  it('returns config with selected assistants', async () => {
+  it('returns config with selected harnesses', async () => {
     promptResponses = {[M.select]: [cursor.id, windsurf.id]}
-    const {assistantsSection} = await import('./assistants')
-    const result = await assistantsSection.edit(baseConfig, '/fake')
-    expect(result.assistants).toHaveLength(2)
-    expect(result.assistants[0].id).toBe(cursor.id)
-    expect(result.assistants[1].id).toBe(windsurf.id)
-    expect(result.assistants.every((a) => a.enabled)).toBe(true)
+    const {harnessesSection} = await import('./harnesses')
+    const result = await harnessesSection.edit(baseConfig, '/fake')
+    expect(result.harnesses).toHaveLength(2)
+    expect(result.harnesses[0].id).toBe(cursor.id)
+    expect(result.harnesses[1].id).toBe(windsurf.id)
+    expect(result.harnesses.every((a) => a.enabled)).toBe(true)
   })
 
-  it('returns empty assistants when none selected', async () => {
+  it('returns empty harnesses when none selected', async () => {
     promptResponses = {[M.select]: []}
-    const {assistantsSection} = await import('./assistants')
-    const result = await assistantsSection.edit(baseConfig, '/fake')
-    expect(result.assistants).toHaveLength(0)
+    const {harnessesSection} = await import('./harnesses')
+    const result = await harnessesSection.edit(baseConfig, '/fake')
+    expect(result.harnesses).toHaveLength(0)
   })
 
   it('preserves other config fields', async () => {
@@ -88,8 +88,8 @@ describe('assistantsSection', () => {
       sources: [{name: 'default', type: 'local', path: '/tmp'}],
     }
     promptResponses = {[M.select]: [cursor.id]}
-    const {assistantsSection} = await import('./assistants')
-    const result = await assistantsSection.edit(config, '/fake')
+    const {harnessesSection} = await import('./harnesses')
+    const result = await harnessesSection.edit(config, '/fake')
     expect(result.sources).toEqual(config.sources)
   })
 })

@@ -1,6 +1,6 @@
 import {join, sep} from 'node:path'
 
-import type {AssistantDefinition, TargetDestination, TargetMapping} from '../assistants/types'
+import type {HarnessDefinition, TargetDestination, TargetMapping} from '../harnesses/types'
 import {isGlobalMode} from '../scope'
 import {getTransformer} from '../transforms/registry'
 import type {TransformContext} from '../transforms/types'
@@ -16,7 +16,7 @@ import type {ResolvedTarget, SourceFile} from './types'
 
 type ResolverFn = (
   sourceFiles: SourceFile[],
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   sourceName: string,
 ) => ResolvedTarget[]
 
@@ -35,7 +35,7 @@ const resolvers: Record<SourceLayout, ResolverFn> = {
  */
 export function resolveTargets(
   sourceFiles: SourceFile[],
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   sourceName = '',
   layoutOverride?: SourceLayoutOption,
 ): ResolvedTarget[] {
@@ -43,7 +43,7 @@ export function resolveTargets(
     layoutOverride && layoutOverride !== SOURCE_LAYOUT_OPTIONS.AUTO
       ? (layoutOverride as SourceLayout)
       : detectSourceLayout(sourceFiles)
-  const resolved = resolvers[layout](sourceFiles, assistants, sourceName)
+  const resolved = resolvers[layout](sourceFiles, harnesses, sourceName)
   for (const target of resolved)
     if (target.targetPath.includes('\\'))
       throw new Error(`Backslash in source filename is not portable: ${target.sourcePath}; use real directories`)
@@ -51,36 +51,36 @@ export function resolveTargets(
 }
 
 /**
- * Hybrid sources contain both assistant-specific dirs and canonical files.
+ * Hybrid sources contain both harness-specific dirs and canonical files.
  * Partition files, resolve each group with its resolver, merge results.
  */
 function resolveHybrid(
   sourceFiles: SourceFile[],
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   sourceName: string,
 ): ResolvedTarget[] {
   const {preStructured, canonical} = partitionByLayout(sourceFiles)
-  const preResults = resolvePreStructured(preStructured, assistants, sourceName)
+  const preResults = resolvePreStructured(preStructured, harnesses, sourceName)
   const preTargetPaths = new Set(preResults.map((r) => r.targetPath))
-  const canonicalResults = resolveCanonical(canonical, assistants, sourceName)
+  const canonicalResults = resolveCanonical(canonical, harnesses, sourceName)
   return [...preResults, ...canonicalResults.filter((r) => !preTargetPaths.has(r.targetPath))]
 }
 
 /**
- * For pre-structured sources, files are matched against assistant destination
+ * For pre-structured sources, files are matched against harness destination
  * prefixes. In project mode the path is kept as-is; in global mode the project
  * prefix is swapped for the global destination (falling back to project).
  */
 function resolvePreStructured(
   sourceFiles: SourceFile[],
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   sourceName: string,
 ): ResolvedTarget[] {
-  const prefixEntries = assistants.flatMap((a) =>
+  const prefixEntries = harnesses.flatMap((a) =>
     a.targetMappings.map((m) => ({
       prefix: m.destination.project,
       dest: resolveDestination(m.destination),
-      assistantId: a.id,
+      harnessId: a.id,
     })),
   )
 
@@ -97,7 +97,7 @@ function resolvePreStructured(
       sourcePath: file.relativePath,
       targetPath,
       content: file.content,
-      assistantId: match.assistantId,
+      harnessId: match.harnessId,
       sourceName,
     })
   }
@@ -107,13 +107,13 @@ function resolvePreStructured(
 
 function resolveCanonical(
   sourceFiles: SourceFile[],
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   sourceName: string,
 ): ResolvedTarget[] {
   const resolved: ResolvedTarget[] = []
 
-  for (const assistant of assistants) {
-    for (const mapping of assistant.targetMappings) {
+  for (const harness of harnesses) {
+    for (const mapping of harness.targetMappings) {
       const dest = resolveDestination(mapping.destination)
 
       for (const file of sourceFiles) {
@@ -127,7 +127,7 @@ function resolveCanonical(
           sourcePath: file.relativePath,
           targetPath,
           content,
-          assistantId: assistant.id,
+          harnessId: harness.id,
           sourceName,
         })
       }

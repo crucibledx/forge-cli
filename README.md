@@ -87,9 +87,9 @@ my-source/
     review.md
 ```
 
-Forge auto-detects the layout and maps each file to every assistant's native format:
+Forge auto-detects the layout and maps each file to every harness's native format:
 
-| Assistant          | Target paths                                             | Auto-transform               |
+| Harness          | Target paths                                             | Auto-transform               |
 |--------------------|----------------------------------------------------------|------------------------------|
 | **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/` | —                            |
 | **Cursor**         | `.cursor/rules/`                                         | `.md` → `.mdc` + frontmatter |
@@ -97,7 +97,7 @@ Forge auto-detects the layout and maps each file to every assistant's native for
 | **GitHub Copilot** | `.github/skills/`, `.github/instructions/`               | `.md` → `.instructions.md`   |
 | **Cline**          | `.cline/skills/`, `.clinerules/`                         | —                            |
 
-Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new assistant is [one file](https://crucibledx.dev/forge/assistants).
+Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new harness is [one file](docs/how-to-add-harness.md).
 
 ## See It in Action
 
@@ -126,7 +126,7 @@ Only active tools are synced. If your project doesn't use Windsurf, Forge won't 
 | Command                   | Description                                            |
 |---------------------------|--------------------------------------------------------|
 | `forge init`              | Interactive wizard — detect tools, configure sources   |
-| `forge sync`              | Fetch, transform, and place files for each assistant   |
+| `forge sync`              | Fetch, transform, and place files for each harness   |
 | `forge sync --dry-run`    | Preview all changes without writing                    |
 | `forge status`            | Show drift between last sync and filesystem            |
 | `forge health`            | SLI dashboard — sync frequency, drift, reachability    |
@@ -167,7 +167,7 @@ sources:
 
 Forge auto-detects how your source is organized — no configuration needed:
 
-- **Canonical** — `skills/`, `rules/`, `workflows/` folders, distributed and transformed per assistant
+- **Canonical** — `skills/`, `rules/`, `workflows/` folders, distributed and transformed per harness
 - **Pre-structured** — contains `.claude/`, `.cursor/` dirs, copied as-is
 - **Hybrid** — mix of both, auto-detected by default
 
@@ -184,7 +184,7 @@ Forge auto-detects how your source is organized — no configuration needed:
 ### Safety and migration
 
 Serialize sync invocations. Empty readable sources can clean tracked stale files with `keep_local:false`; disabled
-assistants and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
+harnesses and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
 block planning, including case-fold-equivalent spellings such as sigma/final sigma, without renaming stored paths.
 State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
 edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
@@ -221,7 +221,7 @@ bun run typecheck         # tsc --noEmit
 bun run build             # compile to dist/
 ```
 
-DDD architecture: `domain/` (pure logic) → `application/` (commands) → `infrastructure/` (I/O). Adding a new assistant or source type = one file, zero changes to existing commands.
+DDD architecture: `domain/` (pure logic) → `application/` (commands) → `infrastructure/` (I/O). Adding a new harness or source type = one file, zero changes to existing commands.
 
 ## License
 

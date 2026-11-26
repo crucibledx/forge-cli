@@ -64,7 +64,7 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('sourceSection', () => {
-  const baseConfig: ProjectConfig = {version: '1', assistants: [], sources: []}
+  const baseConfig: ProjectConfig = {version: '1', harnesses: [], sources: []}
 
   it('hint returns none when no sources', async () => {
     const {sourceSection} = await import('./source')
@@ -128,11 +128,11 @@ describe('sourceSection', () => {
   it('preserves other config fields', async () => {
     const config: ProjectConfig = {
       ...baseConfig,
-      assistants: [{id: 'cursor', enabled: true}],
+      harnesses: [{id: 'cursor', enabled: true}],
     }
     promptResponses = {[M.action]: 'done'}
     const {sourceSection} = await import('./source')
     const result = await sourceSection.edit(config, '/fake')
-    expect(result.assistants).toEqual(config.assistants)
+    expect(result.harnesses).toEqual(config.harnesses)
   })
 })

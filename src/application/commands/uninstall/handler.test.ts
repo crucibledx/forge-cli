@@ -7,7 +7,7 @@ import type {SyncState} from '@domain/sync/state'
 
 let mockConfig: ProjectConfig | null = {
   version: '1',
-  assistants: [{id: 'cursor', enabled: true}],
+  harnesses: [{id: 'cursor', enabled: true}],
   sources: [{name: 'default', type: 'local', path: '/tmp/src'}],
 }
 
@@ -106,7 +106,7 @@ beforeEach(() => {
   deletedFiles = []
   mockConfig = {
     version: '1',
-    assistants: [{id: 'cursor', enabled: true}],
+    harnesses: [{id: 'cursor', enabled: true}],
     sources: [{name: 'default', type: 'local', path: '/tmp/src'}],
   }
 })

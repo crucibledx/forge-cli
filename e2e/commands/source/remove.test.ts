@@ -32,7 +32,7 @@ describe('forge source remove', () => {
     'warns when no sources to remove',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], rawSources: '[]'}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], rawSources: '[]'}))
 
       const {output} = await runSourceSession(dir, 'remove', (cli) => cli.waitForText(SCM.errors.noSources))
       expect(output).toContain('No sources configured')
@@ -48,7 +48,7 @@ describe('forge source remove', () => {
       await mkdir(localDir, {recursive: true})
       await writeConfig(
         dir,
-        buildConfigYaml({assistants: ['claude-code'], localSource: {name: 'team', path: localDir}}),
+        buildConfigYaml({harnesses: ['claude-code'], localSource: {name: 'team', path: localDir}}),
       )
 
       await runSourceSession(dir, 'remove', (cli) =>
@@ -77,7 +77,7 @@ describe('forge source remove', () => {
       await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy', 'test.md': '# Test'}})
       await writeConfig(
         dir,
-        buildConfigYaml({assistants: ['claude-code'], localSource: {name: 'team', path: sourceDir}}),
+        buildConfigYaml({harnesses: ['claude-code'], localSource: {name: 'team', path: sourceDir}}),
       )
 
       // sync first so files exist
@@ -118,7 +118,7 @@ describe('forge source remove', () => {
       await writeSourceTree(sourceDir, {skills: {'keep.md': '# Keep me'}})
       await writeConfig(
         dir,
-        buildConfigYaml({assistants: ['claude-code'], localSource: {name: 'team', path: sourceDir}}),
+        buildConfigYaml({harnesses: ['claude-code'], localSource: {name: 'team', path: sourceDir}}),
       )
 
       await runSync(dir)

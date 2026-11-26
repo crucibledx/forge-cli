@@ -4,11 +4,11 @@ import './copilot'
 import './cursor'
 import './windsurf'
 
-export {assistantsRegistry, getAllAssistants, getAssistant, getAssistantIds, resolveAssistantByPath} from './registry'
+export {harnessesRegistry, getAllHarnesses, getHarness, getHarnessIds, resolveHarnessByPath} from './registry'
 export type {
-  AssistantConfig,
-  AssistantDefinition,
-  AssistantId,
+  HarnessConfig,
+  HarnessDefinition,
+  HarnessId,
   DetectionResult,
   DetectionRule,
   TargetMapping,

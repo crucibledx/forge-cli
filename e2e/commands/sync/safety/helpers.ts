@@ -15,7 +15,7 @@ export async function config(root: string, sources: Source[], sync: Partial<Proj
     join(root, '.crucible/forge.config.yaml'),
     stringify({
       version: '1',
-      assistants: [{id: 'claude-code', enabled: true}],
+      harnesses: [{id: 'claude-code', enabled: true}],
       sources,
       sync: {keep_local: false, ...sync},
     }),

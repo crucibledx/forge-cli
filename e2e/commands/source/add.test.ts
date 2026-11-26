@@ -39,7 +39,7 @@ describe('forge source add', () => {
       const dir = getDir()
       const localDir = join(dir, 'my-rules')
       await mkdir(localDir, {recursive: true})
-      await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], rawSources: '[]'}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], rawSources: '[]'}))
 
       const {output} = await runSourceSession(dir, 'add', (cli) =>
         cli
@@ -81,7 +81,7 @@ describe('forge source add', () => {
       await mkdir(localDir2, {recursive: true})
       await writeConfig(
         dir,
-        buildConfigYaml({assistants: ['claude-code'], localSource: {name: 'first', path: localDir1}}),
+        buildConfigYaml({harnesses: ['claude-code'], localSource: {name: 'first', path: localDir1}}),
       )
 
       await runSourceSession(dir, 'add', (cli) =>

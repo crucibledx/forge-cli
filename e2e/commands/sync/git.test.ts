@@ -19,7 +19,7 @@ describe('forge sync — git source', () => {
     const dir = getDir()
     const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
 
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], gitSource: {url: repoPath}}))
 
     const {exitCode} = await runSync(dir)
     expect(exitCode).toBe(0)
@@ -31,7 +31,7 @@ describe('forge sync — git source', () => {
     const dir = getDir()
     const repoPath = await createBareRepo(dir, {'rules/api.md': RULE_WITH_PATHS})
 
-    await writeConfig(dir, buildConfigYaml({assistants: ['cursor'], gitSource: {url: repoPath}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['cursor'], gitSource: {url: repoPath}}))
 
     await runSync(dir)
 
@@ -47,7 +47,7 @@ describe('forge sync — git source', () => {
 
     await writeConfig(
       dir,
-      buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath, branch: 'develop'}}),
+      buildConfigYaml({harnesses: ['claude-code'], gitSource: {url: repoPath, branch: 'develop'}}),
     )
 
     const {exitCode} = await runSync(dir)
@@ -72,7 +72,7 @@ describe('forge sync — git source', () => {
       '    branch: "team-rules"',
     ].join('\n')
 
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], rawSources}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], rawSources}))
 
     const {exitCode} = await runSync(dir)
     expect(exitCode).toBe(0)
@@ -86,7 +86,7 @@ describe('forge sync — git source', () => {
     const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
     await setBareRepoRef(dir, repoPath, 'refs/tags/v1.0.0', {'skills/deploy.md': SKILL_DEPLOY})
 
-    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath, branch: 'v1.0.0'}}))
+    await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], gitSource: {url: repoPath, branch: 'v1.0.0'}}))
 
     for (let sync = 0; sync < 2; sync++) {
       const {exitCode, stdout} = await runSync(dir)
@@ -106,7 +106,7 @@ describe('forge sync — git source', () => {
       const repoPath = await createBareRepo(dir, {'skills/deploy.md': SKILL_DEPLOY})
       await setBareRepoRef(dir, repoPath, fullRef, {'skills/deploy.md': SKILL_DEPLOY})
 
-      await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource: {url: repoPath, branch: ref}}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['claude-code'], gitSource: {url: repoPath, branch: ref}}))
 
       expect((await runSync(dir)).exitCode).toBe(0)
       expect(await readTarget(dir, '.claude/skills/deploy.md')).toBe(SKILL_DEPLOY)

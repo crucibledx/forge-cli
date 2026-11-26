@@ -7,8 +7,8 @@
 
 import {beforeEach, describe, expect, it, mock} from 'bun:test'
 
-import {cursor} from '@domain/assistants/cursor'
-import {windsurf} from '@domain/assistants/windsurf'
+import {cursor} from '@domain/harnesses/cursor'
+import {windsurf} from '@domain/harnesses/windsurf'
 import type {Source} from '@domain/config/types'
 
 import {INIT_MESSAGES as M} from './messages'
@@ -37,15 +37,15 @@ mock.module('@infrastructure/io', () => ({
   },
 }))
 
-mock.module('@domain/assistants/registry', () => ({
-  getAllAssistants: () => [
+mock.module('@domain/harnesses/registry', () => ({
+  getAllHarnesses: () => [
     {...cursor, detection: {directories: [], files: []}, targetMappings: []},
     {...windsurf, detection: {directories: [], files: []}, targetMappings: []},
   ],
 }))
 
 mock.module('@infrastructure/fs', () => ({
-  scanForAssistants: () => {
+  scanForHarnesses: () => {
     scanCalled = true
     return mockDetectionResults
   },
@@ -133,38 +133,38 @@ describe('runInit handler', () => {
     ]
   })
 
-  it('writes config with no assistants when user selects none', async () => {
-    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+  it('writes config with no harnesses when user selects none', async () => {
+    promptResponses = {[M.harnesses.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
     expect(writtenConfig).not.toBeNull()
-    expect((writtenConfig as {assistants: unknown[]}).assistants).toEqual([])
+    expect((writtenConfig as {harnesses: unknown[]}).harnesses).toEqual([])
   })
 
-  it('writes config with enabled assistant when user selects one', async () => {
-    promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
+  it('writes config with enabled harness when user selects one', async () => {
+    promptResponses = {[M.harnesses.select]: [cursor.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
-    const assistants = (writtenConfig as {assistants: Array<{id: string; enabled: boolean}>}).assistants
-    expect(assistants).toHaveLength(1)
-    expect(assistants[0].id).toBe(cursor.id)
-    expect(assistants[0].enabled).toBe(true)
+    const harnesses = (writtenConfig as {harnesses: Array<{id: string; enabled: boolean}>}).harnesses
+    expect(harnesses).toHaveLength(1)
+    expect(harnesses[0].id).toBe(cursor.id)
+    expect(harnesses[0].enabled).toBe(true)
   })
 
-  it('writes config with multiple assistants when user selects several', async () => {
-    promptResponses = {[M.assistants.select]: [cursor.id, windsurf.id], [M.source.addSource]: false}
+  it('writes config with multiple harnesses when user selects several', async () => {
+    promptResponses = {[M.harnesses.select]: [cursor.id, windsurf.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
-    const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
-    expect(assistants).toHaveLength(2)
-    expect(assistants.map((a) => a.id)).toContain(cursor.id)
-    expect(assistants.map((a) => a.id)).toContain(windsurf.id)
+    const harnesses = (writtenConfig as {harnesses: Array<{id: string}>}).harnesses
+    expect(harnesses).toHaveLength(2)
+    expect(harnesses.map((a) => a.id)).toContain(cursor.id)
+    expect(harnesses.map((a) => a.id)).toContain(windsurf.id)
   })
 
   it('includes git source in config when user adds one', async () => {
     mockSourceByType = {git: {name: 'default', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}}
     promptResponses = {
-      [M.assistants.select]: [],
+      [M.harnesses.select]: [],
       [M.source.addSource]: true,
       [M.source.selectType]: 'git',
       [M.sync.runNow]: false,
@@ -180,7 +180,7 @@ describe('runInit handler', () => {
   it('includes local source in config when user selects local type', async () => {
     mockSourceByType = {local: {name: 'default', type: 'local', path: '~/my-ai-configs'}}
     promptResponses = {
-      [M.assistants.select]: [],
+      [M.harnesses.select]: [],
       [M.source.addSource]: true,
       [M.source.selectType]: 'local',
       [M.sync.runNow]: false,
@@ -199,7 +199,7 @@ describe('runInit handler', () => {
       local: {name: 'default', type: 'local', path: '~/local-configs'},
     }
     promptResponses = {
-      [M.assistants.select]: [],
+      [M.harnesses.select]: [],
       [M.source.addSource]: true,
       [M.source.selectType]: ['git', 'local'],
       [M.source.addAnother]: [true, false],
@@ -215,28 +215,28 @@ describe('runInit handler', () => {
     expect(cfg.sources[1].type).toBe('local')
   })
 
-  it('pre-selects detected assistants and includes them when returned', async () => {
+  it('pre-selects detected harnesses and includes them when returned', async () => {
     mockDetectionResults = [
       {id: cursor.id, name: cursor.name, detected: true, scope: 'project'},
       {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
     ]
-    promptResponses = {[M.assistants.select]: [cursor.id], [M.source.addSource]: false}
+    promptResponses = {[M.harnesses.select]: [cursor.id], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
-    const assistants = (writtenConfig as {assistants: Array<{id: string; enabled: boolean}>}).assistants
-    expect(assistants.find((a) => a.id === cursor.id)?.enabled).toBe(true)
+    const harnesses = (writtenConfig as {harnesses: Array<{id: string; enabled: boolean}>}).harnesses
+    expect(harnesses.find((a) => a.id === cursor.id)?.enabled).toBe(true)
   })
 
-  it('excludes detected assistant when user deselects it', async () => {
+  it('excludes detected harness when user deselects it', async () => {
     mockDetectionResults = [
       {id: cursor.id, name: cursor.name, detected: true, scope: 'project'},
       {id: windsurf.id, name: windsurf.name, detected: false, scope: undefined},
     ]
-    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+    promptResponses = {[M.harnesses.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
-    const assistants = (writtenConfig as {assistants: Array<{id: string}>}).assistants
-    expect(assistants.find((a) => a.id === cursor.id)).toBeUndefined()
+    const harnesses = (writtenConfig as {harnesses: Array<{id: string}>}).harnesses
+    expect(harnesses.find((a) => a.id === cursor.id)).toBeUndefined()
   })
 
   it('aborts without writing when config already exists', async () => {
@@ -253,17 +253,17 @@ describe('runInit handler', () => {
     expect(scanCalled).toBe(false)
   })
 
-  it('renders warning when no assistants selected', async () => {
-    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+  it('renders warning when no harnesses selected', async () => {
+    promptResponses = {[M.harnesses.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
-    expect(rendererWarnings).toContain(M.assistants.noneSelected)
+    expect(rendererWarnings).toContain(M.harnesses.noneSelected)
   })
 
   it('proceeds to write when no existing config', async () => {
     mockConfigExists = false
     promptResponses = {
-      [M.assistants.select]: [],
+      [M.harnesses.select]: [],
       [M.source.addSource]: false,
     }
     const {runInit} = await import('./handler')
@@ -273,7 +273,7 @@ describe('runInit handler', () => {
 
   it('overwrites existing config when --force is set', async () => {
     mockConfigExists = true
-    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+    promptResponses = {[M.harnesses.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: true})
     expect(writtenConfig).not.toBeNull()
@@ -281,7 +281,7 @@ describe('runInit handler', () => {
 
   it('uses project directory name as config project name', async () => {
     mockProjectRoot = '/workspace/my-app'
-    promptResponses = {[M.assistants.select]: [], [M.source.addSource]: false}
+    promptResponses = {[M.harnesses.select]: [], [M.source.addSource]: false}
     const {runInit} = await import('./handler')
     await runInit({verbose: false, force: false})
     expect((writtenConfig as {project?: {name: string}}).project?.name).toBe('my-app')

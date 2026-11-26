@@ -8,7 +8,7 @@ it('AC-6 reconciles installed, retained unknown, skipped new and deleted entries
   const target = {
     targetPath: '.claude/rules/current.md',
     sourcePath: 'rules/current.md',
-    assistantId: 'claude-code',
+    harnessId: 'claude-code',
     sourceName: 'team',
     content: 'actually installed',
   }
@@ -23,7 +23,7 @@ it('AC-6 reconciles installed, retained unknown, skipped new and deleted entries
   const summary = (path: string, status: SyncFileSummary['status']): SyncFileSummary => ({
     targetPath: path,
     sourcePath: '',
-    assistantId: target.assistantId,
+    harnessId: target.harnessId,
     status,
   })
   for (const status of ['new', 'update', 'no_change'] as const) {

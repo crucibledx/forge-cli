@@ -39,7 +39,7 @@ async function setupLocalConflict(
   await writeConfig(
     dir,
     buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       localSource: {path: sourceDir},
       sync,
     }),
@@ -145,7 +145,7 @@ describe('forge sync — local conflicts', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {local_conflict_strategy: 'error'},
       }),
@@ -171,7 +171,7 @@ describe('forge sync — local conflicts', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: sourceDir},
         sync: {local_conflict_strategy: 'error'},
       }),

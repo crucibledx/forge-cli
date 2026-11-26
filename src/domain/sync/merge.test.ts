@@ -5,7 +5,7 @@ import {resolveSourceConflicts, SourceConflictError} from './merge'
 import type {ResolvedTarget} from './types'
 
 function target(targetPath: string, sourceName: string, content = 'content'): ResolvedTarget {
-  return {sourcePath: `src/${targetPath}`, targetPath, content, assistantId: 'cursor', sourceName}
+  return {sourcePath: `src/${targetPath}`, targetPath, content, harnessId: 'cursor', sourceName}
 }
 
 describe('resolveSourceConflicts', () => {

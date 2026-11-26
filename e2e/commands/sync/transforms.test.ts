@@ -15,8 +15,8 @@ import {runSync, useTmpDir} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-transforms')
 
-async function setup(dir: string, assistants: string[], rules: Record<string, string>) {
-  await setupLocalSync(dir, assistants, {rules})
+async function setup(dir: string, harnesses: string[], rules: Record<string, string>) {
+  await setupLocalSync(dir, harnesses, {rules})
 }
 
 // ─── Cursor: rename .md→.mdc + frontmatter paths→globs ──────────────────────

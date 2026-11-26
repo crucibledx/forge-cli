@@ -1,4 +1,4 @@
-import {getAllAssistants} from '../assistants/registry'
+import {getAllHarnesses} from '../harnesses/registry'
 import type {SourceFile} from './types'
 
 export const SOURCE_LAYOUTS = {
@@ -23,17 +23,17 @@ export const SOURCE_LAYOUT_VALUES = Object.values(SOURCE_LAYOUT_OPTIONS) as [
 ]
 
 /**
- * Known assistant directories that signal a pre-structured source.
- * Maps directory name → assistant id.
+ * Known harness directories that signal a pre-structured source.
+ * Maps directory name → harness id.
  */
-export function getAssistantDirMap(): Record<string, string> {
+export function getHarnessDirMap(): Record<string, string> {
   const map: Record<string, string> = {}
-  for (const assistant of getAllAssistants()) {
-    for (const mapping of assistant.targetMappings) {
+  for (const harness of getAllHarnesses()) {
+    for (const mapping of harness.targetMappings) {
       // Extract top-level dir from project destination, e.g. ".claude/rules/" → ".claude"
       const topDir = mapping.destination.project.split('/')[0]
       if (topDir && !map[topDir]) {
-        map[topDir] = assistant.id
+        map[topDir] = harness.id
       }
     }
   }
@@ -42,16 +42,16 @@ export function getAssistantDirMap(): Record<string, string> {
 
 /**
  * Detect whether source files follow a canonical, pre-structured, or hybrid layout.
- * Hybrid: source contains both assistant-specific dirs and canonical files.
+ * Hybrid: source contains both harness-specific dirs and canonical files.
  */
 export function detectSourceLayout(files: SourceFile[]): SourceLayout {
-  const assistantDirs = new Set(Object.keys(getAssistantDirMap()))
+  const harnessDirs = new Set(Object.keys(getHarnessDirMap()))
   let hasPreStructured = false
   let hasCanonical = false
 
   for (const file of files) {
     const topDir = file.relativePath.split('/')[0]
-    if (assistantDirs.has(topDir)) {
+    if (harnessDirs.has(topDir)) {
       hasPreStructured = true
     } else {
       hasCanonical = true
@@ -63,16 +63,16 @@ export function detectSourceLayout(files: SourceFile[]): SourceLayout {
 }
 
 /**
- * Partition source files into pre-structured (assistant-dir top-level) and canonical (everything else).
+ * Partition source files into pre-structured (harness-dir top-level) and canonical (everything else).
  */
 export function partitionByLayout(files: SourceFile[]): {preStructured: SourceFile[]; canonical: SourceFile[]} {
-  const assistantDirs = new Set(Object.keys(getAssistantDirMap()))
+  const harnessDirs = new Set(Object.keys(getHarnessDirMap()))
   const preStructured: SourceFile[] = []
   const canonical: SourceFile[] = []
 
   for (const file of files) {
     const topDir = file.relativePath.split('/')[0]
-    if (assistantDirs.has(topDir)) {
+    if (harnessDirs.has(topDir)) {
       preStructured.push(file)
     } else {
       canonical.push(file)

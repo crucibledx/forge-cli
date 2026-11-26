@@ -40,7 +40,7 @@ describe('forge sync — include filter', () => {
     })
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {include: ['skills/**']}),
     })
     await writeConfig(dir, yaml)
@@ -61,7 +61,7 @@ describe('forge sync — include filter', () => {
     })
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {include: ['skills/deploy.md']}),
     })
     await writeConfig(dir, yaml)
@@ -84,7 +84,7 @@ describe('forge sync — exclude filter', () => {
     })
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {exclude: ['skills/internal.md']}),
     })
     await writeConfig(dir, yaml)
@@ -105,7 +105,7 @@ describe('forge sync — map prefix', () => {
     await writeSourceTree(sourceDir, {'SKILL.md': '# Draw.io skill'})
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {map: 'skills'}),
     })
     await writeConfig(dir, yaml)
@@ -122,7 +122,7 @@ describe('forge sync — map prefix', () => {
     await writeSourceTree(sourceDir, {drawio: {'SKILL.md': '# Draw.io'}})
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {map: 'skills'}),
     })
     await writeConfig(dir, yaml)
@@ -145,7 +145,7 @@ describe('forge sync — combined filters', () => {
     })
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {
         include: ['skill-cli/**'],
         map: 'skills',
@@ -173,7 +173,7 @@ describe('forge sync — combined filters', () => {
     })
 
     const yaml = buildConfigYaml({
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       rawSources: localSourceYaml(sourceDir, {
         include: ['skills/**'],
         exclude: ['skills/internal.md'],

@@ -57,7 +57,7 @@ describe('forge telemetry (enabled, after commands)', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),
@@ -91,7 +91,7 @@ describe('forge telemetry reset', () => {
     await writeConfig(
       dir,
       buildConfigYaml({
-        assistants: ['claude-code'],
+        harnesses: ['claude-code'],
         localSource: {path: sourceDir},
         telemetry: {enabled: true},
       }),

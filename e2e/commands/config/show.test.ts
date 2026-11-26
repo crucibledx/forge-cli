@@ -23,10 +23,10 @@ describe('forge config show', () => {
   )
 
   it(
-    'shows assistants',
+    'shows harnesses',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({assistants: ['cursor', 'claude-code']}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor', 'claude-code']}))
       const result = await runConfigShow(dir)
       expect(result.exitCode).toBe(0)
       expect(result.output).toContain('Cursor')
@@ -41,7 +41,7 @@ describe('forge config show', () => {
       const dir = getDir()
       const sourceDir = join(dir, 'source')
       await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy'}})
-      await writeConfig(dir, buildConfigYaml({assistants: ['cursor'], localSource: {path: sourceDir}}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor'], localSource: {path: sourceDir}}))
       const result = await runConfigShow(dir)
       expect(result.exitCode).toBe(0)
       expect(result.output).toContain('test-source')
@@ -58,7 +58,7 @@ describe('forge config show', () => {
       await writeConfig(
         dir,
         buildConfigYaml({
-          assistants: ['cursor'],
+          harnesses: ['cursor'],
           gitSource: {url: 'git@github.com:org/repo.git', branch: 'develop'},
         }),
       )
@@ -74,7 +74,7 @@ describe('forge config show', () => {
     'shows sync defaults with (default) markers',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({assistants: ['cursor']}))
+      await writeConfig(dir, buildConfigYaml({harnesses: ['cursor']}))
       const result = await runConfigShow(dir)
       expect(result.exitCode).toBe(0)
       expect(result.output).toContain('last-wins')
@@ -91,7 +91,7 @@ describe('forge config show', () => {
       await writeConfig(
         dir,
         buildConfigYaml({
-          assistants: ['cursor'],
+          harnesses: ['cursor'],
           sync: {source_conflict_strategy: 'error', local_conflict_strategy: 'local-wins', backup: false},
         }),
       )
@@ -111,7 +111,7 @@ describe('forge config show', () => {
       await writeConfig(
         dir,
         buildConfigYaml({
-          assistants: ['cursor'],
+          harnesses: ['cursor'],
           sync: {schedule: '0 9 * * *'},
         }),
       )
@@ -129,7 +129,7 @@ describe('forge config show', () => {
       const dir = getDir()
       const yaml = [
         'version: "1"',
-        'assistants:',
+        'harnesses:',
         '  - id: cursor',
         '    enabled: true',
         'sources:',
@@ -156,10 +156,10 @@ describe('forge config show', () => {
   )
 
   it(
-    'shows none for empty assistants',
+    'shows none for empty harnesses',
     async () => {
       const dir = getDir()
-      await writeConfig(dir, buildConfigYaml({assistants: [], rawSources: '[]'}))
+      await writeConfig(dir, buildConfigYaml({harnesses: [], rawSources: '[]'}))
       const result = await runConfigShow(dir)
       expect(result.exitCode).toBe(0)
       expect(result.output).toContain('none')

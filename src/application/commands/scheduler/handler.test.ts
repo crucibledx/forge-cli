@@ -57,7 +57,7 @@ mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async () =>
     mockHasConfig
       ? {
-          assistants: [{id: 'claude-code', enabled: true}],
+          harnesses: [{id: 'claude-code', enabled: true}],
           sources: [],
           sync: mockSchedule ? {schedule: mockSchedule} : {},
         }
@@ -88,7 +88,7 @@ mock.module('@infrastructure/io', () => ({
       projectRoot: '/fake/project',
       projectConfig: mockHasConfig
         ? {
-            assistants: [{id: 'claude-code', enabled: true}],
+            harnesses: [{id: 'claude-code', enabled: true}],
             sources: [],
             sync: mockSchedule ? {schedule: mockSchedule} : {},
           }

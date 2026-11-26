@@ -10,7 +10,7 @@ const getDir = useTmpDir('config_loader')
 
 const VALID_PROJECT_YAML = `
 version: "1"
-assistants:
+harnesses:
   - id: cursor
     enabled: true
 sources:
@@ -55,7 +55,7 @@ describe('loadProjectConfig', () => {
     const result = await loadProjectConfig(dir)
     expect(result).not.toBeNull()
     expect(result!.version).toBe('1')
-    expect(result!.assistants[0].id).toBe('cursor')
+    expect(result!.harnesses[0].id).toBe('cursor')
     expect(result!.sources[0].type).toBe('git')
   })
 
@@ -65,7 +65,7 @@ describe('loadProjectConfig', () => {
     await mkdir(configDir, {recursive: true})
     await writeFile(
       join(configDir, 'forge.config.yaml'),
-      'version: "1"\nassistants:\n  - id: not-real\n    enabled: true',
+      'version: "1"\nharnesses:\n  - id: not-real\n    enabled: true',
       'utf-8',
     )
     expect(loadProjectConfig(dir)).rejects.toThrow()

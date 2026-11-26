@@ -11,7 +11,7 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'bun:test'
 
 import {CONFIG_MESSAGES as M} from '@application/commands/config/messages'
-import {ASSISTANTS_MESSAGES as AM} from '@application/commands/config/sections/assistants'
+import {HARNESSES_MESSAGES as AM} from '@application/commands/config/sections/harnesses'
 import {SOURCE_MESSAGES as SM} from '@application/commands/config/sections/source'
 import {LOCAL_SOURCE_MESSAGES as LM} from '@infrastructure/source'
 import {
@@ -34,8 +34,8 @@ function writeConfig(dir: string, yaml: string) {
   return Bun.write(configFilePath(dir), yaml)
 }
 
-const EMPTY_CONFIG = 'version: "1"\nassistants: []\nsources: []\n'
-const WITH_CURSOR = 'version: "1"\nassistants:\n  - id: cursor\n    enabled: true\nsources: []\n'
+const EMPTY_CONFIG = 'version: "1"\nharnesses: []\nsources: []\n'
+const WITH_CURSOR = 'version: "1"\nharnesses:\n  - id: cursor\n    enabled: true\nsources: []\n'
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -68,17 +68,17 @@ describe('forge config — e2e', () => {
           .pressKey(N),
       )
       expect(output).toContain(M.selectSection)
-      expect(output).toContain('Assistants')
+      expect(output).toContain('Harnesses')
       expect(output).toContain('Scheduler')
       expect(output).toContain('Sources')
     },
     TIMEOUT_MS,
   )
 
-  // ── Assistants section ───────────────────────────────────────────────
+  // ── Harnesses section ───────────────────────────────────────────────
 
   it(
-    'updates assistants via config command',
+    'updates harnesses via config command',
     async () => {
       await writeConfig(getDir(), WITH_CURSOR)
 
@@ -93,7 +93,7 @@ describe('forge config — e2e', () => {
       )
 
       const config = await readConfig(getDir())
-      expect(config.assistants).toBeDefined()
+      expect(config.harnesses).toBeDefined()
     },
     TIMEOUT_MS,
   )
@@ -109,7 +109,7 @@ describe('forge config — e2e', () => {
       await mkdir(localSourceDir, {recursive: true})
 
       await runConfigSession(getDir(), (cli) =>
-        // pick Sources (third option — after Assistants, Scheduler)
+        // pick Sources (third option — after Harnesses, Scheduler)
         cli
           .waitForText(M.selectSection)
           .pressKey(ARROW_DOWN)
@@ -158,11 +158,11 @@ describe('forge config — e2e', () => {
 
       await writeConfig(
         getDir(),
-        `version: "1"\nassistants: []\nsources:\n  - name: default\n    type: local\n    path: ${localSourceDir}\n`,
+        `version: "1"\nharnesses: []\nsources:\n  - name: default\n    type: local\n    path: ${localSourceDir}\n`,
       )
 
       await runConfigSession(getDir(), (cli) =>
-        // pick Sources (third option — after Assistants, Scheduler)
+        // pick Sources (third option — after Harnesses, Scheduler)
         cli
           .waitForText(M.selectSection)
           .pressKey(ARROW_DOWN)
@@ -204,7 +204,7 @@ describe('forge config — e2e', () => {
       await writeConfig(getDir(), EMPTY_CONFIG)
 
       const {output} = await runConfigSession(getDir(), (cli) =>
-        // pick Sources (third option — after Assistants, Scheduler)
+        // pick Sources (third option — after Harnesses, Scheduler)
         cli
           .waitForText(M.selectSection)
           .pressKey(ARROW_DOWN)

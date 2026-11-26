@@ -93,7 +93,7 @@ DDD with three layers:
 
 | What            | Where                               | How                                                                        |
 |-----------------|-------------------------------------|----------------------------------------------------------------------------|
-| New assistant   | `domain/assistants/<name>/index.ts` | Create file, add to `registry.ts`                                          |
+| New harness   | `domain/harnesses/<name>/index.ts` | Create file, add to `registry.ts`                                          |
 | New source type | `infrastructure/source/<type>/`     | `messages.ts` + `loader.ts` + `index.ts`, add to `source/index.ts`         |
 | New command     | `application/commands/<name>/`      | `index.ts` (definition) + `handler.ts` (logic), add to `commands/index.ts` |
 | New transform   | `domain/transforms/<name>/index.ts` | Create file, add to `registry.ts`                                          |
@@ -124,7 +124,7 @@ Zero changes to existing commands or handlers required.
 Format: `type(version): description`
 
 ```
-feat(v0.6.5): global destination resolution for assistant target mappings
+feat(v0.6.5): global destination resolution for harness target mappings
 fix: rename 'Config drift' to 'Sync drift' in health report
 docs: update README with install instructions
 ```

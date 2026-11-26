@@ -1,16 +1,16 @@
 import {readdir, readFile} from 'node:fs/promises'
 import {join, relative, sep} from 'node:path'
 
-import {getAllAssistants} from '@domain/assistants'
+import {getAllHarnesses} from '@domain/harnesses'
 import type {SyncState} from '@domain/sync/state'
 import type {SourceFile} from '@domain/sync/types'
 
 import {createConfinement} from './confinement'
 
-function getKnownAssistantDirs(): Set<string> {
+function getKnownHarnessDirs(): Set<string> {
   const dirs = new Set<string>()
-  for (const assistant of getAllAssistants()) {
-    for (const mapping of assistant.targetMappings) {
+  for (const harness of getAllHarnesses()) {
+    for (const mapping of harness.targetMappings) {
       const topDir = mapping.destination.project.split('/')[0]
       if (topDir) dirs.add(topDir)
     }
@@ -20,8 +20,8 @@ function getKnownAssistantDirs(): Set<string> {
 
 export async function collectFiles(baseDir: string): Promise<SourceFile[]> {
   const files: SourceFile[] = []
-  const assistantDirs = getKnownAssistantDirs()
-  await walk(baseDir, baseDir, files, assistantDirs, true)
+  const harnessDirs = getKnownHarnessDirs()
+  await walk(baseDir, baseDir, files, harnessDirs, true)
   return files
 }
 
@@ -59,15 +59,15 @@ async function walk(
   baseDir: string,
   currentDir: string,
   files: SourceFile[],
-  assistantDirs: Set<string>,
+  harnessDirs: Set<string>,
   isTopLevel: boolean,
 ): Promise<void> {
   const entries = await readdir(currentDir, {withFileTypes: true})
 
   for (const entry of entries) {
     if (entry.name.startsWith('.')) {
-      // At top level, allow known assistant dot-directories (.claude, .cursor, etc.)
-      if (!(isTopLevel && entry.isDirectory() && assistantDirs.has(entry.name))) continue
+      // At top level, allow known harness dot-directories (.claude, .cursor, etc.)
+      if (!(isTopLevel && entry.isDirectory() && harnessDirs.has(entry.name))) continue
     }
 
     const fullPath = join(currentDir, entry.name)
@@ -75,7 +75,7 @@ async function walk(
     if (entry.isSymbolicLink()) continue
 
     if (entry.isDirectory()) {
-      await walk(baseDir, fullPath, files, assistantDirs, false)
+      await walk(baseDir, fullPath, files, harnessDirs, false)
     } else if (entry.isFile()) {
       const content = await readFile(fullPath, 'utf-8')
       const relativePath = relative(baseDir, fullPath).split(sep).join('/')

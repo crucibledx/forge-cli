@@ -1,7 +1,7 @@
-import {assistantsRegistry} from '../registry'
-import type {AssistantDefinition} from '../types'
+import {harnessesRegistry} from '../registry'
+import type {HarnessDefinition} from '../types'
 
-export const cursor: AssistantDefinition = {
+export const cursor: HarnessDefinition = {
   id: 'cursor',
   name: 'Cursor',
   detection: {
@@ -22,4 +22,4 @@ export const cursor: AssistantDefinition = {
   ],
 }
 
-assistantsRegistry.push(cursor)
+harnessesRegistry.push(cursor)

@@ -1,4 +1,4 @@
-import type {AssistantId} from '../assistants/types'
+import type {HarnessId} from '../harnesses/types'
 
 export const MUTATION_TYPES = {
   FILE_WRITE: 'file_write',
@@ -29,7 +29,7 @@ export type SyncFileStatus = (typeof SYNC_FILE_STATUSES)[keyof typeof SYNC_FILE_
 export interface SyncFileSummary {
   targetPath: string
   sourcePath: string
-  assistantId: AssistantId
+  harnessId: HarnessId
   status: SyncFileStatus
   error?: string
 }
@@ -43,6 +43,6 @@ export interface ResolvedTarget {
   sourcePath: string
   targetPath: string
   content: string
-  assistantId: AssistantId
+  harnessId: HarnessId
   sourceName: string
 }

@@ -2,7 +2,7 @@ import {existsSync, readdirSync, statSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
-import type {AssistantDefinition, DetectionResult} from '@domain/assistants'
+import type {HarnessDefinition, DetectionResult} from '@domain/harnesses'
 
 function resolvePath(projectRoot: string, homeDir: string, path: string): string {
   return path.startsWith('~/') ? join(homeDir, path.slice(2)) : join(projectRoot, path)
@@ -30,19 +30,19 @@ function hasAnyFile(dirPath: string): boolean {
   return false
 }
 
-export function scanForAssistants(
+export function scanForHarnesses(
   projectRoot: string,
-  assistants: readonly AssistantDefinition[],
+  harnesses: readonly HarnessDefinition[],
   homeDir = homedir(),
 ): DetectionResult[] {
-  return assistants.map((assistant) => detectAssistant(projectRoot, homeDir, assistant))
+  return harnesses.map((harness) => detectHarness(projectRoot, homeDir, harness))
 }
 
-function detectAssistant(projectRoot: string, homeDir: string, assistant: AssistantDefinition): DetectionResult {
+function detectHarness(projectRoot: string, homeDir: string, harness: HarnessDefinition): DetectionResult {
   const projectEvidence: string[] = []
   const globalEvidence: string[] = []
 
-  for (const dir of assistant.detection.directories) {
+  for (const dir of harness.detection.directories) {
     const fullPath = resolvePath(projectRoot, homeDir, dir)
     if (!existsSync(fullPath)) continue
 
@@ -53,7 +53,7 @@ function detectAssistant(projectRoot: string, homeDir: string, assistant: Assist
     else projectEvidence.push(label)
   }
 
-  for (const file of assistant.detection.files) {
+  for (const file of harness.detection.files) {
     const fullPath = resolvePath(projectRoot, homeDir, file)
     if (!existsSync(fullPath)) continue
 
@@ -66,8 +66,8 @@ function detectAssistant(projectRoot: string, homeDir: string, assistant: Assist
   const scope = projectEvidence.length > 0 ? 'project' : globalEvidence.length > 0 ? 'global' : undefined
 
   return {
-    id: assistant.id,
-    name: assistant.name,
+    id: harness.id,
+    name: harness.name,
     detected: allEvidence.length > 0,
     scope,
     evidence: allEvidence.length > 0 ? allEvidence.join(', ') : undefined,

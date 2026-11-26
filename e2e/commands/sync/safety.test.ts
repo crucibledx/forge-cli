@@ -7,7 +7,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 import {stringify} from 'yaml'
 
-import {getAllAssistants} from '@domain/assistants'
+import {getAllHarnesses} from '@domain/harnesses'
 import {hashContent} from '@domain/sync/state'
 import {buildConfigYaml, SKILL_DEPLOY, writeConfig, writeSourceTree} from '@e2e/fixtures'
 import {CLI_ENTRY} from '@e2e/framework/constants'
@@ -74,7 +74,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
         dir(),
         stringify({
           version: '1',
-          assistants: [{id: 'claude-code', enabled: true}],
+          harnesses: [{id: 'claude-code', enabled: true}],
           sources: [bad, {name: 'valid-neighbor', type: 'local', path: good}],
           sync: {keep_local: false},
         }),
@@ -103,7 +103,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
         dir(),
         stringify({
           version: '1',
-          assistants: [{id: 'claude-code', enabled: true}],
+          harnesses: [{id: 'claude-code', enabled: true}],
           sources: [
             repo
               ? {name: 'readable', type: 'git', url: repo, branch: 'main', exclude: ['**']}
@@ -126,7 +126,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   )
   it('rejects final-source removal without cleaning anything', async () => {
     await seed()
-    await writeConfig(dir(), buildConfigYaml({assistants: ['claude-code'], sync: {keep_local: false}}))
+    await writeConfig(dir(), buildConfigYaml({harnesses: ['claude-code'], sync: {keep_local: false}}))
     const before = await snapshot(dir())
     expect((await sync()).exitCode).toBe(1)
     expect(await snapshot(dir())).toEqual(before)
@@ -138,7 +138,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
     if (!empty) await writeSourceTree(source, {skills: {'deploy.md': 'changed'}})
     await writeConfig(
       dir(),
-      buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}, sync: {keep_local: false}}),
+      buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}, sync: {keep_local: false}}),
     )
     const before = await snapshot(dir())
     expect((await sync(['--dry-run'])).exitCode).toBe(0)
@@ -155,7 +155,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       await symlink(outside, join(root, '.claude'), process.platform === 'win32' ? 'junction' : 'dir')
       const source = join(dir(), 'source')
       await writeSourceTree(source, {skills: {'deploy.md': 'incoming'}})
-      await writeConfig(root, buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}}))
+      await writeConfig(root, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}}))
       const before = await readFile(join(root, '.crucible/forge.config.yaml'))
       const result = await sync(global ? ['--global'] : [])
       expect(result.exitCode).toBe(1)
@@ -164,7 +164,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       expect(existsSync(join(root, '.crucible/sync-state.json'))).toBe(false)
     },
   )
-  it('writes only enabled assistants and retains disabled/unknown entries and bytes', async () => {
+  it('writes only enabled harnesses and retains disabled/unknown entries and bytes', async () => {
     await seed()
     const source = join(dir(), 'source')
     await writeSourceTree(source, {skills: {'deploy.md': 'desired'}})
@@ -172,7 +172,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       dir(),
       stringify({
         version: '1',
-        assistants: getAllAssistants().map((assistant) => ({id: assistant.id, enabled: assistant.id === 'cursor'})),
+        harnesses: getAllHarnesses().map((harness) => ({id: harness.id, enabled: harness.id === 'cursor'})),
         sources: [{name: 'team', type: 'local', path: source}],
         sync: {keep_local: false},
       }),
@@ -187,7 +187,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   it('backs up exact non-UTF8 bytes rather than decoded replacement characters', async () => {
     const source = join(dir(), 'source')
     await writeSourceTree(source, {skills: {'deploy.md': '\uFFFD'}})
-    await writeConfig(dir(), buildConfigYaml({assistants: ['claude-code'], localSource: {path: source}}))
+    await writeConfig(dir(), buildConfigYaml({harnesses: ['claude-code'], localSource: {path: source}}))
     await mkdir(join(dir(), '.claude/skills'), {recursive: true})
     await writeFile(join(dir(), tracked), Buffer.from([0xff]))
     expect((await sync()).exitCode).toBe(0)
@@ -197,7 +197,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
   it('silent mode suppresses normal failure presentation but keeps failure exit and report', async () => {
     await writeConfig(
       dir(),
-      buildConfigYaml({assistants: ['claude-code'], localSource: {path: join(dir(), 'missing')}}),
+      buildConfigYaml({harnesses: ['claude-code'], localSource: {path: join(dir(), 'missing')}}),
     )
     const before = await snapshot(dir())
     const result = await sync(['--silent'])

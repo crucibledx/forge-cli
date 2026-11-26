@@ -45,7 +45,7 @@ describe('forge scheduler', () => {
         await writeConfig(
           dir,
           buildConfigYaml({
-            assistants: ['claude-code'],
+            harnesses: ['claude-code'],
             localSource: {path: sourceDir},
           }),
         )
@@ -68,7 +68,7 @@ describe('forge scheduler', () => {
         await writeConfig(
           dir,
           buildConfigYaml({
-            assistants: ['claude-code'],
+            harnesses: ['claude-code'],
             localSource: {path: sourceDir},
             sync: {schedule: '0 9 * * 1'},
           }),
@@ -99,7 +99,7 @@ describe('forge scheduler', () => {
         await writeConfig(
           dir,
           buildConfigYaml({
-            assistants: ['claude-code'],
+            harnesses: ['claude-code'],
             localSource: {path: sourceDir},
           }),
         )
@@ -122,7 +122,7 @@ describe('forge scheduler', () => {
         await writeConfig(
           dir,
           buildConfigYaml({
-            assistants: ['claude-code'],
+            harnesses: ['claude-code'],
             localSource: {path: sourceDir},
             sync: {schedule: 'not-a-cron'},
           }),

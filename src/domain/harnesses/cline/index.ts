@@ -1,7 +1,7 @@
-import {assistantsRegistry} from '../registry'
-import type {AssistantDefinition} from '../types'
+import {harnessesRegistry} from '../registry'
+import type {HarnessDefinition} from '../types'
 
-export const cline: AssistantDefinition = {
+export const cline: HarnessDefinition = {
   id: 'cline',
   name: 'Cline',
   detection: {
@@ -18,4 +18,4 @@ export const cline: AssistantDefinition = {
   ],
 }
 
-assistantsRegistry.push(cline)
+harnessesRegistry.push(cline)

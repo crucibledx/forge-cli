@@ -13,7 +13,7 @@ function makeReport(overrides: Partial<SyncReport> = {}): SyncReport {
     timestamp: new Date().toISOString(),
     duration_ms: 123,
     sources: ['team'],
-    assistants: ['claude-code'],
+    harnesses: ['claude-code'],
     files: {synced: 5, skipped: 1, conflicts: 0, errors: 0},
     drift: {detected: false, files_drifted: 0, details: []},
     success: true,

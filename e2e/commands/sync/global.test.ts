@@ -24,12 +24,12 @@ describe('sync --global', () => {
     // Global source + config (lives in $HOME)
     const globalSourceDir = join(home, 'global-source')
     await writeSourceTree(globalSourceDir, {rules: {'global-rule.md': '# Global rule'}})
-    await writeConfig(home, buildConfigYaml({assistants: ['claude-code'], localSource: {path: globalSourceDir}}))
+    await writeConfig(home, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: globalSourceDir}}))
 
     // Project source + config (lives in $HOME/my-project)
     const projectSourceDir = join(projectDir, 'source')
     await writeSourceTree(projectSourceDir, {rules: {'project-rule.md': '# Project rule'}})
-    await writeConfig(projectDir, buildConfigYaml({assistants: ['claude-code'], localSource: {path: projectSourceDir}}))
+    await writeConfig(projectDir, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: projectSourceDir}}))
 
     // Run sync --global from project dir — should use HOME config, not project config
     const {exitCode} = await runCommand(projectDir, '--global', ['sync'], {HOME: home})
@@ -49,7 +49,7 @@ describe('sync --global', () => {
     const home = getDir()
     const sourceDir = join(home, 'global-source')
     await writeSourceTree(sourceDir, {rules: {'api.md': '# API from global'}})
-    await writeConfig(home, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
+    await writeConfig(home, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: sourceDir}}))
 
     const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
     expect(exitCode).toBe(0)
@@ -68,7 +68,7 @@ describe('sync --global', () => {
     const home = getDir()
     const sourceDir = join(home, 'global-source')
     await writeSourceTree(sourceDir, {skills: {'deploy.md': '# Deploy skill'}})
-    await writeConfig(home, buildConfigYaml({assistants: ['windsurf'], localSource: {path: sourceDir}}))
+    await writeConfig(home, buildConfigYaml({harnesses: ['windsurf'], localSource: {path: sourceDir}}))
 
     const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
     expect(exitCode).toBe(0)
@@ -83,7 +83,7 @@ describe('sync --global', () => {
     const home = getDir()
     const sourceDir = join(home, 'global-source')
     await writeSourceTree(sourceDir, {rules: {'api.md': '# API rule'}})
-    await writeConfig(home, buildConfigYaml({assistants: ['claude-code'], localSource: {path: sourceDir}}))
+    await writeConfig(home, buildConfigYaml({harnesses: ['claude-code'], localSource: {path: sourceDir}}))
 
     const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
     expect(exitCode).toBe(0)
@@ -96,7 +96,7 @@ describe('sync --global', () => {
     const home = getDir()
     const sourceDir = join(home, 'global-source')
     await writeSourceTree(sourceDir, {workflows: {'build.md': '# Build workflow'}})
-    await writeConfig(home, buildConfigYaml({assistants: ['windsurf'], localSource: {path: sourceDir}}))
+    await writeConfig(home, buildConfigYaml({harnesses: ['windsurf'], localSource: {path: sourceDir}}))
 
     const {exitCode} = await runCommand(home, '--global', ['sync'], {HOME: home})
     expect(exitCode).toBe(0)

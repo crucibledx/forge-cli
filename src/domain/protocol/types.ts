@@ -1,7 +1,7 @@
 import type {ProjectConfig} from '../config/types'
 import type {Mutation} from '../sync/types'
 
-export interface PluginRequest {
+export interface ExtensionRequest {
   version: '1'
   command: string
   subcommand?: string
@@ -22,7 +22,7 @@ export interface OutputEntry {
   detail?: string
 }
 
-export interface PluginResponse {
+export interface ExtensionResponse {
   version: '1'
   status: 'success' | 'error' | 'partial'
   output: OutputEntry[]
