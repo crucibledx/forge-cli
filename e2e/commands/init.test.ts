@@ -13,11 +13,11 @@ import {join} from 'node:path'
 import {beforeEach, describe, expect, it} from 'bun:test'
 import {map} from 'lodash-es'
 
-import {claudeCode} from '@domain/assistants/claude-code'
-import {cline} from '@domain/assistants/cline'
-import {copilot} from '@domain/assistants/copilot'
-import {cursor} from '@domain/assistants/cursor'
-import {windsurf} from '@domain/assistants/windsurf'
+import {claudeCode} from '@domain/harnesses/claude-code'
+import {cline} from '@domain/harnesses/cline'
+import {copilot} from '@domain/harnesses/copilot'
+import {cursor} from '@domain/harnesses/cursor'
+import {windsurf} from '@domain/harnesses/windsurf'
 import {SCHEDULER_PROMPT_MESSAGES as SchM} from '@application/commands/shared/scheduler.prompt'
 import type {GitSourceConfig, LocalSourceConfig} from '@infrastructure/source'
 import {
@@ -49,15 +49,15 @@ const getDir = useTmpDir('forge-e2e')
 
 // ─── Reusable drivers ─────────────────────────────────────────────────────────
 
-function declineAllAssistants(cli: CLISession): CliStep {
-  // Multiselect: no assistants detected in tmp dir, so none pre-selected.
+function declineAllHarnesses(cli: CLISession): CliStep {
+  // Multiselect: no harnesses detected in tmp dir, so none pre-selected.
   // Press Enter immediately to confirm with zero selection.
-  return cli.waitForText(M.assistants.select).pressEnter()
+  return cli.waitForText(M.harnesses.select).pressEnter()
 }
 
 function declineAll(cli: CLISession): CliStep {
   return (
-    declineAllAssistants(cli)
+    declineAllHarnesses(cli)
       // then decline adding a source
       .waitForText(M.source.addSource)
       .pressKey(N)
@@ -77,7 +77,7 @@ const SOURCE_URL = 'git@github.com:org/ai-configs.git'
 
 function addSource(cli: CLISession, runSync = N): CliStep {
   return (
-    declineAllAssistants(cli)
+    declineAllHarnesses(cli)
       // then accept adding a source
       .waitForText(M.source.addSource)
       .pressKey(Y)
@@ -125,9 +125,7 @@ describe('forge init — e2e', () => {
     it(
       'cancels gracefully on Ctrl+C — no config written',
       async () => {
-        const {exitCode} = await runInitSession(getDir(), (cli) =>
-          cli.waitForText(M.assistants.select).pressKey(CTRL_C),
-        )
+        const {exitCode} = await runInitSession(getDir(), (cli) => cli.waitForText(M.harnesses.select).pressKey(CTRL_C))
         expect(exitCode === 0 || exitCode === 1).toBe(true)
         expect(existsSync(configFilePath(getDir()))).toBe(false)
       },
@@ -144,8 +142,8 @@ describe('forge init — e2e', () => {
 
         const config = await readConfig(getDir())
         expect(config.version).toBeDefined()
-        expect(Array.isArray(config.assistants)).toBe(true)
-        expect(config.assistants).toHaveLength(0)
+        expect(Array.isArray(config.harnesses)).toBe(true)
+        expect(config.harnesses).toHaveLength(0)
         expect(config.sources).toEqual([])
         expect(config.project?.name).toBe(getDir().split('/').at(-1))
       },
@@ -166,10 +164,10 @@ describe('forge init — e2e', () => {
     )
 
     it(
-      'warns when no assistants selected',
+      'warns when no harnesses selected',
       async () => {
         const {output} = await runInitSession(getDir(), declineAll)
-        expect(output).toContain(M.assistants.noneSelected)
+        expect(output).toContain(M.harnesses.noneSelected)
       },
       TIMEOUT_MS,
     )
@@ -184,15 +182,15 @@ describe('forge init — e2e', () => {
     )
   })
 
-  describe('assistant selection', () => {
+  describe('harness selection', () => {
     it(
-      'enables a single selected assistant (Cursor — 4th in list)',
+      'enables a single selected harness (Cursor — 4th in list)',
       async () => {
         // List order: claudeCode(0), cline(1), copilot(2), cursor(3), windsurf(4)
         // Navigate to cursor: Down(×3), Space to toggle, Enter to confirm
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressKey(ARROW_DOWN) // move to cline
             .pressKey(ARROW_DOWN) // move to copilot
             .pressKey(ARROW_DOWN) // move to cursor
@@ -208,20 +206,20 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(1)
-        expect(config.assistants[0].id).toBe(cursor.id)
-        expect(config.assistants[0].enabled).toBe(true)
+        expect(config.harnesses).toHaveLength(1)
+        expect(config.harnesses[0].id).toBe(cursor.id)
+        expect(config.harnesses[0].enabled).toBe(true)
       },
       TIMEOUT_MS,
     )
 
     it(
-      'enables multiple selected assistants (Claude Code + Cursor)',
+      'enables multiple selected harnesses (Claude Code + Cursor)',
       async () => {
         // Space on first (claudeCode), Down×3, Space on cursor, Enter
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressKey(SPACE) // select claudeCode
             .pressKey(ARROW_DOWN) // move to cline
             .pressKey(ARROW_DOWN) // move to copilot
@@ -238,21 +236,21 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(2)
+        expect(config.harnesses).toHaveLength(2)
 
-        const ids = map(config.assistants, (a) => a.id)
+        const ids = map(config.harnesses, (a) => a.id)
         expect(ids).toContainValues([claudeCode.id, cursor.id])
       },
       TIMEOUT_MS,
     )
 
     it(
-      'enables all assistants when user selects all (Space×5 + Enter)',
+      'enables all harnesses when user selects all (Space×5 + Enter)',
       async () => {
         // Select each in turn: Space, Down, Space, Down, ..., Enter
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressKey(SPACE) // claudeCode
             .pressKey(ARROW_DOWN)
             .pressKey(SPACE) // cline
@@ -273,9 +271,9 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(5)
+        expect(config.harnesses).toHaveLength(5)
 
-        const ids = map(config.assistants, (a) => a.id)
+        const ids = map(config.harnesses, (a) => a.id)
         expect(ids).toContainValues([claudeCode.id, cursor.id, windsurf.id, copilot.id, cline.id])
       },
       TIMEOUT_MS,
@@ -305,7 +303,7 @@ describe('forge init — e2e', () => {
       async () => {
         const localPath = getDir()
         await runInitSession(getDir(), (cli) =>
-          declineAllAssistants(cli)
+          declineAllHarnesses(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
             .waitForText(SM.name.message)
@@ -340,7 +338,7 @@ describe('forge init — e2e', () => {
   })
 
   describe('existing config — aborts early', () => {
-    const existingContent = '# .crucible/forge.config.yaml\nversion: "1"\nassistants: []\n'
+    const existingContent = '# .crucible/forge.config.yaml\nversion: "1"\nharnesses: []\n'
 
     beforeEach(async () => {
       await Bun.write(join(crucibleDirPath(getDir()), CONFIG_FILE), existingContent)
@@ -358,12 +356,12 @@ describe('forge init — e2e', () => {
     )
 
     it(
-      'does not prompt for assistants or source when config exists',
+      'does not prompt for harnesses or source when config exists',
       async () => {
         const {output} = await runInitSession(getDir(), (cli) => cli.waitForText(M.configExists))
 
-        // Should see the abort message but NOT the assistant prompt
-        expect(output).not.toContain(M.assistants.select)
+        // Should see the abort message but NOT the harness prompt
+        expect(output).not.toContain(M.harnesses.select)
         expect(output).not.toContain(M.source.addSource)
       },
       TIMEOUT_MS,
@@ -375,7 +373,7 @@ describe('forge init — e2e', () => {
       'proceeds through wizard when --force is set and config exists',
       async () => {
         const dir = getDir()
-        await Bun.write(join(crucibleDirPath(dir), CONFIG_FILE), 'version: "1"\nassistants: []\n')
+        await Bun.write(join(crucibleDirPath(dir), CONFIG_FILE), 'version: "1"\nharnesses: []\n')
 
         await runInitSession(dir, (cli) => declineAll(cli), ['--force'])
 
@@ -393,7 +391,7 @@ describe('forge init — e2e', () => {
       'writes custom branch when user enters one',
       async () => {
         await runInitSession(getDir(), (cli) =>
-          declineAllAssistants(cli)
+          declineAllHarnesses(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
             .waitForText(SM.name.message)
@@ -431,7 +429,7 @@ describe('forge init — e2e', () => {
       'writes subdirectory path when user enters one',
       async () => {
         await runInitSession(getDir(), (cli) =>
-          declineAllAssistants(cli)
+          declineAllHarnesses(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
             .waitForText(SM.name.message)
@@ -469,7 +467,7 @@ describe('forge init — e2e', () => {
       'shows url validation error on empty input and re-prompts',
       async () => {
         await runInitSession(getDir(), (cli) =>
-          declineAllAssistants(cli)
+          declineAllHarnesses(cli)
             .waitForText(M.source.addSource)
             .pressKey(Y)
             .waitForText(SM.name.message)
@@ -523,9 +521,9 @@ describe('forge init — e2e', () => {
     )
   })
 
-  describe('detected assistants', () => {
+  describe('detected harnesses', () => {
     it(
-      'pre-selects detected assistant (.cursor dir) — Enter confirms it',
+      'pre-selects detected harness (.cursor dir) — Enter confirms it',
       async () => {
         // cursor is detected (pre-selected); press Enter immediately to confirm
         await mkdir(join(getDir(), '.cursor'), {recursive: true})
@@ -533,7 +531,7 @@ describe('forge init — e2e', () => {
 
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressEnter()
             .waitForText(M.source.addSource)
             .pressKey(N)
@@ -545,15 +543,15 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(1)
-        expect(config.assistants[0].id).toBe(cursor.id)
-        expect(config.assistants[0].enabled).toBe(true)
+        expect(config.harnesses).toHaveLength(1)
+        expect(config.harnesses[0].id).toBe(cursor.id)
+        expect(config.harnesses[0].enabled).toBe(true)
       },
       TIMEOUT_MS,
     )
 
     it(
-      'deselects pre-selected detected assistant — not written to config',
+      'deselects pre-selected detected harness — not written to config',
       async () => {
         // cursor detected at list position 3; navigate to it, Space deselects, Enter confirms
         await mkdir(join(getDir(), '.cursor'), {recursive: true})
@@ -561,7 +559,7 @@ describe('forge init — e2e', () => {
 
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressKey(ARROW_DOWN) // move to cline (position 1)
             .pressKey(ARROW_DOWN) // move to copilot (position 2)
             .pressKey(ARROW_DOWN) // move to cursor (position 3)
@@ -577,20 +575,20 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(0)
+        expect(config.harnesses).toHaveLength(0)
       },
       TIMEOUT_MS,
     )
 
     it(
-      'pre-selects detected assistant by file evidence (CLAUDE.md → claude-code)',
+      'pre-selects detected harness by file evidence (CLAUDE.md → claude-code)',
       async () => {
         // claudeCode detected at position 0 (first item, already focused)
         await Bun.write(join(getDir(), 'CLAUDE.md'), '# Claude instructions')
 
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressEnter()
             .waitForText(M.source.addSource)
             .pressKey(N)
@@ -602,15 +600,15 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(1)
-        expect(config.assistants[0].id).toBe(claudeCode.id)
-        expect(config.assistants[0].enabled).toBe(true)
+        expect(config.harnesses).toHaveLength(1)
+        expect(config.harnesses[0].id).toBe(claudeCode.id)
+        expect(config.harnesses[0].enabled).toBe(true)
       },
       TIMEOUT_MS,
     )
 
     it(
-      'pre-selects detected assistant by file evidence (copilot-instructions.md → copilot)',
+      'pre-selects detected harness by file evidence (copilot-instructions.md → copilot)',
       async () => {
         // copilot detected at position 2; pressing Enter includes only the pre-selected one
         await mkdir(join(getDir(), '.github'), {recursive: true})
@@ -618,7 +616,7 @@ describe('forge init — e2e', () => {
 
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressEnter()
             .waitForText(M.source.addSource)
             .pressKey(N)
@@ -630,22 +628,22 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(1)
-        expect(config.assistants[0].id).toBe(copilot.id)
-        expect(config.assistants[0].enabled).toBe(true)
+        expect(config.harnesses).toHaveLength(1)
+        expect(config.harnesses[0].id).toBe(copilot.id)
+        expect(config.harnesses[0].enabled).toBe(true)
       },
       TIMEOUT_MS,
     )
 
     it(
-      'does not pre-select assistant when its directory exists but is empty',
+      'does not pre-select harness when its directory exists but is empty',
       async () => {
-        // empty .cursor/ dir — not detected, so Enter writes no assistants
+        // empty .cursor/ dir — not detected, so Enter writes no harnesses
         await mkdir(join(getDir(), '.cursor'), {recursive: true})
 
         await runInitSession(getDir(), (cli) =>
           cli
-            .waitForText(M.assistants.select)
+            .waitForText(M.harnesses.select)
             .pressEnter()
             .waitForText(M.source.addSource)
             .pressKey(N)
@@ -657,7 +655,7 @@ describe('forge init — e2e', () => {
             .pressKey(N),
         )
         const config = await readConfig(getDir())
-        expect(config.assistants).toHaveLength(0)
+        expect(config.harnesses).toHaveLength(0)
       },
       TIMEOUT_MS,
     )

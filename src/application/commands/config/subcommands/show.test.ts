@@ -24,7 +24,7 @@ const consoleLogSpy = spyOn(console, 'log')
 
 const baseConfig: ProjectConfig = {
   version: '1',
-  assistants: [{id: 'cursor', enabled: true}],
+  harnesses: [{id: 'cursor', enabled: true}],
   sources: [
     {
       name: 'default',
@@ -48,11 +48,11 @@ describe('runConfigShow', () => {
     expect(renderWarning).toHaveBeenCalledWith(SHOW_MESSAGES.noConfig)
   })
 
-  it('prints assistants section', async () => {
+  it('prints harnesses section', async () => {
     mockLoadProjectConfig.mockReturnValue(baseConfig)
     await runConfigShow()
     const output = consoleLogSpy.mock.calls.map((c) => c[0]).join('\n')
-    expect(output).toContain('Assistants')
+    expect(output).toContain('Harnesses')
     expect(output).toContain('Cursor')
   })
 
@@ -96,8 +96,8 @@ describe('runConfigShow', () => {
     expect(output).toContain('0 9 * * *')
   })
 
-  it('shows none for empty assistants', async () => {
-    mockLoadProjectConfig.mockReturnValue({...baseConfig, assistants: []})
+  it('shows none for empty harnesses', async () => {
+    mockLoadProjectConfig.mockReturnValue({...baseConfig, harnesses: []})
     await runConfigShow()
     const output = consoleLogSpy.mock.calls.map((c) => c[0]).join('\n')
     expect(output).toContain('none')

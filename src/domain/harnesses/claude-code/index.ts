@@ -1,7 +1,7 @@
-import {assistantsRegistry} from '../registry'
-import type {AssistantDefinition} from '../types'
+import {harnessesRegistry} from '../registry'
+import type {HarnessDefinition} from '../types'
 
-export const claudeCode: AssistantDefinition = {
+export const claudeCode: HarnessDefinition = {
   id: 'claude-code',
   name: 'Claude Code',
   detection: {
@@ -15,4 +15,4 @@ export const claudeCode: AssistantDefinition = {
   ],
 }
 
-assistantsRegistry.push(claudeCode)
+harnessesRegistry.push(claudeCode)

@@ -8,7 +8,7 @@ describe('buildSyncReport', () => {
     const report = buildSyncReport({
       startTime: Date.now() - 500,
       sources: ['team', 'shared'],
-      assistants: ['claude-code', 'windsurf'],
+      harnesses: ['claude-code', 'windsurf'],
       synced: 10,
       skipped: 2,
       conflicts: 0,
@@ -20,7 +20,7 @@ describe('buildSyncReport', () => {
     expect(report.timestamp).toBeDefined()
     expect(report.duration_ms).toBeGreaterThanOrEqual(0)
     expect(report.sources).toEqual(['team', 'shared'])
-    expect(report.assistants).toEqual(['claude-code', 'windsurf'])
+    expect(report.harnesses).toEqual(['claude-code', 'windsurf'])
     expect(report.files.synced).toBe(10)
     expect(report.files.skipped).toBe(2)
     expect(report.files.conflicts).toBe(0)
@@ -34,7 +34,7 @@ describe('buildSyncReport', () => {
     const report = buildSyncReport({
       startTime: Date.now(),
       sources: ['team'],
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       synced: 5,
       skipped: 0,
       conflicts: 0,
@@ -56,7 +56,7 @@ describe('buildSyncReport', () => {
     const report = buildSyncReport({
       startTime: Date.now(),
       sources: ['team'],
-      assistants: ['claude-code'],
+      harnesses: ['claude-code'],
       synced: 0,
       skipped: 0,
       conflicts: 0,

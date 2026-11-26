@@ -11,6 +11,14 @@ const REPORT_DIR = join(homedir(), '.crucible', 'forge', 'reports')
 const LATEST_FILE = 'latest.json'
 const DEFAULT_MAX_AGE_DAYS = 30
 
+type StoredSyncReport = Omit<SyncReport, 'harnesses'> & {harnesses?: string[]; assistants?: string[]}
+
+/** Reports written before the harness rename carry `assistants` instead of `harnesses`. */
+export function parseStoredReport(content: string): SyncReport {
+  const {assistants, ...report} = JSON.parse(content) as StoredSyncReport
+  return {...report, harnesses: report.harnesses ?? assistants ?? []}
+}
+
 function historyFilename(timestamp: string): string {
   return timestamp.replace(/[:.]/g, '-').replace('T', '-').replace('Z', '') + '.json'
 }
@@ -33,7 +41,7 @@ export function createReportService(reportDir?: string): ReportService {
       if (!existsSync(latestPath)) return null
       try {
         const content = await readFile(latestPath, 'utf-8')
-        return JSON.parse(content) as SyncReport
+        return parseStoredReport(content)
       } catch {
         return null
       }
@@ -50,7 +58,7 @@ export function createReportService(reportDir?: string): ReportService {
       for (const file of files) {
         try {
           const content = await readFile(join(HISTORY_DIR_RESOLVED, file), 'utf-8')
-          reports.push(JSON.parse(content) as SyncReport)
+          reports.push(parseStoredReport(content))
         } catch {
           // skip corrupt files
         }

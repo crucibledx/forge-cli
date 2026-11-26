@@ -12,7 +12,7 @@ import {TELEMETRY_EVENTS} from './types'
 
 const minConfig = (telemetry?: Partial<{enabled: boolean; backend: string}>): ProjectConfig => ({
   version: '1',
-  assistants: [],
+  harnesses: [],
   sources: [],
   ...(telemetry ? {telemetry} : {}),
 })

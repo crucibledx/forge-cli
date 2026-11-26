@@ -71,7 +71,7 @@ mock.module('@infrastructure/io', () => ({
     resolveProjectRoot: () => '/fake',
     buildContext: async () => ({
       projectRoot: '/fake',
-      projectConfig: mockHasConfig ? {assistants: [{id: 'claude-code', enabled: true}], sources: []} : null,
+      projectConfig: mockHasConfig ? {harnesses: [{id: 'claude-code', enabled: true}], sources: []} : null,
       hasProjectConfig: mockHasConfig,
     }),
   },
@@ -128,7 +128,7 @@ describe('displayDrift', () => {
     expect(successCalls[0].args[0]).toBe(M.output.allInSync)
   })
 
-  it('renders drift files grouped by assistant', () => {
+  it('renders drift files grouped by harness', () => {
     const summary: DriftSummary = {
       lastSync: new Date().toISOString(),
       files: [

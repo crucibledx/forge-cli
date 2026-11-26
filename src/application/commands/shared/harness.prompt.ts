@@ -1,51 +1,51 @@
-import type {AssistantConfig, AssistantDefinition, AssistantId, DetectionResult} from '@domain/assistants'
-import {getAllAssistants} from '@domain/assistants'
+import type {DetectionResult, HarnessConfig, HarnessDefinition, HarnessId} from '@domain/harnesses'
+import {getAllHarnesses} from '@domain/harnesses'
 import * as prompts from '@infrastructure/cli/prompts'
 import * as renderer from '@infrastructure/cli/renderer'
-import {scanForAssistants} from '@infrastructure/fs'
+import {scanForHarnesses} from '@infrastructure/fs'
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
-export const ASSISTANT_PROMPT_MESSAGES = {
+export const HARNESS_PROMPT_MESSAGES = {
   scanning: 'Scanning for AI configs...',
   scanDone: 'Scan complete',
-  select: 'Select assistants to enable:',
+  select: 'Select harnesses to enable:',
   detectedHint: 'detected',
   detectedGlobalHint: 'detected globally',
-  noneSelected: 'No assistants selected.',
+  noneSelected: 'No harnesses selected.',
 } as const
 
 // ─── Scan ────────────────────────────────────────────────────────────────────
 
-export interface AssistantScanResult {
-  allAssistants: readonly AssistantDefinition[]
+export interface HarnessScanResult {
+  allHarnesses: readonly HarnessDefinition[]
   detectionResults: DetectionResult[]
 }
 
-export function runAssistantScan(projectRoot: string): AssistantScanResult {
-  const M = ASSISTANT_PROMPT_MESSAGES
+export function runHarnessScan(projectRoot: string): HarnessScanResult {
+  const M = HARNESS_PROMPT_MESSAGES
   const s = prompts.spinner()
   s.start(M.scanning)
-  const allAssistants = getAllAssistants()
-  const detectionResults = scanForAssistants(projectRoot, allAssistants)
+  const allHarnesses = getAllHarnesses()
+  const detectionResults = scanForHarnesses(projectRoot, allHarnesses)
   s.stop(M.scanDone)
-  return {allAssistants, detectionResults}
+  return {allHarnesses, detectionResults}
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
 
-export async function promptAssistantSelection(
-  scan: AssistantScanResult,
-  initialIds: AssistantId[],
-): Promise<AssistantConfig[]> {
-  const M = ASSISTANT_PROMPT_MESSAGES
-  const {allAssistants, detectionResults} = scan
-  const detectionByAssistant = new Map(detectionResults.map((r) => [r.id, r]))
+export async function promptHarnessSelection(
+  scan: HarnessScanResult,
+  initialIds: HarnessId[],
+): Promise<HarnessConfig[]> {
+  const M = HARNESS_PROMPT_MESSAGES
+  const {allHarnesses, detectionResults} = scan
+  const detectionByHarness = new Map(detectionResults.map((r) => [r.id, r]))
 
   const selectedIds = await prompts.multiselect({
     message: M.select,
-    options: allAssistants.map((a) => {
-      const result = detectionByAssistant.get(a.id)
+    options: allHarnesses.map((a) => {
+      const result = detectionByHarness.get(a.id)
       let hint: string | undefined
       if (result?.detected) {
         hint = result.scope === 'global' ? (result.evidence?.split(', ')[0] ?? M.detectedGlobalHint) : M.detectedHint
@@ -59,5 +59,5 @@ export async function promptAssistantSelection(
     renderer.renderWarning(M.noneSelected)
   }
 
-  return selectedIds.map((id) => ({id: id as AssistantId, enabled: true}))
+  return selectedIds.map((id) => ({id: id as HarnessId, enabled: true}))
 }

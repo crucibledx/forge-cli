@@ -35,8 +35,8 @@ export const safetyLedger: SafetyRule[] = [
     tests: [
       'src/application/commands/sync/safety.test.ts',
       'e2e/contracts/platform.test.ts',
-      'e2e/commands/sync/safety/assistant-scope.test.ts',
-      'src/application/commands/sync/assistant-scope.test.ts',
+      'e2e/commands/sync/safety/harness-scope.test.ts',
+      'src/application/commands/sync/harness-scope.test.ts',
     ],
   },
   {

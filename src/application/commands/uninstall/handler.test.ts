@@ -7,7 +7,7 @@ import type {SyncState} from '@domain/sync/state'
 
 let mockConfig: ProjectConfig | null = {
   version: '1',
-  assistants: [{id: 'cursor', enabled: true}],
+  harnesses: [{id: 'cursor', enabled: true}],
   sources: [{name: 'default', type: 'local', path: '/tmp/src'}],
 }
 
@@ -128,7 +128,7 @@ beforeEach(() => {
   delete mockSyncState.files['.claude/settings.local.json']
   mockConfig = {
     version: '1',
-    assistants: [{id: 'cursor', enabled: true}],
+    harnesses: [{id: 'cursor', enabled: true}],
     sources: [{name: 'default', type: 'local', path: '/tmp/src'}],
   }
 })

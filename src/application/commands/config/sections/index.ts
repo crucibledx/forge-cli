@@ -1,4 +1,4 @@
-import './assistants'
+import './harnesses'
 import './scheduler'
 import './source'
 import './sync'

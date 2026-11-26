@@ -8,7 +8,7 @@ let rendererCalls: Array<{method: string; args: unknown[]}> = []
 let stateError: Error | undefined
 let mockConfig: unknown = {
   version: '1',
-  assistants: [{id: 'claude-code', enabled: true}],
+  harnesses: [{id: 'claude-code', enabled: true}],
   sources: [
     {name: 'team-rules', type: 'local', path: '/tmp/source'},
     {name: 'org-standards', type: 'git', url: 'https://github.com/org/standards'},
@@ -101,7 +101,7 @@ beforeEach(() => {
   writeSyncStateMock.mockClear()
   mockConfig = {
     version: '1',
-    assistants: [{id: 'claude-code', enabled: true}],
+    harnesses: [{id: 'claude-code', enabled: true}],
     sources: [
       {name: 'team-rules', type: 'local', path: '/tmp/source'},
       {name: 'org-standards', type: 'git', url: 'https://github.com/org/standards'},
@@ -140,7 +140,7 @@ describe('runSourceEdit', () => {
   })
 
   it('shows no-sources warning when sources are empty', async () => {
-    mockConfig = {version: '1', assistants: [], sources: []}
+    mockConfig = {version: '1', harnesses: [], sources: []}
     await runSourceEdit()
 
     expect(writeProjectConfigMock).not.toHaveBeenCalled()

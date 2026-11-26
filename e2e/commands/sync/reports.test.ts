@@ -37,7 +37,7 @@ describe('sync reports', () => {
     const report: SyncReport = JSON.parse(await readFile(latestPath, 'utf-8'))
     expect(report.success).toBe(true)
     expect(report.sources).toEqual(['test-source'])
-    expect(report.assistants).toEqual(['claude-code'])
+    expect(report.harnesses).toEqual(['claude-code'])
     expect(report.files.synced).toBeGreaterThan(0)
     expect(report.files.errors).toBe(0)
     expect(report.duration_ms).toBeGreaterThanOrEqual(0)

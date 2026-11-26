@@ -1,0 +1,126 @@
+import {readFile, writeFile} from 'node:fs/promises'
+import {join} from 'node:path'
+
+import {handlerFixture, protectedBytes, trackedPath} from '@test-helpers/sync-fixture'
+import {useTmpDir} from '@test-helpers/tmp'
+import {afterEach, expect, it, spyOn} from 'bun:test'
+
+import {transactionIO} from '@infrastructure/fs/transaction'
+
+import {runSyncWithDependencies} from './handler'
+
+const dir = useTmpDir('sync-alias')
+const options = {dryRun: false, verbose: false, silent: true}
+const CONFIG = '.crucible/forge.config.yaml'
+afterEach(() => {
+  process.exitCode = 0
+})
+
+async function aliasFixture(root: string) {
+  const fixture = await handlerFixture(root)
+  const original = (await readFile(join(root, CONFIG), 'utf-8')).replace(/^harnesses:/m, '# legacy key\nassistants:')
+  await writeFile(join(root, CONFIG), original)
+  return {...fixture, original}
+}
+
+it('renames the alias key and then writes the synced config', async () => {
+  const root = dir(),
+    {dependencies} = await aliasFixture(root)
+  await runSyncWithDependencies(options, dependencies)
+  expect(process.exitCode ?? 0).toBe(0)
+  const config = await readFile(join(root, CONFIG), 'utf-8')
+  expect(config).toContain('harnesses:')
+  expect(config).not.toContain('assistants')
+  expect(await readFile(join(root, trackedPath), 'utf-8')).toBe('after')
+})
+
+it('leaves the alias config untouched in a dry run', async () => {
+  const root = dir(),
+    {dependencies, original} = await aliasFixture(root)
+  await runSyncWithDependencies({...options, dryRun: true}, dependencies)
+  expect(await readFile(join(root, CONFIG), 'utf-8')).toBe(original)
+})
+
+it.each([
+  ['the alias rename', 1],
+  [trackedPath, 1],
+  ['.crucible/sync-state.json', 1],
+  [CONFIG, 2],
+])('a failure after %s restores the original alias config and every protected byte', async (failedPath, nth) => {
+  const root = dir(),
+    {dependencies, original} = await aliasFixture(root)
+  const before = await protectedBytes(root)
+  const target = failedPath === 'the alias rename' ? CONFIG : failedPath
+  let seen = 0
+  let injected = false
+  const transaction = {
+    ...transactionIO,
+    replace: async (...args: Parameters<typeof transactionIO.replace>) => {
+      await transactionIO.replace(...args)
+      if (!injected && args[1].replaceAll('\\', '/').endsWith(`/${target}`) && ++seen === nth) {
+        injected = true
+        throw new Error('failure after replacement')
+      }
+    },
+  }
+  await runSyncWithDependencies(options, {...dependencies, transaction})
+  expect(injected).toBe(true)
+  expect(process.exitCode).toBe(1)
+  expect(await readFile(join(root, CONFIG), 'utf-8')).toBe(original)
+  expect(await protectedBytes(root)).toEqual(before)
+})
+
+it('reports recovery required on stderr when the alias rename cannot be rolled back', async () => {
+  const root = dir(),
+    {dependencies, original} = await aliasFixture(root)
+  const transaction = {
+    ...transactionIO,
+    replace: async (...args: Parameters<typeof transactionIO.replace>) => {
+      if (args[1].replaceAll('\\', '/').endsWith(`/${CONFIG}`)) throw new Error('config write denied')
+      await transactionIO.replace(...args)
+    },
+  }
+  const stderr = spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    await runSyncWithDependencies(options, {...dependencies, transaction})
+    expect(process.exitCode).toBe(1)
+    const message = stderr.mock.calls.flat().join(' ')
+    expect(message).toContain('Recovery required')
+    expect(message).toContain(CONFIG)
+    expect(await readFile(join(root, CONFIG), 'utf-8')).toBe(original)
+  } finally {
+    stderr.mockRestore()
+  }
+})
+
+it('reports a failed alias undo on stderr even in silent mode', async () => {
+  const root = dir(),
+    {dependencies} = await aliasFixture(root)
+  let failTarget = true
+  let configWrites = 0
+  const transaction = {
+    ...transactionIO,
+    replace: async (...args: Parameters<typeof transactionIO.replace>) => {
+      const path = args[1].replaceAll('\\', '/')
+      if (failTarget && path.endsWith(`/${trackedPath}`)) {
+        failTarget = false
+        throw new Error('target write denied')
+      }
+      // The second and third config writes are the undo and its own compensation.
+      if (path.endsWith(`/${CONFIG}`) && ++configWrites >= 2) throw new Error('undo write denied')
+      await transactionIO.replace(...args)
+    },
+  }
+  const stderr = spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    await runSyncWithDependencies(options, {...dependencies, transaction})
+    expect(process.exitCode).toBe(1)
+    const message = stderr.mock.calls.flat().join(' ')
+    expect(message).toContain('Could not undo the `assistants:`')
+    expect(message).toContain('Recovery required')
+    const config = await readFile(join(root, CONFIG), 'utf-8')
+    expect(config).toContain('harnesses:')
+  } finally {
+    stderr.mockRestore()
+  }
+})

@@ -1,4 +1,4 @@
-import type {AssistantConfig} from '@domain/assistants'
+import type {HarnessConfig} from '@domain/harnesses'
 import type {SourceLayoutOption} from '@domain/sync/layout'
 
 export type DeepPartial<T> = {
@@ -61,7 +61,7 @@ export interface ProjectConfig {
     name: string
     description?: string
   }
-  assistants: AssistantConfig[]
+  harnesses: HarnessConfig[]
   sources: Source[]
   sync?: Partial<SyncConfig>
   telemetry?: Partial<TelemetryConfig>

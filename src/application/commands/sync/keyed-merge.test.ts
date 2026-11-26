@@ -97,7 +97,7 @@ describe('BR-11 keyed merge in sync planning (0003-AC-11,14,15)', () => {
       targetPath: trackedPath,
       sourcePath: 'rules/a.md',
       sourceName: 'team',
-      assistantId: 'claude-code',
+      harnessId: 'claude-code',
       content: 'after',
     }
     const strict = {...defaults, local_conflict_strategy: 'error' as const}

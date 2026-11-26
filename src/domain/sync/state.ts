@@ -15,6 +15,7 @@ export interface SyncStateEntry {
 export const SYNC_STATE_VERSION = 3
 
 export interface SyncState {
+  /** Parsing always yields the current version; 2 remains for in-memory fixtures that model pre-upgrade state. */
   version?: 2 | typeof SYNC_STATE_VERSION
   lastSync: string
   files: Record<string, SyncStateEntry>

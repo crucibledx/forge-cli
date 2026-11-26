@@ -87,17 +87,17 @@ my-source/
     review.md
 ```
 
-Forge auto-detects the layout and maps each file to every assistant's native format:
+Forge auto-detects the layout and maps each file to every harness's native format:
 
-| Assistant          | Target paths                                             | Auto-transform               |
-|--------------------|----------------------------------------------------------|------------------------------|
+| Harness            | Target paths                                             | Auto-transform               |
+| ------------------ | -------------------------------------------------------- | ---------------------------- |
 | **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/` | —                            |
 | **Cursor**         | `.cursor/rules/`                                         | `.md` → `.mdc` + frontmatter |
 | **Windsurf**       | `.windsurf/rules/`, `.windsurf/workflows/`               | frontmatter injection        |
 | **GitHub Copilot** | `.github/skills/`, `.github/instructions/`               | `.md` → `.instructions.md`   |
 | **Cline**          | `.cline/skills/`, `.clinerules/`                         | —                            |
 
-Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new assistant is [one file](https://crucibledx.dev/forge/assistants).
+Only active tools are synced. If your project doesn't use Windsurf, Forge won't touch `.windsurf/`. Adding a new harness is [one file](docs/how-to-add-harness.md).
 
 ## See It in Action
 
@@ -124,9 +124,9 @@ Only active tools are synced. If your project doesn't use Windsurf, Forge won't 
 ## Commands
 
 | Command                   | Description                                            |
-|---------------------------|--------------------------------------------------------|
+| ------------------------- | ------------------------------------------------------ |
 | `forge init`              | Interactive wizard — detect tools, configure sources   |
-| `forge sync`              | Fetch, transform, and place files for each assistant   |
+| `forge sync`              | Fetch, transform, and place files for each harness     |
 | `forge sync --dry-run`    | Preview all changes without writing                    |
 | `forge sync --force`      | Overwrite forge-owned files and keys edited locally    |
 | `forge status`            | Show drift between last sync and filesystem            |
@@ -151,8 +151,8 @@ sources:
     type: git
     url: git@github.com:acme/ai-configs.git
     branch: main
-    subdirectory: skills     # optional: sync only a subfolder
-    include: [ "*.md" ]        # optional: glob filters
+    subdirectory: skills # optional: sync only a subfolder
+    include: ['*.md'] # optional: glob filters
 ```
 
 ### Local directory
@@ -168,7 +168,7 @@ sources:
 
 Forge auto-detects how your source is organized — no configuration needed:
 
-- **Canonical** — `skills/`, `rules/`, `workflows/` folders, distributed and transformed per assistant
+- **Canonical** — `skills/`, `rules/`, `workflows/` folders, distributed and transformed per harness
 - **Pre-structured** — contains `.claude/`, `.cursor/` dirs, copied as-is
 - **Hybrid** — mix of both, auto-detected by default
 
@@ -185,13 +185,13 @@ Forge auto-detects how your source is organized — no configuration needed:
 ### Safety and migration
 
 Serialize sync invocations. Empty readable sources can clean tracked stale files with `keep_local:false`; disabled
-assistants and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
+harnesses and untracked files are retained. Different existing backups and portable case/Unicode/path collisions
 block planning, including case-fold-equivalent spellings such as sigma/final sigma, without renaming stored paths.
 State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
 edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
 Shared JSON/JSONC settings files get keyed merges: forge edits only the keys it owns (state v3 `ownedKeys`), keeps
 comments, formatting and your keys, and blocks when you edited one of its keys; `forge sync --force` overwrites them,
-backs the file up and lists each overridden key. An older forge refuses v3 state instead of misreading it.
+lists each overridden key and, with `backup: true`, keeps a `.bak` of the file. An older forge refuses v3 state instead of misreading it.
 This is not crash recovery or concurrent-writer safety, and ownership/xattrs/timestamps/alternate streams are not
 preservation guarantees. Windows access preservation and durable descendant ownership still require native validation
 on this implementation branch. See [the safety ledger, limits and recovery guide](docs/safety-contract.md).
@@ -225,7 +225,7 @@ bun run typecheck         # tsc --noEmit
 bun run build             # compile to dist/
 ```
 
-DDD architecture: `domain/` (pure logic) → `application/` (commands) → `infrastructure/` (I/O). Adding a new assistant or source type = one file, zero changes to existing commands.
+DDD architecture: `domain/` (pure logic) → `application/` (commands) → `infrastructure/` (I/O). Adding a new harness or source type = one file, zero changes to existing commands.
 
 ## License
 

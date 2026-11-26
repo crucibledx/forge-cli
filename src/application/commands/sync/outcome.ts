@@ -27,7 +27,7 @@ export async function persistOutcome({dryRun, started, config, reports, success,
   const report = buildSyncReport({
     startTime: started,
     sources: config?.sources.map((source) => source.name) ?? [],
-    assistants: config?.assistants.filter((assistant) => assistant.enabled).map((assistant) => assistant.id) ?? [],
+    harnesses: config?.harnesses.filter((harness) => harness.enabled).map((harness) => harness.id) ?? [],
     synced: success ? count(S.NEW, S.UPDATE, S.DELETED) : 0,
     skipped: success ? count(S.NO_CHANGE) : 0,
     conflicts: success ? count(S.SKIPPED) : 0,

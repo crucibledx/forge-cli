@@ -6,6 +6,7 @@ import {isKeyedEntry} from '@domain/sync/state'
 
 // ─── Query ──────────────────────────────────────────────────────────────────
 
+// Keyed entries are shared settings files, never deleted here; the next sync removes the keys no source declares.
 export function getFilesForSource(state: SyncState, sourceName: string): string[] {
   return Object.entries(state.files)
     .filter(([, e]) => e.sourceName === sourceName && !isKeyedEntry(e))

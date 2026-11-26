@@ -4,7 +4,7 @@ import {propertyOptions} from '@test-helpers/property-options'
 import {describe, expect, it} from 'bun:test'
 import fc from 'fast-check'
 
-import {getAllAssistants} from '../assistants'
+import {getAllHarnesses} from '../harnesses'
 import {setGlobalMode} from '../scope'
 import {detectLocalConflict} from './conflict'
 import {resolveSourceConflicts} from './merge'
@@ -20,7 +20,7 @@ const target = (id: number, content: string): ResolvedTarget => ({
   content,
   sourcePath: '',
   sourceName: 'team',
-  assistantId: 'claude-code',
+  harnessId: 'claude-code',
 })
 
 describe('BR-02–04 independent business-rule oracles (AC-20)', () => {
@@ -68,13 +68,13 @@ describe('BR-02–04 independent business-rule oracles (AC-20)', () => {
         setGlobalMode(global)
         try {
           const input = ids.map((id) => ({relativePath: `skills/file-${id}.md`, content: `content-${id}`}))
-          const result = resolveTargets(input, getAllAssistants(), 'team', 'canonical')
-          const expected = getAllAssistants().flatMap((assistant) =>
-            assistant.targetMappings
+          const result = resolveTargets(input, getAllHarnesses(), 'team', 'canonical')
+          const expected = getAllHarnesses().flatMap((harness) =>
+            harness.targetMappings
               .filter((mapping) => mapping.sourceGlob === 'skills/**')
               .flatMap((mapping) =>
                 ids.map((id) => ({
-                  assistantId: assistant.id,
+                  harnessId: harness.id,
                   path: `${(global ? (mapping.destination.global ?? mapping.destination.project) : mapping.destination.project).replace(/\/$/, '')}/file-${id}.md`,
                   content: `content-${id}`,
                 })),
@@ -82,7 +82,7 @@ describe('BR-02–04 independent business-rule oracles (AC-20)', () => {
           )
           expect(
             result.map((item) => ({
-              assistantId: item.assistantId,
+              harnessId: item.harnessId,
               path: item.targetPath.replaceAll('\\', '/'),
               content: item.content,
             })),
@@ -130,7 +130,7 @@ describe('BR-02–04 independent business-rule oracles (AC-20)', () => {
           }
           if (item.status !== 'deleted' && item.status !== 'retained') targets.push(target(item.id, item.content))
           if (item.status !== 'retained')
-            summaries.push({targetPath: path, sourcePath: '', assistantId: 'claude-code', status: item.status})
+            summaries.push({targetPath: path, sourcePath: '', harnessId: 'claude-code', status: item.status})
           if (item.status === 'deleted') delete expected[path]
           else if (item.status !== 'retained' && item.status !== 'skipped')
             expected[path] = {hash: hash(item.content), sourceName: 'team', baseline: 'installed'}

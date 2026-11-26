@@ -1,7 +1,7 @@
 /**
  * E2E tests for `forge sync` edge cases and error handling.
  *
- * Covers: missing config, disabled assistants, nonexistent source path,
+ * Covers: missing config, disabled harnesses, nonexistent source path,
  * special characters in filenames, large file counts.
  */
 
@@ -46,12 +46,12 @@ describe('forge sync — edge cases', () => {
     expect(output).toContain('No source')
   })
 
-  it('exits with error when all assistants are disabled', async () => {
+  it('exits with error when all harnesses are disabled', async () => {
     const dir = getDir()
     const sourceDir = join(dir, 'source')
     const yaml = [
       'version: "1"',
-      'assistants:',
+      'harnesses:',
       '  - id: claude-code',
       '    enabled: false',
       'sources:',
@@ -64,7 +64,7 @@ describe('forge sync — edge cases', () => {
 
     const {exitCode, output} = await runSync(dir)
     expect(exitCode).not.toBe(0)
-    expect(output).toContain('No assistants')
+    expect(output).toContain('No harnesses')
   })
 
   it('fails closed for a nonexistent source path', async () => {
