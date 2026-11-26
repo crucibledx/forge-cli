@@ -7,7 +7,7 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 import {stringify} from 'yaml'
 
-import {getAllAssistants} from '@domain/assistants'
+import {getAllHarnesses} from '@domain/harnesses'
 import {hashContent} from '@domain/sync/state'
 import {buildConfigYaml, SKILL_DEPLOY, writeConfig, writeSourceTree} from '@e2e/fixtures'
 import {CLI_ENTRY} from '@e2e/framework/constants'
@@ -74,7 +74,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
         dir(),
         stringify({
           version: '1',
-          assistants: [{id: 'claude-code', enabled: true}],
+          harnesses: [{id: 'claude-code', enabled: true}],
           sources: [bad, {name: 'valid-neighbor', type: 'local', path: good}],
           sync: {keep_local: false},
         }),
@@ -103,7 +103,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
         dir(),
         stringify({
           version: '1',
-          assistants: [{id: 'claude-code', enabled: true}],
+          harnesses: [{id: 'claude-code', enabled: true}],
           sources: [
             repo
               ? {name: 'readable', type: 'git', url: repo, branch: 'main', exclude: ['**']}
@@ -164,7 +164,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       expect(existsSync(join(root, '.crucible/sync-state.json'))).toBe(false)
     },
   )
-  it('writes only enabled assistants and retains disabled/unknown entries and bytes', async () => {
+  it('writes only enabled harnesses and retains disabled/unknown entries and bytes', async () => {
     await seed()
     const source = join(dir(), 'source')
     await writeSourceTree(source, {skills: {'deploy.md': 'desired'}})
@@ -172,7 +172,7 @@ describe('BR-01–08 CLI safety snapshots (AC-2–15,23)', () => {
       dir(),
       stringify({
         version: '1',
-        assistants: getAllAssistants().map((assistant) => ({id: assistant.id, enabled: assistant.id === 'cursor'})),
+        harnesses: getAllHarnesses().map((harness) => ({id: harness.id, enabled: harness.id === 'cursor'})),
         sources: [{name: 'team', type: 'local', path: source}],
         sync: {keep_local: false},
       }),

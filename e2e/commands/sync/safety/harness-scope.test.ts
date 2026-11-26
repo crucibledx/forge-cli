@@ -4,8 +4,8 @@ import {dirname, join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {expect, it} from 'bun:test'
 
-import {getAllAssistants} from '@domain/assistants'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses} from '@domain/harnesses'
 import {hashContent} from '@domain/sync/state'
 import {CLI_ENTRY} from '@e2e/framework/constants'
 import {runPipe} from '@e2e/framework/pipe'
@@ -16,12 +16,12 @@ const dir = useTmpDir('cli-ownership')
 for (const global of [false, true])
   for (const keep_local of [false, true])
     for (let index = 0; index < 5; index++)
-      it(`AC-4,26 real CLI retains disabled/removed/unknown ownership, global=${global}, assistant=${index}, keep_local=${keep_local}`, async () => {
+      it(`AC-4,26 real CLI retains disabled/removed/unknown ownership, global=${global}, harness=${index}, keep_local=${keep_local}`, async () => {
         const cwd = dir(),
           root = global ? testEnvironment(cwd).HOME : cwd
-        const all = getAllAssistants()
-        const destination = (assistant: (typeof all)[number]) => {
-          const mapping = assistant.targetMappings[0].destination
+        const all = getAllHarnesses()
+        const destination = (harness: (typeof all)[number]) => {
+          const mapping = harness.targetMappings[0].destination
           return `${(global ? (mapping.global ?? mapping.project) : mapping.project).replace(/\/$/, '')}/retained.md`
         }
         const paths = [destination(all[index]), destination(all[(index + 1) % 5]), 'unknown/retained.md']
@@ -47,7 +47,7 @@ for (const global of [false, true])
             version: '1',
             sources: [{name: 'empty', type: 'local', path: join(root, 'upstream')}],
             sync: {...SYNC_CONFIG_DEFAULTS, keep_local},
-            assistants: [
+            harnesses: [
               {id: all[index].id, enabled: false},
               {id: all[(index + 2) % 5].id, enabled: true},
             ],

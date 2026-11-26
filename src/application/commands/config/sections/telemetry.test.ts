@@ -23,7 +23,7 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('telemetrySection', () => {
-  const baseConfig: ProjectConfig = {version: '1', assistants: [], sources: []}
+  const baseConfig: ProjectConfig = {version: '1', harnesses: [], sources: []}
 
   it('hint returns "disabled" when no telemetry config', async () => {
     const {telemetrySection} = await import('./telemetry')

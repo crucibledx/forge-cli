@@ -2,7 +2,7 @@ import {describe, expect, it, mock, spyOn} from 'bun:test'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockProjectConfig = {version: '1', assistants: [], sources: []}
+const mockProjectConfig = {version: '1', harnesses: [], sources: []}
 
 mock.module('@infrastructure/config', () => ({
   loadProjectConfig: async (root: string) => (root === '/has-project' ? mockProjectConfig : null),

@@ -31,7 +31,7 @@ Every transformer receives and returns a `TransformContext`:
 The transformer modifies whichever fields it needs and passes the rest through.
 Future context fields (e.g. `metadata`, `skip`) can be added without breaking existing transformers.
 
-## `TransformStep` (used in assistant `targetMappings`)
+## `TransformStep` (used in harness `targetMappings`)
 
 ```json5
 {

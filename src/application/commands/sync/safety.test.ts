@@ -5,9 +5,9 @@ import {snapshot} from '@test-helpers/snapshot'
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterEach, describe, expect, it} from 'bun:test'
 
-import {assistantsRegistry, getAllAssistants, getAssistant, resolveAssistantByPath} from '@domain/assistants'
 import type {Source} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
+import {getAllHarnesses, getHarness, harnessesRegistry, resolveHarnessByPath} from '@domain/harnesses'
 import {setGlobalMode} from '@domain/scope'
 import type {SyncBaseline, SyncState} from '@domain/sync/state'
 import {hashContent} from '@domain/sync/state'
@@ -21,7 +21,7 @@ const target = (targetPath = path, content = 'desired'): ResolvedTarget => ({
   content,
   sourcePath: 'rules/a.md',
   sourceName: 'team',
-  assistantId: 'claude-code',
+  harnessId: 'claude-code',
 })
 const state = (baseline: SyncBaseline = 'installed', content = 'old'): SyncState => ({
   version: 2,
@@ -55,7 +55,7 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
     const attempted: string[] = []
     const definitions = [
       {
-        ...getAssistant('claude-code'),
+        ...getHarness('claude-code'),
         targetMappings: [{sourceGlob: 'rules/**', destination: {project: '.claude/rules/'}}],
       },
     ]
@@ -182,24 +182,24 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
     expect(plan.mutations).toEqual([{type: 'file_delete', path: sourcePath}])
     expect(await readFile(join(dir(), `${path}.bak`), 'utf8')).toBe('recovery bytes')
   })
-  it('classifies every registered assistant in both scopes and retains disabled/unknown/ambiguous stale ownership', async () => {
+  it('classifies every registered harness in both scopes and retains disabled/unknown/ambiguous stale ownership', async () => {
     for (const global of [false, true]) {
       setGlobalMode(global)
-      for (const assistant of getAllAssistants())
-        for (const mapping of assistant.targetMappings) {
+      for (const harness of getAllHarnesses())
+        for (const mapping of harness.targetMappings) {
           const destination = global
             ? (mapping.destination.global ?? mapping.destination.project)
             : mapping.destination.project
           const owned = `${destination.replace(/\/$/, '')}/a.md`
-          expect(resolveAssistantByPath(owned.replaceAll('/', '\\'))?.id).toBe(assistant.id)
+          expect(resolveHarnessByPath(owned.replaceAll('/', '\\'))?.id).toBe(harness.id)
           const sibling = owned.split('/')
           sibling[0] += '-sibling'
-          expect(resolveAssistantByPath(sibling.join('/'))).toBeUndefined()
+          expect(resolveHarnessByPath(sibling.join('/'))).toBeUndefined()
           const tracked: SyncState = {
             lastSync: '',
             files: {[owned]: {hash: hashContent('old'), sourceName: 'removed-source', baseline: 'installed'}},
           }
-          const enabled = new Set([assistant.id])
+          const enabled = new Set([harness.id])
           expect((await buildPlan(dir(), [], tracked, defaults, enabled)).summaries[0].status).toBe('deleted')
           const disabled = await buildPlan(dir(), [], tracked, defaults, new Set())
           expect(disabled.mutations).toEqual([])
@@ -207,9 +207,9 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
         }
     }
     setGlobalMode(false)
-    assistantsRegistry.push({...getAssistant('claude-code'), id: 'ambiguous-test'})
+    harnessesRegistry.push({...getHarness('claude-code'), id: 'ambiguous-test'})
     try {
-      expect(resolveAssistantByPath(path)).toBeUndefined()
+      expect(resolveHarnessByPath(path)).toBeUndefined()
       const plan = await buildPlan(
         dir(),
         [],
@@ -222,7 +222,7 @@ describe('BR-01–08 safety planning (AC-2–9)', () => {
       expect(ambiguousWrite.mutations).toEqual([])
       expect(ambiguousWrite.warnings.length).toBeGreaterThan(0)
     } finally {
-      assistantsRegistry.pop()
+      harnessesRegistry.pop()
     }
   })
 })

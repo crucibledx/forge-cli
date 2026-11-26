@@ -19,7 +19,7 @@ export async function syncFixture(root: string) {
   const config: ProjectConfig = {
     version: '1',
     sources: [{name: 'team', type: 'local', path: join(root, 'upstream')}],
-    assistants: [{id: 'claude-code', enabled: true}],
+    harnesses: [{id: 'claude-code', enabled: true}],
     sync: {...SYNC_CONFIG_DEFAULTS, keep_local: false},
     lastSync: '2026-01-01T00:00:00.000Z',
   }

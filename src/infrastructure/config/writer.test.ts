@@ -5,8 +5,8 @@ import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 import {parse as parseYaml} from 'yaml'
 
-import {cursor} from '@domain/assistants/cursor'
 import type {ProjectConfig} from '@domain/config/types'
+import {cursor} from '@domain/harnesses/cursor'
 
 import {CONFIG_HEADER, writeProjectConfig} from './writer'
 
@@ -15,7 +15,7 @@ const getDir = useTmpDir('config_writer')
 const config: ProjectConfig = {
   version: '1',
   project: {name: 'test-project'},
-  assistants: [{id: cursor.id, enabled: true}],
+  harnesses: [{id: cursor.id, enabled: true}],
   sources: [{name: 'team', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}],
 }
 
@@ -36,7 +36,7 @@ describe('writeProjectConfig', () => {
     const raw = await readFile(configPath, 'utf-8')
     const parsed = parseYaml(raw)
     expect(parsed.version).toBe('1')
-    expect(parsed.assistants[0].id).toBe(cursor.id)
+    expect(parsed.harnesses[0].id).toBe(cursor.id)
   })
 
   it('written file includes the forge config header comment', async () => {
@@ -57,11 +57,11 @@ describe('writeProjectConfig', () => {
   })
 
   it('writes config with empty sources', async () => {
-    const minimal: ProjectConfig = {version: '1', assistants: [], sources: []}
+    const minimal: ProjectConfig = {version: '1', harnesses: [], sources: []}
     const configPath = await writeProjectConfig(getDir(), minimal)
     const raw = await readFile(configPath, 'utf-8')
     const parsed = parseYaml(raw)
     expect(parsed.sources).toEqual([])
-    expect(parsed.assistants).toEqual([])
+    expect(parsed.harnesses).toEqual([])
   })
 })

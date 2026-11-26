@@ -104,7 +104,7 @@ describe('runConfig', () => {
   })
 
   it('warns and exits when no sections are registered', async () => {
-    mockLoadedConfig = {version: '1', assistants: [], sources: []}
+    mockLoadedConfig = {version: '1', harnesses: [], sources: []}
     const {runConfig} = await import('./handler')
     await runConfig({verbose: false})
     expect(rendererWarnings).toContain(M.noSections)
@@ -114,36 +114,36 @@ describe('runConfig', () => {
   it('runs selected section editor and writes config', async () => {
     mockLoadedConfig = {
       version: '1',
-      assistants: [{id: 'cursor', enabled: true}],
+      harnesses: [{id: 'cursor', enabled: true}],
       sources: [],
     }
     setSections({
-      id: 'assistants',
-      label: 'Assistants',
-      hint: (cfg) => `${cfg.assistants.length} enabled`,
-      edit: async (cfg) => ({...cfg, assistants: [...cfg.assistants, {id: 'windsurf', enabled: true}]}),
+      id: 'harnesses',
+      label: 'Harnesses',
+      hint: (cfg) => `${cfg.harnesses.length} enabled`,
+      edit: async (cfg) => ({...cfg, harnesses: [...cfg.harnesses, {id: 'windsurf', enabled: true}]}),
     })
     promptResponses = {
-      [M.selectSection]: 'assistants',
+      [M.selectSection]: 'harnesses',
     }
     const {runConfig} = await import('./handler')
     await runConfig({verbose: false})
     const cfg = writtenConfig as ProjectConfig
-    expect(cfg.assistants).toHaveLength(2)
+    expect(cfg.harnesses).toHaveLength(2)
   })
 
   it('loops when user picks "change another" with multiple sections', async () => {
     mockLoadedConfig = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       sources: [],
     }
     setSections(
       {
-        id: 'assistants',
-        label: 'Assistants',
+        id: 'harnesses',
+        label: 'Harnesses',
         hint: () => '0 enabled',
-        edit: async (cfg) => ({...cfg, assistants: [{id: 'cursor', enabled: true}]}),
+        edit: async (cfg) => ({...cfg, harnesses: [{id: 'cursor', enabled: true}]}),
       },
       {
         id: 'sources',
@@ -156,26 +156,26 @@ describe('runConfig', () => {
       },
     )
     promptResponses = {
-      [M.selectSection]: ['assistants', 'sources'],
+      [M.selectSection]: ['harnesses', 'sources'],
       [M.changeAnother]: [true, false],
     }
     const {runConfig} = await import('./handler')
     await runConfig({verbose: false})
     const cfg = writtenConfig as ProjectConfig
-    expect(cfg.assistants).toHaveLength(1)
+    expect(cfg.harnesses).toHaveLength(1)
     expect(cfg.sources).toHaveLength(1)
   })
 
   it('does not ask "change another" when only one section exists', async () => {
-    mockLoadedConfig = {version: '1', assistants: [], sources: []}
+    mockLoadedConfig = {version: '1', harnesses: [], sources: []}
     setSections({
-      id: 'assistants',
-      label: 'Assistants',
+      id: 'harnesses',
+      label: 'Harnesses',
       hint: () => '0',
-      edit: async (cfg) => ({...cfg, assistants: [{id: 'cursor', enabled: true}]}),
+      edit: async (cfg) => ({...cfg, harnesses: [{id: 'cursor', enabled: true}]}),
     })
     promptResponses = {
-      [M.selectSection]: 'assistants',
+      [M.selectSection]: 'harnesses',
       [M.changeAnother]: true,
     }
     const {runConfig} = await import('./handler')
@@ -183,6 +183,6 @@ describe('runConfig', () => {
     // If it asked "change another?" and got true, it would loop forever.
     // Since there's only 1 section, it should exit after one edit.
     const cfg = writtenConfig as ProjectConfig
-    expect(cfg.assistants).toHaveLength(1)
+    expect(cfg.harnesses).toHaveLength(1)
   })
 })

@@ -7,10 +7,10 @@ project:
   name: my-api-service          # defaults to directory name
   description: "Backend API"
 
-# ── AI Assistants ───────────────────────────────────────────────
+# ── Coding harnesses ──────────────────────────────────────────────────────────────────────────────────────────
 # Owned by: bootstrap/init feature
 # Detected automatically on `forge init`, or specified manually
-assistants:
+harnesses:
   - id: claude-code
     enabled: true
     config:
@@ -71,23 +71,23 @@ sources:
 
 
 # ── Sync targets ────────────────────────────────────────────────
-# Maps source content to assistant destinations as an override to the default
+# Maps source content to harness destinations as an override to the default
 # If omitted, auto-resolved from default implementation in the code
 # Or here values can be placed from the defaults in code, like a possibility to override later
 targets:
-  - assistant: claude-code
+  - harness: claude-code
     source_glob: "skills/**"
     destination: .claude/skills/
 
-  - assistant: windsurf
+  - harness: windsurf
     source_glob: "skills/**"
     destination: .windsurf/skills/
 
-  - assistant: windsurf
+  - harness: windsurf
     source_glob: "workflows/**"
     destination: .windsurf/workflows/
 
-  - assistant: cursor
+  - harness: cursor
     source_glob: "rules/**"
     destination: .cursor/rules/
 
@@ -110,6 +110,6 @@ sync:
   # Keep local files not present in source
   keep_local: true
 
-# ── Plugin registry (future) ────────────────────────────────────
-# Will be used when forge core CLI arrives
-plugins: []
+# ── Extension registry (future) ─────────────────────────────────
+# Forge's own extension point, not yet built. Will be used when forge core CLI arrives
+extensions: []

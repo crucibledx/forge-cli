@@ -9,7 +9,7 @@ import {createFileLogger} from '@infrastructure/logger'
 import {getSchedulerBackend} from '@infrastructure/scheduler'
 
 import {resolveForgeCommand} from '../shared'
-import {promptAssistantSelection, runAssistantScan} from '../shared/assistant.prompt'
+import {promptHarnessSelection, runHarnessScan} from '../shared/harness.prompt'
 import {promptSchedule, SCHEDULER_PROMPT_MESSAGES as SP} from '../shared/scheduler.prompt'
 import {promptNewSource} from '../shared/source.prompt'
 import {promptSyncSettings, SYNC_PROMPT_MESSAGES as SyncP} from '../shared/sync.prompt'
@@ -32,16 +32,16 @@ export const runInit: InitCommandAction = async (options) => {
   }
 
   // 2. Scan for existing AI configs
-  const scan = runAssistantScan(projectRoot)
+  const scan = runHarnessScan(projectRoot)
 
   renderer.renderNewline()
   renderer.renderInfo(M.detected)
   renderer.renderDetectionResults(scan.detectionResults)
   renderer.renderNewline()
 
-  // 3. Ask which assistants to enable — detected ones pre-selected
+  // 3. Ask which harnesses to enable — detected ones pre-selected
   const detectedIds = scan.detectionResults.filter((r) => r.detected).map((r) => r.id)
-  const assistants = await promptAssistantSelection(scan, detectedIds)
+  const harnesses = await promptHarnessSelection(scan, detectedIds)
 
   // 4. Ask for sources — loop until user declines
   const sources: Source[] = []
@@ -96,7 +96,7 @@ export const runInit: InitCommandAction = async (options) => {
     project: {
       name: basename(projectRoot),
     },
-    assistants,
+    harnesses,
     sources,
     ...(Object.keys(syncBlock).length > 0 ? {sync: syncBlock} : {}),
     ...(wantsTelemetry ? {telemetry: {enabled: true}} : {}),
@@ -104,7 +104,7 @@ export const runInit: InitCommandAction = async (options) => {
 
   const configPath = await writeProjectConfig(projectRoot, config)
   logger.info('init completed', {
-    assistants: assistants.map((a) => a.id),
+    harnesses: harnesses.map((a) => a.id),
     sources: sources.map((s) => s.name),
     schedule: schedule ?? null,
   })

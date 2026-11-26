@@ -6,9 +6,9 @@ import {globalConfigSchema, projectConfigSchema} from './schema'
 
 describe('projectConfigSchema', () => {
   it('parses a minimal valid config', () => {
-    const result = projectConfigSchema.parse({version: '1', assistants: []})
+    const result = projectConfigSchema.parse({version: '1', harnesses: []})
     expect(result.version).toBe('1')
-    expect(result.assistants).toEqual([])
+    expect(result.harnesses).toEqual([])
     expect(result.sources).toEqual([])
   })
 
@@ -16,19 +16,19 @@ describe('projectConfigSchema', () => {
     const raw = {
       version: '1',
       project: {name: 'my-project'},
-      assistants: [{id: 'cursor', enabled: true}],
+      harnesses: [{id: 'cursor', enabled: true}],
       sources: [{name: 'team', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'}],
       lastSync: '2024-01-01T00:00:00.000Z',
     }
     const result = projectConfigSchema.parse(raw)
     expect(result.sources[0].type).toBe('git')
-    expect(result.assistants[0].id).toBe('cursor')
+    expect(result.harnesses[0].id).toBe('cursor')
   })
 
   it('parses a local source in sources array', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       sources: [{name: 'local', type: 'local', path: '/tmp/skills'}],
     }
     const result = projectConfigSchema.parse(raw)
@@ -38,7 +38,7 @@ describe('projectConfigSchema', () => {
   it('defaults branch to main when missing from git source', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       sources: [{name: 'team', type: 'git', url: 'git@github.com:org/repo.git'}],
     }
     const result = projectConfigSchema.parse(raw)
@@ -48,7 +48,7 @@ describe('projectConfigSchema', () => {
   it('migrates v0.1 singular source field into sources array', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       source: {name: 'team', type: 'git', url: 'git@github.com:org/repo.git', branch: 'main'},
     }
     const result = projectConfigSchema.parse(raw)
@@ -60,7 +60,7 @@ describe('projectConfigSchema', () => {
   it('prefers sources over legacy source when both present', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       source: {name: 'old', type: 'local', path: '/old'},
       sources: [{name: 'new', type: 'local', path: '/new'}],
     }
@@ -69,11 +69,11 @@ describe('projectConfigSchema', () => {
     expect(result.sources[0].name).toBe('new')
   })
 
-  it('rejects invalid assistant id', () => {
+  it('rejects invalid harness id', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [{id: 'not-a-real-tool', enabled: true}],
+        harnesses: [{id: 'not-a-real-tool', enabled: true}],
       }),
     ).toThrow()
   })
@@ -82,7 +82,7 @@ describe('projectConfigSchema', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [],
+        harnesses: [],
         sources: [{name: 'x', type: 'ftp', path: '/foo'}],
       }),
     ).toThrow()
@@ -91,14 +91,14 @@ describe('projectConfigSchema', () => {
 
 describe('projectConfigSchema — sync block', () => {
   it('parses config without sync block (optional)', () => {
-    const result = projectConfigSchema.parse({version: '1', assistants: []})
+    const result = projectConfigSchema.parse({version: '1', harnesses: []})
     expect(result.sync).toBeUndefined()
   })
 
   it('parses a full sync block', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       sync: {
         source_conflict_strategy: SOURCE_CONFLICT_STRATEGIES.FIRST_WINS,
         local_conflict_strategy: LOCAL_CONFLICT_STRATEGIES.LOCAL_WINS,
@@ -116,7 +116,7 @@ describe('projectConfigSchema — sync block', () => {
   it('parses partial sync block', () => {
     const raw = {
       version: '1',
-      assistants: [],
+      harnesses: [],
       sync: {backup: true},
     }
     const result = projectConfigSchema.parse(raw)
@@ -128,7 +128,7 @@ describe('projectConfigSchema — sync block', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [],
+        harnesses: [],
         sync: {source_conflict_strategy: 'invalid'},
       }),
     ).toThrow()
@@ -138,7 +138,7 @@ describe('projectConfigSchema — sync block', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [],
+        harnesses: [],
         sync: {local_conflict_strategy: 'invalid'},
       }),
     ).toThrow()
@@ -147,7 +147,7 @@ describe('projectConfigSchema — sync block', () => {
   it('accepts valid cron schedule', () => {
     const result = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
       sync: {schedule: '0 9 * * 1'},
     })
     expect(result.sync?.schedule).toBe('0 9 * * 1')
@@ -156,7 +156,7 @@ describe('projectConfigSchema — sync block', () => {
   it('accepts interval cron schedule', () => {
     const result = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
       sync: {schedule: '*/5 * * * *'},
     })
     expect(result.sync?.schedule).toBe('*/5 * * * *')
@@ -166,7 +166,7 @@ describe('projectConfigSchema — sync block', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [],
+        harnesses: [],
         sync: {schedule: 'every monday'},
       }),
     ).toThrow('Invalid cron expression')
@@ -176,7 +176,7 @@ describe('projectConfigSchema — sync block', () => {
     expect(() =>
       projectConfigSchema.parse({
         version: '1',
-        assistants: [],
+        harnesses: [],
         sync: {schedule: '* * *'},
       }),
     ).toThrow('Invalid cron expression')
@@ -187,7 +187,7 @@ describe('telemetry config', () => {
   it('accepts telemetry.enabled', () => {
     const result = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
       telemetry: {enabled: true},
     })
     expect(result.telemetry?.enabled).toBe(true)
@@ -196,7 +196,7 @@ describe('telemetry config', () => {
   it('accepts config without telemetry', () => {
     const result = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
     })
     expect(result.telemetry).toBeUndefined()
   })
@@ -204,7 +204,7 @@ describe('telemetry config', () => {
   it('accepts empty telemetry object', () => {
     const result = projectConfigSchema.parse({
       version: '1',
-      assistants: [],
+      harnesses: [],
       telemetry: {},
     })
     expect(result.telemetry).toBeDefined()
@@ -215,10 +215,10 @@ describe('globalConfigSchema', () => {
   it('uses the same schema as projectConfigSchema', () => {
     const result = globalConfigSchema.parse({
       version: '1',
-      assistants: [{id: 'windsurf', enabled: true}],
+      harnesses: [{id: 'windsurf', enabled: true}],
       sources: [{name: 'global', type: 'git', url: 'git@github.com:org/g.git', branch: 'main'}],
     })
-    expect(result.assistants[0].id).toBe('windsurf')
+    expect(result.harnesses[0].id).toBe('windsurf')
     expect(result.sources[0].name).toBe('global')
   })
 })

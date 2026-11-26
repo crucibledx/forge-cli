@@ -6,49 +6,49 @@ import {describe, expect, it} from 'bun:test'
 
 import {claudeCode} from './claude-code'
 import {cursor} from './cursor'
-import {getAllAssistants, getAssistant, getAssistantIds, resolveAssistantByPath} from './registry'
+import {getAllHarnesses, getHarness, getHarnessIds, resolveHarnessByPath} from './registry'
 
 it.each(['.CLAUDE\\SKILLS\\a.md', '.claude//skills///a.md'])(
   'AC-4,9 ownership uses the same portable folding as collision checks: %s',
   (path) => {
-    expect(resolveAssistantByPath(path)?.id).toBe(claudeCode.id)
+    expect(resolveHarnessByPath(path)?.id).toBe(claudeCode.id)
   },
 )
 
-describe('getAllAssistants', () => {
-  it('returns all 5 assistants', () => {
-    const all = getAllAssistants()
+describe('getAllHarnesses', () => {
+  it('returns all 5 harnesses', () => {
+    const all = getAllHarnesses()
     expect(all).toHaveLength(5)
   })
 
   it('covers every registered id', () => {
-    const ids = getAllAssistants().map((a) => a.id)
-    for (const id of getAssistantIds()) {
+    const ids = getAllHarnesses().map((a) => a.id)
+    for (const id of getHarnessIds()) {
       expect(ids).toContain(id)
     }
   })
 
-  it('each assistant has a non-empty name and targetMappings', () => {
-    for (const a of getAllAssistants()) {
+  it('each harness has a non-empty name and targetMappings', () => {
+    for (const a of getAllHarnesses()) {
       expect(a.name.length).toBeGreaterThan(0)
       expect(a.targetMappings.length).toBeGreaterThan(0)
     }
   })
 })
 
-describe('getAssistant', () => {
-  it('returns correct assistant by id', () => {
-    const a = getAssistant(cursor.id)
+describe('getHarness', () => {
+  it('returns correct harness by id', () => {
+    const a = getHarness(cursor.id)
     expect(a.id).toBe(cursor.id)
     expect(a.name).toBe(cursor.name)
   })
 
   it('throws for unknown id', () => {
-    expect(() => getAssistant('unknown-tool')).toThrow('Unknown assistant: unknown-tool')
+    expect(() => getHarness('unknown-tool')).toThrow('Unknown harness: unknown-tool')
   })
 
   it('returns claude-code with expected mappings', () => {
-    const a = getAssistant(claudeCode.id)
+    const a = getHarness(claudeCode.id)
     const globs = a.targetMappings.map((m) => m.sourceGlob)
     expect(globs).toContain('skills/**')
     expect(globs).toContain('rules/**')

@@ -6,7 +6,7 @@ export const STATUS_MESSAGES = {
     neverSynced: 'No sync state found — run `forge sync` first.',
   },
   context: {
-    assistants: (ids: string[]) => `Assistants: ${ids.join(', ')}`,
+    harnesses: (ids: string[]) => `Harnesses: ${ids.join(', ')}`,
     sources: (names: string[]) => `Sources: ${names.join(', ')}`,
     noSources: 'Sources: none configured',
     schedule: (desc: string) => `Schedule: ${desc}`,

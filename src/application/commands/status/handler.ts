@@ -1,7 +1,7 @@
-import {getAssistant} from '@domain/assistants'
 import type {ProjectConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import {formatShortDateTime} from '@domain/format'
+import {getHarness} from '@domain/harnesses'
 import {describeCron, nextCronRun} from '@domain/scheduler'
 import {detectDrift, detectFullDrift} from '@domain/sync/drift'
 import {resolveSourceConflicts} from '@domain/sync/merge'
@@ -51,7 +51,7 @@ export const runStatus: StatusCommandAction = async () => {
 
 async function showConfigContext(config: ProjectConfig, projectRoot: string): Promise<void> {
   renderer.renderNewline()
-  renderer.renderDim(M.context.assistants(config.assistants.filter((a) => a.enabled !== false).map((a) => a.id)))
+  renderer.renderDim(M.context.harnesses(config.harnesses.filter((a) => a.enabled !== false).map((a) => a.id)))
 
   if (config.sources.length > 0) {
     renderer.renderDim(M.context.sources(config.sources.map((s) => s.name)))
@@ -101,12 +101,12 @@ async function fetchRemoteContents(config: ProjectConfig): Promise<Record<string
 
   try {
     // Sync deliberately retains disabled targets; status must still compare them to their real upstream.
-    const assistantDefs = config.assistants.map((a) => getAssistant(a.id))
+    const harnessDefs = config.harnesses.map((a) => getHarness(a.id))
     const allResolved = []
 
     for (const source of config.sources) {
       const sourceFiles = await loadSourceFiles(source)
-      const resolved = resolveTargets(sourceFiles, assistantDefs, source.name, source.layout)
+      const resolved = resolveTargets(sourceFiles, harnessDefs, source.name, source.layout)
       allResolved.push(...resolved)
     }
 
