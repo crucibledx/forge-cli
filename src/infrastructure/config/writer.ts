@@ -5,7 +5,7 @@ import {parse as parseYaml, stringify as stringifyYaml} from 'yaml'
 
 import type {ProjectConfig} from '@domain/config/types'
 
-import {convertAssistantsAlias} from './alias'
+import {ALIAS_STATUSES, convertAssistantsAlias} from './alias'
 import {getProjectConfigPath} from './loader'
 import {projectConfigSchema} from './schema'
 import type {WriteProjectConfigFunction} from './types'
@@ -23,10 +23,11 @@ export const writeProjectConfig: WriteProjectConfigFunction = async (projectRoot
 
   await mkdir(dirname(configPath), {recursive: true})
 
-  const converted = await convertAssistantsAlias(configPath)
-  if (converted !== null) {
-    // A rename-only operation stops after the surgical edit; anything else is a second, reserializing write.
-    const current = projectConfigSchema.safeParse(parseYaml(converted))
+  const conversion = await convertAssistantsAlias(projectRoot)
+  if (conversion && conversion.status !== ALIAS_STATUSES.NONE) {
+    // An operation that changes nothing beyond the key name stops here, so the user's file keeps its comments.
+    // Other changes are a second, reserializing write.
+    const current = projectConfigSchema.safeParse(parseYaml(conversion.text))
     if (current.success && Bun.deepEquals(current.data, config)) return configPath
   }
 

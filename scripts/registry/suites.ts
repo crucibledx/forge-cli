@@ -77,6 +77,7 @@ export const testSuites = {
     'src/application/commands/sync/harness-scope.test.ts',
     'src/application/commands/sync/ownership.test.ts',
     'src/application/commands/sync/state.test.ts',
+    'src/application/commands/sync/alias.test.ts',
     'src/application/commands/sync/silent.test.ts',
     'src/application/commands/sync/planning.test.ts',
     'src/application/commands/sync/source-resolution.test.ts',

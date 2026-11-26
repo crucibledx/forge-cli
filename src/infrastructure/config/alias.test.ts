@@ -1,10 +1,11 @@
 import * as fsPromises from 'node:fs/promises'
-import {readFile, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
-import {afterAll, describe, expect, it, spyOn} from 'bun:test'
+import {afterAll, afterEach, describe, expect, it, spyOn} from 'bun:test'
 
+import {transactionIO} from '../fs/transaction'
 import {ALIAS_STATUSES, convertAssistantsAlias, renameAssistantsKey} from './alias'
 import {getProjectConfigPath, loadProjectConfig} from './loader'
 import {writeProjectConfig} from './writer'
@@ -12,7 +13,7 @@ import {writeProjectConfig} from './writer'
 const getDir = useTmpDir('config_alias')
 
 const V07_CONFIG = [
-  '# team config, keep this comment',
+  '# team config, keep this comment — café',
   'version: "1"',
   'assistants: # enabled harnesses',
   '  - id: cursor',
@@ -22,86 +23,132 @@ const V07_CONFIG = [
   'sources: []',
   '',
 ].join('\r\n')
+const RENAMED = V07_CONFIG.replace('assistants: #', 'harnesses: #')
+const QUOTED = '# keep\nversion: "1"\n"assistants":\n  - id: cursor\n    enabled: true\nsources: []\n'
+
+const rename = (text: string | Buffer) => {
+  const {bytes, status} = renameAssistantsKey(Buffer.from(text))
+  return {text: bytes.toString('utf-8'), status}
+}
 
 async function writeRaw(dir: string, content: string | Buffer): Promise<string> {
   const path = getProjectConfigPath(dir)
-  await fsPromises.mkdir(join(dir, '.crucible'), {recursive: true})
+  await mkdir(join(dir, '.crucible'), {recursive: true})
   await writeFile(path, content)
   return path
 }
 
 describe('renameAssistantsKey', () => {
-  it('changes only the canonical key line, comments and line endings included', () => {
-    const {text, status} = renameAssistantsKey(V07_CONFIG)
-    expect(status).toBe(ALIAS_STATUSES.CONVERTED)
-    expect(text).toBe(V07_CONFIG.replace('assistants: # enabled', 'harnesses: # enabled'))
+  it('changes only the canonical key, comments, line endings and multibyte text included', () => {
+    expect(rename(V07_CONFIG)).toEqual({text: RENAMED, status: ALIAS_STATUSES.CONVERTED})
   })
 
   it('converts an inline empty list', () => {
-    expect(renameAssistantsKey('version: "1"\nassistants: []\n').text).toBe('version: "1"\nharnesses: []\n')
+    expect(rename('version: "1"\nassistants: []\n').text).toBe('version: "1"\nharnesses: []\n')
   })
 
   it.each([
-    ['quoted', 'version: "1"\n"assistants":\n  - id: cursor\n    enabled: true\n'],
+    ['quoted', QUOTED],
     ['spaced', 'version: "1"\nassistants :\n  - id: cursor\n    enabled: true\n'],
+    [
+      'flow-mapping',
+      '{version: "1", project: {name: "example\nassistants: literal text\nend"}, "assistants": [], sources: []}\n',
+    ],
   ])('leaves a %s key untouched and reports it as non-canonical', (_, raw) => {
-    expect(renameAssistantsKey(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NON_CANONICAL})
+    expect(rename(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NON_CANONICAL})
   })
 
-  it('leaves a commented key line untouched', () => {
-    const raw = 'version: "1"\n# assistants:\nharnesses: []\n'
-    expect(renameAssistantsKey(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NONE})
+  it('leaves a file that is not valid UTF-8 untouched', () => {
+    const raw = Buffer.concat([Buffer.from('# caf'), Buffer.from([0xe9]), Buffer.from('\nassistants: []\n')])
+    const {bytes, status} = renameAssistantsKey(raw)
+    expect(status).toBe(ALIAS_STATUSES.NON_CANONICAL)
+    expect(bytes.equals(raw)).toBe(true)
   })
 
-  it('does nothing for a config that already uses harnesses', () => {
-    const raw = 'version: "1"\nharnesses: []\n'
-    expect(renameAssistantsKey(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NONE})
+  it.each([
+    ['a commented key line', 'version: "1"\n# assistants:\nharnesses: []\n'],
+    ['a harnesses-only config', 'version: "1"\nharnesses: []\n'],
+    ['a key inside a block scalar', 'version: "1"\nproject:\n  description: |\n    assistants: x\nharnesses: []\n'],
+  ])('does nothing for %s', (_, raw) => {
+    expect(rename(raw)).toEqual({text: raw, status: ALIAS_STATUSES.NONE})
   })
 })
 
 describe('convertAssistantsAlias', () => {
-  it('is byte-identical apart from the key line, including non-UTF-8 bytes in comments', async () => {
-    const original = Buffer.concat([Buffer.from('# caf'), Buffer.from([0xe9]), Buffer.from('\n' + V07_CONFIG)])
-    const path = await writeRaw(getDir(), original)
-    await convertAssistantsAlias(path)
-    const expected = Buffer.from(original.toString('latin1').replace('assistants: #', 'harnesses: #'), 'latin1')
-    expect((await readFile(path)).equals(expected)).toBe(true)
+  it('writes the renamed bytes and can undo them', async () => {
+    const dir = getDir()
+    const path = await writeRaw(dir, V07_CONFIG)
+    const conversion = await convertAssistantsAlias(dir)
+    expect(conversion?.status).toBe(ALIAS_STATUSES.CONVERTED)
+    expect(await readFile(path, 'utf-8')).toBe(RENAMED)
+    await conversion!.undo!()
+    expect(await readFile(path, 'utf-8')).toBe(V07_CONFIG)
   })
 
-  it('returns null and writes nothing when the file is absent', async () => {
-    expect(await convertAssistantsAlias(getProjectConfigPath(getDir()))).toBeNull()
+  it('returns null when the file is absent', async () => {
+    expect(await convertAssistantsAlias(getDir())).toBeNull()
   })
 })
 
 describe('writeProjectConfig with the assistants alias', () => {
+  const events: string[] = []
+  const replace = transactionIO.replace
+  const replaces = spyOn(transactionIO, 'replace').mockImplementation(async (temp, path, existed) => {
+    events.push(`atomic:${await readFile(temp, 'utf-8')}`)
+    return replace(temp, path, existed)
+  })
   const writes = spyOn(fsPromises, 'writeFile')
-  const renamed = V07_CONFIG.replace('assistants: #', 'harnesses: #')
-  const written = () => writes.mock.calls.map(([, data]) => Buffer.from(data as string | Buffer).toString('utf-8'))
-  afterAll(() => writes.mockRestore())
+  const record = async (run: () => Promise<unknown>) => {
+    events.length = 0
+    writes.mockClear()
+    await run()
+    return [...events, ...writes.mock.calls.map(([, data]) => `serialized:${String(data)}`)]
+  }
+  afterEach(() => {
+    events.length = 0
+  })
+  afterAll(() => {
+    replaces.mockRestore()
+    writes.mockRestore()
+  })
 
   it('lands a rename-only operation as one surgical write', async () => {
     const dir = getDir()
     const path = await writeRaw(dir, V07_CONFIG)
     const loaded = (await loadProjectConfig(dir))!
-    writes.mockClear()
-    await writeProjectConfig(dir, loaded)
-    expect(written()).toEqual([renamed])
-    expect(await readFile(path, 'utf-8')).toBe(renamed)
+    expect(await record(() => writeProjectConfig(dir, loaded))).toEqual([`atomic:${RENAMED}`])
+    expect(await readFile(path, 'utf-8')).toBe(RENAMED)
   })
 
   it('writes the rename first, then other changes through the reserializing writer', async () => {
     const dir = getDir()
     const path = await writeRaw(dir, V07_CONFIG)
     const loaded = (await loadProjectConfig(dir))!
-    writes.mockClear()
-    await writeProjectConfig(dir, {...loaded, project: {name: 'renamed'}})
-    const [first, second] = written()
-    expect(written()).toHaveLength(2)
-    expect(first).toBe(renamed)
-    expect(second).toContain('name: renamed')
+    const seen = await record(() => writeProjectConfig(dir, {...loaded, project: {name: 'renamed'}}))
+    expect(seen).toHaveLength(2)
+    expect(seen[0]).toBe(`atomic:${RENAMED}`)
+    expect(seen[1]).toStartWith('serialized:')
     const final = await readFile(path, 'utf-8')
-    expect(final).toBe(second)
+    expect(`serialized:${final}`).toBe(seen[1])
+    expect(final).toContain('name: renamed')
     expect(final).toContain('harnesses:')
     expect(final).not.toContain('assistants')
+  })
+
+  it('leaves a non-canonical alias untouched when nothing else changes', async () => {
+    const dir = getDir()
+    const path = await writeRaw(dir, QUOTED)
+    const loaded = (await loadProjectConfig(dir))!
+    expect(await record(() => writeProjectConfig(dir, loaded))).toEqual([])
+    expect(await readFile(path, 'utf-8')).toBe(QUOTED)
+  })
+
+  it('applies other changes to a non-canonical alias config with the reserializing writer', async () => {
+    const dir = getDir()
+    const path = await writeRaw(dir, QUOTED)
+    const loaded = (await loadProjectConfig(dir))!
+    const seen = await record(() => writeProjectConfig(dir, {...loaded, project: {name: 'renamed'}}))
+    expect(seen).toHaveLength(1)
+    expect(await readFile(path, 'utf-8')).toContain('harnesses:')
   })
 })
