@@ -6,6 +6,7 @@ export const GIT_SOURCE_MESSAGES = {
   },
   branch: 'Branch, tag or commit SHA:',
   refNotFound: (name: string) => `Remote has no branch or tag named "${name}"`,
+  optionLike: (field: 'url' | 'branch') => `Git source ${field} must not start with '-'`,
   subdirectory: {
     message: 'Subdirectory within repo (optional):',
     placeholder: 'leave empty for repo root',

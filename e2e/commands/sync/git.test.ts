@@ -11,7 +11,15 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, readTarget, RULE_WITH_PATHS, SKILL_DEPLOY, writeConfig} from '@e2e/fixtures'
-import {addBranchToBareRepo, bareRepoCommit, createBareRepo, runSync, setBareRepoRef, useTmpDir} from '@e2e/framework'
+import {
+  addBranchToBareRepo,
+  bareRepoCommit,
+  createBareRepo,
+  runSync,
+  setBareRepoRef,
+  testEnvironment,
+  useTmpDir,
+} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-git')
 
@@ -122,6 +130,19 @@ describe('forge sync — git source', () => {
     },
     30_000,
   )
+
+  it.each([
+    ['url', {url: '--quiet', branch: 'main'}],
+    ['branch', {url: 'https://example.invalid/repo.git', branch: '--quiet'}],
+  ])('rejects a source %s that starts with "-" before running git', async (field, gitSource) => {
+    const dir = getDir()
+    await writeConfig(dir, buildConfigYaml({assistants: ['claude-code'], gitSource}))
+
+    const {exitCode, output} = await runSync(dir)
+    expect(exitCode).not.toBe(0)
+    expect(output).toContain(`Git source ${field} must not start with '-'`)
+    expect(existsSync(join(testEnvironment(dir).TMPDIR, 'forge-cache'))).toBe(false)
+  })
 
   it('syncs a source pinned to a commit SHA and keeps it pinned when the branch moves', async () => {
     const dir = getDir()
