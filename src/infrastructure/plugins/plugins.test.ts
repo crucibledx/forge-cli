@@ -115,6 +115,7 @@ describe('Agent Plugins MCP semantics', () => {
     expect(
       mcp({
         a: {type: 'stdio', command: './bin/server', cwd: './data'},
+        a2: {type: 'stdio', command: './bin/../bin/server', cwd: './a/../data'},
         b: {type: 'stdio', command: 'npx', args: ['x'], cwd: `${PLUGIN_DATA}/db`},
         c: {
           type: 'streamable-http',
@@ -185,6 +186,26 @@ describe('Agent Plugins MCP semantics', () => {
       'a cwd escaping PLUGIN_DATA with a doubled slash',
       {type: 'stdio', command: 'node', cwd: `${PLUGIN_DATA}//../outside`},
       `s/cwd: resolves outside ${PLUGIN_DATA}`,
+    ],
+    [
+      'a command that escapes and re-enters a directory named like the root',
+      {type: 'stdio', command: './../root/outside'},
+      's/command: resolves outside the plugin root',
+    ],
+    [
+      'a cwd that escapes and re-enters a directory named like the root',
+      {type: 'stdio', command: 'node', cwd: './../root/outside'},
+      's/cwd: resolves outside the plugin root',
+    ],
+    [
+      'a cwd that escapes PLUGIN_DATA and re-enters',
+      {type: 'stdio', command: 'node', cwd: `${PLUGIN_DATA}/../root/outside`},
+      `s/cwd: resolves outside ${PLUGIN_DATA}`,
+    ],
+    [
+      'a cwd that climbs above PLUGIN_ROOT midway',
+      {type: 'stdio', command: 'node', cwd: `${PLUGIN_ROOT}/a/../../plugin/x`},
+      `s/cwd: resolves outside ${PLUGIN_ROOT}`,
     ],
     [
       'header names that differ only in case',

@@ -1,5 +1,3 @@
-import {posix} from 'node:path'
-
 interface StdioServer {
   type: 'stdio'
   command: string
@@ -19,18 +17,22 @@ const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const CREDENTIAL_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie'])
 const LOOPBACK_V4 = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
 
-const ANCHOR = '/root'
 const FIELD_VALUE = /^(?:[\x21-\x7e\x80-\xff](?:[\t \x21-\x7e\x80-\xff]*[\x21-\x7e\x80-\xff])?)?$/
 
 /**
- * Resolve the configured path against a stand-in root, then check it is still under that root. Stripping a prefix
- * first would let `.//../x` through as the absolute `/../x`. Symlinks are already confined by package acquisition.
+ * Walk the segments and fail as soon as `..` climbs above the root. Normalizing against a stand-in root would accept
+ * `./../root/x` (it leaves and re-enters), and stripping a prefix first would accept `.//../x`. Symlinks are already
+ * confined by package acquisition.
  */
 function staysInside(relative: string): boolean {
-  const resolved = posix.normalize(`${ANCHOR}/${relative.replaceAll('\\', '/')}`)
-  return resolved === ANCHOR || resolved.startsWith(`${ANCHOR}/`)
+  let depth = 0
+  for (const segment of relative.split(/[/\\]/)) {
+    if (segment === '..') depth--
+    else if (segment !== '' && segment !== '.') depth++
+    if (depth < 0) return false
+  }
+  return true
 }
-
 function commandError(command: string): string | undefined {
   const isPath = /[/\\]/.test(command)
   if (isPath && !staysInside(command.replace(/^\.\//, ''))) return 'resolves outside the plugin root'
