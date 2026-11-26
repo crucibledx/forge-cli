@@ -1,0 +1,48 @@
+{
+  "claude-code": [
+    {
+      "kind": "rule",
+      "name": "api",
+      "status": "adapted",
+      "detail": "rule file .claude/rules/cover-all--api.md (paths frontmatter kept)"
+    },
+    {
+      "kind": "rule",
+      "name": "style",
+      "status": "adapted",
+      "detail": "rule file .claude/rules/cover-all--style.md"
+    },
+    {
+      "kind": "setting",
+      "name": "setting",
+      "status": "dropped",
+      "detail": "plugin default settings are not applied in v0.8"
+    }
+  ],
+  "droid": [
+    {
+      "kind": "lsp",
+      "name": "lsp",
+      "status": "dropped",
+      "detail": "Droid plugins do not load LSP servers"
+    },
+    {
+      "kind": "rule",
+      "name": "api",
+      "status": "approximated",
+      "detail": "path-scoped rule delivered as always-on by the generated SessionStart hook"
+    },
+    {
+      "kind": "rule",
+      "name": "style",
+      "status": "adapted",
+      "detail": "generated SessionStart hook prints the rule text"
+    },
+    {
+      "kind": "setting",
+      "name": "setting",
+      "status": "dropped",
+      "detail": "plugin default settings are not applied in v0.8"
+    }
+  ]
+}

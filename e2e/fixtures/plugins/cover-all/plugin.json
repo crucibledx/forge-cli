@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cover-all",
+  "version": "1.0.0",
+  "description": "Every component kind forge delivers to Droid and Claude Code",
+  "extensions": {
+    "dev.crucibledx.forge": {
+      "minForgeVersion": "0.7.0",
+      "harnesses": ["claude-code", "droid"]
+    }
+  }
+}
