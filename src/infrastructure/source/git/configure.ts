@@ -2,7 +2,7 @@ import * as prompts from '@infrastructure/cli/prompts'
 
 import {DEFAULT_SOURCE_NAME} from '../constants'
 import type {SourceLoaderEntry} from '../types'
-import {GitError, runGit} from './load'
+import {GitError, resolveRemoteRef} from './load'
 import {GIT_SOURCE_MESSAGES} from './messages'
 import {gitSourceSchema} from './schema.types'
 import type {GitSourceConfig} from './types'
@@ -53,13 +53,9 @@ export const configure: SourceLoaderEntry['configure'] = async (existing) => {
   return source
 }
 
-const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
-
 export async function verifyGitSource(url: string, branch: string): Promise<{success: boolean; error?: string}> {
-  // ls-remote lists refs, never commits, so a pinned SHA can only be checked for remote reachability.
-  const refs = COMMIT_SHA.test(branch) ? [] : ['--exit-code', url, `refs/heads/${branch}`, `refs/tags/${branch}`]
   try {
-    await runGit(undefined, ['ls-remote', ...(refs.length ? refs : [url])], {
+    await resolveRemoteRef(url, branch, {
       timeoutMs: 10_000,
       env: {GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=5'},
     })

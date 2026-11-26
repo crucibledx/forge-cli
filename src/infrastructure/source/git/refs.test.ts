@@ -42,3 +42,31 @@ it('a failed first acquisition leaves no cache behind to be taken for a warm one
   await expect(load(source)).rejects.toThrow(/missing/)
   expect(existsSync(join(tmpdir(), 'forge-cache', gitCacheKey(source)))).toBe(false)
 })
+
+it('a branch wins over a same-named tag on the first and a later sync, as with clone --branch', async () => {
+  await setBareRepoRef(fixture!.project, repo, 'refs/heads/release', {'skills/deploy.md': SKILL_DEPLOY})
+  await setBareRepoRef(fixture!.project, repo, 'refs/tags/release', {'skills/review.md': '# Review skill'})
+  const source = {name: 's', type: 'git' as const, url: repo, branch: 'release'}
+  for (const expectedFresh of [true, false]) {
+    const {localPath, fresh} = await load(source)
+    expect(fresh).toBe(expectedFresh)
+    expect(existsSync(join(localPath, 'skills/deploy.md'))).toBe(true)
+    expect(existsSync(join(localPath, 'skills/review.md'))).toBe(false)
+  }
+})
+
+it('a cold cache uses the remote object format, not the local default', async () => {
+  const previous = process.env.GIT_DEFAULT_HASH
+  process.env.GIT_DEFAULT_HASH = 'sha256'
+  try {
+    for (const branch of [sha, 'v1.0.0']) {
+      for (let sync = 0; sync < 2; sync++) {
+        const {localPath} = await load({name: 's', type: 'git', url: repo, branch})
+        expect(existsSync(join(localPath, 'skills/deploy.md'))).toBe(true)
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.GIT_DEFAULT_HASH
+    else process.env.GIT_DEFAULT_HASH = previous
+  }
+})

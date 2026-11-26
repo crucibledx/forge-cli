@@ -9,6 +9,7 @@ import {createFileLogger} from '@infrastructure/logger'
 
 import {createConfinement} from '../../fs/confinement'
 import type {SourceLoaderEntry} from '../types'
+import {GIT_SOURCE_MESSAGES} from './messages'
 import type {GitSourceConfig} from './types'
 
 const CACHE_DIR = join(tmpdir(), 'forge-cache')
@@ -30,25 +31,57 @@ export async function withGitCache<T>(source: GitSourceConfig, acquire: () => Pr
   }
 }
 
+const COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i
+
+/**
+ * Qualify a configured ref the way `clone --branch` does: branch first, then tag. A bare fetch refspec would prefer a
+ * same-named tag. A full commit SHA is returned as is, because ls-remote lists refs, never commits.
+ */
+export async function resolveRemoteRef(
+  url: string,
+  name: string,
+  options?: {timeoutMs?: number; env?: Record<string, string>},
+): Promise<string> {
+  const candidates = [`refs/heads/${name}`, `refs/tags/${name}`]
+  const listed = new Set(
+    (await runGit(undefined, ['ls-remote', url, ...candidates], options))
+      .split('\n')
+      .map((line) => line.split('\t')[1]),
+  )
+  const ref = candidates.find((candidate) => listed.has(candidate))
+  if (ref) return ref
+  if (COMMIT_SHA.test(name)) return name
+  throw new GitError(GIT_SOURCE_MESSAGES.refNotFound(name))
+}
+
 export const load: SourceLoaderEntry['load'] = async (source) => {
   const logger = createFileLogger()
   const git = source as GitSourceConfig
   const cacheKey = gitCacheKey(git)
   const cacheDir = join(CACHE_DIR, cacheKey)
 
+  const ref = await resolveRemoteRef(git.url, git.branch)
+  const pinned = !ref.startsWith('refs/')
   const fresh = !existsSync(join(cacheDir, '.git'))
-  logger.debug(fresh ? 'git source: cloning' : 'git source: fetching updates', {url: git.url, branch: git.branch})
+  logger.debug(fresh ? 'git source: cloning' : 'git source: fetching updates', {url: git.url, branch: git.branch, ref})
   try {
-    if (fresh) {
-      // `clone --branch` rejects a commit SHA, so a cold cache is an empty repository that takes the same fetch.
-      await mkdir(cacheDir, {recursive: true})
-      await runGit(cacheDir, ['init', '--quiet'])
-      await runGit(cacheDir, ['remote', 'add', 'origin', git.url])
+    if (fresh && !pinned) {
+      await mkdir(CACHE_DIR, {recursive: true})
+      // clone takes the remote's object format and, like resolveRemoteRef, prefers a branch over a same-named tag.
+      await runGit(undefined, ['clone', '--branch', git.branch, '--depth', '1', git.url, cacheDir])
+    } else {
+      if (fresh) {
+        // `clone --branch` rejects a commit SHA. An empty repository cannot learn the remote's object format the
+        // way clone does, but the SHA's length gives it.
+        await mkdir(cacheDir, {recursive: true})
+        await runGit(cacheDir, ['init', '--quiet', `--object-format=${ref.length === 64 ? 'sha256' : 'sha1'}`])
+        await runGit(cacheDir, ['remote', 'add', 'origin', git.url])
+      }
+      // A tag or SHA has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under
+      // fetch.writeFetchHEAD=false, so fetch the resolved ref into a private ref and check that out detached.
+      await runGit(cacheDir, ['fetch', '--depth', '1', 'origin', `+${ref}:${FETCHED_REF}`])
+      await runGit(cacheDir, ['checkout', '--quiet', '--force', '--detach', FETCHED_REF])
     }
-    // A tag or SHA has no origin/<ref> remote-tracking ref, and FETCH_HEAD is skipped under
-    // fetch.writeFetchHEAD=false, so fetch any ref into a private ref and check that out detached.
-    await runGit(cacheDir, ['fetch', '--depth', '1', 'origin', `+${git.branch}:${FETCHED_REF}`])
-    await runGit(cacheDir, ['checkout', '--quiet', '--force', '--detach', FETCHED_REF])
   } catch (error) {
     // A half-initialised cache would otherwise be taken for a warm one on the next sync.
     if (fresh) await rm(cacheDir, {recursive: true, force: true})

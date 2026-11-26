@@ -5,6 +5,7 @@ export const GIT_SOURCE_MESSAGES = {
     required: 'URL is required',
   },
   branch: 'Branch, tag or commit SHA:',
+  refNotFound: (name: string) => `Remote has no branch or tag named "${name}"`,
   subdirectory: {
     message: 'Subdirectory within repo (optional):',
     placeholder: 'leave empty for repo root',
