@@ -109,6 +109,11 @@ sync:
   # Keep local files not present in source
   keep_local: true
 
-# ── Plugin registry (future) ────────────────────────────────────
-# Will be used when forge core CLI arrives
+# ── Plugins (spec 0003) ─────────────────────────────────────────
+# Agent Plugins 1.0 packages, locked in .crucible/forge.lock; delivered by forge sync
+# plugins:
+#   - name: crucible-loop
+#     source: {type: git, url: https://github.com/crucibledx/factory-loop.git, path: plugins/crucible-loop, ref: main}
+#     harnesses: [claude-code, droid]   # optional
+#     scope: project                    # project | user
 plugins: []

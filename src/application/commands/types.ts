@@ -26,6 +26,6 @@ export interface CommandDefinition {
   description: string
   options: CommandOption[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  action: (options: any) => Promise<void>
+  action: (...args: any[]) => Promise<void>
   subcommands?: Omit<CommandDefinition, 'subcommands'>[]
 }

@@ -6,6 +6,8 @@ import {LOCAL_CONFLICT_STRATEGIES, SOURCE_CONFLICT_STRATEGIES} from '@domain/con
 import {isValidCron} from '@domain/scheduler'
 import {sourceConfigSchema} from '@infrastructure/source'
 
+import {pluginsConfigSchema} from '../plugins/config-schema'
+
 const sourceConflictValues = Object.values(SOURCE_CONFLICT_STRATEGIES) as [
   SourceConflictStrategy,
   ...SourceConflictStrategy[],
@@ -55,6 +57,7 @@ export const projectConfigSchema = z
     assistants: z.array(assistantConfigSchema),
     source: sourceConfigSchema.optional(),
     sources: z.array(sourceConfigSchema).optional(),
+    plugins: pluginsConfigSchema.optional(),
     sync: syncConfigSchema,
     telemetry: telemetryConfigSchema,
     lastSync: z.string().optional(),
