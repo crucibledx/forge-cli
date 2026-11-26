@@ -13,12 +13,11 @@ import {hashContent} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
-import {terminalText} from '@infrastructure/cli/terminal-text'
 import {convertAssistantsAlias, loadSyncState, serializeProjectConfig} from '@infrastructure/config'
 import {createConfinement} from '@infrastructure/fs/confinement'
 import {createFileReader} from '@infrastructure/fs/reader'
 import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
-import {prepareTransaction, TransactionError, transactionIO} from '@infrastructure/fs/transaction'
+import {prepareTransaction, reportUnrestoredRecovery, transactionIO} from '@infrastructure/fs/transaction'
 import type {IOContext, IOService} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
@@ -95,7 +94,8 @@ export async function runSyncWithDependencies(
     try {
       await commitPrepared(prepared)
     } catch (error) {
-      await alias?.undo?.().catch(() => renderer.renderWarning(M.errors.aliasUndoFailed))
+      // A failed compensation is an emergency: report it even when --silent suppresses warnings.
+      await alias?.undo?.().catch(() => console.error(M.errors.aliasUndoFailed))
       throw error
     }
     const synced = summaries.filter(
@@ -286,12 +286,7 @@ export async function commitPrepared(prepared: Awaited<ReturnType<typeof prepare
   try {
     await prepared.commit()
   } catch (error) {
-    if (error instanceof TransactionError && error.unrestored.length) {
-      // Presentation suppression must never hide a manual recovery requirement.
-      console.error(
-        `Recovery required; unrestored/untrusted paths: ${error.unrestored.map(terminalText).join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.map(terminalText).join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
-      )
-    }
+    reportUnrestoredRecovery(error)
     throw error
   }
 }

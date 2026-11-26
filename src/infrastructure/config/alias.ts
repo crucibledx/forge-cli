@@ -6,7 +6,7 @@ import {isMap, isScalar, parseDocument, Scalar} from 'yaml'
 import {CONFIG_PATH} from '@domain/config/paths'
 
 import * as renderer from '../cli/renderer'
-import {prepareTransaction, transactionIO} from '../fs/transaction'
+import {prepareTransaction, reportUnrestoredRecovery, transactionIO} from '../fs/transaction'
 
 export const ALIAS_STATUSES = {
   CONVERTED: 'converted',
@@ -24,14 +24,30 @@ const OLD_KEY = 'assistants'
 const NEW_KEY = 'harnesses'
 
 /**
+ * Maps an offset in the lossily decoded text back to a byte offset, decoding with the same algorithm so invalid
+ * bytes elsewhere in the file do not shift the result. Undefined when the offset falls inside a multibyte character.
+ */
+function byteOffsetOf(bytes: Uint8Array, charOffset: number): number | undefined {
+  const decoder = new TextDecoder('utf-8')
+  let chars = 0
+  let index = 0
+  while (chars < charOffset && index < bytes.length) {
+    chars += decoder.decode(bytes.subarray(index, index + 1), {stream: true}).length
+    index++
+  }
+  return chars === charOffset ? index : undefined
+}
+
+/**
  * Renames the top-level `assistants:` key of a config file when it is spelled canonically: a plain key at column 0
- * of a block mapping, directly followed by `:`. Only those key bytes change. Any other spelling, and files that are
- * not valid UTF-8, are reported as non-canonical and left as they are.
+ * of a block mapping, directly followed by `:`. Only those key bytes change; every other byte is preserved,
+ * including comment bytes that are not valid UTF-8. Any other spelling is non-canonical and left as it is.
  */
 export function renameAssistantsKey(bytes: Uint8Array): {bytes: Buffer; status: AliasStatus} {
   const original = Buffer.from(bytes)
   const unchanged = (status: AliasStatus) => ({bytes: original, status})
-  const text = original.toString('utf-8')
+  // Lossy like the loader: invalid bytes decode to U+FFFD for parsing; surgery happens on the original bytes.
+  const text = new TextDecoder('utf-8').decode(original)
   const doc = parseDocument(text)
   const contents = doc.contents
   if (doc.errors.length || !isMap(contents)) return unchanged(ALIAS_STATUSES.NONE)
@@ -40,15 +56,23 @@ export function renameAssistantsKey(bytes: Uint8Array): {bytes: Buffer; status: 
   if (!alias || pair(NEW_KEY)) return unchanged(ALIAS_STATUSES.NONE)
   const key = alias.key as Scalar
   const start = key.range?.[0]
-  const canonical =
-    start !== undefined &&
-    !contents.flow &&
-    key.type === Scalar.PLAIN &&
-    (start === 0 || text[start - 1] === '\n') &&
-    text.startsWith(`${OLD_KEY}:`, start) &&
-    Buffer.from(text, 'utf-8').equals(original)
-  if (!canonical) return unchanged(ALIAS_STATUSES.NON_CANONICAL)
-  const offset = Buffer.byteLength(text.slice(0, start))
+  if (
+    start === undefined ||
+    contents.flow ||
+    key.type !== Scalar.PLAIN ||
+    (start !== 0 && text[start - 1] !== '\n') ||
+    !text.startsWith(`${OLD_KEY}:`, start)
+  ) {
+    return unchanged(ALIAS_STATUSES.NON_CANONICAL)
+  }
+  const offset = byteOffsetOf(original, start)
+  if (
+    offset === undefined ||
+    (offset !== 0 && original[offset - 1] !== 0x0a) ||
+    !original.subarray(offset, offset + OLD_KEY.length).equals(Buffer.from(OLD_KEY))
+  ) {
+    return unchanged(ALIAS_STATUSES.NON_CANONICAL)
+  }
   return {
     bytes: Buffer.concat([
       original.subarray(0, offset),
@@ -68,7 +92,12 @@ export interface AliasConversion {
 }
 
 async function replaceConfig(projectRoot: string, content: Uint8Array, fs: typeof transactionIO): Promise<void> {
-  await (await prepareTransaction(projectRoot, [{path: CONFIG_PATH, content}], fs)).commit()
+  try {
+    await (await prepareTransaction(projectRoot, [{path: CONFIG_PATH, content}], fs)).commit()
+  } catch (error) {
+    reportUnrestoredRecovery(error)
+    throw error
+  }
 }
 
 /**

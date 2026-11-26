@@ -2,6 +2,7 @@ import {constants} from 'node:fs'
 import {access, chmod, lstat, mkdir, open, readFile, rename, rmdir, unlink} from 'node:fs/promises'
 import {dirname, join, relative} from 'node:path'
 
+import {terminalText} from '../cli/terminal-text'
 import {createConfinement} from './confinement'
 import type {TemporaryFile} from './windows-access'
 import {
@@ -94,6 +95,16 @@ export class TransactionError extends Error {
       }`,
     )
     this.name = 'TransactionError'
+  }
+}
+
+/** Reports incomplete rollback on stderr directly, so no presentation suppression can hide it. */
+export function reportUnrestoredRecovery(error: unknown): void {
+  if (error instanceof TransactionError && error.unrestored.length) {
+    // Presentation suppression must never hide a manual recovery requirement.
+    console.error(
+      `Recovery required; unrestored/untrusted paths: ${error.unrestored.map(terminalText).join(', ')}. Preserve files/backups and recovery temporaries: ${error.recoveryFiles.map(terminalText).join(', ') || '(none)'}. Restore target/config/state from one known-good snapshot, then dry-run. Do not retry writes using untrusted metadata.`,
+    )
   }
 }
 
