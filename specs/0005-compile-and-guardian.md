@@ -216,7 +216,7 @@ value. `forge health` warns when `forge` is not on `PATH`.
 
 **Lock.** Each plugin's `outputs[<harness>]` already hashes compiled bytes. Additions:
 
-- `lockVersion: 2` (absent means 1). The guardian is a lock entry with `source: {type: generated}`, no SHA, and a
+- The lock's existing `version` field becomes 2 (`version: 2`). The guardian is a lock entry with `source: {type: generated}`, no SHA, and a
   `contentHash` over its generated tree; it is part of `variants[<harness>]`. `forge plugin remove` and `update` refuse
   `generated` entries with `GeneratedPlugin`.
 - `compile[<harness>] = {enabled, inputs: "sha256:…", compiler: <COMPILER_VERSION>}`. `inputs` hashes canonical JSON of
@@ -230,7 +230,7 @@ guardian registers with the same two keyed entries as any plugin, and the manife
 | Lock state | Sync does |
 |---|---|
 | `compile[h].compiler` greater than this forge's | refuses before any write: `LockFromNewerCompiler` ("upgrade forge") |
-| `lockVersion` greater than 2 | refuses before any write: `LockFromNewerForge` |
+| `version` greater than 2 | refuses before any write: `LockFromNewerForge` |
 | no `compile[h]`, compile enabled (a v0.8 lock) | compiles, relocks, and prints: "forge 0.9 compiles plugins for `<harness>`: N listed, M deferred. Set `compile.enabled: false` to keep v0.8 output. See docs/compile.md." Writing `compile[h]` makes this one-time |
 | compile disabled | writes `compile[h] = {enabled: false, compiler}`, relocks `outputs` to v0.8's bytes when they differ |
 | `inputs` unchanged, plugins reused | installs the locked outputs verbatim |
@@ -391,8 +391,8 @@ v0.10, with their delivery issues: **Codex compile target** (M), **Copilot compi
 
 - Droid's listing caps and drop order are measured, not documented (R§9); the defaults are harness data and move when
   Factory documents them.
-- Whether the v0.8 lock parser (#55) rejects unknown `lockVersion` values; if not, a v0.8.x CLI could rewrite a v2
-  lock without `compile`. Issue 1 asks #55's owner to add the check before v0.8.0 ships.
+- Resolved: a v0.8 CLI refuses a lock with `version: 2` before any write ("written by a newer forge; upgrade forge"),
+  covered by the existing test in `src/infrastructure/plugins/plugins.test.ts`, so a v0.8.x CLI cannot rewrite a v2 lock.
 
 ## Acceptance contract
 
