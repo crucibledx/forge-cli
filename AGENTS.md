@@ -30,7 +30,7 @@ bun run format:check && bun run lint && bun run typecheck && bun run test && bun
 
 - **Never run raw `bun test`.** The launcher (`scripts/run-tests.ts`) gives tests disposable home, temp and cache roots
   and offline scheduler fakes; raw `bun test` can touch the operator's real home, caches and scheduler.
-- Run only the current OS's checks locally. CI's ten lanes and `Deterministic gate` are the record; a local run does
+- Run only the current OS's checks locally. CI's eleven lanes and `Deterministic gate` are the record; a local run does
   not replace another OS's lane.
 - Put tests next to the code (`*.test.ts`) or in `e2e/`; `src/`, `e2e/` and `scripts/` are picked up automatically.
   A test that belongs to a named suite (`security`, `platform`, ...) must also be listed in `scripts/registry/suites.ts`.

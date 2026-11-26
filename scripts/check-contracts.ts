@@ -65,6 +65,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     'native-macos': ['build', 'test:platform', 'test:compiled'],
     'native-windows': ['build', 'test:platform', 'test:compiled'],
     build: ['build', 'test:compiled'],
+    'harness-smoke': ['build', 'test:harness-smoke'],
   }
   const required = Object.keys(requiredChecks)
   require(input.lanes.length === required.length &&

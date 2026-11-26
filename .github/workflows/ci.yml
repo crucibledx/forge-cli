@@ -36,6 +36,7 @@ jobs:
           - {lane: native-macos, os: macos-15-intel, checks: ['build', 'test:platform', 'test:compiled']}
           - {lane: native-windows, os: windows-latest, checks: ['build', 'test:platform', 'test:compiled']}
           - {lane: build, os: ubuntu-latest, checks: ['build', 'test:compiled']}
+          - {lane: harness-smoke, os: ubuntu-latest, checks: ['build', 'test:harness-smoke']}
     steps:
       - uses: actions/checkout@v4
         with:
