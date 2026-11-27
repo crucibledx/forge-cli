@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
-import {chmod, cp, mkdir, rename, rm, writeFile} from 'node:fs/promises'
+import {chmod, cp, mkdir, readdir, rename, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {isAbsolute, join, relative} from 'node:path'
+import {basename, dirname, isAbsolute, join, relative} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
@@ -24,7 +24,7 @@ import {
   unreferencedCacheDirs,
 } from '.'
 import {readCachedPlugin} from './cache'
-import {readGitPlugin} from './git'
+import {pluginGitCacheDir, readGitPlugin} from './git'
 
 /** Stand-in emitter: components in the plugin directory, rules as Claude rule files outside it. */
 const deliverTo = (harness: PluginHarnessId) => (pkg: PluginPackage) => {
@@ -64,7 +64,8 @@ describe('git plugin sources', () => {
     return path
   }
   const commit = async (bare: string, ref: string) => (await runGit(bare, ['rev-parse', `${ref}^{commit}`])).trim()
-  const gitCache = (url: string) => join(tmpdir(), 'forge-cache', 'plugins', hashContent(url))
+  const gitCache = (url: string) => pluginGitCacheDir(url, 'sha1')
+  const legacyGitCache = (url: string) => join(tmpdir(), 'forge-cache', 'plugins', hashContent(url))
 
   it('AC-2,3 locks the commit a branch, tag or SHA resolves to and keeps it after the branch moves', async () => {
     const url = await repository()
@@ -139,11 +140,39 @@ describe('git plugin sources', () => {
     expect((await lock([{...plugin, source: {...source, ref: v1}}])).lock.plugins[0].resolved).toBe(v1)
   })
 
-  it('AC-3 removes a cold cache whose first fetch fails, so it is not mistaken for a warm one', async () => {
+  it('AC-3 never shows other processes a half-initialised cache and removes only what a failed fetch created', async () => {
     const url = await repository()
+    const watched = [gitCache(url), legacyGitCache(url)]
+    const seen = new Set<string>()
+    let settled = false
     const plugin: PluginConfig = {name: 'hello', source: {type: 'git', url, path: 'plugins/hello', ref: 'missing'}}
-    expect(await lock([plugin]).catch((e: unknown) => e)).toBeInstanceOf(PluginSourceError)
-    expect(existsSync(gitCache(url))).toBe(false)
+    const failing = lock([plugin])
+      .catch((e: unknown) => e)
+      .finally(() => (settled = true))
+    while (!settled) {
+      for (const path of watched) if (existsSync(path)) seen.add(path)
+      await new Promise((wake) => setTimeout(wake, 1))
+    }
+    expect(await failing).toBeInstanceOf(PluginSourceError)
+    expect([...seen]).toEqual([])
+    const staged = (await readdir(dirname(gitCache(url)))).filter((name) =>
+      name.startsWith(`${basename(gitCache(url))}.`),
+    )
+    expect(staged).toEqual([])
+  })
+
+  it('AC-3 recovers from a cache an earlier forge left in the wrong object format', async () => {
+    const url = await repository()
+    const legacy = legacyGitCache(url)
+    await rm(legacy, {recursive: true, force: true})
+    await mkdir(legacy, {recursive: true})
+    await runGit(legacy, ['init', '--bare', '--quiet', '--object-format=sha256'])
+    try {
+      const plugin: PluginConfig = {name: 'hello', source: {type: 'git', url, path: 'plugins/hello'}}
+      expect((await lock([plugin])).lock.plugins[0].resolved).toBe(await commit(url, 'main'))
+    } finally {
+      await rm(legacy, {recursive: true, force: true})
+    }
   })
 
   it('AC-2,3 a cold cache uses the remote object format, not the local default', async () => {

@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {mkdir, mkdtemp, rm} from 'node:fs/promises'
+import {mkdir, mkdtemp, rename, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 
 import type {PluginFile} from '@domain/plugins'
 import {hashContent} from '@domain/sync/state'
@@ -12,7 +12,9 @@ import {readPluginFiles} from './files'
 
 const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
 
-const cacheDir = (url: string) => join(tmpdir(), 'forge-cache', 'plugins', hashContent(url))
+const CACHE_ROOT = join(tmpdir(), 'forge-cache', 'plugins')
+/** Keyed on the object format as well: a cache initialised in another format can never fetch from the remote. */
+export const pluginGitCacheDir = (url: string, format: string) => join(CACHE_ROOT, hashContent(`${url}#${format}`))
 const pending = new Map<string, Promise<unknown>>()
 
 async function serialized<T>(key: string, run: () => Promise<T>): Promise<T> {
@@ -43,8 +45,10 @@ export async function resolveGitCommit(
 ): Promise<{bare: string; sha: string}> {
   // Fetches run inside the cache, so a relative path must be resolved against the caller's working directory first.
   const remote = absoluteRemoteUrl(url)
-  const bare = cacheDir(remote)
-  return serialized(bare, () => resolveInCache(bare, remote, ref, locked))
+  const want = locked ?? (FULL_SHA.test(ref) ? ref.toLowerCase() : undefined)
+  const format = await remoteObjectFormat(remote, ref, want)
+  const bare = pluginGitCacheDir(remote, format)
+  return serialized(bare, () => resolveInCache(bare, format, remote, ref, want))
 }
 
 /**
@@ -55,20 +59,26 @@ async function remoteObjectFormat(url: string, ref: string, want?: string): Prom
   return objectFormatOf(want ?? (await runGit(undefined, ['ls-remote', '--', url, ref])).split('\t')[0].trim())
 }
 
-async function resolveInCache(bare: string, url: string, ref: string, locked?: string) {
-  const want = locked ?? (FULL_SHA.test(ref) ? ref.toLowerCase() : undefined)
-  const fresh = !existsSync(join(bare, 'HEAD'))
-  if (fresh) {
-    const format = await remoteObjectFormat(url, ref, want)
-    await mkdir(bare, {recursive: true})
-    await runGit(bare, ['init', '--bare', '--quiet', `--object-format=${format}`])
-  }
+/**
+ * Other forge processes share the cache, so a cold one is built aside and renamed into place only once it holds the
+ * commit: nobody sees it half-initialised, and a failed fetch removes only what this call created.
+ */
+async function resolveInCache(bare: string, format: string, url: string, ref: string, want?: string) {
+  if (existsSync(join(bare, 'HEAD'))) return fetchCommit(bare, url, ref, want)
+  await mkdir(dirname(bare), {recursive: true})
+  const staging = await mkdtemp(`${bare}.tmp-`)
   try {
-    return await fetchCommit(bare, url, ref, want)
-  } catch (error) {
-    // A cache initialised in the wrong format, or holding no commit, would otherwise be taken for a warm one next time.
-    if (fresh) await rm(bare, {recursive: true, force: true})
-    throw error
+    await runGit(staging, ['init', '--bare', '--quiet', `--object-format=${format}`])
+    const {sha} = await fetchCommit(staging, url, ref, want)
+    try {
+      await rename(staging, bare)
+    } catch (error) {
+      if (!existsSync(join(bare, 'HEAD'))) throw error
+      return fetchCommit(bare, url, ref, want)
+    }
+    return {bare, sha}
+  } finally {
+    await rm(staging, {recursive: true, force: true})
   }
 }
 
