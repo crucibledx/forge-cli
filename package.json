@@ -37,6 +37,7 @@
     "test:platform": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite platform",
     "test:compiled": "bun run scripts/compiled-smoke.ts",
     "test:harness-smoke": "bun run scripts/harness-smoke.ts",
+    "test:plugin-load-check": "bun run scripts/plugin-load-check.ts",
     "check:security-audit": "bun run scripts/security-audit.ts",
     "check:contracts": "bun run scripts/check-contracts.ts",
     "test:checkers": "bun run scripts/run-tests.ts --timeout-ms 40000 --suite checkers",

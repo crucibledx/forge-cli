@@ -6,7 +6,14 @@ import {parse} from 'yaml'
 import {testSuites} from './registry/suites'
 import {repositoryRoot} from './repository-root'
 import {SAFETY_LAYERS, safetyLedger} from './safety-ledger'
-import {acceptanceIds, businessRuleIds, LANE_BUDGET_MS, validationLanes} from './validation-lanes'
+import {
+  acceptanceIds,
+  businessRuleIds,
+  LANE_BUDGET_MS,
+  laneJobEnv,
+  pluginLoadCheckJobs,
+  validationLanes,
+} from './validation-lanes'
 
 export function contractInputs() {
   const read = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8')
@@ -66,6 +73,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     'native-windows': ['build', 'test:platform', 'test:compiled'],
     build: ['build', 'test:compiled'],
     'harness-smoke': ['build', 'test:harness-smoke'],
+    'plugin-load-check': ['build', 'test:plugin-load-check'],
   }
   const required = Object.keys(requiredChecks)
   require(input.lanes.length === required.length &&
@@ -120,10 +128,18 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     !ci.on.pull_request['paths-ignore'], 'Every PR must run every module without path skips')
   require(ci.jobs?.lanes?.strategy?.['fail-fast'] === false &&
     !ci.jobs.lanes.needs, 'Modules must be independent with fail-fast disabled')
-  const matrix = ci.jobs?.lanes?.strategy?.matrix?.include ?? []
-  require(matrix.length === required.length &&
-    required.every(
-      (id) => matrix.filter((row: {lane: string}) => row.lane === id).length === 1,
+  type MatrixRow = {lane: string; os?: string; harness?: string; scope?: string; checks?: string[]}
+  const matrix: MatrixRow[] = ci.jobs?.lanes?.strategy?.matrix?.include ?? []
+  const rowsOf = (id: string) => matrix.filter((row) => row.lane === id)
+  // The load check is one lane with one matrix row per harness and scope; every other lane is exactly one row.
+  const rowCount = (id: string) => (id === 'plugin-load-check' ? pluginLoadCheckJobs.length : 1)
+  require(matrix.length === required.reduce((sum, id) => sum + rowCount(id), 0) &&
+    required.every((id) => rowsOf(id).length === rowCount(id)) &&
+    pluginLoadCheckJobs.every(
+      (job) =>
+        rowsOf('plugin-load-check').filter(
+          (row) => row.harness === job.harness && row.scope === job.scope && row.os === 'ubuntu-latest',
+        ).length === 1,
     ), 'Workflow matrix differs from registry')
   require(matrix.find((row: {lane: string}) => row.lane === 'native-windows')?.os === 'windows-latest' &&
     matrix.find((row: {lane: string}) => row.lane === 'native-macos')?.os ===
@@ -134,11 +150,18 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
     ci.jobs?.gate?.['timeout-minutes'] <= 5, 'Feedback execution budgets missing')
   require(input.lanes.every(
     (lane) =>
-      JSON.stringify(matrix.find((row: {lane: string}) => row.lane === lane.id)?.checks) ===
-      JSON.stringify(lane.checks.map((check) => check.command[2])),
+      rowsOf(lane.id).length > 0 &&
+      rowsOf(lane.id).every(
+        (row) => JSON.stringify(row.checks) === JSON.stringify(lane.checks.map((check) => check.command[2])),
+      ),
   ), 'Workflow matrix checks differ from registry')
-  const lanes = ci.jobs?.lanes as {steps?: Record<string, unknown>[]} | undefined
+  const lanes = ci.jobs?.lanes as {env?: Record<string, string>; steps?: Record<string, unknown>[]} | undefined
   const steps = lanes?.steps ?? []
+  // Lanes run without credentials: no secret or token reference anywhere, and no env beyond the load-check selectors.
+  require(!/\bsecrets\b|github\.token/.test(JSON.stringify(ci)), 'CI must not reference secrets or tokens')
+  require(ci.env === undefined &&
+    JSON.stringify(lanes?.env) === JSON.stringify(laneJobEnv) &&
+    steps.every((step) => step.env === undefined), 'Lane job env must equal the declared allowlist')
   const longest = Math.max(0, ...input.lanes.map((lane) => lane.checks.length))
   require(Array.from({length: longest}, (_, index) => `matrix.checks[${index}]`).every((check) =>
     steps.some(

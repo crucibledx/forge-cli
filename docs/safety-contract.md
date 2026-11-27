@@ -144,8 +144,12 @@ Cleanup failures block successful commands but preserve a nonzero exit observed 
 The isolated test launcher likewise retains observed test failure exit1 if sandbox cleanup later fails; a passing
 batch with incomplete cleanup remains blocked2.
 
-The ten required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
-native-windows and build. `scripts/validation-lanes.ts` defines their commands, scopes, deadlines and AC/BR mappings.
+The twelve required modules are quality, business, e2e, human-dx, agent-cli, security, performance, native-macos,
+native-windows, build, harness-smoke and plugin-load-check. `scripts/validation-lanes.ts` defines their commands,
+scopes, deadlines and AC/BR mappings. plugin-load-check (spec 0004) runs as four matrix jobs, one per v0.8 plugin
+harness (Claude Code, Droid) and scope (user, project), listed in `pluginLoadCheckJobs`; the gate's
+`needs.lanes.result` covers every job, so a failed job fails `Deterministic gate`, and `check:contracts` rejects a
+matrix that drops, duplicates or moves one.
 The macOS lane uses the standard native `macos-15-intel` image. GitHub canceled the earlier ARM `macos-latest`
 job without assigning a runner after15 minutes of capacity retries. This image change retains the same checks,
 deadlines and fail-closed gate; it is not cross-compilation or an ARM execution claim.
@@ -167,13 +171,22 @@ Literal POSIX backslashes in generated target filenames are refused before the f
 Unknown or ambiguous retained ownership warns even when keep_local is true.
 
 Security runs offline attack scenarios plus `bun audit --json --audit-level=high` with a 60-second deadline, the
-only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
+security lane's only public-network fixture exception. High/critical runtime **or dev** findings fail. Invalid/unavailable/
 unaudited responses block; no ignores or dependency changes are made by the audit.
 Audit JSON uses a separate private stdout capture, capped at2MiB and decoded as strict UTF-8 before schema
 validation. It is never parsed from redacted/truncated diagnostics: public package names such as `keyv` and
 `path-key` are data, not credential assignments. Only validated field-sanitized findings are published; private
 structured input is not added to command artifacts. Invalid, incomplete and oversized responses remain blocked.
 Known high/critical findings still take precedence over lifecycle warnings or an unavailable exit code.
+
+The plugin load check's network exception is npm registry downloads of the pinned harness CLIs
+(`@anthropic-ai/claude-code` and `droid` at exact versions through `bunx`, into a sandbox-local cache); the plugin
+under test is a local fixture, and the job's own steps download nothing else. The harness CLIs' own startup traffic is
+not monitored; it carries no credentials. Lane jobs receive none: `check:contracts` rejects any `secrets` or
+`github.token` reference in CI and any lane env beyond `LOAD_CHECK_HARNESS` and `LOAD_CHECK_SCOPE`, and the checkout
+does not persist its token. Claude Code runs with nonessential traffic disabled and its API base URL set to a closed
+local port, so no model request leaves the machine even where a login exists; every credential-less session must
+report zero cost, zero API time and no model usage, or the job fails.
 Private sandbox roots are replaced before their enclosing repository root, including repository-local roots,
 native/canonical aliases and cleanup errors after disposal.
 Performance checks offline 10/1000-target cold-help/cold-sync/warm-sync outcomes with 30-second invocation limits.
@@ -185,7 +198,7 @@ CI links are required evidence, not something inferred from one local run.
 
 ## Merge readiness and owner boundaries
 
-A PR is ready for the owner when all ten lanes and the always-run `Deterministic gate` pass on its exact tested
+A PR is ready for the owner when all twelve lanes and the always-run `Deterministic gate` pass on its exact tested
 merge revision, and the hosted `review` check passes with no unresolved blocking findings. The code owner's approval
 is the final decision. The repository has no readiness, producer or attestation collector: the PR body and CI are
 the record, and prose saying “ready” is not evidence.

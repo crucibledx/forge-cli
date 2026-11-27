@@ -137,6 +137,81 @@ const workflowDrift: Record<string, [string, (ci: ReturnType<typeof contractInpu
     },
   ],
 }
+type MatrixRow = {lane: string; os: string; harness?: string; scope?: string}
+const loadCheckRow = (ci: ReturnType<typeof contractInputs>['ci'], harness: string, scope: string): MatrixRow =>
+  ci.jobs.lanes.strategy.matrix.include.find(
+    (row: MatrixRow) => row.lane === 'plugin-load-check' && row.harness === harness && row.scope === scope,
+  )
+const loadCheckDrift: Record<string, [string, (ci: ReturnType<typeof contractInputs>['ci']) => void]> = {
+  'load-check-job-missing': [
+    'Workflow matrix differs from registry',
+    (ci) => {
+      const include = ci.jobs.lanes.strategy.matrix.include
+      include.splice(include.indexOf(loadCheckRow(ci, 'droid', 'project')), 1)
+    },
+  ],
+  'load-check-job-duplicated': [
+    'Workflow matrix differs from registry',
+    (ci) => {
+      loadCheckRow(ci, 'droid', 'project').scope = 'user'
+    },
+  ],
+  'load-check-runner': [
+    'Workflow matrix differs from registry',
+    (ci) => {
+      loadCheckRow(ci, 'claude-code', 'user').os = 'macos-15-intel'
+    },
+  ],
+  'secret-in-lane-env': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.env.ANTHROPIC_API_KEY = '${{ secrets.ANTHROPIC_API_KEY }}'
+    },
+  ],
+  'secret-in-step-input': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.steps[0].with.token = '${{ github.token }}'
+    },
+  ],
+  'secret-by-index': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.steps[0].with.token = "${{ secrets['ANTHROPIC_API_KEY'] }}"
+    },
+  ],
+  'all-secrets-serialized': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.steps[0].with.token = '${{ toJSON(secrets) }}'
+    },
+  ],
+  'auth-env-in-lane-job': [
+    'Lane job env must equal the declared allowlist',
+    (ci) => {
+      ci.jobs.lanes.env.FACTORY_API_KEY = 'fk-placeholder'
+    },
+  ],
+  'auth-env-in-step': [
+    'Lane job env must equal the declared allowlist',
+    (ci) => {
+      ci.jobs.lanes.steps.at(-1).env = {ANTHROPIC_API_KEY: 'placeholder'}
+    },
+  ],
+  'auth-env-in-workflow': [
+    'Lane job env must equal the declared allowlist',
+    (ci) => {
+      ci.env = {CLAUDE_CODE_OAUTH_TOKEN: 'placeholder'}
+    },
+  ],
+}
+it.each(Object.keys(loadCheckDrift))('0004-AC-1,2 rejects plugin load check drift: %s', (kind) => {
+  const original = contractInputs()
+  const input = {...original, ci: structuredClone(original.ci)}
+  const [message, mutate] = loadCheckDrift[kind]
+  mutate(input.ci)
+  expect(validateContracts(input)).toContain(message)
+})
 it.each(Object.keys(workflowDrift))('AC-25,27,32 rejects workflow drift: %s', (kind) => {
   const original = contractInputs()
   const input = {...original, ci: structuredClone(original.ci)}
