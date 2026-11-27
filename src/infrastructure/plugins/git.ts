@@ -7,7 +7,7 @@ import {join} from 'node:path'
 import type {PluginFile} from '@domain/plugins'
 import {hashContent} from '@domain/sync/state'
 
-import {runGit} from '../source/git/load'
+import {absoluteRemoteUrl, runGit} from '../source/git/load'
 import {readPluginFiles} from './files'
 
 const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
@@ -41,16 +41,28 @@ export async function resolveGitCommit(
   ref: string,
   locked?: string,
 ): Promise<{bare: string; sha: string}> {
-  const bare = cacheDir(url)
-  return serialized(bare, () => resolveInCache(bare, url, ref, locked))
+  // Fetches run inside the cache, so a relative path must be resolved against the caller's working directory first.
+  const remote = absoluteRemoteUrl(url)
+  const bare = cacheDir(remote)
+  return serialized(bare, () => resolveInCache(bare, remote, ref, locked))
+}
+
+/**
+ * An empty repository cannot learn the remote's object format the way clone does: a commit SHA's length gives it, and
+ * for a branch or tag the SHA the remote advertises for it. A ref the remote lacks falls back to sha1 and fails in fetch.
+ */
+async function remoteObjectFormat(url: string, ref: string, want?: string): Promise<string> {
+  const sha = want ?? (await runGit(undefined, ['ls-remote', '--', url, ref])).split('\t')[0].trim()
+  return sha.length === 64 ? 'sha256' : 'sha1'
 }
 
 async function resolveInCache(bare: string, url: string, ref: string, locked?: string) {
-  if (!existsSync(join(bare, 'HEAD'))) {
-    await mkdir(bare, {recursive: true})
-    await runGit(bare, ['init', '--bare', '--quiet'])
-  }
   const want = locked ?? (FULL_SHA.test(ref) ? ref.toLowerCase() : undefined)
+  if (!existsSync(join(bare, 'HEAD'))) {
+    const format = await remoteObjectFormat(url, ref, want)
+    await mkdir(bare, {recursive: true})
+    await runGit(bare, ['init', '--bare', '--quiet', `--object-format=${format}`])
+  }
   if (want) {
     if (!(await hasCommit(bare, want))) await runGit(bare, ['fetch', '--quiet', '--depth', '1', url, want])
     return {bare, sha: want}

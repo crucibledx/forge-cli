@@ -1,7 +1,7 @@
 import {stat} from 'node:fs/promises'
 
 import type {PluginFile, PluginPackage} from '@domain/plugins'
-import {buildPluginPackage, PLUGIN_COMPONENT_KINDS as K} from '@domain/plugins'
+import {buildPluginPackage, layerComponents, PLUGIN_COMPONENT_KINDS as K} from '@domain/plugins'
 
 import {readPluginFiles} from './files'
 import {checkManifest, checkMcpConfig} from './manifest'
@@ -31,12 +31,10 @@ export function checkPluginFiles(files: PluginFile[]): PluginCheck {
   const {manifest, errors, warnings} = checkManifest(raw.value)
   if (!manifest) return {errors, warnings}
   const pkg = buildPluginPackage(manifest, files)
-  const checked = new Set<string>()
-  for (const component of Object.values(pkg.components).flat()) {
+  for (const component of layerComponents(files)) {
     const suffix = JSON_FILES[component.kind]
-    const path = suffix === undefined ? undefined : component.root + suffix
-    if (!path || checked.has(path)) continue
-    checked.add(path)
+    if (suffix === undefined) continue
+    const path = component.root + suffix
     const file = component.files.find((candidate) => candidate.path === path)!
     const parsed = parseJson(file)
     if (parsed.error) errors.push(parsed.error)

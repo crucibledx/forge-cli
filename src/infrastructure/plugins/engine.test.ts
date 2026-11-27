@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {chmod, cp, mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {join, relative} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
@@ -123,6 +123,39 @@ describe('git plugin sources', () => {
     expect(error).toBeInstanceOf(PluginSourceError)
     expect((error as Error).message).toContain('Plugin "hello" source error')
     expect(existsSync(join(dir(), '.crucible'))).toBe(false)
+  })
+  it('AC-2,3 resolves a relative url against the working directory for a branch, a SHA and a locked commit', async () => {
+    const url = await repository()
+    const source = {type: 'git' as const, url: relative(process.cwd(), url), path: 'plugins/hello'}
+    const plugin: PluginConfig = {name: 'hello', source}
+    const v1 = await commit(url, 'main')
+    const first = await lock([plugin])
+    expect(first.lock.plugins[0].resolved).toBe(v1)
+    expect(existsSync(gitCache(url))).toBe(true)
+    await rm(gitCache(url), {recursive: true, force: true})
+    expect((await lock([plugin], first.lock)).lock.plugins[0].resolved).toBe(v1)
+    await rm(gitCache(url), {recursive: true, force: true})
+    expect((await lock([{...plugin, source: {...source, ref: v1}}])).lock.plugins[0].resolved).toBe(v1)
+  })
+
+  it('AC-2,3 a cold cache uses the remote object format, not the local default', async () => {
+    const url = await repository()
+    const source = {type: 'git' as const, url, path: 'plugins/hello'}
+    const plugin: PluginConfig = {name: 'hello', source}
+    const head = await commit(url, 'main')
+    const previous = process.env.GIT_DEFAULT_HASH
+    process.env.GIT_DEFAULT_HASH = head.length === 40 ? 'sha256' : 'sha1'
+    try {
+      const first = await lock([plugin])
+      expect(first.lock.plugins[0].resolved).toBe(head)
+      await rm(gitCache(url), {recursive: true, force: true})
+      expect((await lock([plugin], first.lock)).lock.plugins[0].resolved).toBe(head)
+      await rm(gitCache(url), {recursive: true, force: true})
+      expect((await lock([{...plugin, source: {...source, ref: head}}])).lock.plugins[0].resolved).toBe(head)
+    } finally {
+      if (previous === undefined) delete process.env.GIT_DEFAULT_HASH
+      else process.env.GIT_DEFAULT_HASH = previous
+    }
   })
 })
 

@@ -1,3 +1,5 @@
+import {parse as parseYaml} from 'yaml'
+
 import type {
   PluginComponent,
   PluginComponentKind,
@@ -40,14 +42,19 @@ function classify(rel: string): Slot | undefined {
   if (kind && parts.length === 2 && second.endsWith('.md')) return {kind, name: second.slice(0, -3), root: rel}
 }
 
+/** Read as YAML: `paths` may be quoted or sit in a flow mapping. Frontmatter that is not YAML scopes nothing. */
 function isPathScoped(content: Uint8Array): boolean {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(new TextDecoder().decode(content))
-  return frontmatter !== null && /^paths\s*:/m.test(frontmatter[1])
+  if (!frontmatter) return false
+  try {
+    const data: unknown = parseYaml(frontmatter[1])
+    return typeof data === 'object' && data !== null && (data as Record<string, unknown>).paths != null
+  } catch {
+    return false
+  }
 }
 
-/** Group package files into components per layer, then resolve each harness's view by layer precedence. */
-export function buildPluginPackage(manifest: PluginManifest, files: PluginFile[]): PluginPackage {
-  const warnings: string[] = []
+function groupLayers(files: PluginFile[], warnings: string[]): Map<string, Map<string, PluginComponent>> {
   const misplaced = new Set<string>()
   const layers = new Map<string, Map<string, PluginComponent>>()
   for (const file of files) {
@@ -77,6 +84,18 @@ export function buildPluginPackage(manifest: PluginManifest, files: PluginFile[]
         layer.delete(key)
       } else if (component.kind === K.RULE) component.pathScoped = isPathScoped(component.files[0].content)
     }
+  return layers
+}
+
+/** Every component of every layer, including those each harness's view overrides. */
+export function layerComponents(files: PluginFile[]): PluginComponent[] {
+  return [...groupLayers(files, []).values()].flatMap((layer) => [...layer.values()])
+}
+
+/** Group package files into components per layer, then resolve each harness's view by layer precedence. */
+export function buildPluginPackage(manifest: PluginManifest, files: PluginFile[]): PluginPackage {
+  const warnings: string[] = []
+  const layers = groupLayers(files, warnings)
   const components = Object.fromEntries(
     PLUGIN_HARNESS_IDS.map((harness) => {
       const merged = new Map([
