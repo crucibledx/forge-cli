@@ -6,7 +6,7 @@
 
 import {existsSync} from 'node:fs'
 import {chmod, mkdir, readFile, realpath, rename, rm, stat, writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
+import {delimiter, join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
 
@@ -28,6 +28,21 @@ const miniPlugin = (version: string, body: string) => ({
   skills: {hello: {'SKILL.md': `---\nname: hello\ndescription: Say hello.\n---\n\n${body}\n`}},
 })
 
+/** A passive, platform-appropriate node executable for PATH fixtures; sync itself must never spawn it. */
+const writeNodeShim = async (dir: string) => {
+  if (process.platform === 'win32') await writeFile(join(dir, 'node.cmd'), '@exit /b 0\r\n')
+  else {
+    await writeFile(join(dir, 'node'), '#!/bin/sh\nexit 0\n')
+    await chmod(join(dir, 'node'), 0o755)
+  }
+}
+
+/** A 'node' PATH entry that exists but cannot run, shadowing any real node later on PATH (first match wins). */
+const writeBlockedNodeShim = async (dir: string) => {
+  if (process.platform === 'win32') await mkdir(join(dir, 'node.exe'), {recursive: true})
+  else await writeFile(join(dir, 'node'), '#!/bin/sh\nexit 0\n', {mode: 0o644})
+}
+
 describe('forge sync — Droid plugin delivery', () => {
   it('installs a plugin in project scope: settings keys, catalogs, cache, lock and report (AC-9, AC-16, AC-17)', async () => {
     const dir = getDir()
@@ -40,8 +55,7 @@ describe('forge sync — Droid plugin delivery', () => {
       await chmod(join(shim, cli), 0o755)
     }
     // Passive node: the generated rules hook needs node on PATH, but sync itself must never spawn it.
-    await writeFile(join(shim, 'node'), '#!/bin/sh\nexit 0\n')
-    await chmod(join(shim, 'node'), 0o755)
+    await writeNodeShim(shim)
     await writeSourceTree(join(dir, 'src'), {skills: {'deploy.md': '# Deploy'}})
     await writeConfig(
       proj,
@@ -50,7 +64,7 @@ describe('forge sync — Droid plugin delivery', () => {
     )
 
     const {exitCode, output} = await runCommand(proj, 'sync', [], {
-      PATH: `${shim}:/usr/bin:/bin`,
+      PATH: [shim, '/usr/bin', '/bin'].join(delimiter),
       FORGE_SPAWN_MARKER: marker,
     })
     expect(exitCode).toBe(0)
@@ -411,18 +425,22 @@ describe('forge sync — Droid plugin delivery', () => {
       'dev.crucibledx.forge': {rules: {'style.md': 'Be brief.\n'}},
     })
     await writeConfig(proj, buildConfigYaml({assistants: ['droid']}) + pluginsBlock(localPlugin(plugin)))
-    const path = '/usr/bin:/bin'
 
-    const blocked = await runCommand(proj, 'sync', [], {PATH: path})
+    // A shadowing non-runnable 'node' entry keeps the machine's real node unreachable without relying on
+    // where the machine keeps it, and leaves the system directories the test framework itself needs on PATH.
+    const blockedDir = join(dir, 'blocked')
+    await mkdir(blockedDir, {recursive: true})
+    await writeBlockedNodeShim(blockedDir)
+    const basePath = ['/usr/bin', '/bin'].join(delimiter)
+    const blocked = await runCommand(proj, 'sync', [], {PATH: [blockedDir, basePath].join(delimiter)})
     expect(blocked.exitCode).toBe(1)
     expect(blocked.output).toContain('node')
     expect(blocked.output).toContain('hello')
     expect(existsSync(join(proj, '.crucible/plugins'))).toBe(false)
 
     await mkdir(shim, {recursive: true})
-    await writeFile(join(shim, 'node'), '#!/bin/sh\nexit 0\n')
-    await chmod(join(shim, 'node'), 0o755)
-    const allowed = await runCommand(proj, 'sync', [], {PATH: `${shim}:${path}`})
+    await writeNodeShim(shim)
+    const allowed = await runCommand(proj, 'sync', [], {PATH: [shim, basePath].join(delimiter)})
     expect(allowed.exitCode).toBe(0)
     expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/forge/print-rules.cjs'))).toBe(true)
   })
