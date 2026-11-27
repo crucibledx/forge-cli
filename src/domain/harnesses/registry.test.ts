@@ -5,7 +5,10 @@ import './windsurf'
 import {describe, expect, it} from 'bun:test'
 
 import {claudeCode} from './claude-code'
+import {SOURCE_GLOB_KINDS} from './coverage'
 import {cursor} from './cursor'
+import {droid} from './droid'
+import {COMPONENT_FORMATS} from './formats'
 import {
   getAllHarnesses,
   getHarness,
@@ -13,6 +16,8 @@ import {
   resolveHarnessByPath,
   resolveHarnessBySettingsPath,
 } from './registry'
+import type {HarnessDefinition, HarnessPluginCapability} from './types'
+import {COMPONENT_KINDS} from './types'
 
 it.each([
   ['.claude/settings.local.json', claudeCode.id],
@@ -30,9 +35,9 @@ it.each(['.CLAUDE\\SKILLS\\a.md', '.claude//skills///a.md'])(
 )
 
 describe('getAllHarnesses', () => {
-  it('returns all 5 harnesses', () => {
+  it('returns all 6 harnesses', () => {
     const all = getAllHarnesses()
-    expect(all).toHaveLength(5)
+    expect(all).toHaveLength(6)
   })
 
   it('covers every registered id', () => {
@@ -66,5 +71,63 @@ describe('getHarness', () => {
     const globs = a.targetMappings.map((m) => m.sourceGlob)
     expect(globs).toContain('skills/**')
     expect(globs).toContain('rules/**')
+  })
+})
+
+describe('AC-4 targetMappings match components', () => {
+  it.each(getAllHarnesses().map((harness) => [harness.id, harness] as const))('%s', (_, harness) => {
+    for (const mapping of harness.targetMappings) {
+      const kind = SOURCE_GLOB_KINDS[mapping.sourceGlob]
+      expect(kind).toBeDefined()
+      const component = harness.components[kind]
+      expect(component).toBeDefined()
+      expect(component!.project).toBe(mapping.destination.project)
+      expect(component!.global).toBe(`~/${mapping.destination.global ?? mapping.destination.project}`)
+      expect(component!.transforms ?? []).toEqual(mapping.transforms ?? [])
+    }
+    for (const [glob, kind] of Object.entries(SOURCE_GLOB_KINDS)) {
+      if (harness.components[kind]) expect(harness.targetMappings.map((m) => m.sourceGlob)).toContain(glob)
+    }
+  })
+
+  it('every component uses a registered format and a known kind', () => {
+    const formats: string[] = Object.values(COMPONENT_FORMATS)
+    const kinds: string[] = Object.values(COMPONENT_KINDS)
+    for (const harness of getAllHarnesses()) {
+      for (const [kind, component] of Object.entries(harness.components)) {
+        expect(kinds).toContain(kind)
+        expect(formats).toContain(component.format)
+        expect(component.project ?? component.global).toBeDefined()
+        if (component.global) expect(component.global.startsWith('~/')).toBe(true)
+      }
+    }
+  })
+})
+
+describe('AC-11 plugin capability', () => {
+  it('is unset on every built-in', () => {
+    for (const harness of getAllHarnesses()) expect(harness.plugin).toBeUndefined()
+  })
+
+  it('is an optional field of the definition type', () => {
+    const plugin: HarnessPluginCapability = {emit: 'factory', register: 'droid-settings'}
+    const withPlugin: HarnessDefinition = {...droid, plugin}
+    expect(withPlugin.plugin).toEqual(plugin)
+  })
+})
+
+describe('droid', () => {
+  it('syncs skills and workflows to .factory and has no rules mapping', () => {
+    expect(getHarness('droid').targetMappings).toEqual([
+      {sourceGlob: 'skills/**', destination: {project: '.factory/skills/'}},
+      {sourceGlob: 'workflows/**', destination: {project: '.factory/commands/'}},
+    ])
+    expect(droid.components.rule).toBeUndefined()
+    expect(droid.detection.directories).toEqual(['.factory', '~/.factory'])
+  })
+
+  it('owns synced .factory paths', () => {
+    expect(resolveHarnessByPath('.factory/skills/a/SKILL.md')?.id).toBe('droid')
+    expect(resolveHarnessByPath('.factory/commands/review.md')?.id).toBe('droid')
   })
 })
