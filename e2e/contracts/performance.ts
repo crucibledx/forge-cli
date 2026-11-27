@@ -27,7 +27,7 @@ export async function performancePhase(
     if (!result.stdout.includes('Usage:')) throw new Error('Incorrect help output')
   } else {
     const state = JSON.parse(await readFile(join(root, '.crucible/sync-state.json'), 'utf8'))
-    if (state.version !== 2 || Object.keys(state.files).length !== Object.keys(skills).length)
+    if (state.version !== 3 || Object.keys(state.files).length !== Object.keys(skills).length)
       throw new Error('Incorrect performance state')
     for (const [name, content] of Object.entries(skills)) {
       const path = `.claude/skills/${name}`,

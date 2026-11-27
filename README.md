@@ -89,8 +89,8 @@ my-source/
 
 Forge auto-detects the layout and maps each file to every harness's native format:
 
-| Harness          | Target paths                                             | Auto-transform               |
-|--------------------|----------------------------------------------------------|------------------------------|
+| Harness            | Target paths                                             | Auto-transform               |
+| ------------------ | -------------------------------------------------------- | ---------------------------- |
 | **Claude Code**    | `.claude/skills/`, `.claude/rules/`, `.claude/commands/` | —                            |
 | **Cursor**         | `.cursor/rules/`                                         | `.md` → `.mdc` + frontmatter |
 | **Windsurf**       | `.windsurf/rules/`, `.windsurf/workflows/`               | frontmatter injection        |
@@ -124,10 +124,11 @@ Only active tools are synced. If your project doesn't use Windsurf, Forge won't 
 ## Commands
 
 | Command                   | Description                                            |
-|---------------------------|--------------------------------------------------------|
+| ------------------------- | ------------------------------------------------------ |
 | `forge init`              | Interactive wizard — detect tools, configure sources   |
-| `forge sync`              | Fetch, transform, and place files for each harness   |
+| `forge sync`              | Fetch, transform, and place files for each harness     |
 | `forge sync --dry-run`    | Preview all changes without writing                    |
+| `forge sync --force`      | Overwrite forge-owned files and keys edited locally    |
 | `forge status`            | Show drift between last sync and filesystem            |
 | `forge health`            | SLI dashboard — sync frequency, drift, reachability    |
 | `forge config`            | Interactive config editor                              |
@@ -151,8 +152,8 @@ sources:
     type: git
     url: git@github.com:acme/ai-configs.git
     branch: main
-    subdirectory: skills     # optional: sync only a subfolder
-    include: [ "*.md" ]        # optional: glob filters
+    subdirectory: skills # optional: sync only a subfolder
+    include: ['*.md'] # optional: glob filters
 ```
 
 ### Local directory
@@ -189,6 +190,9 @@ harnesses and untracked files are retained. Different existing backups and porta
 block planning, including case-fold-equivalent spellings such as sigma/final sigma, without renaming stored paths.
 State v2 preserves conservative `legacy-unknown` baselines; do not downgrade without preserving
 edits and restoring a consistent target/config/state snapshot. Silent mode still emits incomplete-recovery emergencies.
+Shared JSON/JSONC settings files get keyed merges: forge edits only the keys it owns (state v3 `ownedKeys`), keeps
+comments, formatting and your keys, and blocks when you edited one of its keys; `forge sync --force` overwrites them,
+lists each overridden key and, with `backup: true`, keeps a `.bak` of the file. An older forge refuses v3 state instead of misreading it.
 This is not crash recovery or concurrent-writer safety, and ownership/xattrs/timestamps/alternate streams are not
 preservation guarantees. Windows access preservation and durable descendant ownership still require native validation
 on this implementation branch. See [the safety ledger, limits and recovery guide](docs/safety-contract.md).

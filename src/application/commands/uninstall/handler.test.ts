@@ -26,6 +26,10 @@ let schedulerInstalled = true
 let schedulerUninstalled = false
 let crucibleDirRemoved = false
 let deletedFiles: string[] = []
+let keyRemovalPlanned: SyncState | undefined
+let keyRemovalCommitted = false
+let keyRemovalPlans = 0
+let filesDeletedBeforeKeys = false
 
 const track =
   (method: string) =>
@@ -89,6 +93,19 @@ mock.module('../shared/source.cleanup', () => ({
   },
 }))
 
+mock.module('../shared/keyed.cleanup', () => ({
+  planOwnedKeyRemoval: async (_root: string, state: SyncState) => {
+    keyRemovalPlanned = state
+    keyRemovalPlans++
+    return {operations: [], kept: []}
+  },
+  commitOwnedKeyRemoval: async () => {
+    keyRemovalCommitted = true
+    filesDeletedBeforeKeys = deletedFiles.length > 0
+    return 0
+  },
+}))
+
 // ─── Import after mocks ─────────────────────────────────────────────────────
 
 const {runUninstall} = await import('./handler')
@@ -104,6 +121,11 @@ beforeEach(() => {
   schedulerUninstalled = false
   crucibleDirRemoved = false
   deletedFiles = []
+  keyRemovalPlanned = undefined
+  keyRemovalCommitted = false
+  keyRemovalPlans = 0
+  filesDeletedBeforeKeys = false
+  delete mockSyncState.files['.claude/settings.local.json']
   mockConfig = {
     version: '1',
     harnesses: [{id: 'cursor', enabled: true}],
@@ -140,6 +162,28 @@ describe('runUninstall', () => {
     expect(schedulerUninstalled).toBe(false)
     expect(deletedFiles).toEqual([])
     expect(crucibleDirRemoved).toBe(false)
+  })
+
+  it('0003-AC-13 plans keyed removal before the prompt, re-plans after it and never deletes a shared settings file', async () => {
+    mockSyncState.files['.claude/settings.local.json'] = {
+      hash: 'a'.repeat(64),
+      sourceName: 'plugin',
+      baseline: 'installed',
+      ownedKeys: {'enabledPlugins["foo@crucible-forge-user"]': 'b'.repeat(64)},
+    }
+    confirmResponse = false
+    await runUninstall()
+    expect(keyRemovalPlanned).toBe(mockSyncState)
+    expect(keyRemovalPlans).toBe(1)
+    expect(keyRemovalCommitted).toBe(false)
+
+    confirmResponse = true
+    keyRemovalPlans = 0
+    await runUninstall()
+    expect(keyRemovalPlans).toBe(2)
+    expect(keyRemovalCommitted).toBe(true)
+    expect(filesDeletedBeforeKeys).toBe(false)
+    expect(deletedFiles).toEqual(['.claude/rules/deploy.md'])
   })
 
   it('skips scheduler when not installed', async () => {

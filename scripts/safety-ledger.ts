@@ -150,4 +150,17 @@ export const safetyLedger: SafetyRule[] = [
       'scripts/check-contracts.test.ts',
     ],
   },
+  {
+    id: 'BR-11',
+    layer: SAFETY_LAYERS.INFRASTRUCTURE,
+    example: 'Own settings keys and array entries by identity, remove only owned keys, snapshot the whole file',
+    counterexample: 'Rewrite a shared settings file, match array entries by index, or delete a user sibling key',
+    ac_ids: ['0003-AC-11', '0003-AC-12', '0003-AC-14', '0003-AC-15'],
+    tests: [
+      'src/infrastructure/config/keyed-merge.test.ts',
+      'src/application/commands/sync/keyed-merge.test.ts',
+      'src/infrastructure/config/state.test.ts',
+      'e2e/commands/sync/force.test.ts',
+    ],
+  },
 ]

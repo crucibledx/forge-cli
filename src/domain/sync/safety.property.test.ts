@@ -137,7 +137,7 @@ describe('BR-02–04 independent business-rule oracles (AC-20)', () => {
         }
         const original = structuredClone(previous)
         expect(reconcileState(previous, targets, summaries, 'after')).toEqual({
-          version: 2,
+          version: 3,
           lastSync: 'after',
           files: expected,
         })
