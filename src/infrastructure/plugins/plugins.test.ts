@@ -76,6 +76,27 @@ describe('AC-1 manifest validation', () => {
       'plugin.json: missing at the package root',
     ])
   })
+  it('validates JSON components in every layer, including ones both vendor folders override', async () => {
+    const mcp = JSON.stringify({$schema: MCP_SCHEMA_ID, mcpServers: {}})
+    const check = await checkPluginDirectory(
+      await fixtureDir({
+        'plugin.json': pluginManifest('demo', '1.0.0'),
+        'mcp.json': '{',
+        'dev.crucibledx.forge/mcp.json': JSON.stringify({mcpServers: {}}),
+        'dev.crucibledx.forge/hooks/hooks.json': '{',
+        'com.anthropic/mcp.json': mcp,
+        'com.anthropic/hooks/hooks.json': '{}',
+        'ai.factory/mcp.json': mcp,
+        'ai.factory/hooks/hooks.json': '{}',
+      }),
+    )
+    expect(check.pkg).toBeUndefined()
+    const errors = check.errors.join('\n')
+    expect(errors).toContain('mcp.json: not valid JSON')
+    expect(errors).toContain('dev.crucibledx.forge/mcp.json: missing required field "$schema"')
+    expect(errors).toContain('dev.crucibledx.forge/hooks/hooks.json: not valid JSON')
+    expect(check.errors).toHaveLength(3)
+  })
   it('fails a package whose MCP server command escapes the plugin root', async () => {
     const check = await checkPluginDirectory(
       await fixtureDir({
