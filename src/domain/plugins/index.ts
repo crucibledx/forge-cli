@@ -1,3 +1,4 @@
+export * from './emitters'
 export * from './hash'
 export * from './lock'
 export * from './package'
