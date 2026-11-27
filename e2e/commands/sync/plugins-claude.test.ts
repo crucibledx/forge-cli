@@ -180,6 +180,33 @@ describe('forge sync — Claude Code plugin delivery', () => {
     expect(relocked.variants.droid).not.toBe(first.variants.droid)
   })
 
+  it('installs rule bytes exactly as emitted, BOM included, and refuses a rule that is not UTF-8 (AC-3, AC-5)', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    const rule = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('Be brief.\n')])
+    await writeSourceTree(plugin, rulePlugin('1.0.0', 'placeholder'))
+    await writeFile(join(plugin, 'dev.crucibledx.forge/rules/style.md'), rule)
+    await writeConfig(proj, claudeConfig(pluginsBlock(localPlugin('hello', plugin))))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(await readFile(join(proj, '.claude/rules/hello--style.md'))).toEqual(rule)
+    const again = await runSync(proj)
+    expect(again.exitCode).toBe(0)
+    expect(again.output).toContain('hello 1.0.0: installed from the lock')
+    expect(await readFile(join(proj, '.claude/rules/hello--style.md'))).toEqual(rule)
+
+    const other = join(dir, 'other')
+    await writeSourceTree(other, rulePlugin('1.0.0', 'placeholder'))
+    await writeFile(join(other, 'dev.crucibledx.forge/rules/style.md'), Buffer.from([0x42, 0xff, 0x0a]))
+    const fresh = join(dir, 'fresh')
+    await writeConfig(fresh, claudeConfig(pluginsBlock(localPlugin('hello', other))))
+    const refused = await runSync(fresh)
+    expect(refused.exitCode).toBe(1)
+    expect(refused.output).toContain('hello')
+    expect(refused.output).toContain('UTF-8')
+    expect(existsSync(join(fresh, '.claude'))).toBe(false)
+  })
+
   it('installs the locked commit into the Claude Code tree after the source branch moves (AC-3)', async () => {
     const dir = getDir()
     const proj = join(dir, 'proj')

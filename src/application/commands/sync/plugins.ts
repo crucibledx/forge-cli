@@ -190,7 +190,17 @@ export async function planPlugins(input: {
   }
 }
 
-const decoder = new TextDecoder()
+// Sync targets are text: keep a BOM and refuse bytes that would not survive the round trip, so the installed rule
+// is exactly the locked output.
+const decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true})
+
+function ruleText(plugin: string, path: string, content: Uint8Array): string {
+  try {
+    return decoder.decode(content)
+  } catch {
+    throw new CommandError(M.ruleNotUtf8(plugin, path), M.ruleNotUtf8Hint)
+  }
+}
 
 /**
  * Spec 0003 §2: a harness that loads plugin rules from its own rules directory gets them as forge-owned files there,
@@ -207,7 +217,7 @@ function ruleTargets(plugins: readonly LockedPlugin[], scope: PluginScope): Reso
       return delivered.claudeRules.map((file) => ({
         sourcePath: `${plugin.entry.name}/${file.path}`,
         targetPath: `${dir}${file.path}`,
-        content: decoder.decode(file.content),
+        content: ruleText(plugin.entry.name, file.path, file.content),
         harnessId,
         sourceName: PLUGIN_SOURCE_NAME,
       }))
