@@ -1,4 +1,4 @@
-import {stat} from 'node:fs/promises'
+import {chmod, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
@@ -129,12 +129,19 @@ export async function runSyncWithDependencies(
       return
     }
     const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
+    // Test-only commit-failure injection (e2e AC-14): preparation pre-checks write feasibility, so only a
+    // directory turned unwritable after it makes the commit fail mid-transaction and run the rollback path.
+    const failCommit = process.env.FORGE_TEST_FAIL_COMMIT
+    const inject = failCommit !== undefined && process.platform !== 'win32'
+    if (inject) await chmod(join(boundary.root, failCommit), 0o500)
     try {
       await commitPrepared(prepared)
     } catch (error) {
       // A failed compensation is an emergency: report it even when --silent suppresses warnings.
       await alias?.undo?.().catch(() => console.error(M.errors.aliasUndoFailed))
       throw error
+    } finally {
+      if (inject) await chmod(join(boundary.root, failCommit), 0o755).catch(() => undefined)
     }
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,

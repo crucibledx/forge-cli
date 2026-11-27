@@ -13,7 +13,8 @@ import {transactionIO} from '@infrastructure/fs/transaction'
 
 import {buildPlan} from './handler'
 
-describe('AC-14 keyed-merge rollback', () => {
+/** Planning-level half of AC-14; the full-CLI half is e2e/commands/sync/plugin-rollback.test.ts. */
+describe('AC-14 keyed-merge rollback (planning level)', () => {
   const dir = useTmpDir('sync-keyed-rollback')
 
   it('restores the pre-run snapshot, settings file included, when a later commit step fails', async () => {

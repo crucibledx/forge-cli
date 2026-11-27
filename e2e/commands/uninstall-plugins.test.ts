@@ -33,6 +33,17 @@ const miniPlugin = {
   skills: {hello: {'SKILL.md': '---\nname: hello\ndescription: Say hello.\n---\n\nHello v1\n'}},
 }
 
+/** User-owned keys sharing the settings file with forge's keys; removal must never touch them. */
+const SIBLINGS = {
+  model: 'small',
+  enabledPlugins: {'other@other-marketplace': true},
+  extraKnownMarketplaces: {'other-marketplace': {source: {source: 'local', path: '/x'}}},
+}
+const seedSiblings = async (dir: string, settingsPath: string) => {
+  await mkdir(join(dir, '.factory'), {recursive: true})
+  await writeFile(join(dir, settingsPath), JSON.stringify(SIBLINGS, null, 2) + '\n')
+}
+
 const config = (dir: string, keepLocal: boolean, withPlugin: boolean) =>
   buildConfigYaml({assistants: ['droid'], localSource: {path: join(dir, 'src')}, sync: {keep_local: keepLocal}}) +
   (withPlugin
@@ -57,8 +68,7 @@ async function install(
 describe('removing a Droid plugin (AC-13)', () => {
   it('project scope, keep_local false: removes forge keys and cache, keeps user siblings', async () => {
     const dir = getDir()
-    await mkdir(join(dir, '.factory'), {recursive: true})
-    await writeFile(join(dir, '.factory/settings.local.json'), '{\n  "model": "small"\n}\n')
+    await seedSiblings(dir, '.factory/settings.local.json')
     await install(dir, false, '.factory/settings.local.json', () => runSync(dir))
 
     await writeConfig(dir, config(dir, false, false))
@@ -67,9 +77,7 @@ describe('removing a Droid plugin (AC-13)', () => {
     expect(output).toContain('hello: removed')
 
     const settings = await readJson(join(dir, '.factory/settings.local.json'))
-    expect(settings.model).toBe('small')
-    expect(settings.extraKnownMarketplaces).toBeUndefined()
-    expect(settings.enabledPlugins).toBeUndefined()
+    expect(settings).toEqual(SIBLINGS)
 
     const cache = join(dir, '.crucible/plugins')
     expect(existsSync(join(cache, 'hello'))).toBe(false)
@@ -78,31 +86,35 @@ describe('removing a Droid plugin (AC-13)', () => {
     expect((await readJson(join(dir, '.crucible/forge.lock'))).plugins).toEqual([])
   })
 
-  it('project scope, keep_local true: key removal still runs', async () => {
+  it('project scope, keep_local true: key removal still runs, user siblings kept', async () => {
     const dir = getDir()
+    await seedSiblings(dir, '.factory/settings.local.json')
     await install(dir, true, '.factory/settings.local.json', () => runSync(dir))
 
     await writeConfig(dir, config(dir, true, false))
     expect((await runSync(dir)).exitCode).toBe(0)
 
     const settings = await readJson(join(dir, '.factory/settings.local.json'))
-    expect(settings.extraKnownMarketplaces).toBeUndefined()
-    expect(settings.enabledPlugins).toBeUndefined()
+    expect(settings).toEqual(SIBLINGS)
     expect(existsSync(join(dir, '.crucible/plugins/hello'))).toBe(false)
   })
 
-  it('user scope: removes forge keys and the user cache with forge sync --global', async () => {
-    const home = getDir()
-    await install(home, false, '.factory/settings.json', () => runCommand(home, '--global', ['sync'], {HOME: home}))
+  for (const keepLocal of [false, true]) {
+    it(`user scope, keep_local ${keepLocal}: removes forge keys and the user cache, keeps user siblings`, async () => {
+      const home = getDir()
+      await seedSiblings(home, '.factory/settings.json')
+      await install(home, keepLocal, '.factory/settings.json', () =>
+        runCommand(home, '--global', ['sync'], {HOME: home}),
+      )
 
-    await writeConfig(home, config(home, false, false))
-    expect((await runCommand(home, '--global', ['sync'], {HOME: home})).exitCode).toBe(0)
+      await writeConfig(home, config(home, keepLocal, false))
+      expect((await runCommand(home, '--global', ['sync'], {HOME: home})).exitCode).toBe(0)
 
-    const settings = await readJson(join(home, '.factory/settings.json'))
-    expect(settings.extraKnownMarketplaces).toBeUndefined()
-    expect(settings.enabledPlugins).toBeUndefined()
-    expect(existsSync(join(home, '.crucible/forge/plugins/hello'))).toBe(false)
-  })
+      const settings = await readJson(join(home, '.factory/settings.json'))
+      expect(settings).toEqual(SIBLINGS)
+      expect(existsSync(join(home, '.crucible/forge/plugins/hello'))).toBe(false)
+    })
+  }
 
   it('a key edited outside forge blocks removal without --force, and --force overrides it', async () => {
     const dir = getDir()
