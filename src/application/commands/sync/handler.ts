@@ -1,4 +1,4 @@
-import {stat} from 'node:fs/promises'
+import {chmod, lstat, stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
@@ -129,12 +129,30 @@ export async function runSyncWithDependencies(
       return
     }
     const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
+    // Test-only commit-failure injection (e2e AC-14): preparation pre-checks write feasibility, so only a
+    // directory turned unwritable after it makes the commit fail mid-transaction and run the rollback path.
+    // The target resolves through the sync boundary (no escapes, no symlinks, ancestors stay directories)
+    // and its exact original mode is restored, never an assumed one.
+    const failCommit = process.env.FORGE_TEST_FAIL_COMMIT
+    const inject = failCommit !== undefined && process.platform !== 'win32'
+    let injectTarget: string | undefined
+    let injectMode = 0
     try {
+      if (inject) {
+        const target = await boundary.resolve(failCommit)
+        const before = await lstat(target).catch(() => undefined)
+        if (!before?.isDirectory()) throw new CommandError(M.errors.testFailCommitTarget(failCommit))
+        await chmod(target, 0o500)
+        injectTarget = target
+        injectMode = before.mode & 0o777
+      }
       await commitPrepared(prepared)
     } catch (error) {
       // A failed compensation is an emergency: report it even when --silent suppresses warnings.
       await alias?.undo?.().catch(() => console.error(M.errors.aliasUndoFailed))
       throw error
+    } finally {
+      if (injectTarget) await chmod(injectTarget, injectMode).catch(() => undefined)
     }
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,

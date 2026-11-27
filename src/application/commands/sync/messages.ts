@@ -8,6 +8,8 @@ export const SYNC_MESSAGES = {
     noSourceHintExisting: 'Run `forge config` to add a source',
     noHarnesses: 'No harnesses enabled',
     noHarnessesHint: 'Run `forge init` to configure harnesses',
+    testFailCommitTarget: (path: string) =>
+      `FORGE_TEST_FAIL_COMMIT target "${path}" is not an existing directory inside the sync root`,
     aliasUndoFailed:
       'Could not undo the `assistants:` → `harnesses:` key rename in .crucible/forge.config.yaml; the config is still valid.',
     sourceFetchFailed: (name: string, error: string) => `Failed to fetch source "${name}": ${error}`,
