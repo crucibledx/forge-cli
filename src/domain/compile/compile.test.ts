@@ -7,7 +7,7 @@ import {COMPILE_CONFIG_DEFAULTS, effectiveCompileConfig} from '../config/types'
 import type {PluginComponent, PluginPackage} from '../plugins/types'
 import {canonicalDocument, canonicalJson} from './canonical'
 import {compile} from './compile'
-import {goldenManifestDocument} from './golden-fixture'
+import {goldenGuardDocument, goldenManifestDocument} from './golden-fixture'
 import {COMPILE_SUPPORT} from './harness-data'
 import {COMPILE_INPUT_PARTS, compileInputs} from './inputs'
 import {linkComponents} from './link'
@@ -109,6 +109,18 @@ describe('compile inputs (spec 0005 §5)', () => {
       a.parts.plugins,
     )
   })
+
+  it('hashes the detected profile tags when a profile is set, order-insensitively', () => {
+    const base = {harnessData: COMPILE_SUPPORT.droid, compilerVersion: 1, plugins}
+    const profile = effectiveCompileConfig({profile: 'rank'})
+    const tagged = inputs({...base, config: profile, profileTags: ['typescript', 'react']})
+    expect(inputs({...base, config: profile, profileTags: ['react', 'typescript']}).hash).toBe(tagged.hash)
+    expect(inputs({...base, config: profile, profileTags: ['typescript']}).hash).not.toBe(tagged.hash)
+    // Without a profile the tags never enter the hash.
+    expect(inputs({...base, config: COMPILE_CONFIG_DEFAULTS, profileTags: ['react']}).hash).toBe(
+      inputs({...base, config: COMPILE_CONFIG_DEFAULTS}).hash,
+    )
+  })
 })
 
 describe('link pass (spec 0005 §3)', () => {
@@ -152,16 +164,35 @@ describe('link pass (spec 0005 §3)', () => {
     expect(linked.diagnostics.map((entry) => entry.message).join(' ')).not.toContain('nothing-here')
   })
 
-  it('links across packages of the unit and never to a same-unit duplicate name twice', () => {
+  it('links across packages of the unit; a shared name resolves to the smallest component id in any config order', () => {
     const a = pkg('a', '1.0.0', [component('agent', 'shared', '---\nname: shared\n---\n', 'agents/shared.md')])
     const b = pkg('b', '1.0.0', [
       component('agent', 'shared', '---\nname: shared\n---\n', 'agents/shared.md'),
       component('skill', 'use', '---\nname: use\nrequires: [shared]\n---\n', 'skills/use/SKILL.md'),
     ])
-    const linked = linkComponents([a, b], 'droid')
-    const use = linked.find((entry) => entry.id === 'b/skill/use')
-    // First declaration wins: the edge lands on one unambiguous component.
-    expect(use?.deps).toEqual(['a/agent/shared'])
+    // Deterministic: the edge lands on the smallest component id regardless of package order.
+    for (const order of [
+      [a, b],
+      [b, a],
+    ]) {
+      const linked = linkComponents(order, 'droid')
+      const use = linked.find((entry) => entry.id === 'b/skill/use')
+      expect(use?.deps).toEqual(['a/agent/shared'])
+    }
+  })
+
+  it('resolves subagent_type against agents only, while requires may target any named kind', () => {
+    const agentSetup = component('agent', 'setup', '---\nname: setup\n---\n', 'agents/setup.md')
+    const skillSetup = component('skill', 'setup', '---\nname: setup\n---\n', 'skills/setup/SKILL.md')
+    const delegating = component('command', 'go', '---\nname: go\n---\n\nRun subagent_type: setup.\n', 'commands/go.md')
+    const linked = linkComponents([pkg('p', '1.0.0', [skillSetup, agentSetup, delegating])], 'droid')
+    // The skill shares the name but is not a delegation target: the edge lands on the agent.
+    expect(linked.find((entry) => entry.id === 'p/command/go')?.deps).toEqual(['p/agent/setup'])
+
+    const helper = component('skill', 'helper', '---\nname: helper\n---\n', 'skills/helper/SKILL.md')
+    const needing = component('command', 'need', '---\nname: need\nrequires: [helper]\n---\n', 'commands/need.md')
+    const required = linkComponents([pkg('p', '1.0.0', [helper, needing])], 'droid')
+    expect(required.find((entry) => entry.id === 'p/command/need')?.deps).toEqual(['p/skill/helper'])
   })
 })
 
@@ -216,7 +247,7 @@ describe('COMPILER_VERSION guard (spec 0005 §5)', () => {
         `No golden for compiler ${COMPILER_VERSION}: regenerate with \`bun scripts/gen-compile-golden.ts\` and review the diff`,
       )
     }
-    const actual = serializeCompileManifest(goldenManifestDocument())
+    const actual = canonicalDocument(goldenGuardDocument())
     if (actual !== golden)
       throw new Error(
         'Compile output changed without a COMPILER_VERSION bump: bump COMPILER_VERSION in src/domain/compile/version.ts, ' +

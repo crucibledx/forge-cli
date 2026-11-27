@@ -6,11 +6,11 @@
 import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
-import {goldenManifestDocument} from '../src/domain/compile/golden-fixture'
-import {serializeCompileManifest} from '../src/domain/compile/manifest'
+import {canonicalDocument} from '../src/domain/compile/canonical'
+import {goldenGuardDocument} from '../src/domain/compile/golden-fixture'
 import {COMPILER_VERSION} from '../src/domain/compile/version'
 
 const path = join(import.meta.dir, '..', 'src', 'domain', 'compile', 'golden', `compiler-${COMPILER_VERSION}.json`)
 await mkdir(dirname(path), {recursive: true})
-await writeFile(path, serializeCompileManifest(goldenManifestDocument()))
+await writeFile(path, canonicalDocument(goldenGuardDocument()))
 console.log(`wrote ${path}`)

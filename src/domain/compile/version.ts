@@ -31,8 +31,6 @@ export const versionSuffix = (hash: string): string => hash.slice(0, 8)
 
 /** Deterministic ordering for compile records. */
 export const compareIds = compare
-// appended to src/domain/compile/version.ts
-
 const decoder = new TextDecoder()
 const encoder = new TextEncoder()
 const CANONICAL_MANIFEST = '.claude-plugin/plugin.json'

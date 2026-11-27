@@ -17,15 +17,17 @@ export interface CompileInputs {
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
 
 /**
- * The compile inputs of one unit (spec 0005 §5): the effective compile config and harness data, the profile tags
- * when a profile is set, the compiler version and the unit's sorted `(name, contentHash)` pairs. Scope, paths,
- * config order and time never enter it.
+ * The compile inputs of one unit (spec 0005 §5): the effective compile config and harness data, the detected
+ * profile tags when a profile is set, the compiler version and the unit's sorted `(name, contentHash)` pairs.
+ * Scope, paths, config order and time never enter it.
  */
 export function compileInputs(input: {
   config: CompileConfig
   harnessData: unknown
   compilerVersion: number
   plugins: ReadonlyArray<{name: string; contentHash: string}>
+  /** The detected profile tags; hashed sorted, only when the config sets a profile. Issue 7 threads them. */
+  profileTags?: readonly string[]
 }): CompileInputs {
   const pairs = input.plugins.map((plugin) => [plugin.name, plugin.contentHash]).sort(([a], [b]) => compareIds(a, b))
   const parts: Record<CompileInputPart, string> = {
@@ -33,7 +35,7 @@ export function compileInputs(input: {
       canonicalJson({
         config: input.config,
         harnessData: input.harnessData,
-        ...(input.config.profile === false ? {} : {profileTags: input.config.profile}),
+        ...(input.config.profile === false ? {} : {profileTags: [...(input.profileTags ?? [])].sort(compareIds)}),
       }),
     ),
     [COMPILE_INPUT_PARTS.COMPILER]: sha256(String(input.compilerVersion)),

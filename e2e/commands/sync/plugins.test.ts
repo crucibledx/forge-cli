@@ -644,6 +644,106 @@ describe('forge sync — compile (spec 0005 §1, §2, §5)', () => {
     expect(relock.output).toContain('recompiled for droid: the plugin set changed')
   })
 
+  it('AC-4 a compile.priority change relocks the inputs while both harnesses keep serving the same bytes', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    const src = join(dir, 'src')
+    await writeSourceTree(src, {skills: {'a.md': '# A'}})
+    const config = (extra: string) =>
+      buildConfigYaml({assistants: ['droid', 'claude-code'], localSource: {path: src}}) +
+      pluginsBlock(localPlugin(plugin)) +
+      extra
+    await writeConfig(proj, config(''))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const before = await readJson(lockPath)
+    const served = async () => [
+      await readFile(
+        join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', 'skills', 'hello', 'SKILL.md'),
+        'utf8',
+      ),
+      await readFile(
+        join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'claude-code', 'skills', 'hello', 'SKILL.md'),
+        'utf8',
+      ),
+    ]
+    const bytesBefore = await served()
+
+    await writeConfig(proj, config('compile:\n  priority:\n    - hello\n'))
+    const reprioritised = await runSync(proj)
+    expect(reprioritised.exitCode).toBe(0)
+    expect(reprioritised.output).toContain('recompiled for droid: the compile config changed')
+    expect(reprioritised.output).toContain('recompiled for claude-code: the compile config changed')
+
+    const after = await readJson(lockPath)
+    // The priority change moved the config input of both units...
+    expect(after.compile.droid.inputs).not.toBe(before.compile.droid.inputs)
+    expect(after.compile['claude-code'].inputs).not.toBe(before.compile['claude-code'].inputs)
+    // ...while the identity compile kept every byte: both harnesses serve exactly what they served before.
+    expect(after.plugins[0].outputs).toEqual(before.plugins[0].outputs)
+    expect(after.variants).toEqual(before.variants)
+    expect(after.plugins[0].emitted).toBeUndefined()
+    expect(await served()).toEqual(bytesBefore)
+
+    const settled = await runSync(proj)
+    expect(settled.output).not.toContain('recompiled')
+  })
+
+  it('refuses a lock written by a newer compiler before any write (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.compile.droid = {enabled: true, inputs: lock.compile.droid.inputs, compiler: 99}
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const settings = await readFile(join(proj, '.factory/settings.local.json'), 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('upgrade forge')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).toBe(settings)
+  })
+
+  it('refuses a lock written by a newer forge before any write (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.version = 3
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const settings = await readFile(join(proj, '.factory/settings.local.json'), 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('upgrade forge')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).toBe(settings)
+  })
+
+  it('fails with CompileMismatch before any write when unchanged inputs produce different outputs (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.plugins[0].outputs.droid = lock.plugins[0].outputs.droid.replace(/^./, (c: string) => (c === 'a' ? 'b' : 'a'))
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const treeFile = join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', 'skills', 'hello', 'SKILL.md')
+    const treeBefore = await readFile(treeFile, 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('does not match the locked outputs')
+    expect(output).toContain('hello')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(treeFile, 'utf8')).toBe(treeBefore)
+  })
+
   it('AC-25 uninstall removes the compile manifests with the project state', async () => {
     const dir = getDir()
     const {proj} = await setup(dir)

@@ -27,20 +27,24 @@ export interface PluginLockEntry {
   emitted?: Record<string, string>
 }
 
-/** The lock's `compile[<harness>]` (spec 0005 §5). */
-export interface CompileLockEntry {
-  enabled: boolean
-  /** `sha256:…` over the compile inputs; absent while compile is disabled. */
-  inputs?: string
-  /** The COMPILER_VERSION that produced this entry. */
-  compiler: number
-}
+/**
+ * The lock's `compile[<harness>]` (spec 0005 §5): an enabled entry carries the `sha256:…` hash over the compile
+ * inputs; a disabled entry must not.
+ */
+export type CompileLockEntry = {enabled: true; inputs: string; compiler: number} | {enabled: false; compiler: number}
+/** The variant a compile run produces: always enabled with a fresh inputs hash. */
+export type EnabledCompileLockEntry = Extract<CompileLockEntry, {enabled: true}>
 
 export interface PluginLock {
   version: typeof PLUGIN_LOCK_VERSION
   plugins: PluginLockEntry[]
   variants: Record<string, string>
   compile?: Record<string, CompileLockEntry>
+  /**
+   * The version the lock file on disk was read from (a v0.8 lock reads as 1 and upgrades on the next write).
+   * Absent when the lock was built in memory; never serialized.
+   */
+  sourceVersion?: number
 }
 
 export const LOCK_ACTIONS = {RESOLVE: 'resolve', LOCKED: 'locked', RELOCK: 'relock'} as const
@@ -134,11 +138,9 @@ export function buildPluginLock(
     .sort(([a], [b]) => compare(a, b))
     .map(([harness, entry]) => [
       harness,
-      {
-        enabled: entry.enabled,
-        ...(entry.inputs === undefined ? {} : {inputs: entry.inputs}),
-        compiler: entry.compiler,
-      },
+      entry.enabled
+        ? {enabled: true as const, inputs: entry.inputs, compiler: entry.compiler}
+        : {enabled: false as const, compiler: entry.compiler},
     ])
   return {
     version: PLUGIN_LOCK_VERSION,

@@ -6,7 +6,7 @@ import {basename, dirname, isAbsolute, join, relative} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
 
-import {COMPILE_SUPPORT, COMPILER_VERSION} from '@domain/compile'
+import {COMPILE_SUPPORT, COMPILER_VERSION, emittedVersion, versionSuffix} from '@domain/compile'
 import {effectiveCompileConfig} from '@domain/config/types'
 import type {PluginConfig, PluginFile, PluginHarnessId, PluginLock, PluginPackage} from '@domain/plugins'
 import {emptyPluginLock, hashDelivered, hashPluginFiles, PLUGIN_EMITTERS} from '@domain/plugins'
@@ -19,6 +19,7 @@ import {createBareRepo, setBareRepoRef} from '@e2e/framework/git'
 import {createTestSandbox} from '../../../scripts/test-sandbox'
 import {
   lockPlugins,
+  marketplaceCatalog,
   pluginCacheFiles,
   PluginSourceError,
   PluginValidationError,
@@ -415,6 +416,20 @@ describe('compile units (spec 0005 §1, §5)', () => {
     const entry = changed.lock.plugins[0]
     expect(entry.emitted?.droid).toMatch(/^1\.0\.0\+c\.[0-9a-f]{8}$/)
     expect(entry.emitted?.['claude-code']).toMatch(/^1\.0\.0-c\.[0-9a-f]{8}$/)
+    // The emitted version is the source version suffixed by the first 8 hex of the unstamped tree's hash,
+    // recomputed here from the acquired package without the engine's own stamping code.
+    const unstamped = {
+      droid: PLUGIN_EMITTERS.factory(changed.plugins[0].pkg),
+      'claude-code': PLUGIN_EMITTERS.claude(changed.plugins[0].pkg),
+    }
+    expect(entry.emitted?.droid).toBe(emittedVersion('1.0.0', versionSuffix(hashDelivered(unstamped.droid)), 'build'))
+    expect(entry.emitted?.['claude-code']).toBe(
+      emittedVersion('1.0.0', versionSuffix(hashDelivered(unstamped['claude-code'])), 'prerelease'),
+    )
+    // The catalog addresses the emitted tree by the emitted version.
+    expect(JSON.parse(marketplaceCatalog('m', 'droid', [entry])).plugins).toEqual([
+      {name: 'hello', version: entry.emitted!.droid, source: `./hello/${entry.emitted!.droid}/droid`},
+    ])
     for (const harness of ['claude-code', 'droid'] as const) {
       const manifest = changed.plugins[0].outputs[harness].plugin.find(
         (file) => file.path === '.claude-plugin/plugin.json',
@@ -428,16 +443,45 @@ describe('compile units (spec 0005 §1, §5)', () => {
     expect(paths).toContain('hello/1.0.0/source/skills/hello/SKILL.md')
   })
 
-  it('keeps the emitted cache tree referenced', async () => {
+  const changedRun = (input: {packages: PluginPackage[]}) => ({
+    packages: input.packages.map((pkg) => ({pkg, changed: true})),
+    links: {},
+    components: [],
+  })
+
+  it('keeps the source and emitted cache trees referenced and prunes only what the lock does not name', async () => {
     await write(dir(), hello)
-    const changed = await lockCompiled(emptyPluginLock(), {
-      run: (input: {packages: PluginPackage[]}) => ({
-        packages: input.packages.map((pkg) => ({pkg, changed: true})),
-        links: {},
-        components: [],
-      }),
-    })
-    expect(await unreferencedCacheDirs(join(dir(), '.crucible', 'plugins'), changed.lock)).toEqual([])
+    const changed = await lockCompiled(emptyPluginLock(), {run: changedRun})
+    const cacheRoot = join(dir(), '.crucible', 'plugins')
+    const emittedDroid = changed.lock.plugins[0].emitted!.droid
+    for (const version of ['1.0.0', emittedDroid, '9.9.9'])
+      await mkdir(join(cacheRoot, 'hello', version), {recursive: true})
+    await mkdir(join(cacheRoot, 'gone', '1.0.0'), {recursive: true})
+    expect((await unreferencedCacheDirs(cacheRoot, changed.lock)).sort()).toEqual(['gone', 'hello/9.9.9'])
+  })
+
+  it('keeps the emitted version and output hash of a disabled harness across consecutive syncs', async () => {
+    await write(dir(), hello)
+    const changed = await lockCompiled(emptyPluginLock(), {run: changedRun})
+    const emittedDroid = changed.lock.plugins[0].emitted?.droid
+    expect(emittedDroid).toMatch(/^1\.0\.0\+c\.[0-9a-f]{8}$/)
+    const retain = {
+      plugins: [plugin],
+      context: {root: dir(), home: dir()},
+      cacheRoot: join(dir(), '.crucible', 'plugins'),
+      defaultHarnesses: ['claude-code'],
+      retain: ['droid'],
+      deliver,
+      compile: compileInput,
+    }
+    // Frozen retention carries the stamped identity forward, so the second disabled sync's catalog entry and
+    // cache path still resolve against the emitted tree instead of falling back to the source version.
+    const once = await lockPlugins({...retain, lock: changed.lock})
+    expect(once.lock.plugins[0].emitted?.droid).toBe(emittedDroid)
+    expect(once.lock.plugins[0].outputs.droid).toBe(changed.lock.plugins[0].outputs.droid)
+    const twice = await lockPlugins({...retain, lock: once.lock})
+    expect(twice.lock.plugins[0].emitted?.droid).toBe(emittedDroid)
+    expect(twice.lock.plugins[0].outputs.droid).toBe(changed.lock.plugins[0].outputs.droid)
   })
 
   it('compile.enabled: false is the v0.8 identity with no compile records', async () => {

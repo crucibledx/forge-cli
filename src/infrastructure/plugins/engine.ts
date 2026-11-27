@@ -9,8 +9,8 @@ import {
 } from '@domain/compile'
 import type {CompileConfig} from '@domain/config/types'
 import type {
-  CompileLockEntry,
   DeliveredFiles,
+  EnabledCompileLockEntry,
   LockAction,
   PluginConfig,
   PluginLock,
@@ -94,7 +94,7 @@ export interface LockPluginsResult {
   /** Per compiled harness: the unit's result, including the manifest rows and link edges. */
   compiles: Record<string, CompileResult>
   /** Per compiled harness: the fresh `compile[<harness>]` lock entry. */
-  compileLock: Record<string, CompileLockEntry>
+  compileLock: Record<string, EnabledCompileLockEntry>
 }
 
 interface Acquired {
@@ -150,7 +150,7 @@ export async function lockPlugins(input: LockPluginsInput): Promise<LockPluginsR
 
   // Fresh compile[<harness>] entries: the inputs hash covers the config, harness data, compiler version and the
   // unit's sorted (name, contentHash) pairs (spec 0005 §5).
-  const compileLock: Record<string, CompileLockEntry> = {}
+  const compileLock: Record<string, EnabledCompileLockEntry> = {}
   for (const [harness, unit] of units)
     compileLock[harness] = {
       enabled: true,
@@ -247,12 +247,19 @@ function emitOne(
     } else outputs[harness] = delivered
   }
   // Frozen retention: a retained disabled harness keeps its previous output hash instead of a fresh emission,
-  // so its delivered files stay valid while its registration is retained (docs/safety-contract.md).
+  // so its delivered files stay valid while its registration is retained (docs/safety-contract.md). The emitted
+  // version is retained with it: catalog entries and cache paths still resolve against the stamped tree.
   const retainedOutputs: Record<string, string> = {}
+  const retainedEmitted: Record<string, string> = {}
   for (const harness of input.retain ?? []) {
     const hash = acquired.previous?.outputs[harness]
-    if (hash !== undefined && outputs[harness] === undefined) retainedOutputs[harness] = hash
+    if (hash !== undefined && outputs[harness] === undefined) {
+      retainedOutputs[harness] = hash
+      const previousEmitted = acquired.previous?.emitted?.[harness]
+      if (previousEmitted !== undefined) retainedEmitted[harness] = previousEmitted
+    }
   }
+  const allEmitted = {...retainedEmitted, ...emitted}
   const entry: PluginLockEntry = {
     name: acquired.config.name,
     version: acquired.pkg.manifest.version,
@@ -263,7 +270,7 @@ function emitOne(
       ...Object.fromEntries(Object.entries(outputs).map(([harness, files]) => [harness, hashDelivered(files)])),
       ...retainedOutputs,
     },
-    ...(Object.keys(emitted).length ? {emitted} : {}),
+    ...(Object.keys(allEmitted).length ? {emitted: allEmitted} : {}),
   }
   return {
     config: acquired.config,

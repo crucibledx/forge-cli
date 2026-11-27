@@ -34,16 +34,16 @@ const entrySchema = z
     emitted: z.record(z.string(), z.string().regex(SEMVER)).optional(),
   })
   .strict()
-const compileEntrySchema = z
-  .object({
-    enabled: z.boolean(),
-    inputs: z
-      .string()
-      .regex(/^sha256:[a-f0-9]{64}$/)
-      .optional(),
-    compiler: z.number().int().min(1),
-  })
-  .strict()
+const compileEntrySchema = z.union([
+  z
+    .object({
+      enabled: z.literal(true),
+      inputs: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      compiler: z.number().int().min(1),
+    })
+    .strict(),
+  z.object({enabled: z.literal(false), compiler: z.number().int().min(1)}).strict(),
+])
 const lockSchema = z
   .object({
     version: z.union([z.literal(1), z.literal(PLUGIN_LOCK_VERSION)]),
@@ -70,7 +70,7 @@ export function parsePluginLock(text: string, path: string): PluginLock {
     throw new PluginLockError(
       `${path} is invalid: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
     )
-  return buildPluginLock(parsed.data.plugins, parsed.data.compile)
+  return {...buildPluginLock(parsed.data.plugins, parsed.data.compile), sourceVersion: parsed.data.version}
 }
 
 export function serializePluginLock(lock: PluginLock): string {

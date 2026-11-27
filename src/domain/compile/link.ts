@@ -4,6 +4,7 @@ import {COMPONENT_KINDS as K} from '../harnesses/types'
 import type {PluginComponent, PluginPackage} from '../plugins/types'
 import type {CompileDiagnostic} from './types'
 import {DIAGNOSTIC_CODES} from './types'
+import {compareIds} from './version'
 
 export interface LinkComponent {
   /** `<plugin>/<kind>/<name>` */
@@ -55,13 +56,20 @@ export function linkComponents(packages: readonly PluginPackage[], harness: stri
       .filter((component) => [K.SKILL, K.AGENT, K.COMMAND].includes(component.kind as never))
       .map((component) => ({pkg, component})),
   )
-  const byName = new Map<string, string>()
-  for (const {pkg, component} of named) {
-    const id = `${pkg.manifest.name}/${component.kind}/${component.name}`
-    if (!byName.has(component.name)) byName.set(component.name, id)
-  }
   const idOf = (pkg: PluginPackage, component: PluginComponent) =>
     `${pkg.manifest.name}/${component.kind}/${component.name}`
+  // Name indexes are deterministic: when components of the unit share a name the smallest component id wins, so
+  // the edges never depend on the order the config lists the unit's packages. `subagent_type` delegates to an
+  // agent, so only agents resolve it; a skill or command of the same name is not a delegation target.
+  const byName = new Map<string, string>()
+  const byAgentName = new Map<string, string>()
+  const byId = (a: (typeof named)[number], b: (typeof named)[number]) =>
+    compareIds(idOf(a.pkg, a.component), idOf(b.pkg, b.component))
+  for (const {pkg, component} of [...named].sort(byId)) {
+    const id = idOf(pkg, component)
+    if (!byName.has(component.name)) byName.set(component.name, id)
+    if (component.kind === K.AGENT && !byAgentName.has(component.name)) byAgentName.set(component.name, id)
+  }
   return named.map(({pkg, component}) => {
     const self: LinkComponent = {
       id: idOf(pkg, component),
@@ -81,7 +89,7 @@ export function linkComponents(packages: readonly PluginPackage[], harness: stri
     const text = `${JSON.stringify(data)}\n${body}`
     // Names are letters, digits, '_' and '-', with ':' for a namespaced reference; prose punctuation never matches.
     for (const match of text.matchAll(/subagent_type\s*[=:]\s*["']?([A-Za-z0-9_:-]+)["']?/g)) {
-      const target = byName.get(match[1]) ?? byName.get(match[1].split(':').pop()!)
+      const target = byAgentName.get(match[1]) ?? byAgentName.get(match[1].split(':').pop()!)
       if (target && target !== self.id) deps.add(target)
       else if (!target) unresolved(self, 'subagent_type', match[1])
     }

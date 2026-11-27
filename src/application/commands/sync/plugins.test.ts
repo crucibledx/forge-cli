@@ -199,6 +199,68 @@ describe('planPlugins compile discipline (spec 0005 §5)', () => {
     expect((changed as Error).message).toContain('"hello"')
   })
 
+  it('recompiles on a cache miss and must reproduce the locked outputs, else CompileMismatch', async () => {
+    await writeHello()
+    await commit(await plan())
+    await rm(join(dir(), '.crucible', 'plugins'), {recursive: true, force: true})
+    // Cache miss, healthy compiler: the recompile reproduces the locked outputs and the sync proceeds silently.
+    const reproduced = await plan()
+    expect(reproduced.report?.compile).toEqual([])
+    // Cache miss, broken compiler: the mismatch against the locked outputs is caught before any write.
+    const broken = await plan({
+      compileRun: (input) => ({
+        packages: input.packages.map((pkg) => ({pkg, changed: true})),
+        links: {},
+        components: [],
+      }),
+    }).catch((e: unknown) => e)
+    expect(broken).toBeInstanceOf(CommandError)
+    expect((broken as Error).message).toContain('does not match the locked outputs')
+  })
+
+  it('refuses a lock written by a newer compiler even when there is nothing else to do', async () => {
+    const lock = {
+      version: 2,
+      plugins: [],
+      variants: {},
+      compile: {droid: {enabled: true, inputs: 'sha256:' + '0'.repeat(64), compiler: COMPILER_VERSION + 1}},
+    }
+    await mkdir(join(dir(), '.crucible'), {recursive: true})
+    await writeFile(lockPath(), JSON.stringify(lock, null, 2) + '\n')
+    const error = await plan({plugins: []}).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CommandError)
+    expect((error as Error).message).toContain('upgrade forge')
+  })
+
+  it('does not repeat the upgrade line when a v2 lock gains a harness unit it never had', async () => {
+    await writeHello()
+    // First sync compiles droid only: the lock is v2 with no claude-code compile entry.
+    await commit(await plan({compileSupport: {droid: COMPILE_SUPPORT.droid}}))
+    const gained = await plan()
+    expect(gained.report?.compile).toEqual([])
+    const lock = JSON.parse(
+      files(gained)
+        .find((file) => file.path.endsWith('forge.lock'))!
+        .content.toString(),
+    )
+    expect(lock.compile['claude-code']).toMatchObject({enabled: true, compiler: COMPILER_VERSION})
+  })
+
+  it('drops the compile entries and prunes the manifests when the last plugin is removed', async () => {
+    await writeHello()
+    await commit(await plan())
+    const emptied = await plan({plugins: []})
+    const lock = JSON.parse(
+      files(emptied)
+        .find((file) => file.path.endsWith('forge.lock'))!
+        .content.toString(),
+    )
+    expect(lock.compile).toBeUndefined()
+    expect(emptied.prune).toContain(join('.crucible', 'compile', 'droid.json'))
+    expect(emptied.prune).toContain(join('.crucible', 'compile', 'claude-code.json'))
+    expect(emptied.prune).toContain(join('.crucible', 'compile', '.gitignore'))
+  })
+
   it('reports harnesses without compile support and still delivers the v0.8 bytes', async () => {
     await writeHello()
     const unsupported = await plan({compileSupport: {}})

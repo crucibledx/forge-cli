@@ -14,6 +14,7 @@ import {
   checkManifest,
   checkMcpConfig,
   checkPluginDirectory,
+  listCompileManifests,
   parsePluginLock,
   PluginLockError,
   pluginsConfigSchema,
@@ -317,6 +318,15 @@ describe('AC-2 plugin source config', () => {
   })
 })
 
+describe('listCompileManifests', () => {
+  it('treats a missing directory as empty and refuses anything that is not a directory', async () => {
+    expect(await listCompileManifests(join(dir(), 'missing'))).toEqual([])
+    const file = join(dir(), 'a-file')
+    await writeFile(file, 'x')
+    await expect(listCompileManifests(file)).rejects.toThrow()
+  })
+})
+
 describe('lockfile', () => {
   it('reads a missing lock as empty and refuses newer or malformed locks by name', async () => {
     expect(await readPluginLock(join(dir(), 'none.lock'))).toEqual({version: 2, plugins: [], variants: {}})
@@ -383,6 +393,16 @@ describe('lock v2 (spec 0005 §2)', () => {
     expect(() => parsePluginLock(lockOf({}, [{...entry, emitted: {droid: 'not semver'}}]), 'forge.lock')).toThrow(
       PluginLockError,
     )
+    // The compile entry is a closed union: an enabled entry must carry the inputs hash, a disabled one must not.
+    expect(() => parsePluginLock(lockOf({compile: {droid: {enabled: true, compiler: 1}}}), 'forge.lock')).toThrow(
+      PluginLockError,
+    )
+    expect(() =>
+      parsePluginLock(
+        lockOf({compile: {droid: {enabled: false, inputs: 'sha256:' + 'c'.repeat(64), compiler: 1}}}),
+        'forge.lock',
+      ),
+    ).toThrow(PluginLockError)
   })
 
   it('upgrades a v1 lock to v2 on the next write, entries untouched', () => {

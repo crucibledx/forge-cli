@@ -132,16 +132,16 @@ export async function planPlugins(input: {
   const lockPath = PLUGIN_LOCK_PATHS[scope]
   const hadLock = existsSync(join(root, lockPath))
   const lock = await readPluginLock(join(root, lockPath))
+  // A newer compiler never relocks: refuse before any write, even when there is nothing else to do (spec 0005 §5).
+  for (const [harness, entry] of Object.entries(lock.compile ?? {}))
+    if (entry.compiler > COMPILER_VERSION)
+      throw new CommandError(M.lockFromNewerCompiler(harness, entry.compiler, COMPILER_VERSION))
   const cached = await listCacheFiles(cacheRoot)
   const empty: PluginPlan = {files: [], prune: [], keyed: [], targets: [], cacheDir, report: null}
   if (!input.plugins.length && !lock.plugins.length && !cached.length) return empty
 
   const compileConfig = effectiveCompileConfig(input.compile)
   const compileSupport = input.compileSupport ?? COMPILE_SUPPORT
-  // A newer compiler never relocks: refuse before any write (spec 0005 §5).
-  for (const [harness, entry] of Object.entries(lock.compile ?? {}))
-    if (entry.compiler > COMPILER_VERSION)
-      throw new CommandError(M.lockFromNewerCompiler(harness, entry.compiler, COMPILER_VERSION))
 
   const capable = [...input.enabled].map(getHarness).filter((harness) => harness.plugin)
   // Only enabled harnesses are delivered to; emitter availability is not installation eligibility. A disabled
@@ -190,15 +190,18 @@ export async function planPlugins(input: {
         compileSupport[harness]
       )
         compileMap[harness] = {enabled: false, compiler: COMPILER_VERSION}
-      else if (previous) compileMap[harness] = previous
+      else if (previous && retainedHarnesses.includes(harness))
+        // A frozen disabled harness keeps its compile entry; an enabled harness whose unit went away loses it.
+        compileMap[harness] = previous
       continue
     }
     compileMap[harness] = result.compileLock[harness]
     const listed = compiled.components.filter((row) => row.status === COMPILE_STATUSES.LISTED).length
     const deferred = compiled.components.filter((row) => row.status === COMPILE_STATUSES.DEFERRED).length
     if (!previous) {
-      // The v0.8 upgrade line appears once: when a harness's first compile entry lands on an existing lock.
-      if (hadLock) compileNotes.push({harness, upgrade: {listed, deferred}})
+      // The v0.8 upgrade line appears once: when a v0.8 lock gains its first compile entries. A v2 lock that
+      // gains a harness's first unit later (new compile support) upgrades silently.
+      if (lock.sourceVersion === 1) compileNotes.push({harness, upgrade: {listed, deferred}})
     } else if (!previous.enabled) {
       compileNotes.push({harness, recompiled: 'compile re-enabled'})
     } else if (previous.inputs !== result.compileLock[harness].inputs) {
