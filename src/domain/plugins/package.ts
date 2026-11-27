@@ -47,7 +47,7 @@ function isPathScoped(content: Uint8Array): boolean {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(new TextDecoder().decode(content))
   if (!frontmatter) return false
   try {
-    const data: unknown = parseYaml(frontmatter[1])
+    const data: unknown = parseYaml(frontmatter[1], {logLevel: 'error'})
     return typeof data === 'object' && data !== null && (data as Record<string, unknown>).paths != null
   } catch {
     return false

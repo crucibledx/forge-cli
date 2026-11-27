@@ -7,7 +7,7 @@ import {join} from 'node:path'
 import type {PluginFile} from '@domain/plugins'
 import {hashContent} from '@domain/sync/state'
 
-import {absoluteRemoteUrl, runGit} from '../source/git/load'
+import {absoluteRemoteUrl, objectFormatOf, runGit} from '../source/git/load'
 import {readPluginFiles} from './files'
 
 const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
@@ -52,17 +52,27 @@ export async function resolveGitCommit(
  * for a branch or tag the SHA the remote advertises for it. A ref the remote lacks falls back to sha1 and fails in fetch.
  */
 async function remoteObjectFormat(url: string, ref: string, want?: string): Promise<string> {
-  const sha = want ?? (await runGit(undefined, ['ls-remote', '--', url, ref])).split('\t')[0].trim()
-  return sha.length === 64 ? 'sha256' : 'sha1'
+  return objectFormatOf(want ?? (await runGit(undefined, ['ls-remote', '--', url, ref])).split('\t')[0].trim())
 }
 
 async function resolveInCache(bare: string, url: string, ref: string, locked?: string) {
   const want = locked ?? (FULL_SHA.test(ref) ? ref.toLowerCase() : undefined)
-  if (!existsSync(join(bare, 'HEAD'))) {
+  const fresh = !existsSync(join(bare, 'HEAD'))
+  if (fresh) {
     const format = await remoteObjectFormat(url, ref, want)
     await mkdir(bare, {recursive: true})
     await runGit(bare, ['init', '--bare', '--quiet', `--object-format=${format}`])
   }
+  try {
+    return await fetchCommit(bare, url, ref, want)
+  } catch (error) {
+    // A cache initialised in the wrong format, or holding no commit, would otherwise be taken for a warm one next time.
+    if (fresh) await rm(bare, {recursive: true, force: true})
+    throw error
+  }
+}
+
+async function fetchCommit(bare: string, url: string, ref: string, want?: string) {
   if (want) {
     if (!(await hasCommit(bare, want))) await runGit(bare, ['fetch', '--quiet', '--depth', '1', url, want])
     return {bare, sha: want}

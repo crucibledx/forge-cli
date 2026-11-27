@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {chmod, cp, mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join, relative} from 'node:path'
+import {isAbsolute, join, relative} from 'node:path'
 
 import {useTmpDir} from '@test-helpers/tmp'
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
@@ -127,6 +127,7 @@ describe('git plugin sources', () => {
   it('AC-2,3 resolves a relative url against the working directory for a branch, a SHA and a locked commit', async () => {
     const url = await repository()
     const source = {type: 'git' as const, url: relative(process.cwd(), url), path: 'plugins/hello'}
+    expect(isAbsolute(source.url)).toBe(false)
     const plugin: PluginConfig = {name: 'hello', source}
     const v1 = await commit(url, 'main')
     const first = await lock([plugin])
@@ -136,6 +137,13 @@ describe('git plugin sources', () => {
     expect((await lock([plugin], first.lock)).lock.plugins[0].resolved).toBe(v1)
     await rm(gitCache(url), {recursive: true, force: true})
     expect((await lock([{...plugin, source: {...source, ref: v1}}])).lock.plugins[0].resolved).toBe(v1)
+  })
+
+  it('AC-3 removes a cold cache whose first fetch fails, so it is not mistaken for a warm one', async () => {
+    const url = await repository()
+    const plugin: PluginConfig = {name: 'hello', source: {type: 'git', url, path: 'plugins/hello', ref: 'missing'}}
+    expect(await lock([plugin]).catch((e: unknown) => e)).toBeInstanceOf(PluginSourceError)
+    expect(existsSync(gitCache(url))).toBe(false)
   })
 
   it('AC-2,3 a cold cache uses the remote object format, not the local default', async () => {
