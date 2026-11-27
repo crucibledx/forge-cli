@@ -124,20 +124,24 @@ export async function runSyncWithDependencies(
     const next = withKeyedEntries(reconcileState(state, resolved, summaries, new Date().toISOString()), keyed)
     // Test-only commit-failure injection (e2e AC-14): wraps the transaction's replace so the named operation
     // fails after every earlier operation — the keyed settings merge included — has landed, sending the commit
-    // through the rollback path. The target resolves through the sync boundary; the wrapper changes nothing
-    // itself, it only refuses the one replace.
+    // through the rollback path. It fires once: compensation restores a pre-existing target through the same
+    // replace, and refusing that restore would break the rollback it is meant to exercise. The target resolves
+    // through the sync boundary; the wrapper changes nothing itself, it only refuses the one replace.
     const failCommit = process.env.FORGE_TEST_FAIL_COMMIT
     let syncFs = dependencies.transaction
     if (failCommit !== undefined) {
       const target = await boundary.resolve(failCommit)
       const base = dependencies.transaction ?? transactionIO
       const replaced: string[] = []
+      let fired = false
       syncFs = {
         ...base,
         replace: async (temp: string, path: string, existed: boolean) => {
           const rel = relative(boundary.root, path).replaceAll('\\', '/')
-          if (path === target)
+          if (path === target && !fired) {
+            fired = true
             throw new Error(`Injected commit failure at ${rel} after replacing: ${replaced.join(', ') || '(nothing)'}`)
+          }
           replaced.push(rel)
           await base.replace(temp, path, existed)
         },

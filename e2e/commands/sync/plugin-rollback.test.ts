@@ -87,4 +87,43 @@ describe('AC-14 rollback of a real plugin sync', () => {
       expect(await snapshot(proj)).toEqual(before)
     },
   )
+
+  it.skipIf(process.platform === 'win32')(
+    'rolls a re-sync back to the existing install when the failure follows the settings merge',
+    async () => {
+      const dir = getDir()
+      const proj = join(dir, 'proj')
+      const pluginA = join(dir, 'plugin-a')
+      const pluginB = join(dir, 'plugin-b')
+      await writeSourceTree(pluginA, {
+        'plugin.json': pluginManifest('hello', '1.0.0'),
+        skills: {hello: {'SKILL.md': '---\nname: hello\ndescription: Say hello.\n---\n\nHello v1\n'}},
+      })
+      await writeSourceTree(pluginB, {
+        'plugin.json': pluginManifest('bye', '1.0.0'),
+        skills: {bye: {'SKILL.md': '---\nname: bye\ndescription: Say bye.\n---\n\nBye v1\n'}},
+      })
+      const entry = (name: string, path: string) =>
+        `  - name: ${name}\n    source: {type: local, path: ${JSON.stringify(path)}}`
+      const config = (withB: boolean) =>
+        buildConfigYaml({assistants: ['droid']}) +
+        `plugins:\n${entry('hello', pluginA)}${withB ? `\n${entry('bye', pluginB)}` : ''}\n`
+
+      // The existing install: one plugin registered, lock, cache and settings all on disk.
+      await writeConfig(proj, config(false))
+      const first = await runCommand(proj, 'sync', [], {})
+      expect(first.exitCode).toBe(0)
+
+      // The re-sync adds a second plugin, so the settings merge and cache writes land before the
+      // injected failure on the sync-state write. The before-state is the existing install plus the
+      // new config; the rollback must return exactly there, prior install bytes included.
+      await writeConfig(proj, config(true))
+      const before = await snapshot(proj)
+      const result = await runCommand(proj, 'sync', [], {FORGE_TEST_FAIL_COMMIT: '.crucible/sync-state.json'})
+      expect(result.exitCode).toBe(1)
+      expect(result.output).toMatch(/after replacing:[^\n]*\.factory\/settings\.local\.json/)
+      expect(result.output).toContain('Rollback complete')
+      expect(await snapshot(proj)).toEqual(before)
+    },
+  )
 })
