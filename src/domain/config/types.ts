@@ -1,5 +1,5 @@
 import type {HarnessConfig} from '@domain/harnesses'
-import type {PluginConfig} from '@domain/plugins'
+import type {PluginConfig, PluginHarnessId} from '@domain/plugins'
 import type {SourceLayoutOption} from '@domain/sync/layout'
 
 export type DeepPartial<T> = {
@@ -46,6 +46,74 @@ export const SYNC_CONFIG_DEFAULTS: SyncConfig = {
   keep_local: true,
 }
 
+export const COMPILE_PROFILE_MODES = {RANK: 'rank', PRUNE: 'prune'} as const
+export type CompileProfileMode = (typeof COMPILE_PROFILE_MODES)[keyof typeof COMPILE_PROFILE_MODES]
+export type CompileProfile =
+  false | CompileProfileMode | {mode: CompileProfileMode; include?: string[]; exclude?: string[]}
+export type CompileGuardianSwitch = 'auto' | 'on' | 'off'
+export type CompileGuardian = 'off' | {hook: CompileGuardianSwitch; mcp: CompileGuardianSwitch; min_score: number}
+
+/** The raw `compile:` block as parsed from forge.config.yaml; every field optional, defaults apply. */
+export interface CompileConfigInput {
+  enabled?: boolean
+  priority?: string[]
+  keep?: string[]
+  defer?: string[]
+  profile?: false | CompileProfileMode | {mode: CompileProfileMode; include?: string[]; exclude?: string[]}
+  guardian?: 'off' | {hook?: CompileGuardianSwitch; mcp?: CompileGuardianSwitch; min_score?: number}
+  harnesses?: Partial<Record<PluginHarnessId, CompileHarnessOverride>>
+}
+
+/** §4 harness-data overrides: a budget as a character count or `off`, a description cap as a count. */
+export interface CompileHarnessOverride {
+  skills?: number | 'off'
+  agents?: number | 'off'
+  commands?: number | 'off'
+  skill_description?: number
+  agent_description?: number
+}
+
+/** Spec 0005 §2, defaults applied (COMPILE_CONFIG_DEFAULTS). Lives in the config of the scope it compiles. */
+export interface CompileConfig {
+  enabled: boolean
+  priority: string[]
+  keep: string[]
+  defer: string[]
+  profile: CompileProfile
+  guardian: CompileGuardian
+  harnesses: Partial<Record<PluginHarnessId, CompileHarnessOverride>>
+}
+
+export const COMPILE_CONFIG_DEFAULTS: CompileConfig = {
+  enabled: true,
+  priority: [],
+  keep: [],
+  defer: [],
+  profile: false,
+  guardian: {hook: 'auto', mcp: 'auto', min_score: 6},
+  harnesses: {},
+}
+
+/** The effective compile config: the user's `compile:` block merged over the defaults. */
+export function effectiveCompileConfig(raw?: CompileConfigInput): CompileConfig {
+  if (!raw) return COMPILE_CONFIG_DEFAULTS
+  const guardian =
+    raw.guardian === 'off'
+      ? raw.guardian
+      : typeof raw.guardian === 'object' && raw.guardian !== null
+        ? {hook: 'auto' as const, mcp: 'auto' as const, min_score: 6, ...raw.guardian}
+        : COMPILE_CONFIG_DEFAULTS.guardian
+  return {
+    enabled: raw.enabled ?? COMPILE_CONFIG_DEFAULTS.enabled,
+    priority: raw.priority ?? COMPILE_CONFIG_DEFAULTS.priority,
+    keep: raw.keep ?? COMPILE_CONFIG_DEFAULTS.keep,
+    defer: raw.defer ?? COMPILE_CONFIG_DEFAULTS.defer,
+    profile: raw.profile ?? COMPILE_CONFIG_DEFAULTS.profile,
+    guardian,
+    harnesses: raw.harnesses ?? COMPILE_CONFIG_DEFAULTS.harnesses,
+  }
+}
+
 export interface TelemetryConfig {
   enabled: boolean
   backend: string
@@ -65,6 +133,7 @@ export interface ProjectConfig {
   harnesses: HarnessConfig[]
   sources: Source[]
   plugins?: PluginConfig[]
+  compile?: CompileConfigInput
   sync?: Partial<SyncConfig>
   telemetry?: Partial<TelemetryConfig>
   lastSync?: string

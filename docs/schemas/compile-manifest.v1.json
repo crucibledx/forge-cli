@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forge.crucible.dev/schemas/compile-manifest.v1.json",
+  "title": "Forge compile manifest, schema 1",
+  "description": "The canonical-JSON document forge sync writes to .crucible/compile/<harness>.json (user scope: ~/.crucible/forge/compile/). No timestamps, no per-machine values. Spec 0005 §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "harness",
+    "scope",
+    "enabled",
+    "compiler",
+    "inputs",
+    "components",
+    "budget",
+    "profile",
+    "variant"
+  ],
+  "properties": {
+    "schema": {"const": 1},
+    "harness": {"enum": ["claude-code", "droid"]},
+    "scope": {"enum": ["project", "user"]},
+    "enabled": {"type": "boolean"},
+    "compiler": {"type": "integer", "minimum": 1},
+    "inputs": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "reasons", "cost", "diagnostics"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[^/]+/[^/]+/[^/]+$"},
+          "status": {"enum": ["listed", "deferred", "pruned", "invalid"]},
+          "reasons": {"type": "array", "items": {"type": "string"}},
+          "cost": {"type": ["integer", "null"], "minimum": 0},
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code", "severity", "message"],
+              "properties": {
+                "code": {
+                  "description": "Closed table; a pass adds its codes here and in DIAGNOSTIC_CODES in the same PR.",
+                  "enum": ["link-unresolved"]
+                },
+                "severity": {"enum": ["error", "warning"]},
+                "message": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["used", "limit", "measuredCap"],
+      "properties": {
+        "used": {"type": "integer", "minimum": 0},
+        "limit": {"type": ["integer", "null"], "minimum": 0},
+        "measuredCap": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "profile": {"type": ["object", "null"]},
+    "variant": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

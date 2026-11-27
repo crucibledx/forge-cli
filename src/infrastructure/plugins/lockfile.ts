@@ -23,6 +23,7 @@ const entrySchema = z
     source: z.discriminatedUnion('type', [
       z.object({type: z.literal('local'), path: z.string()}).strict(),
       z.object({type: z.literal('git'), url: z.string(), path: z.string().optional(), ref: z.string()}).strict(),
+      z.object({type: z.literal('generated')}).strict(),
     ]),
     resolved: z
       .string()
@@ -30,15 +31,27 @@ const entrySchema = z
       .optional(),
     contentHash: hash,
     outputs: z.record(z.string(), hash),
+    emitted: z.record(z.string(), z.string().regex(SEMVER)).optional(),
+  })
+  .strict()
+const compileEntrySchema = z
+  .object({
+    enabled: z.boolean(),
+    inputs: z
+      .string()
+      .regex(/^sha256:[a-f0-9]{64}$/)
+      .optional(),
+    compiler: z.number().int().min(1),
   })
   .strict()
 const lockSchema = z
   .object({
-    version: z.literal(PLUGIN_LOCK_VERSION),
+    version: z.union([z.literal(1), z.literal(PLUGIN_LOCK_VERSION)]),
     plugins: z
       .array(entrySchema)
       .refine((plugins) => new Set(plugins.map((p) => p.name)).size === plugins.length, 'duplicate plugin name'),
     variants: z.record(z.string(), z.string().regex(/^sha256:[a-f0-9]{64}$/)),
+    compile: z.record(z.string(), compileEntrySchema).optional(),
   })
   .strict()
 
@@ -57,11 +70,11 @@ export function parsePluginLock(text: string, path: string): PluginLock {
     throw new PluginLockError(
       `${path} is invalid: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
     )
-  return buildPluginLock(parsed.data.plugins)
+  return buildPluginLock(parsed.data.plugins, parsed.data.compile)
 }
 
 export function serializePluginLock(lock: PluginLock): string {
-  return JSON.stringify(buildPluginLock(lock.plugins), null, 2) + '\n'
+  return JSON.stringify(buildPluginLock(lock.plugins, lock.compile), null, 2) + '\n'
 }
 
 export async function readPluginLock(path: string): Promise<PluginLock> {

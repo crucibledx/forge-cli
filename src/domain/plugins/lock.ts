@@ -2,10 +2,16 @@ import {hashContent} from '../sync/state'
 import {compare} from './package'
 import type {PluginConfig, PluginSourceConfig} from './types'
 
-export const PLUGIN_LOCK_VERSION = 1
+export const PLUGIN_LOCK_VERSION = 2
+/** Lock versions this forge reads: v0.8's 1 upgrades to 2 on the next sync (spec 0005 §5). */
+export const READABLE_LOCK_VERSIONS = [1, PLUGIN_LOCK_VERSION] as const
 export const DEFAULT_PLUGIN_REF = 'main'
 
-export type LockedSource = {type: 'local'; path: string} | {type: 'git'; url: string; path?: string; ref: string}
+export type LockedSource =
+  | {type: 'local'; path: string}
+  | {type: 'git'; url: string; path?: string; ref: string}
+  /** A package forge generates (spec 0005 §5): no source, no SHA; `contentHash` covers the generated tree. */
+  | {type: 'generated'}
 
 export interface PluginLockEntry {
   name: string
@@ -17,12 +23,24 @@ export interface PluginLockEntry {
   contentHash: string
   /** Per harness: the same hash over everything forge delivers to it for this plugin. */
   outputs: Record<string, string>
+  /** Per harness: the emitted version when compile suffixed it (spec 0005 §5); absent means the source version. */
+  emitted?: Record<string, string>
+}
+
+/** The lock's `compile[<harness>]` (spec 0005 §5). */
+export interface CompileLockEntry {
+  enabled: boolean
+  /** `sha256:…` over the compile inputs; absent while compile is disabled. */
+  inputs?: string
+  /** The COMPILER_VERSION that produced this entry. */
+  compiler: number
 }
 
 export interface PluginLock {
   version: typeof PLUGIN_LOCK_VERSION
   plugins: PluginLockEntry[]
   variants: Record<string, string>
+  compile?: Record<string, CompileLockEntry>
 }
 
 export const LOCK_ACTIONS = {RESOLVE: 'resolve', LOCKED: 'locked', RELOCK: 'relock'} as const
@@ -33,17 +51,19 @@ export function emptyPluginLock(): PluginLock {
 }
 
 /** The descriptor the lock records; an explicit `branch` is the deprecated spelling of `ref`. */
-export function lockedSource(source: PluginSourceConfig): LockedSource {
+export function lockedSource(source: PluginSourceConfig | LockedSource): LockedSource {
+  if (source.type === 'generated') return {type: 'generated'}
   if (source.type === 'local') return {type: 'local', path: source.path}
   return {
     type: 'git',
     url: source.url,
     ...(source.path === undefined ? {} : {path: source.path}),
-    ref: source.ref ?? source.branch ?? DEFAULT_PLUGIN_REF,
+    ref: source.ref ?? ('branch' in source ? source.branch : undefined) ?? DEFAULT_PLUGIN_REF,
   }
 }
 
 function sourceKey(source: LockedSource): string {
+  if (source.type === 'generated') return JSON.stringify([source.type])
   return JSON.stringify(
     source.type === 'local' ? [source.type, source.path] : [source.type, source.url, source.path ?? null, source.ref],
   )
@@ -82,7 +102,10 @@ export function computeVariants(plugins: readonly PluginLockEntry[]): Record<str
 }
 
 /** Canonical lock: entries sorted by name with a fixed key order, so equal content serializes to equal bytes. */
-export function buildPluginLock(plugins: readonly PluginLockEntry[]): PluginLock {
+export function buildPluginLock(
+  plugins: readonly PluginLockEntry[],
+  compile?: Record<string, CompileLockEntry>,
+): PluginLock {
   const entries = [...plugins]
     .sort((a, b) => compare(a.name, b.name))
     .map((entry) => ({
@@ -96,6 +119,31 @@ export function buildPluginLock(plugins: readonly PluginLockEntry[]): PluginLock
           .sort(compare)
           .map((h) => [h, entry.outputs[h]]),
       ),
+      ...(entry.emitted === undefined
+        ? {}
+        : {
+            emitted: Object.fromEntries(
+              Object.keys(entry.emitted)
+                .sort(compare)
+                .map((h) => [h, entry.emitted![h]]),
+            ),
+          }),
     }))
-  return {version: PLUGIN_LOCK_VERSION, plugins: entries, variants: computeVariants(entries)}
+  const compileEntries = Object.entries(compile ?? {})
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([a], [b]) => compare(a, b))
+    .map(([harness, entry]) => [
+      harness,
+      {
+        enabled: entry.enabled,
+        ...(entry.inputs === undefined ? {} : {inputs: entry.inputs}),
+        compiler: entry.compiler,
+      },
+    ])
+  return {
+    version: PLUGIN_LOCK_VERSION,
+    plugins: entries,
+    variants: computeVariants(entries),
+    ...(compileEntries.length ? {compile: Object.fromEntries(compileEntries)} : {}),
+  }
 }

@@ -122,6 +122,20 @@ sync:
 #                                       # install with `forge sync --global` (see docs/plugins.md)
 plugins: []
 
+# ── Compile (spec 0005) ─────────────────────────────────────────
+# One compile unit per (harness, scope) over the delivered plugins, before emission (docs/compile.md).
+# All keys optional with the defaults shown; only `enabled` changes this version's output, the rest are
+# validated and locked now for the later passes (normalize, dedupe, profile, minify, budget, guardian).
+# compile:
+#   enabled: true                       # false keeps v0.8 output: no compile, no manifests
+#   priority: [crucible-loop]           # plugins that fill the listing first
+#   keep: [testing-kit/skill/pytest-runner]   # component ids (<plugin>/<kind>/<name>) always listed
+#   defer: [big-plugin/**]              # component ids always deferred
+#   profile: false                      # false | rank | prune | {mode: rank|prune, include: [tags], exclude: [tags]}
+#   guardian: {hook: auto, mcp: auto, min_score: 6}   # each auto | on | off; `guardian: off` turns both off
+#   harnesses:                          # per-harness budget (characters or off) and description cap overrides
+#     droid: {skills: 9500, agents: 9000, skill_description: 199, agent_description: 500}
+
 # ── Extension registry (future) ─────────────────────────────────
 # Forge's own extension point, not yet built. Will be used when forge core CLI arrives
 extensions: []

@@ -23,11 +23,10 @@ export function marketplaceCatalog(name: string, harness: string, plugins: reado
   const catalog = {
     name,
     owner: {name: 'Crucible Forge'},
-    plugins: plugins.map((plugin) => ({
-      name: plugin.name,
-      version: plugin.version,
-      source: `./${plugin.name}/${plugin.version}/${harness}`,
-    })),
+    plugins: plugins.map((plugin) => {
+      const emitted = plugin.emitted?.[harness] ?? plugin.version
+      return {name: plugin.name, version: emitted, source: `./${plugin.name}/${emitted}/${harness}`}
+    }),
   }
   return JSON.stringify(catalog, null, 2) + '\n'
 }

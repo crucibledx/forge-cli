@@ -108,6 +108,7 @@ export async function runSyncWithDependencies(
       scope,
       plugins: config.plugins ?? [],
       enabled,
+      compile: config.compile,
     })
     resolved = [...resolved, ...plugins.targets]
     const state = await loadSyncState(boundary.root)

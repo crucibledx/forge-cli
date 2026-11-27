@@ -28,8 +28,12 @@ export function pluginCacheFiles(
   return [
     CACHE_GITIGNORE,
     ...files.map((file) => ({...file, path: `${base}/${SOURCE_DIR}/${file.path}`})),
+    // A compiled harness tree lives at the emitted version; the source copy stays at the source version (§5).
     ...Object.entries(outputs).flatMap(([harness, delivered]) =>
-      delivered.plugin.map((file) => ({...file, path: `${base}/${harness}/${file.path}`})),
+      delivered.plugin.map((file) => ({
+        ...file,
+        path: `${entry.name}/${entry.emitted?.[harness] ?? entry.version}/${harness}/${file.path}`,
+      })),
     ),
   ]
 }
@@ -53,9 +57,11 @@ export async function unreferencedCacheDirs(cacheRoot: string, lock: PluginLock)
   for (const name of (await list(cacheRoot)).filter((dir) => PLUGIN_NAME.test(dir))) {
     const entry = lock.plugins.find((plugin) => plugin.name === name)
     if (!entry) stale.push(name)
-    else
-      for (const version of await list(join(cacheRoot, name)))
-        if (version !== entry.version) stale.push(`${name}/${version}`)
+    else {
+      // Pruning keeps every source and emitted version the lock names (spec 0005 §5).
+      const kept = new Set([entry.version, ...Object.values(entry.emitted ?? {})])
+      for (const version of await list(join(cacheRoot, name))) if (!kept.has(version)) stale.push(`${name}/${version}`)
+    }
   }
   return stale
 }
