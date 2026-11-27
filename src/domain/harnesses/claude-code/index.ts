@@ -23,6 +23,7 @@ export const claudeCode: HarnessDefinition = {
     mcp: {project: '.mcp.json', format: F.MCP_JSON, key: 'mcpServers'},
     'output-style': {project: '.claude/output-styles/', global: '~/.claude/output-styles/', format: F.MARKDOWN},
   },
+  plugin: {emit: 'claude', register: 'claude-settings'},
 }
 
 harnessesRegistry.push(claudeCode)
