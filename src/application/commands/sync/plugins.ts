@@ -1,11 +1,20 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 
-import {getAllHarnesses, getHarness} from '@domain/harnesses'
+import {getHarness} from '@domain/harnesses'
 import type {PluginConfig, PluginHarnessId, PluginLock, PluginScope} from '@domain/plugins'
-import {LOCK_ACTIONS, PLUGIN_EMITTERS, PLUGIN_HARNESS_IDS, PLUGIN_SCOPES, portabilityReport} from '@domain/plugins'
+import {
+  FACTORY_PRINT_RULES_FILE,
+  LOCK_ACTIONS,
+  PLUGIN_EMITTERS,
+  PLUGIN_HARNESS_IDS,
+  PLUGIN_HARNESSES,
+  PLUGIN_SCOPES,
+  portabilityReport,
+} from '@domain/plugins'
 import * as renderer from '@infrastructure/cli/renderer'
 import type {KeyedValue} from '@infrastructure/config/keyed-merge'
+import {executableOnPath} from '@infrastructure/fs'
 import type {LockedPlugin} from '@infrastructure/plugins'
 import {
   CACHE_GITIGNORE,
@@ -80,6 +89,8 @@ export async function planPlugins(input: {
   scope: PluginScope
   plugins: readonly PluginConfig[]
   enabled: ReadonlySet<string>
+  /** Test seam for the node prerequisite check; defaults to a PATH lookup. */
+  hasExecutable?: (name: string) => Promise<boolean>
 }): Promise<PluginPlan> {
   const {root, scope} = input
   const cacheDir = PLUGIN_CACHE_DIRS[scope]
@@ -91,34 +102,50 @@ export async function planPlugins(input: {
   if (!input.plugins.length && !lock.plugins.length && !cached.length) return empty
 
   const capable = [...input.enabled].map(getHarness).filter((harness) => harness.plugin)
-  // Emit for every harness with a plugin capability, enabled or not: a disabled harness whose registration is
-  // retained keeps its delivered tree, lock outputs and catalog entry instead of being pruned out from under the
-  // retained settings keys.
+  // Only enabled harnesses are delivered to; emitter availability is not installation eligibility. A disabled
+  // harness keeps what it installed through frozen retention below, never through fresh emission.
   const deliver = Object.fromEntries(
-    getAllHarnesses()
-      .filter((harness) => harness.plugin)
-      .map((harness) => {
-        const emitter = PLUGIN_EMITTERS[harness.plugin!.emit]
-        if (!emitter) throw new Error(`${harness.name} names an unknown plugin emitter: ${harness.plugin!.emit}`)
-        return [harness.id, emitter]
-      }),
+    capable.map((harness) => {
+      const emitter = PLUGIN_EMITTERS[harness.plugin!.emit]
+      if (!emitter) throw new Error(`${harness.name} names an unknown plugin emitter: ${harness.plugin!.emit}`)
+      return [harness.id, emitter]
+    }),
   )
+  const retainedHarnesses = PLUGIN_HARNESS_IDS.filter((harness) => !input.enabled.has(harness))
   const result = await lockPlugins({
     plugins: input.plugins,
     lock,
     context: {root, home: input.home},
     cacheRoot,
     defaultHarnesses: [...input.enabled],
-    retain: PLUGIN_HARNESS_IDS.filter((harness) => !input.enabled.has(harness)),
+    retain: retainedHarnesses,
     deliver,
   })
+  // The generated Droid rules hook spawns node; fail before any write when a supported standalone install lacks it.
+  const rulesPlugins = result.plugins
+    .filter((plugin) =>
+      plugin.outputs[PLUGIN_HARNESSES.DROID]?.plugin.some((file) => file.path === FACTORY_PRINT_RULES_FILE),
+    )
+    .map((plugin) => plugin.entry.name)
+  if (rulesPlugins.length && !(await (input.hasExecutable ?? executableOnPath)('node')))
+    throw new CommandError(M.nodeRequired(rulesPlugins.join(', ')), M.nodeRequiredHint)
   const marketplace = marketplaceName(scope, root)
+
+  // Frozen retention (docs/safety-contract.md): a disabled harness keeps the delivered tree and catalog entry
+  // its retained settings keys point at, even for a plugin the config no longer lists. The tree is pruned once
+  // ownership permits cleanup: the harness is enabled again, or the keys are gone.
+  const frozenPrefixes = lock.plugins.flatMap((entry) =>
+    retainedHarnesses
+      .filter((harness) => entry.outputs[harness] !== undefined)
+      .map((harness) => `${entry.name}/${entry.version}/${harness}/`),
+  )
+  const isFrozen = (path: string) => frozenPrefixes.some((prefix) => path.startsWith(prefix))
 
   const desired = new Map<string, ManagedFile>()
   const entries = result.plugins.map((plugin) => plugin.entry)
   for (const plugin of result.plugins)
     for (const file of pluginCacheFiles(plugin.entry, plugin.pkg.files, plugin.outputs)) desired.set(file.path, file)
-  if (!result.plugins.length) desired.delete(CACHE_GITIGNORE.path)
+  if (!result.plugins.length && !frozenPrefixes.length) desired.delete(CACHE_GITIGNORE.path)
   else
     for (const harness of PLUGIN_HARNESS_IDS)
       desired.set(MARKETPLACE_CATALOGS[harness], {
@@ -126,7 +153,9 @@ export async function planPlugins(input: {
         content: marketplaceCatalog(
           marketplace,
           harness,
-          entries.filter((entry) => entry.outputs[harness] !== undefined),
+          // An enabled harness lists what this sync delivered; a disabled one keeps the frozen entries its
+          // retained settings keys resolve against.
+          (input.enabled.has(harness) ? entries : lock.plugins).filter((entry) => entry.outputs[harness] !== undefined),
         ),
       })
 
@@ -150,7 +179,7 @@ export async function planPlugins(input: {
 
   return {
     files,
-    prune: cached.filter((path) => !desired.has(path)).map((path) => join(cacheDir, path)),
+    prune: cached.filter((path) => !desired.has(path) && !isFrozen(path)).map((path) => join(cacheDir, path)),
     keyed,
     cacheDir,
     report: {scope, marketplace, plugins: result.plugins, removed: result.removed, variants: result.lock.variants},

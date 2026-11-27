@@ -39,6 +39,9 @@ describe('forge sync — Droid plugin delivery', () => {
       await writeFile(join(shim, cli), '#!/bin/sh\necho called >> "$FORGE_SPAWN_MARKER"\n')
       await chmod(join(shim, cli), 0o755)
     }
+    // Passive node: the generated rules hook needs node on PATH, but sync itself must never spawn it.
+    await writeFile(join(shim, 'node'), '#!/bin/sh\nexit 0\n')
+    await chmod(join(shim, 'node'), 0o755)
     await writeSourceTree(join(dir, 'src'), {skills: {'deploy.md': '# Deploy'}})
     await writeConfig(
       proj,
@@ -357,5 +360,70 @@ describe('forge sync — Droid plugin delivery', () => {
     const catalog = await readJson(join(proj, '.crucible/plugins/.factory-plugin/marketplace.json'))
     expect(catalog.plugins).toEqual([{name: 'hello', version: '1.0.0', source: './hello/1.0.0/droid'}])
     expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/skills/hello/SKILL.md'))).toBe(true)
+
+    // Removing the plugin while Droid is still disabled keeps the retained tree, catalog entry and keys:
+    // the registration is cleaned up only once Droid is enabled again.
+    await writeConfig(proj, buildConfigYaml({assistants: ['cursor'], localSource: {path: join(dir, 'src')}}))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).toContain('crucible-forge')
+    expect((await readJson(join(proj, '.crucible/plugins/.factory-plugin/marketplace.json'))).plugins).toEqual([
+      {name: 'hello', version: '1.0.0', source: './hello/1.0.0/droid'},
+    ])
+    expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/skills/hello/SKILL.md'))).toBe(true)
+
+    // Re-enabling Droid finally cleans the registration up: keys, catalog and tree.
+    await writeConfig(proj, buildConfigYaml({assistants: ['droid'], localSource: {path: join(dir, 'src')}}))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).not.toContain('crucible-forge')
+    expect(existsSync(join(proj, '.crucible/plugins/.factory-plugin/marketplace.json'))).toBe(false)
+    expect(existsSync(join(proj, '.crucible/plugins/hello'))).toBe(false)
+  })
+
+  it('reports an explicitly targeted disabled harness as not enabled instead of installing it', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    await writeSourceTree(join(dir, 'src'), {skills: {'a.md': '# A'}})
+    await writeConfig(
+      proj,
+      buildConfigYaml({assistants: ['cursor'], localSource: {path: join(dir, 'src')}}) +
+        pluginsBlock(localPlugin(plugin, '\n    harnesses: [droid]')),
+    )
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(0)
+    expect(output).toContain('not enabled in this config; not delivered to Droid')
+    expect(output).not.toContain('Droid: installed')
+    const lock = await readJson(join(proj, '.crucible/forge.lock'))
+    expect(lock.plugins[0].outputs).toEqual({})
+    const catalog = await readJson(join(proj, '.crucible/plugins/.factory-plugin/marketplace.json'))
+    expect(catalog.plugins).toEqual([])
+    expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid'))).toBe(false)
+  })
+
+  it('fails with an actionable error when a rules plugin needs node for its Droid hook and node is not on PATH', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const shim = join(dir, 'bin')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, {
+      'plugin.json': pluginManifest('hello', '1.0.0'),
+      'dev.crucibledx.forge': {rules: {'style.md': 'Be brief.\n'}},
+    })
+    await writeConfig(proj, buildConfigYaml({assistants: ['droid']}) + pluginsBlock(localPlugin(plugin)))
+    const path = '/usr/bin:/bin'
+
+    const blocked = await runCommand(proj, 'sync', [], {PATH: path})
+    expect(blocked.exitCode).toBe(1)
+    expect(blocked.output).toContain('node')
+    expect(blocked.output).toContain('hello')
+    expect(existsSync(join(proj, '.crucible/plugins'))).toBe(false)
+
+    await mkdir(shim, {recursive: true})
+    await writeFile(join(shim, 'node'), '#!/bin/sh\nexit 0\n')
+    await chmod(join(shim, 'node'), 0o755)
+    const allowed = await runCommand(proj, 'sync', [], {PATH: `${shim}:${path}`})
+    expect(allowed.exitCode).toBe(0)
+    expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/forge/print-rules.cjs'))).toBe(true)
   })
 })
