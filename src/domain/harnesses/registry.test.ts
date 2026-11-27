@@ -4,6 +4,7 @@ import './windsurf'
 
 import {describe, expect, it} from 'bun:test'
 
+import {PLUGIN_HARNESS_IDS} from '../plugins/types'
 import {claudeCode} from './claude-code'
 import {SOURCE_GLOB_KINDS} from './coverage'
 import {cursor} from './cursor'
@@ -105,8 +106,9 @@ describe('AC-4 targetMappings match components', () => {
 })
 
 describe('AC-11 plugin capability', () => {
-  it('is unset on every built-in', () => {
-    for (const harness of getAllHarnesses()) expect(harness.plugin).toBeUndefined()
+  it('is declared only by harnesses forge delivers plugins to (spec 0003 AC-18)', () => {
+    for (const harness of getAllHarnesses())
+      if (harness.plugin) expect<readonly string[]>(PLUGIN_HARNESS_IDS).toContain(harness.id)
   })
 
   it('is an optional field of the definition type', () => {

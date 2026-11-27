@@ -24,6 +24,7 @@ export const droid: HarnessDefinition = {
     mcp: {global: '~/.factory/mcp.json', format: F.MCP_JSON, key: 'mcpServers'},
     'output-style': {project: '.factory/output-styles/', format: F.MARKDOWN},
   },
+  plugin: {emit: 'factory', register: 'droid-settings', installNote: 'installs on next start'},
 }
 
 harnessesRegistry.push(droid)

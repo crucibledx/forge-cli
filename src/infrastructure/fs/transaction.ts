@@ -21,7 +21,12 @@ export interface FileOperation {
   backup?: boolean
   /** Bytes the plan was computed from (null: absent). Preparation refuses if the file changed since. */
   expect?: Uint8Array | null
+  /** Sets (true) or clears (false) the POSIX execute bits where read is allowed; unset keeps the current mode. */
+  executable?: boolean
 }
+
+const withExecutable = (mode: number, executable?: boolean) =>
+  executable === undefined ? mode : executable ? mode | ((mode & 0o444) >> 2) : mode & ~0o111
 
 async function checkReplacementSupport(): Promise<void> {
   if (process.platform !== 'win32') return
@@ -223,7 +228,7 @@ export async function prepareTransaction(root: string, operations: FileOperation
             await write(
               path,
               typeof operation.content === 'string' ? Buffer.from(operation.content) : operation.content,
-              snapshot.mode,
+              withExecutable(snapshot.mode, operation.executable),
               snapshot.bytes !== null,
               false,
               touch,

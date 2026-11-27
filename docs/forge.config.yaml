@@ -117,7 +117,9 @@ sync:
 #     source: {type: git, url: https://github.com/crucibledx/factory-loop.git, path: plugins/crucible-loop, ref: main}
 #     # a relative git url resolves against the directory forge runs in, as for git sources
 #     harnesses: [claude-code, droid]   # optional
-#     scope: project                    # project | user
+#     scope: project                    # project | user; must match this config: project entries install with
+#                                       # `forge sync`, user entries live in ~/.crucible/forge.config.yaml and
+#                                       # install with `forge sync --global` (see docs/plugins.md)
 plugins: []
 
 # ── Extension registry (future) ─────────────────────────────────

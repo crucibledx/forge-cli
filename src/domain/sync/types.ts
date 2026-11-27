@@ -11,7 +11,13 @@ export const MUTATION_TYPES = {
 export type MutationType = (typeof MUTATION_TYPES)[keyof typeof MUTATION_TYPES]
 
 export type Mutation =
-  | {type: typeof MUTATION_TYPES.FILE_WRITE; path: string; content: string | Uint8Array; backup?: true}
+  | {
+      type: typeof MUTATION_TYPES.FILE_WRITE
+      path: string
+      content: string | Uint8Array
+      backup?: true
+      executable?: boolean
+    }
   | {type: typeof MUTATION_TYPES.FILE_DELETE; path: string}
   | {type: typeof MUTATION_TYPES.DIR_CREATE; path: string}
   | {type: typeof MUTATION_TYPES.SYMLINK_CREATE; path: string; target: string}
