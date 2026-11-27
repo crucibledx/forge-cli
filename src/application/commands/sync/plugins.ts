@@ -12,6 +12,7 @@ import {
   PLUGIN_SCOPES,
   portabilityReport,
 } from '@domain/plugins'
+import type {ResolvedTarget} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import type {KeyedValue} from '@infrastructure/config/keyed-merge'
 import {executableOnPath} from '@infrastructure/fs'
@@ -58,6 +59,8 @@ export interface PluginPlan {
   /** Cache files to delete, relative to the sync root. */
   prune: string[]
   keyed: Array<{path: string; sourceName: string; values: KeyedValue[]}>
+  /** Rule files delivered outside the plugin (Claude Code), synced and tracked like any other target. */
+  targets: ResolvedTarget[]
   cacheDir: string
   report: PluginReport | null
 }
@@ -98,7 +101,7 @@ export async function planPlugins(input: {
   const lockPath = PLUGIN_LOCK_PATHS[scope]
   const lock = await readPluginLock(join(root, lockPath))
   const cached = await listCacheFiles(cacheRoot)
-  const empty: PluginPlan = {files: [], prune: [], keyed: [], cacheDir, report: null}
+  const empty: PluginPlan = {files: [], prune: [], keyed: [], targets: [], cacheDir, report: null}
   if (!input.plugins.length && !lock.plugins.length && !cached.length) return empty
 
   const capable = [...input.enabled].map(getHarness).filter((harness) => harness.plugin)
@@ -181,9 +184,45 @@ export async function planPlugins(input: {
     files,
     prune: cached.filter((path) => !desired.has(path) && !isFrozen(path)).map((path) => join(cacheDir, path)),
     keyed,
+    targets: ruleTargets(result.plugins, scope),
     cacheDir,
     report: {scope, marketplace, plugins: result.plugins, removed: result.removed, variants: result.lock.variants},
   }
+}
+
+// Sync targets are text: keep a BOM and refuse bytes that would not survive the round trip, so the installed rule
+// is exactly the locked output.
+const decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true})
+
+function ruleText(plugin: string, path: string, content: Uint8Array): string {
+  try {
+    return decoder.decode(content)
+  } catch {
+    throw new CommandError(M.ruleNotUtf8(plugin, path), M.ruleNotUtf8Hint)
+  }
+}
+
+/**
+ * Spec 0003 §2: a harness that loads plugin rules from its own rules directory gets them as forge-owned files there,
+ * so drift, `keep_local` and removal follow the loose-resource lifecycle. The sync root is home in a user sync.
+ */
+function ruleTargets(plugins: readonly LockedPlugin[], scope: PluginScope): ResolvedTarget[] {
+  return plugins.flatMap((plugin) =>
+    Object.entries(plugin.outputs).flatMap(([harnessId, delivered]) => {
+      if (!delivered.claudeRules?.length) return []
+      const harness = getHarness(harnessId)
+      const rule = harness.components.rule
+      const dir = scope === PLUGIN_SCOPES.USER ? rule?.global?.replace(/^~\//, '') : rule?.project
+      if (!dir) throw new Error(`${harness.name} has no ${scope} rules directory for plugin rule files`)
+      return delivered.claudeRules.map((file) => ({
+        sourcePath: `${plugin.entry.name}/${file.path}`,
+        targetPath: `${dir}${file.path}`,
+        content: ruleText(plugin.entry.name, file.path, file.content),
+        harnessId,
+        sourceName: PLUGIN_SOURCE_NAME,
+      }))
+    }),
+  )
 }
 
 const ACTIONS = {

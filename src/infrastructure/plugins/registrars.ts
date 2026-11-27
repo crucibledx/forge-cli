@@ -1,5 +1,6 @@
 import type {PluginScope} from '@domain/plugins'
 
+import {registerClaudeSettings} from './claude-settings'
 import type {PluginRegistrar} from './registrar'
 
 const DROID_SETTINGS: Readonly<Record<PluginScope, string>> = {
@@ -22,15 +23,9 @@ export const registerDroidSettings: PluginRegistrar = ({scope, marketplace, cach
   ],
 })
 
-const notImplemented =
-  (id: string): PluginRegistrar =>
-  () => {
-    throw new Error(`Plugin registrar '${id}' is not implemented yet`)
-  }
-
 /** Keyed by `HarnessPluginCapability.register` (spec 0003 §5). Entries are kept apart so each registrar lands on its own. */
 export const PLUGIN_REGISTRARS: Readonly<Record<string, PluginRegistrar>> = {
-  'claude-settings': notImplemented('claude-settings'),
+  'claude-settings': registerClaudeSettings,
 
   'droid-settings': registerDroidSettings,
 }

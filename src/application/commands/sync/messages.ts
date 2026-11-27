@@ -52,6 +52,9 @@ export const SYNC_MESSAGES = {
       `the generated Droid rules hook of ${plugins} spawns "node", but node is not on PATH on this machine`,
     nodeRequiredHint:
       'Install Node.js (https://nodejs.org) so Droid can run the SessionStart rules hook, or remove the rules from the plugin, then sync again.',
+    ruleNotUtf8: (plugin: string, rule: string) =>
+      `plugin "${plugin}": rule file ${rule} is not UTF-8 text, so it cannot be delivered to Claude Code byte for byte`,
+    ruleNotUtf8Hint: 'Save the rule as UTF-8 in the plugin package, then sync again.',
     variants: 'Variants:',
   },
 } as const
