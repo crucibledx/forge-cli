@@ -6,7 +6,21 @@ import {describe, expect, it} from 'bun:test'
 
 import {claudeCode} from './claude-code'
 import {cursor} from './cursor'
-import {getAllHarnesses, getHarness, getHarnessIds, resolveHarnessByPath} from './registry'
+import {
+  getAllHarnesses,
+  getHarness,
+  getHarnessIds,
+  resolveHarnessByPath,
+  resolveHarnessBySettingsPath,
+} from './registry'
+
+it.each([
+  ['.claude/settings.local.json', claudeCode.id],
+  ['.claude/settings.json', claudeCode.id],
+  ['settings.json', undefined],
+])('BR-11 settings file %s is owned by the harness whose targets share its folder', (path, id) => {
+  expect(resolveHarnessBySettingsPath(path)?.id).toBe(id)
+})
 
 it.each(['.CLAUDE\\SKILLS\\a.md', '.claude//skills///a.md'])(
   'AC-4,9 ownership uses the same portable folding as collision checks: %s',

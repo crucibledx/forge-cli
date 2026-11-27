@@ -4,5 +4,12 @@ import './copilot'
 import './cursor'
 import './windsurf'
 
-export {getAllHarnesses, getHarness, getHarnessIds, harnessesRegistry, resolveHarnessByPath} from './registry'
+export {
+  getAllHarnesses,
+  getHarness,
+  getHarnessIds,
+  harnessesRegistry,
+  resolveHarnessByPath,
+  resolveHarnessBySettingsPath,
+} from './registry'
 export type {DetectionResult, DetectionRule, HarnessConfig, HarnessDefinition, HarnessId, TargetMapping} from './types'
