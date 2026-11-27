@@ -70,8 +70,10 @@ export interface ComponentTarget {
   transforms?: TransformStep[]
 }
 
-/** Shape from spec 0003 §5. Unset on every built-in until its plugin emitter and registrar exist. */
+/** Shape from spec 0003 §5. Set only on harnesses whose plugin emitter and registrar exist. */
 export interface HarnessPluginCapability {
   emit: string
   register: string
+  /** Shown under the harness's plugin lines in the sync plan and report, e.g. when the harness picks plugins up. */
+  installNote?: string
 }

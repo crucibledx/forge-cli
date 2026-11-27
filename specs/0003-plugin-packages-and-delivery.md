@@ -143,6 +143,11 @@ plugins:
     scope: project                    # project | user
 ```
 
+- **Scope.** `scope` defaults to the scope of the config the entry sits in, and it must match that config:
+  `scope: user` entries belong in the user config (`~/.crucible/forge.config.yaml`) and install with
+  `forge sync --global`; `scope: project` entries belong in a project config and install with `forge sync` there. A
+  mismatch fails config validation with a named error that says where the entry belongs and which command installs
+  it. One sync root is one transaction, so a single sync never touches both scopes.
 - **Lockfile** `.crucible/forge.lock` (project, committed) and `~/.crucible/forge/forge.lock` (user). Per plugin:
   name, manifest `version`, source descriptor, resolved commit SHA (git), `contentHash` (skills-lock v2 algorithm over
   the package files), and `outputs[<harness>]`: the same hash over **everything forge delivers to that harness for
@@ -178,7 +183,10 @@ plugins:
 `SessionStart` rule hook; Droid translates the layout on install per the Complete-don't-compete section). Output
 goes to `<cache>/<name>/<version>/<harness>/`.
 
-**Capability.** 0002's `HarnessPluginCapability` is `{emit: EmitterId; register: RegistrarId}`. The field lands
+**Capability.** 0002's `HarnessPluginCapability` is `{emit: EmitterId; register: RegistrarId; installNote?: string}`:
+`installNote` is one short harness-specific line the sync plan and report print under that harness's plugin lines
+(Droid: "installs on next start"; Claude Code: "installs on next start, once you trust the folder", AC-10's
+folder-trust note). The field lands
 unset in 0002; #56 sets it on `droid` (`factory`, `droid-settings`) and #57 on `claude-code` (`claude`,
 `claude-settings`). An enabled harness without a capability (Cursor, Copilot, Cline, Windsurf today) keeps its
 loose-resource sync and gets one report line per plugin: "plugins are not supported for <harness> yet".
@@ -208,7 +216,9 @@ the marketplace name and plugin IDs.
 
 Project scope writes the harness's local settings file, not the shared one, because the marketplace path is absolute
 and the cache is per machine. Both harnesses install settings-declared plugins themselves (on next start; Claude Code
-only once the user trusts the folder); the plan says so. Uninstall removes the plugin's two keys, its rule files, and
+only once the user trusts the folder); the plan says so. `forge sync` installs only `scope: project` entries from the
+project config and `forge sync --global` only `scope: user` entries from the user config (§4): the two scopes never
+share a sync run, a lockfile, a cache root or a marketplace name. Uninstall removes the plugin's two keys, its rule files, and
 its cache entry; the marketplace key goes when the last plugin in that scope goes. A key changed outside forge since
 forge wrote it now belongs to the user: uninstall keeps it and warns, naming the key.
 

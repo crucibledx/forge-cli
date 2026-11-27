@@ -112,8 +112,8 @@ async function lockPlugin(config: PluginConfig, input: LockPluginsInput): Promis
   const outputs: Record<string, DeliveredFiles> = {}
   for (const harness of config.harnesses ?? input.defaultHarnesses) {
     const deliver = input.deliver[harness]
-    if (supported && !supported.includes(harness)) skipped.push({harness, reason: SKIP_REASONS.NOT_IN_MANIFEST})
-    else if (!deliver) skipped.push({harness, reason: SKIP_REASONS.NO_PLUGIN_SUPPORT})
+    if (!deliver) skipped.push({harness, reason: SKIP_REASONS.NO_PLUGIN_SUPPORT})
+    else if (supported && !supported.includes(harness)) skipped.push({harness, reason: SKIP_REASONS.NOT_IN_MANIFEST})
     else outputs[harness] = deliver(pkg)
   }
   const entry: PluginLockEntry = {

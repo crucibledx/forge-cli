@@ -1,12 +1,13 @@
 import {existsSync} from 'node:fs'
-import {readdir} from 'node:fs/promises'
-import {join} from 'node:path'
+import {readdir, rmdir} from 'node:fs/promises'
+import {dirname, join, relative} from 'node:path'
 
 import type {DeliveredFiles, PluginFile, PluginLock, PluginLockEntry, PluginScope} from '@domain/plugins'
 import {hashPluginFiles, PLUGIN_SCOPES} from '@domain/plugins'
 
 import {readPluginFiles} from './files'
 import {PLUGIN_NAME} from './manifest'
+import {MARKETPLACE_CATALOGS} from './marketplace'
 
 /** Relative to the project root (project scope) or home (user scope). Never committed: the lock is the truth. */
 export const PLUGIN_CACHE_DIRS: Record<PluginScope, string> = {
@@ -56,4 +57,23 @@ export async function unreferencedCacheDirs(cacheRoot: string, lock: PluginLock)
         if (version !== entry.version) stale.push(`${name}/${version}`)
   }
   return stale
+}
+
+/** Relative paths of the forge-managed files under a cache root: plugin directories and the marketplace catalogs. */
+export async function listCacheFiles(cacheRoot: string): Promise<string[]> {
+  const entries = await readdir(cacheRoot, {withFileTypes: true, recursive: true}).catch(() => [])
+  const managed = new Set<string>(Object.values(MARKETPLACE_CATALOGS))
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(cacheRoot, join(entry.parentPath, entry.name)).replaceAll('\\', '/'))
+    .filter((path) => managed.has(path) || (path.includes('/') && PLUGIN_NAME.test(path.split('/')[0])))
+    .sort()
+}
+
+/** Removes the directories a prune emptied, deepest first; a directory that still holds anything stays. */
+export async function removeEmptyCacheDirs(cacheRoot: string, removed: readonly string[]): Promise<void> {
+  const dirs = new Set<string>()
+  for (const path of removed) for (let dir = dirname(path); dir !== '.' && dir !== ''; dir = dirname(dir)) dirs.add(dir)
+  for (const dir of [...dirs].sort((a, b) => b.length - a.length))
+    await rmdir(join(cacheRoot, dir)).catch(() => undefined)
 }

@@ -1,3 +1,4 @@
+import {emitFactory} from './emit/factory'
 import type {DeliveredFiles, PluginPackage} from './types'
 
 /** Builds what one harness loads from a parsed package. Pure: the engine hashes, caches and writes the result. */
@@ -13,5 +14,5 @@ const notImplemented =
 export const PLUGIN_EMITTERS: Readonly<Record<string, PluginEmitter>> = {
   claude: notImplemented('claude'),
 
-  factory: notImplemented('factory'),
+  factory: emitFactory,
 }

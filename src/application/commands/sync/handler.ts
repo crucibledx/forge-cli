@@ -1,3 +1,6 @@
+import {homedir} from 'node:os'
+import {join} from 'node:path'
+
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import type {HarnessDefinition} from '@domain/harnesses'
@@ -8,7 +11,9 @@ import {
   resolveHarnessByPath,
   resolveHarnessBySettingsPath,
 } from '@domain/harnesses'
+import {PLUGIN_SCOPES} from '@domain/plugins'
 import {redact} from '@domain/redact'
+import {isGlobalMode} from '@domain/scope'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {CONFIG_PATH, STATE_PATH, validatePathGraph} from '@domain/sync/plan'
@@ -29,6 +34,7 @@ import {prepareTransaction, reportUnrestoredRecovery, transactionIO} from '@infr
 import type {IOContext, IOService} from '@infrastructure/io'
 import io from '@infrastructure/io'
 import {createFileLogger} from '@infrastructure/logger'
+import {removeEmptyCacheDirs} from '@infrastructure/plugins'
 import type {ReportService} from '@infrastructure/report'
 import {loadSourceFiles} from '@infrastructure/source'
 import {setTelemetryContext} from '@infrastructure/telemetry'
@@ -37,6 +43,8 @@ import {CommandError} from '../types'
 import {SafetyError} from './errors'
 import {SYNC_MESSAGES as M} from './messages'
 import {persistOutcome} from './outcome'
+import type {ManagedFile} from './plugins'
+import {planPlugins, renderPluginReport, validatePluginScopes} from './plugins'
 import type {SyncCommandAction, SyncOptions} from './types'
 
 interface SyncDependencies {
@@ -75,6 +83,8 @@ export async function runSyncWithDependencies(
     config = context.projectConfig ?? undefined
     if (!config) throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
     validateConfig(config, true)
+    const scope = isGlobalMode() ? PLUGIN_SCOPES.USER : PLUGIN_SCOPES.PROJECT
+    validatePluginScopes(config.plugins ?? [], scope)
     const enabled = new Set(config.harnesses.filter((harness) => harness.enabled).map((harness) => harness.id))
     const definitions = [...enabled].map(getHarness)
     logger.info('sync acquisition started', {
@@ -90,6 +100,13 @@ export async function runSyncWithDependencies(
       if (error instanceof SourceConflictError) throw new SafetyError(error.message, error.conflicts.length)
       throw error
     }
+    const plugins = await planPlugins({
+      root: boundary.root,
+      home: homedir(),
+      scope,
+      plugins: config.plugins ?? [],
+      enabled,
+    })
     const state = await loadSyncState(boundary.root)
     const {summaries, mutations, warnings, overridden, keyed} = await buildPlan(
       boundary.root,
@@ -97,7 +114,7 @@ export async function runSyncWithDependencies(
       state,
       syncConfig,
       enabled,
-      {force: Boolean(options.force)},
+      {force: Boolean(options.force), keyed: plugins.keyed, files: plugins.files, prune: plugins.prune},
     )
     warnings.forEach(renderer.renderWarning)
     displayPlan(summaries, config.sources, syncConfig, options.dryRun)
@@ -105,7 +122,10 @@ export async function runSyncWithDependencies(
     const next = withKeyedEntries(reconcileState(state, resolved, summaries, new Date().toISOString()), keyed)
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
     const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
-    if (options.dryRun) return
+    if (options.dryRun) {
+      if (plugins.report) renderPluginReport(plugins.report, true)
+      return
+    }
     const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
     try {
       await commitPrepared(prepared)
@@ -118,8 +138,14 @@ export async function runSyncWithDependencies(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,
     ).length
     setTelemetryContext({file_count: synced})
-    renderer.renderSuccess(M.output.done(synced, config.sources.map((source) => source.name).join(', ')))
+    if (config.sources.length)
+      renderer.renderSuccess(M.output.done(synced, config.sources.map((source) => source.name).join(', ')))
     renderer.renderDim(M.output.lastSync(next.lastSync))
+    await removeEmptyCacheDirs(
+      join(boundary.root, plugins.cacheDir),
+      plugins.prune.map((path) => path.slice(plugins.cacheDir.length + 1)),
+    )
+    if (plugins.report) renderPluginReport(plugins.report, false)
     await persist(true, summaries)
   } catch (error) {
     process.exitCode = 1
@@ -145,7 +171,7 @@ export async function runSyncWithDependencies(
 }
 
 export function validateConfig(config: ProjectConfig, configExists = false): void {
-  if (!config.sources.length)
+  if (!config.sources.length && !config.plugins?.length)
     throw new CommandError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
   if (!config.harnesses.some((harness) => harness.enabled))
     throw new CommandError(M.errors.noHarnesses, M.errors.noHarnessesHint)
@@ -203,6 +229,10 @@ export interface PlanOptions {
   /** Overwrite drifted forge-owned files and keys, over any configured local conflict strategy. */
   force?: boolean
   keyed?: KeyedFile[]
+  /** Forge-owned files written whole and not tracked in state (plugin lockfile, cache and catalogs). */
+  files?: ManagedFile[]
+  /** Forge-owned untracked files to delete when present. */
+  prune?: string[]
 }
 
 export async function buildPlan(
@@ -230,6 +260,8 @@ export async function buildPlan(
   const paths = selected.map((target) => target.targetPath)
   const desired = new Set(paths)
   const keyedFiles = options.keyed ?? []
+  const managed = options.files ?? []
+  const prune = options.prune ?? []
   const claimed = new Set([...paths, ...keyedFiles.map((file) => file.path)])
   const keyedPaths = [
     ...new Set([
@@ -242,6 +274,8 @@ export async function buildPlan(
   const graph = [
     ...paths,
     ...keyedFiles.map((file) => file.path),
+    ...managed.map((file) => file.path),
+    ...prune,
     ...Object.keys(state.files).filter((path) => !claimed.has(path)),
     STATE_PATH,
     CONFIG_PATH,
@@ -319,6 +353,12 @@ export async function buildPlan(
       errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+  for (const file of managed) {
+    const existing = await read(file.path)
+    if (existing === null || !existing.equals(Buffer.from(file.content)))
+      mutations.push({type: MT.FILE_WRITE, path: file.path, content: file.content, executable: file.executable})
+  }
+  for (const path of prune) if ((await read(path)) !== null) mutations.push({type: MT.FILE_DELETE, path})
   // Keyed cleanup ignores keep_local: forge removes the keys it no longer declares, never the shared file.
   const keyed: Record<string, SyncStateEntry | null> = {}
   for (const path of keyedPaths) {
@@ -365,6 +405,7 @@ function operationsFor(mutations: Mutation[], next: SyncState, context: IOContex
         content: mutation.content,
         backup: mutation.backup === true,
         private: mutation.backup === true,
+        executable: mutation.executable,
       }
     if (mutation.type === MT.FILE_DELETE) return {path: mutation.path, content: null}
     if (mutation.type === MT.KEYED_MERGE) return {path: mutation.path, content: mutation.content, expect: mutation.base}
