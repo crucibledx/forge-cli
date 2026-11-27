@@ -89,8 +89,8 @@ export async function planPlugins(input: {
   scope: PluginScope
   plugins: readonly PluginConfig[]
   enabled: ReadonlySet<string>
-  /** Test seam for the node prerequisite check; defaults to a PATH lookup. */
-  hasExecutable?: (name: string) => Promise<boolean>
+  /** Test seam for the node prerequisite check; defaults to the runtime's PATH resolver. */
+  hasExecutable?: (name: string) => boolean | Promise<boolean>
 }): Promise<PluginPlan> {
   const {root, scope} = input
   const cacheDir = PLUGIN_CACHE_DIRS[scope]
