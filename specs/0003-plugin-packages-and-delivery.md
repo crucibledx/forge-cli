@@ -208,8 +208,9 @@ the marketplace name and plugin IDs.
 
 Project scope writes the harness's local settings file, not the shared one, because the marketplace path is absolute
 and the cache is per machine. Both harnesses install settings-declared plugins themselves (on next start; Claude Code
-only once the user trusts the folder); the plan says so. Uninstall removes exactly the two keys per plugin, the
-plugin's rule files, and its cache entry; the marketplace key goes when the last plugin in that scope goes.
+only once the user trusts the folder); the plan says so. Uninstall removes the plugin's two keys, its rule files, and
+its cache entry; the marketplace key goes when the last plugin in that scope goes. A key changed outside forge since
+forge wrote it now belongs to the user: uninstall keeps it and warns, naming the key.
 
 ### 6. Safety: keyed-merge mutation
 
@@ -225,18 +226,26 @@ and `bun run check:contracts` must pass. Keyed-merge cases join the native-macos
   (`plugins[].name` in catalogs) or, for arrays of strings, the value itself. Forge finds the entries it owns
   (recorded in state) by identity and replaces each one whole, never deep-merging user fields into it; it keeps
   existing order, appends new entries, and on removal deletes exactly its own. A user entry with a forge-owned
-  identity is a drift conflict; duplicate or missing identities in an owned array are a named error. The approach
+  identity is a drift conflict unless its value already equals forge's, which forge adopts as its own; duplicate or
+  missing identities in an owned array, and duplicate member names on an owned path, are a named error. The approach
   follows the `mergeByKey` helper in
   [AdaptUI](https://github.com/NazarUsik/AdaptUI/blob/main/src/utils/object/merge.ts) (MIT): same semantics, not the
   code, which rebuilds objects through lodash (dropping comments), uses one key at every depth, folds keyless entries
-  into one, and cannot delete. Forge applies each change as a targeted `jsonc-parser` edit.
+  into one, and cannot delete. Forge applies each change as a targeted text edit located through `jsonc-parser`'s
+  parse tree and scanner, not its `modify` helper (which reformats the touched line and moves trailing comments), so
+  comments, formatting, member order and a byte order mark keep their bytes.
+- Removing a key also removes each object or array on its path that the removal leaves empty (no members and no
+  comments), including one that was already empty before forge's install, because state records forge's values, not
+  their containers; an empty settings object means the same to the harness as an absent one. An install followed by
+  an uninstall restores the original bytes when forge's keys went into containers that hold other members or that
+  forge created. The settings file itself stays, even when forge created it.
 - A missing target file is created with only forge's keys. Planning rejects a merge when a forge-owned key was
   modified externally without `--force` (drift error, like file drift today), and when the file is unparseable.
   Backups cover the whole file; rollback restores the snapshot.
 - JSON/JSONC only in v0.8. TOML (Codex) comes with the v0.10 harness wave (section 9).
 
 **State v3.** State entries gain `ownedKeys`: key path (array entries by identity, e.g. `plugins[name=foo]`) → sha256
-of the merged value (the algorithm state v2 uses for file hashes), so uninstall removes exactly forge's keys and drift
+of the merged value (the algorithm state v2 uses for file hashes), so removal touches only forge's keys and drift
 detection compares values. Migration mirrors the v2 rules (`src/infrastructure/config/state.ts`): the v2→v3 upgrade
 happens only inside a committed transaction; the schema parses strictly; older CLIs refuse a v3 file at state parse
 (the existing strict schema already rejects unknown versions); the v3 CLI adds a named downgrade-refusal error for
@@ -244,8 +253,11 @@ any version greater than 3. A v2 file reads and upgrades transparently, with emp
 
 **`--force`.** New flag on `forge sync`, `forge plugin add`, and `forge plugin update`: permits overwriting
 externally modified forge-owned keys and files (drift), and nothing else. The plan always lists what `--force`
-overrode. `--force` wins for the run over any configured conflict strategy (`sync.local_conflict_strategy`,
-`keep_local`). `--yes` (non-interactive confirm) never implies `--force`.
+overrode. `--force` wins for the run over `sync.local_conflict_strategy`. It does not override `keep_local`, which
+is a sync retention setting, not a conflict strategy: with `keep_local: true` `forge sync` deletes no tracked file,
+with or without `--force`; `forge uninstall` ignores it and removes every tracked file. Keyed cleanup deletes no
+file, so it runs under `keep_local` too: forge removes the keys it no longer declares and never the shared settings
+file. `--yes` (non-interactive confirm) never implies `--force`.
 
 ### 7. Commands
 
@@ -360,7 +372,7 @@ v0.8.0 is the first four steps; the rest lands as v0.8.x before v0.9 work starts
 | AC-10 | v0.8.0 | Claude Code registration writes the same keys into `.claude/settings.local.json` (project) or `~/.claude/settings.json` (user) with a `directory` source, writes rules as `.claude/rules/<plugin>--<name>.md`, invokes no harness CLI, and the plan notes the folder-trust requirement | e2e | Claude registration e2e, both scopes; process-spawn assertion |
 | AC-11 | v0.8.0 | Keyed merges preserve comments, formatting, and user sibling keys; external edits to a forge-owned key block the sync without `--force`; an unparseable settings file blocks with a named error; `--force` overrides drift and the plan lists what it overrode | test | jsonc merge unit tests + drift/force cases |
 | AC-12 | v0.8.0 | Keyed merges into arrays match entries by the declared identity key, not index: with user entries before, between and after forge's entries (including arrays of strings), a re-run neither duplicates nor drops entries and keeps user order; removal deletes only forge's entries; a duplicate identity or a keyless entry in an owned array fails with a named error | test | array-merge unit tests on catalog and string-array fixtures |
-| AC-13 | v0.8.0 | Removing a plugin from `plugins:` and syncing deletes exactly the forge-owned keys, rule files and cache entries recorded in state v3, in both scopes; `forge uninstall` does the same for project-scope installs | e2e | removal e2e per scope with pre-seeded user keys |
+| AC-13 | v0.8.0 | Removing a plugin from `plugins:` and syncing deletes exactly the forge-owned keys and cache entries recorded in state v3, in both scopes, plus any container the key removal leaves empty, and never the settings file; it deletes the plugin's tracked rule files when `keep_local` is false and keeps them when it is true, while key removal runs either way; a forge-owned key edited outside forge blocks that sync without `--force`; `forge uninstall` does the same for project-scope installs, except that it deletes the tracked rule files whatever `keep_local` says and keeps an edited key and warns, naming it | e2e | removal e2e per scope with pre-seeded user keys and one edited forge key, sync run with `keep_local` false and true, uninstall run with `keep_local: true` |
 | AC-14 | v0.8.0 | A failed install rolls back the pre-run snapshot, including keyed-merged settings files; `check:contracts` passes with the amended ledger | e2e + contract | rollback e2e with injected apply failure; `bun run check:contracts` |
 | AC-15 | v0.8.0 | State v2 files upgrade to v3 inside a committed transaction with empty `ownedKeys`; a v3 file read by an older CLI fails at strict state parse; a state file with a version greater than 3 read by the v3 CLI fails with the named "upgrade forge" error | test | state migration unit tests (upgrade, legacy read, strict-parse refusal, named error on a v4 fixture) |
 | AC-16 | v0.8.0 | The cache lives under `.crucible/plugins/` (project) or `~/.crucible/forge/plugins/` (user) with a `.gitignore` of `*`; both local marketplace catalogs list exactly the installed plugins with name, version and relative-path source; a successful sync prunes unreferenced cache versions | e2e | sync e2e, both scopes |
