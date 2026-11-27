@@ -1,3 +1,4 @@
+import {stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 
@@ -44,7 +45,7 @@ import {SafetyError} from './errors'
 import {SYNC_MESSAGES as M} from './messages'
 import {persistOutcome} from './outcome'
 import type {ManagedFile} from './plugins'
-import {planPlugins, renderPluginReport, validatePluginScopes} from './plugins'
+import {planPlugins, pluginInstallExists, renderPluginReport, validatePluginScopes} from './plugins'
 import type {SyncCommandAction, SyncOptions} from './types'
 
 interface SyncDependencies {
@@ -82,8 +83,9 @@ export async function runSyncWithDependencies(
     const context = await service.buildContext(boundary.root)
     config = context.projectConfig ?? undefined
     if (!config) throw new CommandError(M.errors.noConfig, M.errors.noConfigHint)
-    validateConfig(config, true)
     const scope = isGlobalMode() ? PLUGIN_SCOPES.USER : PLUGIN_SCOPES.PROJECT
+    // A previous plugin install makes an empty config valid: this run removes what the install left.
+    validateConfig(config, true, await pluginInstallExists(boundary.root, scope))
     validatePluginScopes(config.plugins ?? [], scope)
     const enabled = new Set(config.harnesses.filter((harness) => harness.enabled).map((harness) => harness.id))
     const definitions = [...enabled].map(getHarness)
@@ -170,8 +172,8 @@ export async function runSyncWithDependencies(
   }
 }
 
-export function validateConfig(config: ProjectConfig, configExists = false): void {
-  if (!config.sources.length && !config.plugins?.length)
+export function validateConfig(config: ProjectConfig, configExists = false, hasInstalledPlugins = false): void {
+  if (!config.sources.length && !config.plugins?.length && !hasInstalledPlugins)
     throw new CommandError(M.errors.noSource, configExists ? M.errors.noSourceHintExisting : M.errors.noSourceHint)
   if (!config.harnesses.some((harness) => harness.enabled))
     throw new CommandError(M.errors.noHarnesses, M.errors.noHarnessesHint)
@@ -353,9 +355,17 @@ export async function buildPlan(
       errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+  // POSIX only: an executable-bit change with identical bytes must still rewrite the file (mode-only repair).
+  const executableMode = async (path: string): Promise<boolean | undefined> => {
+    if (process.platform === 'win32') return undefined
+    const info = await stat(join(root, path)).catch(() => null)
+    return info === null ? undefined : (info.mode & 0o111) !== 0
+  }
   for (const file of managed) {
     const existing = await read(file.path)
-    if (existing === null || !existing.equals(Buffer.from(file.content)))
+    const mode = await executableMode(file.path)
+    const modeDiffers = mode !== undefined && mode !== (file.executable === true)
+    if (existing === null || !existing.equals(Buffer.from(file.content)) || modeDiffers)
       mutations.push({type: MT.FILE_WRITE, path: file.path, content: file.content, executable: file.executable})
   }
   for (const path of prune) if ((await read(path)) !== null) mutations.push({type: MT.FILE_DELETE, path})

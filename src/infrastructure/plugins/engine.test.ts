@@ -286,6 +286,35 @@ describe('local plugin sources', () => {
     ])
   })
 
+  it('keeps delivering to a previously installed harness that is now disabled (retained registration)', async () => {
+    await write(dir(), hello)
+    const first = await lock([plugin])
+    expect(Object.keys(first.lock.plugins[0].outputs).sort()).toEqual(['claude-code', 'droid'])
+
+    const retained = await lockPlugins({
+      plugins: [plugin],
+      lock: first.lock,
+      context: {root: dir(), home: dir()},
+      cacheRoot: join(dir(), '.crucible', 'plugins'),
+      defaultHarnesses: ['claude-code'],
+      retain: ['droid'],
+      deliver,
+    })
+    expect(Object.keys(retained.lock.plugins[0].outputs).sort()).toEqual(['claude-code', 'droid'])
+    expect(retained.plugins[0].outputs.droid).toEqual(first.plugins[0].outputs.droid)
+
+    const dropped = await lockPlugins({
+      plugins: [plugin],
+      lock: first.lock,
+      context: {root: dir(), home: dir()},
+      cacheRoot: join(dir(), '.crucible', 'plugins'),
+      defaultHarnesses: ['claude-code'],
+      retain: [],
+      deliver,
+    })
+    expect(Object.keys(dropped.lock.plugins[0].outputs)).toEqual(['claude-code'])
+  })
+
   it.skipIf(process.platform === 'win32')('keeps the executable bit through acquisition and the cache', async () => {
     await write(dir(), {...hello, 'bin/server': '#!/bin/sh\n'})
     await chmod(join(dir(), 'plugins/hello/bin/server'), 0o755)

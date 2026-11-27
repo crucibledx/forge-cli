@@ -5,7 +5,7 @@
  */
 
 import {existsSync} from 'node:fs'
-import {chmod, mkdir, readFile, realpath, rename, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, readFile, realpath, rename, rm, stat, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -75,7 +75,10 @@ describe('forge sync — Droid plugin delivery', () => {
     const hooks = await readJson(join(cache, 'cover-all/1.0.0/droid/hooks/hooks.json'))
     expect(hooks.hooks.SessionStart).toHaveLength(2)
     expect(JSON.stringify(hooks.hooks.SessionStart[0])).toContain('echo cover-all ready')
-    expect(JSON.stringify(hooks.hooks.SessionStart[1])).toContain('forge/rules.md')
+    expect(hooks.hooks.SessionStart[1]).toEqual({
+      hooks: [{type: 'command', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/forge/print-rules.cjs']}],
+    })
+    expect(existsSync(join(cache, 'cover-all/1.0.0/droid/forge/print-rules.cjs'))).toBe(true)
     const rules = await readFile(join(cache, 'cover-all/1.0.0/droid/forge/rules.md'), 'utf8')
     expect(rules).toContain('Validate every request body with a schema.')
     expect(rules).not.toContain('paths:')
@@ -276,5 +279,83 @@ describe('forge sync — Droid plugin delivery', () => {
     expect(exitCode).toBe(1)
     expect(output).toContain('Plugin scope mismatch: "hello"')
     expect(output).toContain('forge.config.yaml')
+  })
+
+  it('removes the last plugin of a plugin-only config instead of rejecting the empty config (spec 0003 §5)', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    await writeConfig(proj, buildConfigYaml({assistants: ['droid']}) + pluginsBlock(localPlugin(plugin)))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(existsSync(join(proj, '.factory/settings.local.json'))).toBe(true)
+
+    await writeConfig(proj, buildConfigYaml({assistants: ['droid']}))
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(0)
+    expect(output).toContain('hello: removed')
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).not.toContain('crucible-forge')
+    expect(existsSync(join(proj, '.crucible/plugins/hello'))).toBe(false)
+    expect(existsSync(join(proj, '.crucible/plugins/.gitignore'))).toBe(false)
+    expect(existsSync(join(proj, '.crucible/plugins/.factory-plugin'))).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'repairs the executable bit when only the mode of a cache file changed',
+    async () => {
+      const dir = getDir()
+      const proj = join(dir, 'proj')
+      const plugin = join(dir, 'plugin')
+      await writeSourceTree(plugin, {
+        'plugin.json': pluginManifest('hello', '1.0.0'),
+        scripts: {'run.sh': '#!/bin/sh\necho hi\n'},
+      })
+      await writeConfig(proj, buildConfigYaml({assistants: ['droid']}) + pluginsBlock(localPlugin(plugin)))
+      expect((await runSync(proj)).exitCode).toBe(0)
+      const cache = join(proj, '.crucible/plugins/hello/1.0.0')
+      const mode = async (path: string) => (await stat(path)).mode & 0o111
+      expect(await mode(join(cache, 'droid/scripts/run.sh'))).toBe(0)
+
+      await chmod(join(plugin, 'scripts/run.sh'), 0o755)
+      expect((await runSync(proj)).exitCode).toBe(0)
+      expect(await mode(join(cache, 'droid/scripts/run.sh'))).not.toBe(0)
+      expect(await mode(join(cache, 'source/scripts/run.sh'))).not.toBe(0)
+
+      await chmod(join(plugin, 'scripts/run.sh'), 0o644)
+      expect((await runSync(proj)).exitCode).toBe(0)
+      expect(await mode(join(cache, 'droid/scripts/run.sh'))).toBe(0)
+      expect(await mode(join(cache, 'source/scripts/run.sh'))).toBe(0)
+    },
+  )
+
+  it('keeps the delivered tree, catalog entry and lock outputs of a disabled harness whose keys are retained', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    await writeSourceTree(join(dir, 'src'), {skills: {'a.md': '# A'}})
+    await writeConfig(
+      proj,
+      buildConfigYaml({assistants: ['droid'], localSource: {path: join(dir, 'src')}}) +
+        pluginsBlock(localPlugin(plugin)),
+    )
+    expect((await runSync(proj)).exitCode).toBe(0)
+
+    // Disable Droid but keep its registration: Cursor is enabled (no plugin capability), so the
+    // Droid settings keys are retained and its delivered files must stay exactly as installed.
+    await writeConfig(
+      proj,
+      buildConfigYaml({assistants: ['cursor'], localSource: {path: join(dir, 'src')}}) +
+        pluginsBlock(localPlugin(plugin)),
+    )
+    const {exitCode} = await runSync(proj)
+    expect(exitCode).toBe(0)
+    const settings = await readFile(join(proj, '.factory/settings.local.json'), 'utf8')
+    expect(settings).toContain('crucible-forge')
+    const lock = await readJson(join(proj, '.crucible/forge.lock'))
+    expect(lock.plugins[0].outputs.droid).toMatch(/^[a-f0-9]{64}$/)
+    const catalog = await readJson(join(proj, '.crucible/plugins/.factory-plugin/marketplace.json'))
+    expect(catalog.plugins).toEqual([{name: 'hello', version: '1.0.0', source: './hello/1.0.0/droid'}])
+    expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/skills/hello/SKILL.md'))).toBe(true)
   })
 })

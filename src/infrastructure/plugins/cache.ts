@@ -5,6 +5,7 @@ import {dirname, join, relative} from 'node:path'
 import type {DeliveredFiles, PluginFile, PluginLock, PluginLockEntry, PluginScope} from '@domain/plugins'
 import {hashPluginFiles, PLUGIN_SCOPES} from '@domain/plugins'
 
+import {PluginCacheError} from './errors'
 import {readPluginFiles} from './files'
 import {PLUGIN_NAME} from './manifest'
 import {MARKETPLACE_CATALOGS} from './marketplace'
@@ -59,10 +60,19 @@ export async function unreferencedCacheDirs(cacheRoot: string, lock: PluginLock)
   return stale
 }
 
-/** Relative paths of the forge-managed files under a cache root: plugin directories and the marketplace catalogs. */
+/**
+ * Relative paths of the forge-managed files under a cache root: plugin directories, the marketplace catalogs and the
+ * cache .gitignore. A missing root is an empty cache; any other read failure aborts with a PluginCacheError so a
+ * half-readable cache can never look empty and be pruned or skipped over.
+ */
 export async function listCacheFiles(cacheRoot: string): Promise<string[]> {
-  const entries = await readdir(cacheRoot, {withFileTypes: true, recursive: true}).catch(() => [])
-  const managed = new Set<string>(Object.values(MARKETPLACE_CATALOGS))
+  const entries = await readdir(cacheRoot, {withFileTypes: true, recursive: true}).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return []
+      throw new PluginCacheError(cacheRoot, error.message)
+    },
+  )
+  const managed = new Set<string>([...Object.values(MARKETPLACE_CATALOGS), CACHE_GITIGNORE.path])
   return entries
     .filter((entry) => entry.isFile())
     .map((entry) => relative(cacheRoot, join(entry.parentPath, entry.name)).replaceAll('\\', '/'))

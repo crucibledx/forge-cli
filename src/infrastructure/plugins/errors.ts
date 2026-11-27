@@ -25,6 +25,16 @@ export class PluginValidationError extends Error {
   }
 }
 
+export class PluginCacheError extends Error {
+  constructor(
+    readonly cacheRoot: string,
+    detail: string,
+  ) {
+    super(`Cannot read the plugin cache at ${cacheRoot}: ${detail}`)
+    this.name = 'PluginCacheError'
+  }
+}
+
 export class PluginLockError extends Error {
   constructor(message: string) {
     super(message)

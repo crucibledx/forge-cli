@@ -35,6 +35,11 @@ export interface LockPluginsInput {
   cacheRoot: string
   /** Harnesses a plugin targets when its config lists none: the enabled harnesses. */
   defaultHarnesses: readonly string[]
+  /**
+   * Disabled harnesses whose settings registration the caller keeps. A previously installed harness in this list is
+   * still delivered to, so its delivered tree, lock outputs and catalog entry survive while it is disabled.
+   */
+  retain?: readonly string[]
   /** Emitters by harness. A targeted harness without one is reported in `skipped`, not delivered. */
   deliver: Readonly<Partial<Record<string, PluginDeliver>>>
 }
@@ -110,7 +115,9 @@ async function lockPlugin(config: PluginConfig, input: LockPluginsInput): Promis
   const supported = pkg.manifest.forge.harnesses
   const skipped: LockedPlugin['skipped'] = []
   const outputs: Record<string, DeliveredFiles> = {}
-  for (const harness of config.harnesses ?? input.defaultHarnesses) {
+  const targeted = new Set(config.harnesses ?? input.defaultHarnesses)
+  for (const harness of input.retain ?? []) if (previous?.outputs[harness] !== undefined) targeted.add(harness)
+  for (const harness of targeted) {
     const deliver = input.deliver[harness]
     if (!deliver) skipped.push({harness, reason: SKIP_REASONS.NO_PLUGIN_SUPPORT})
     else if (supported && !supported.includes(harness)) skipped.push({harness, reason: SKIP_REASONS.NOT_IN_MANIFEST})

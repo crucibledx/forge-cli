@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 
-import {getHarness} from '@domain/harnesses'
+import {getAllHarnesses, getHarness} from '@domain/harnesses'
 import type {PluginConfig, PluginHarnessId, PluginLock, PluginScope} from '@domain/plugins'
 import {LOCK_ACTIONS, PLUGIN_EMITTERS, PLUGIN_HARNESS_IDS, PLUGIN_SCOPES, portabilityReport} from '@domain/plugins'
 import * as renderer from '@infrastructure/cli/renderer'
@@ -53,6 +53,15 @@ export interface PluginPlan {
   report: PluginReport | null
 }
 
+/**
+ * True when an earlier sync left a plugin install behind in this scope (lock entries or cache files), so a config
+ * without sources or plugins is still a valid sync: it removes what the install left.
+ */
+export async function pluginInstallExists(root: string, scope: PluginScope): Promise<boolean> {
+  const lock = await readPluginLock(join(root, PLUGIN_LOCK_PATHS[scope]))
+  return lock.plugins.length > 0 || (await listCacheFiles(join(root, PLUGIN_CACHE_DIRS[scope]))).length > 0
+}
+
 /** A plugin's scope must match the config that declares it: one sync root is one transaction. */
 export function validatePluginScopes(plugins: readonly PluginConfig[], scope: PluginScope): void {
   const misplaced = plugins.find((plugin) => (plugin.scope ?? scope) !== scope)
@@ -82,12 +91,17 @@ export async function planPlugins(input: {
   if (!input.plugins.length && !lock.plugins.length && !cached.length) return empty
 
   const capable = [...input.enabled].map(getHarness).filter((harness) => harness.plugin)
+  // Emit for every harness with a plugin capability, enabled or not: a disabled harness whose registration is
+  // retained keeps its delivered tree, lock outputs and catalog entry instead of being pruned out from under the
+  // retained settings keys.
   const deliver = Object.fromEntries(
-    capable.map((harness) => {
-      const emitter = PLUGIN_EMITTERS[harness.plugin!.emit]
-      if (!emitter) throw new Error(`${harness.name} names an unknown plugin emitter: ${harness.plugin!.emit}`)
-      return [harness.id, emitter]
-    }),
+    getAllHarnesses()
+      .filter((harness) => harness.plugin)
+      .map((harness) => {
+        const emitter = PLUGIN_EMITTERS[harness.plugin!.emit]
+        if (!emitter) throw new Error(`${harness.name} names an unknown plugin emitter: ${harness.plugin!.emit}`)
+        return [harness.id, emitter]
+      }),
   )
   const result = await lockPlugins({
     plugins: input.plugins,
@@ -95,6 +109,7 @@ export async function planPlugins(input: {
     context: {root, home: input.home},
     cacheRoot,
     defaultHarnesses: [...input.enabled],
+    retain: PLUGIN_HARNESS_IDS.filter((harness) => !input.enabled.has(harness)),
     deliver,
   })
   const marketplace = marketplaceName(scope, root)
