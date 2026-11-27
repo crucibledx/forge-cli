@@ -8,7 +8,9 @@ it.each(['SIGTERM', 'SIGKILL'] as const)(
     if (process.platform === 'win32') return
     const pid = 123456789
     const denied = Object.assign(new Error('transient orphan permission denial'), {code: 'EPERM'})
+    const gone = Object.assign(new Error('no such process'), {code: 'ESRCH'})
     const signal = spyOn(process, 'kill').mockImplementation((group, value) => {
+      if (group === -(pid + 1)) throw gone
       if (group === -pid && value === stage) throw denied
       return true
     })
@@ -40,7 +42,9 @@ it.each(['zombie-only', 'live-denial', 'unverifiable'])(
     if (process.platform === 'win32') return
     const pid = 123456789
     const denied = Object.assign(new Error('permission denied'), {code: 'EPERM'})
+    const gone = Object.assign(new Error('no such process'), {code: 'ESRCH'})
     const signal = spyOn(process, 'kill').mockImplementation((group) => {
+      if (group === -(pid + 1)) throw gone
       if (group === -pid) throw denied
       return true
     })
@@ -74,3 +78,42 @@ it.each(['zombie-only', 'live-denial', 'unverifiable'])(
     }
   },
 )
+
+it.each([
+  ['drains', 'Cleanup probe exceeded remaining budget'],
+  ['survives', 'Cleanup probe exceeded remaining budget; Cleanup probe descendants survived within remaining budget'],
+])('AC-18 a stalled cleanup probe waits for its killed group to empty: %s', async (kind, message) => {
+  if (process.platform === 'win32') return
+  const pid = 123456789,
+    probePid = pid + 1
+  const gone = Object.assign(new Error('no such process'), {code: 'ESRCH'})
+  let release = () => {}
+  const exited = new Promise<number>((resolve) => {
+    release = () => resolve(137)
+  })
+  let groupChecks = 0
+  const signal = spyOn(process, 'kill').mockImplementation((group, value) => {
+    if (group === -pid) throw gone
+    if (group === -probePid && value === 'SIGKILL') release()
+    if (group === -probePid && value === 0 && ++groupChecks > 2 && kind === 'drains') throw gone
+    return true
+  })
+  const snapshot = spyOn(Bun, 'spawn').mockImplementation(
+    () => ({pid: probePid, exitCode: null, exited, stdout: new ReadableStream()}) as ReturnType<typeof Bun.spawn>,
+  )
+  const proc = {pid, exited: Promise.resolve(0)} as OwnedProcess
+  try {
+    const start = performance.now()
+    const error = await terminateTree(proc, {}).then(
+      () => undefined,
+      (reason: Error) => reason,
+    )
+    expect(error?.message).toBe(message)
+    expect(performance.now() - start).toBeLessThan(2500)
+    if (kind === 'drains') expect(groupChecks).toBe(3)
+    else expect(groupChecks).toBeGreaterThan(3)
+  } finally {
+    signal.mockRestore()
+    snapshot.mockRestore()
+  }
+})
