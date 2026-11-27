@@ -12,7 +12,17 @@ import {describe, expect, it} from 'bun:test'
 
 import {buildConfigYaml, writeConfig, writeSourceTree} from '@e2e/fixtures'
 import {COVER_ALL_DIR, HELLO_PLUGIN_V1, HELLO_PLUGIN_V2, pluginManifest} from '@e2e/fixtures/plugin-packages'
-import {bareRepoCommit, createBareRepo, runCommand, runSync, setBareRepoRef, useTmpDir} from '@e2e/framework'
+import {
+  bareRepoCommit,
+  createBareRepo,
+  runCommand,
+  runSync,
+  runUninstallSession,
+  setBareRepoRef,
+  UNINSTALL_MESSAGES,
+  useTmpDir,
+  Y,
+} from '@e2e/framework'
 
 const getDir = useTmpDir('forge-sync-plugins')
 
@@ -504,5 +514,245 @@ describe('forge sync — Droid plugin delivery', () => {
     expect(await readFile(join(projA, '.factory/settings.local.json'), 'utf8')).not.toContain('crucible-forge')
     expect(await readFile(join(projB, '.factory/settings.local.json'), 'utf8')).toBe(settingsB)
     expect(await readFile(join(home, '.factory/settings.json'), 'utf8')).toBe(settingsHome)
+  })
+})
+
+describe('forge sync — compile (spec 0005 §1, §2, §5)', () => {
+  const setup = async (dir: string, extraConfig = '') => {
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    const src = join(dir, 'src')
+    await writeSourceTree(src, {skills: {'a.md': '# A'}})
+    await writeConfig(
+      proj,
+      buildConfigYaml({assistants: ['droid'], localSource: {path: src}}) +
+        pluginsBlock(localPlugin(plugin)) +
+        extraConfig,
+    )
+    return {proj, plugin}
+  }
+
+  it('AC-1 compiles as the identity: v0.8 bytes, a manifest and compile lock entries', async () => {
+    const dir = getDir()
+    const {proj, plugin} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+
+    // The compile manifest: schema 1, every component listed, the lock's variant, no timestamps.
+    const manifestDir = join(proj, '.crucible', 'compile')
+    expect(await readFile(join(manifestDir, '.gitignore'), 'utf8')).toBe('*\n')
+    const manifest = await readJson(join(manifestDir, 'droid.json'))
+    const lock = await readJson(join(proj, '.crucible', 'forge.lock'))
+    expect(manifest).toMatchObject({schema: 1, harness: 'droid', scope: 'project', enabled: true, compiler: 1})
+    expect(manifest.variant).toBe(lock.variants.droid)
+    expect(manifest.inputs).toBe(lock.compile.droid.inputs)
+    expect(manifest.components.length).toBeGreaterThan(0)
+    expect(manifest.components.every((row: {status: string}) => row.status === 'listed')).toBe(true)
+
+    // Lock v2 with fresh compile entries; the identity compile stamps no emitted version.
+    expect(lock.version).toBe(2)
+    expect(lock.compile.droid).toMatchObject({enabled: true, compiler: 1})
+    expect(lock.compile.droid.inputs).toMatch(/^sha256:[a-f0-9]{64}$/)
+    expect(lock.plugins[0].emitted).toBeUndefined()
+
+    // Byte-identity with v0.8: the delivered tree is the source bytes, the version unstamped.
+    const tree = join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid')
+    expect((await readJson(join(tree, '.claude-plugin', 'plugin.json'))).version).toBe('1.0.0')
+    expect(await readFile(join(tree, 'skills', 'hello', 'SKILL.md'), 'utf8')).toBe(
+      await readFile(join(plugin, 'skills', 'hello', 'SKILL.md'), 'utf8'),
+    )
+
+    // A second sync is a no-op: no compile lines, no writes.
+    const second = await runSync(proj)
+    expect(second.exitCode).toBe(0)
+    expect(second.output).not.toContain('compiles plugins')
+    expect(second.output).not.toContain('recompiled')
+  })
+
+  it('shows the v0.8 upgrade line once, then never again', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const v1 = await readJson(lockPath)
+    delete v1.compile
+    v1.version = 1
+    await writeFile(lockPath, JSON.stringify(v1, null, 2) + '\n')
+
+    const upgraded = await runSync(proj)
+    expect(upgraded.exitCode).toBe(0)
+    expect(upgraded.output).toContain('forge 0.9 compiles plugins for droid: ')
+    expect(upgraded.output).toContain(' listed, 0 deferred')
+    expect(upgraded.output).toContain('Set `compile.enabled: false` to keep v0.8 output. See docs/compile.md.')
+
+    const settled = await runSync(proj)
+    expect(settled.exitCode).toBe(0)
+    expect(settled.output).not.toContain('compiles plugins')
+  })
+
+  it('compile.enabled: false keeps the v0.8 output byte for byte and prunes the manifests', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const compiled = await readFile(
+      join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', '.claude-plugin', 'plugin.json'),
+      'utf8',
+    )
+
+    const other = join(dir, 'other')
+    await writeConfig(
+      other,
+      buildConfigYaml({assistants: ['droid'], localSource: {path: join(dir, 'src')}}) +
+        pluginsBlock(localPlugin(join(dir, 'plugin'))) +
+        'compile:\n  enabled: false\n',
+    )
+    expect((await runSync(other)).exitCode).toBe(0)
+    const plain = await readFile(
+      join(other, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', '.claude-plugin', 'plugin.json'),
+      'utf8',
+    )
+    expect(plain).toBe(compiled)
+    const lock = await readJson(join(other, '.crucible', 'forge.lock'))
+    expect(lock.compile.droid).toEqual({enabled: false, compiler: 1})
+    expect(existsSync(join(other, '.crucible', 'compile', 'droid.json'))).toBe(false)
+
+    // Disabling in the already-synced project prunes the manifests the enabled sync wrote.
+    await writeConfig(
+      proj,
+      buildConfigYaml({assistants: ['droid'], localSource: {path: join(dir, 'src')}}) +
+        pluginsBlock(localPlugin(join(dir, 'plugin'))) +
+        'compile:\n  enabled: false\n',
+    )
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(existsSync(join(proj, '.crucible', 'compile', 'droid.json'))).toBe(false)
+    expect(
+      await readFile(
+        join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', '.claude-plugin', 'plugin.json'),
+        'utf8',
+      ),
+    ).toBe(compiled)
+  })
+
+  it('names the changed input on the relock line', async () => {
+    const dir = getDir()
+    const {proj, plugin} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v2'))
+    const relock = await runSync(proj)
+    expect(relock.exitCode).toBe(0)
+    expect(relock.output).toContain('recompiled for droid: the plugin set changed')
+  })
+
+  it('AC-4 a compile.priority change relocks the inputs while both harnesses keep serving the same bytes', async () => {
+    const dir = getDir()
+    const proj = join(dir, 'proj')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    const src = join(dir, 'src')
+    await writeSourceTree(src, {skills: {'a.md': '# A'}})
+    const config = (extra: string) =>
+      buildConfigYaml({assistants: ['droid', 'claude-code'], localSource: {path: src}}) +
+      pluginsBlock(localPlugin(plugin)) +
+      extra
+    await writeConfig(proj, config(''))
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const before = await readJson(lockPath)
+    const served = async () => [
+      await readFile(
+        join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', 'skills', 'hello', 'SKILL.md'),
+        'utf8',
+      ),
+      await readFile(
+        join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'claude-code', 'skills', 'hello', 'SKILL.md'),
+        'utf8',
+      ),
+    ]
+    const bytesBefore = await served()
+
+    await writeConfig(proj, config('compile:\n  priority:\n    - hello\n'))
+    const reprioritised = await runSync(proj)
+    expect(reprioritised.exitCode).toBe(0)
+    expect(reprioritised.output).toContain('recompiled for droid: the compile config changed')
+    expect(reprioritised.output).toContain('recompiled for claude-code: the compile config changed')
+
+    const after = await readJson(lockPath)
+    // The priority change moved the config input of both units...
+    expect(after.compile.droid.inputs).not.toBe(before.compile.droid.inputs)
+    expect(after.compile['claude-code'].inputs).not.toBe(before.compile['claude-code'].inputs)
+    // ...while the identity compile kept every byte: both harnesses serve exactly what they served before.
+    expect(after.plugins[0].outputs).toEqual(before.plugins[0].outputs)
+    expect(after.variants).toEqual(before.variants)
+    expect(after.plugins[0].emitted).toBeUndefined()
+    expect(await served()).toEqual(bytesBefore)
+
+    const settled = await runSync(proj)
+    expect(settled.output).not.toContain('recompiled')
+  })
+
+  it('refuses a lock written by a newer compiler before any write (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.compile.droid = {enabled: true, inputs: lock.compile.droid.inputs, compiler: 99}
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const settings = await readFile(join(proj, '.factory/settings.local.json'), 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('upgrade forge')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).toBe(settings)
+  })
+
+  it('refuses a lock written by a newer forge before any write (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.version = 3
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const settings = await readFile(join(proj, '.factory/settings.local.json'), 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('upgrade forge')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(join(proj, '.factory/settings.local.json'), 'utf8')).toBe(settings)
+  })
+
+  it('fails with CompileMismatch before any write when unchanged inputs produce different outputs (AC-3)', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    const lockPath = join(proj, '.crucible', 'forge.lock')
+    const lock = await readJson(lockPath)
+    lock.plugins[0].outputs.droid = lock.plugins[0].outputs.droid.replace(/^./, (c: string) => (c === 'a' ? 'b' : 'a'))
+    const tampered = JSON.stringify(lock, null, 2) + '\n'
+    await writeFile(lockPath, tampered)
+    const treeFile = join(proj, '.crucible', 'plugins', 'hello', '1.0.0', 'droid', 'skills', 'hello', 'SKILL.md')
+    const treeBefore = await readFile(treeFile, 'utf8')
+    const {exitCode, output} = await runSync(proj)
+    expect(exitCode).toBe(1)
+    expect(output).toContain('does not match the locked outputs')
+    expect(output).toContain('hello')
+    expect(await readFile(lockPath, 'utf8')).toBe(tampered)
+    expect(await readFile(treeFile, 'utf8')).toBe(treeBefore)
+  })
+
+  it('AC-25 uninstall removes the compile manifests with the project state', async () => {
+    const dir = getDir()
+    const {proj} = await setup(dir)
+    expect((await runSync(proj)).exitCode).toBe(0)
+    expect(existsSync(join(proj, '.crucible', 'compile', 'droid.json'))).toBe(true)
+
+    await runUninstallSession(proj, (cli) =>
+      cli.waitForText('Continue?').pressKey(Y).waitForText(UNINSTALL_MESSAGES.done),
+    )
+    expect(existsSync(join(proj, '.crucible'))).toBe(false)
   })
 })

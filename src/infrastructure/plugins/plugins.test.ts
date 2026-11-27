@@ -4,6 +4,8 @@ import {join} from 'node:path'
 import {useTmpDir} from '@test-helpers/tmp'
 import {describe, expect, it} from 'bun:test'
 
+import {COMPILE_CONFIG_DEFAULTS, effectiveCompileConfig} from '@domain/config/types'
+import type {PluginLockEntry} from '@domain/plugins'
 import {lockedSource, portabilityReport, sourceWarnings} from '@domain/plugins'
 import {projectConfigSchema} from '@infrastructure/config/schema'
 import {COVER_ALL_DIR, COVER_ALL_EXPECTED, PLUGIN_SCHEMA_ID, pluginManifest} from '@e2e/fixtures/plugin-packages'
@@ -12,10 +14,12 @@ import {
   checkManifest,
   checkMcpConfig,
   checkPluginDirectory,
+  listCompileManifests,
   parsePluginLock,
   PluginLockError,
   pluginsConfigSchema,
   readPluginLock,
+  serializePluginLock,
 } from '.'
 import {compareSemver} from './manifest'
 
@@ -314,10 +318,20 @@ describe('AC-2 plugin source config', () => {
   })
 })
 
+describe('listCompileManifests', () => {
+  it('treats a missing directory as empty and refuses anything that is not a directory', async () => {
+    expect(await listCompileManifests(join(dir(), 'missing'))).toEqual([])
+    const file = join(dir(), 'a-file')
+    await writeFile(file, 'x')
+    await expect(listCompileManifests(file)).rejects.toThrow()
+  })
+})
+
 describe('lockfile', () => {
   it('reads a missing lock as empty and refuses newer or malformed locks by name', async () => {
-    expect(await readPluginLock(join(dir(), 'none.lock'))).toEqual({version: 1, plugins: [], variants: {}})
-    expect(() => parsePluginLock('{"version":2,"plugins":[]}', 'forge.lock')).toThrow('upgrade forge')
+    expect(await readPluginLock(join(dir(), 'none.lock'))).toEqual({version: 2, plugins: [], variants: {}})
+    expect(() => parsePluginLock('{"version":3,"plugins":[]}', 'forge.lock')).toThrow('upgrade forge')
+    expect(parsePluginLock('{"version":2,"plugins":[],"variants":{}}', 'forge.lock').version).toBe(2)
     expect(() => parsePluginLock('{"version":1,"plugins":[{}],"variants":{}}', 'forge.lock')).toThrow(PluginLockError)
     expect(() => parsePluginLock('not json', 'forge.lock')).toThrow('not valid JSON')
     const entry = {
@@ -335,5 +349,123 @@ describe('lockfile', () => {
     ])
       expect(() => parsePluginLock(lockOf(bad), 'forge.lock')).toThrow(PluginLockError)
     expect(() => parsePluginLock(lockOf(entry, entry), 'forge.lock')).toThrow('duplicate plugin name')
+  })
+})
+
+describe('lock v2 (spec 0005 §2)', () => {
+  const entry: PluginLockEntry = {
+    name: 'p',
+    version: '1.0.0',
+    source: {type: 'local', path: 'p'},
+    contentHash: '0'.repeat(64),
+    outputs: {droid: 'a'.repeat(64)},
+  }
+  const lockOf = (extra: object, plugins = [entry]) =>
+    JSON.stringify({version: 2, plugins, variants: {droid: 'sha256:' + 'b'.repeat(64)}, ...extra})
+
+  it('reads emitted versions, compile entries and a generated source', () => {
+    const lock = parsePluginLock(
+      lockOf({compile: {droid: {enabled: true, inputs: 'sha256:' + 'c'.repeat(64), compiler: 1}}}, [
+        {...entry, emitted: {droid: '1.0.0+c.0123abcd'}},
+      ]),
+      'forge.lock',
+    )
+    expect(lock.plugins[0].emitted).toEqual({droid: '1.0.0+c.0123abcd'})
+    expect(lock.compile?.droid).toMatchObject({enabled: true, compiler: 1})
+    const generated = parsePluginLock(
+      JSON.stringify({
+        version: 2,
+        plugins: [{...entry, source: {type: 'generated'}}],
+        variants: {},
+      }),
+      'forge.lock',
+    )
+    expect(generated.plugins[0].source).toEqual({type: 'generated'})
+  })
+
+  it('rejects malformed compile entries and emitted versions by name', () => {
+    expect(() =>
+      parsePluginLock(lockOf({compile: {droid: {inputs: 'sha256:' + 'c'.repeat(64), compiler: 1}}}), 'forge.lock'),
+    ).toThrow(PluginLockError)
+    expect(() =>
+      parsePluginLock(lockOf({compile: {droid: {enabled: true, inputs: 'not-a-hash', compiler: 1}}}), 'forge.lock'),
+    ).toThrow(PluginLockError)
+    expect(() => parsePluginLock(lockOf({}, [{...entry, emitted: {droid: 'not semver'}}]), 'forge.lock')).toThrow(
+      PluginLockError,
+    )
+    // The compile entry is a closed union: an enabled entry must carry the inputs hash, a disabled one must not.
+    expect(() => parsePluginLock(lockOf({compile: {droid: {enabled: true, compiler: 1}}}), 'forge.lock')).toThrow(
+      PluginLockError,
+    )
+    expect(() =>
+      parsePluginLock(
+        lockOf({compile: {droid: {enabled: false, inputs: 'sha256:' + 'c'.repeat(64), compiler: 1}}}),
+        'forge.lock',
+      ),
+    ).toThrow(PluginLockError)
+  })
+
+  it('upgrades a v1 lock to v2 on the next write, entries untouched', () => {
+    const v1 = parsePluginLock(JSON.stringify({version: 1, plugins: [entry], variants: {}}), 'forge.lock')
+    expect(v1.version).toBe(2)
+    expect(v1.plugins).toHaveLength(1)
+    expect(v1.compile).toBeUndefined()
+  })
+
+  it('buildPluginLock canonicalizes compile entries and emitted maps', async () => {
+    const {buildPluginLock} = await import('@domain/plugins')
+    const lock = buildPluginLock(
+      [{...entry, emitted: {droid: '1.0.0+c.0123abcd', 'claude-code': '1.0.0-c.0123abcd'}}],
+      {droid: {enabled: true, inputs: 'sha256:' + 'c'.repeat(64), compiler: 1}},
+    )
+    const serialized = serializePluginLock(lock)
+    expect(Object.keys(JSON.parse(serialized).plugins[0].emitted)).toEqual(['claude-code', 'droid'])
+    expect(Object.keys(JSON.parse(serialized).compile)).toEqual(['droid'])
+    expect(serializePluginLock(parsePluginLock(serialized, 'forge.lock'))).toBe(serialized)
+  })
+})
+
+describe('compile config schema (spec 0005 §2)', () => {
+  const parse = (compile: unknown) =>
+    projectConfigSchema.parse({
+      version: '1',
+      harnesses: [],
+      sources: [{name: 's', type: 'local', path: 'a', layout: 'canonical'}],
+      compile,
+    })
+
+  it('accepts the documented shapes', () => {
+    expect(parse({enabled: false}).compile).toEqual({enabled: false})
+    const full = parse({
+      priority: ['a'],
+      keep: ['b'],
+      defer: ['c'],
+      profile: {mode: 'rank', include: ['x']},
+      guardian: {hook: 'on', min_score: 8},
+      harnesses: {droid: {skills: 4000, skill_description: 120}},
+    })
+    expect(full.compile?.guardian).toEqual({hook: 'on', min_score: 8})
+    expect(parse({profile: false}).compile?.profile).toBe(false)
+    expect(parse({profile: 'prune'}).compile?.profile).toBe('prune')
+    expect(parse({guardian: 'off'}).compile?.guardian).toBe('off')
+    expect(parse({harnesses: {droid: {skills: 'off'}}}).compile?.harnesses?.droid?.skills).toBe('off')
+  })
+
+  it('rejects unknown keys, bad enums and non-integer budgets', () => {
+    expect(() => parse({bogus: 1})).toThrow()
+    expect(() => parse({profile: 'yeet'})).toThrow()
+    expect(() => parse({guardian: {hook: 'sometimes'}})).toThrow()
+    expect(() => parse({harnesses: {droid: {skills: 1.5}}})).toThrow()
+    expect(() => parse({harnesses: {'not-a-harness': {}}})).toThrow()
+  })
+
+  it('merges over the defaults in the effective config', () => {
+    const effective = effectiveCompileConfig(parse({defer: ['x'], guardian: {min_score: 9}}).compile)
+    expect(effective).toEqual({
+      ...COMPILE_CONFIG_DEFAULTS,
+      defer: ['x'],
+      guardian: {hook: 'auto', mcp: 'auto', min_score: 9},
+    })
+    expect(effectiveCompileConfig()).toBe(COMPILE_CONFIG_DEFAULTS)
   })
 })

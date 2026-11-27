@@ -34,6 +34,8 @@ export async function acquirePluginSource(
         throw new PluginSourceError(plugin.name, `local path does not exist or is not a directory: ${source.path}`)
       return {files: await readPluginFiles(dir)}
     }
+    if (source.type === 'generated')
+      throw new PluginSourceError(plugin.name, 'generated plugins cannot be installed from config')
     const {bare, sha} = await resolveGitCommit(source.url, source.ref, locked)
     return {files: await readGitPlugin(bare, sha, source.path), resolved: sha}
   } catch (error) {

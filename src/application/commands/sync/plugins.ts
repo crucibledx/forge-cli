@@ -1,9 +1,20 @@
 import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 
-import {getHarness} from '@domain/harnesses'
-import type {PluginConfig, PluginHarnessId, PluginLock, PluginScope} from '@domain/plugins'
+import type {compile as compileUnit, CompileHarnessData} from '@domain/compile'
 import {
+  COMPILE_STATUSES,
+  COMPILE_SUPPORT,
+  compileManifestDocument,
+  COMPILER_VERSION,
+  serializeCompileManifest,
+} from '@domain/compile'
+import type {CompileConfigInput} from '@domain/config/types'
+import {effectiveCompileConfig} from '@domain/config/types'
+import {getHarness} from '@domain/harnesses'
+import type {CompileLockEntry, PluginConfig, PluginHarnessId, PluginLock, PluginScope} from '@domain/plugins'
+import {
+  buildPluginLock,
   FACTORY_PRINT_RULES_FILE,
   LOCK_ACTIONS,
   PLUGIN_EMITTERS,
@@ -19,7 +30,10 @@ import {executableOnPath} from '@infrastructure/fs'
 import type {LockedPlugin} from '@infrastructure/plugins'
 import {
   CACHE_GITIGNORE,
+  COMPILE_MANIFEST_DIRS,
+  COMPILE_MANIFEST_GITIGNORE,
   listCacheFiles,
+  listCompileManifests,
   lockPlugins,
   MARKETPLACE_CATALOGS,
   marketplaceCatalog,
@@ -46,12 +60,24 @@ export interface ManagedFile {
   executable?: boolean
 }
 
+/** One compile outcome line of the sync report (spec 0005 §5 sync discipline). */
+export interface CompileNote {
+  harness: string
+  /** One-time v0.8 upgrade message, with the unit's status counts. */
+  upgrade?: {listed: number; deferred: number}
+  /** `inputs` changed: the named input that changed. */
+  recompiled?: string
+  /** Enabled and compile-capable, but compile has no support for it yet. */
+  unsupported?: boolean
+}
+
 export interface PluginReport {
   scope: PluginScope
   marketplace: string
   plugins: LockedPlugin[]
   removed: string[]
   variants: PluginLock['variants']
+  compile: CompileNote[]
 }
 
 export interface PluginPlan {
@@ -92,6 +118,11 @@ export async function planPlugins(input: {
   scope: PluginScope
   plugins: readonly PluginConfig[]
   enabled: ReadonlySet<string>
+  /** The scope's raw `compile:` block; defaults apply. */
+  compile?: CompileConfigInput
+  /** Test seams: compile support data and the compile function itself. */
+  compileSupport?: Readonly<Partial<Record<string, CompileHarnessData>>>
+  compileRun?: typeof compileUnit
   /** Test seam for the node prerequisite check; defaults to the runtime's PATH resolver. */
   hasExecutable?: (name: string) => boolean | Promise<boolean>
 }): Promise<PluginPlan> {
@@ -99,10 +130,18 @@ export async function planPlugins(input: {
   const cacheDir = PLUGIN_CACHE_DIRS[scope]
   const cacheRoot = join(root, cacheDir)
   const lockPath = PLUGIN_LOCK_PATHS[scope]
+  const hadLock = existsSync(join(root, lockPath))
   const lock = await readPluginLock(join(root, lockPath))
+  // A newer compiler never relocks: refuse before any write, even when there is nothing else to do (spec 0005 §5).
+  for (const [harness, entry] of Object.entries(lock.compile ?? {}))
+    if (entry.compiler > COMPILER_VERSION)
+      throw new CommandError(M.lockFromNewerCompiler(harness, entry.compiler, COMPILER_VERSION))
   const cached = await listCacheFiles(cacheRoot)
   const empty: PluginPlan = {files: [], prune: [], keyed: [], targets: [], cacheDir, report: null}
   if (!input.plugins.length && !lock.plugins.length && !cached.length) return empty
+
+  const compileConfig = effectiveCompileConfig(input.compile)
+  const compileSupport = input.compileSupport ?? COMPILE_SUPPORT
 
   const capable = [...input.enabled].map(getHarness).filter((harness) => harness.plugin)
   // Only enabled harnesses are delivered to; emitter availability is not installation eligibility. A disabled
@@ -123,6 +162,7 @@ export async function planPlugins(input: {
     defaultHarnesses: [...input.enabled],
     retain: retainedHarnesses,
     deliver,
+    compile: {scope, config: compileConfig, support: compileSupport, run: input.compileRun},
   })
   // The generated Droid rules hook spawns node; fail before any write when a supported standalone install lacks it.
   const rulesPlugins = result.plugins
@@ -134,13 +174,63 @@ export async function planPlugins(input: {
     throw new CommandError(M.nodeRequired(rulesPlugins.join(', ')), M.nodeRequiredHint)
   const marketplace = marketplaceName(scope, root)
 
+  // Sync discipline (spec 0005 §5): decide each harness's compile lock entry, report line and output check.
+  const compileNotes: CompileNote[] = []
+  const compileMap: Record<string, CompileLockEntry> = {}
+  const manifestDir = join(root, COMPILE_MANIFEST_DIRS[scope])
+  for (const harness of PLUGIN_HARNESS_IDS) {
+    const previous = lock.compile?.[harness]
+    const compiled = result.compiles[harness]
+    if (!compiled) {
+      if (compileConfig.enabled && capable.some((definition) => definition.id === harness) && !compileSupport[harness])
+        compileNotes.push({harness, unsupported: true})
+      else if (
+        !compileConfig.enabled &&
+        capable.some((definition) => definition.id === harness) &&
+        compileSupport[harness]
+      )
+        compileMap[harness] = {enabled: false, compiler: COMPILER_VERSION}
+      else if (previous && retainedHarnesses.includes(harness))
+        // A frozen disabled harness keeps its compile entry; an enabled harness whose unit went away loses it.
+        compileMap[harness] = previous
+      continue
+    }
+    compileMap[harness] = result.compileLock[harness]
+    const listed = compiled.components.filter((row) => row.status === COMPILE_STATUSES.LISTED).length
+    const deferred = compiled.components.filter((row) => row.status === COMPILE_STATUSES.DEFERRED).length
+    if (!previous) {
+      // The v0.8 upgrade line appears once: when a v0.8 lock gains its first compile entries. A v2 lock that
+      // gains a harness's first unit later (new compile support) upgrades silently.
+      if (lock.sourceVersion === 1) compileNotes.push({harness, upgrade: {listed, deferred}})
+    } else if (!previous.enabled) {
+      compileNotes.push({harness, recompiled: 'compile re-enabled'})
+    } else if (previous.inputs !== result.compileLock[harness].inputs) {
+      compileNotes.push({harness, recompiled: recompileReason(previous, lock, result.plugins, harness)})
+    } else {
+      // Inputs unchanged: the compiler must reproduce the locked outputs byte for byte, else the build is broken.
+      for (const plugin of result.plugins) {
+        const lockedEntry = lock.plugins.find((entry) => entry.name === plugin.entry.name)
+        const lockedHash = lockedEntry?.outputs[harness]
+        const freshHash = plugin.entry.outputs[harness]
+        if (lockedHash !== undefined && freshHash !== undefined && lockedHash !== freshHash)
+          throw new CommandError(
+            M.compileMismatch(plugin.entry.name, harness, join(COMPILE_MANIFEST_DIRS[scope], `${harness}.json`)),
+          )
+      }
+    }
+  }
+  const finalLock = buildPluginLock(
+    result.plugins.map((plugin) => plugin.entry),
+    Object.keys(compileMap).length ? compileMap : undefined,
+  )
+
   // Frozen retention (docs/safety-contract.md): a disabled harness keeps the delivered tree and catalog entry
   // its retained settings keys point at, even for a plugin the config no longer lists. The tree is pruned once
   // ownership permits cleanup: the harness is enabled again, or the keys are gone.
   const frozenPrefixes = lock.plugins.flatMap((entry) =>
     retainedHarnesses
       .filter((harness) => entry.outputs[harness] !== undefined)
-      .map((harness) => `${entry.name}/${entry.version}/${harness}/`),
+      .map((harness) => `${entry.name}/${entry.emitted?.[harness] ?? entry.version}/${harness}/`),
   )
   const isFrozen = (path: string) => frozenPrefixes.some((prefix) => path.startsWith(prefix))
 
@@ -167,8 +257,39 @@ export async function planPlugins(input: {
     content: file.content,
     executable: file.executable === true,
   }))
-  if (input.plugins.length || existsSync(join(root, lockPath)))
-    files.push({path: lockPath, content: serializePluginLock(result.lock)})
+  if (input.plugins.length || hadLock) files.push({path: lockPath, content: serializePluginLock(finalLock)})
+
+  // Compile manifests (spec 0005 §2): one document per compiled harness; stale harness manifests are pruned.
+  const manifestFiles = new Map<string, ManagedFile>()
+  for (const [harness, compiled] of Object.entries(result.compiles)) {
+    const variant = finalLock.variants[harness]
+    const inputs = result.compileLock[harness]?.inputs
+    if (!variant || !inputs) continue
+    manifestFiles.set(`${harness}.json`, {
+      path: join(COMPILE_MANIFEST_DIRS[scope], `${harness}.json`),
+      content: serializeCompileManifest(
+        compileManifestDocument({
+          harness: harness as PluginHarnessId,
+          scope,
+          enabled: true,
+          compiler: COMPILER_VERSION,
+          inputs,
+          components: compiled.components,
+          variant,
+        }),
+      ),
+    })
+  }
+  if (manifestFiles.size)
+    manifestFiles.set('.gitignore', {
+      path: join(COMPILE_MANIFEST_DIRS[scope], '.gitignore'),
+      content: COMPILE_MANIFEST_GITIGNORE.content,
+    })
+  files.push(...manifestFiles.values())
+  const staleManifests = existsSync(manifestDir)
+    ? (await listCompileManifests(manifestDir)).filter((name) => !manifestFiles.has(name))
+    : []
+  const staleGitignore = !manifestFiles.size && existsSync(join(manifestDir, '.gitignore'))
 
   const keyed: PluginPlan['keyed'] = []
   for (const harness of capable) {
@@ -182,12 +303,48 @@ export async function planPlugins(input: {
 
   return {
     files,
-    prune: cached.filter((path) => !desired.has(path) && !isFrozen(path)).map((path) => join(cacheDir, path)),
+    prune: [
+      ...cached.filter((path) => !desired.has(path) && !isFrozen(path)).map((path) => join(cacheDir, path)),
+      ...staleManifests.map((name) => join(COMPILE_MANIFEST_DIRS[scope], name)),
+      ...(staleGitignore ? [join(COMPILE_MANIFEST_DIRS[scope], '.gitignore')] : []),
+    ],
     keyed,
     targets: ruleTargets(result.plugins, scope),
     cacheDir,
-    report: {scope, marketplace, plugins: result.plugins, removed: result.removed, variants: result.lock.variants},
+    report: {
+      scope,
+      marketplace,
+      plugins: result.plugins,
+      removed: result.removed,
+      variants: finalLock.variants,
+      compile: compileNotes,
+    },
   }
+}
+
+/**
+ * Names which compile input changed when a relock happens with an unchanged compiler (spec 0005 §5: the sync
+ * line says "recompiled for <harness>: <which input changed>"). Plugin-pair changes win over the config part,
+ * matching the order sync acts on them.
+ */
+function recompileReason(
+  previous: CompileLockEntry,
+  lock: PluginLock,
+  plugins: readonly LockedPlugin[],
+  harness: PluginHarnessId,
+): string {
+  if (previous.compiler !== COMPILER_VERSION)
+    return `the compiler version changed (${previous.compiler} -> ${COMPILER_VERSION})`
+  const lockedPairs = lock.plugins
+    .filter((entry) => entry.outputs[harness] !== undefined)
+    .map((entry) => [entry.name, entry.contentHash])
+    .sort()
+  const currentPairs = plugins
+    .filter((plugin) => plugin.entry.outputs[harness] !== undefined)
+    .map((plugin) => [plugin.entry.name, plugin.entry.contentHash])
+    .sort()
+  if (JSON.stringify(lockedPairs) !== JSON.stringify(currentPairs)) return 'the plugin set changed'
+  return 'the compile config changed'
 }
 
 // Sync targets are text: keep a BOM and refuse bytes that would not survive the round trip, so the installed rule
@@ -259,6 +416,12 @@ export function renderPluginReport(report: PluginReport, dryRun: boolean): void 
     }
   }
   report.removed.forEach((name) => renderer.render(`  ${name}: ${M.removed}`))
+  for (const note of report.compile) {
+    if (note.unsupported) renderer.render(`  ${M.compileNotSupported(note.harness)}`)
+    else if (note.upgrade)
+      renderer.render(`  ${M.compileUpgrade(note.harness, note.upgrade.listed, note.upgrade.deferred)}`)
+    else if (note.recompiled) renderer.render(`  ${M.recompiled(note.harness, note.recompiled)}`)
+  }
   const variants = Object.entries(report.variants)
   if (variants.length) {
     renderer.render(M.variants)

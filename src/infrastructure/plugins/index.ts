@@ -1,5 +1,6 @@
 export * from './cache'
 export * from './check'
+export * from './compile-manifest'
 export * from './config-schema'
 export * from './engine'
 export * from './errors'

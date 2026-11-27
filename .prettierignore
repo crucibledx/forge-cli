@@ -2,3 +2,5 @@ dist/
 node_modules/
 bun.lock
 src/infrastructure/plugins/schemas/
+# Canonical-JSON golden: byte-compared by the COMPILER_VERSION guard, never reformatted.
+src/domain/compile/golden/
