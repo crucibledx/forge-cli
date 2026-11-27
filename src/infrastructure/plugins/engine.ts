@@ -35,6 +35,12 @@ export interface LockPluginsInput {
   cacheRoot: string
   /** Harnesses a plugin targets when its config lists none: the enabled harnesses. */
   defaultHarnesses: readonly string[]
+  /**
+   * Disabled harnesses whose settings registration the caller keeps. A previously installed output of one is frozen:
+   * its hash carries into the new lock untouched (nothing is re-emitted), so the delivered tree, catalog entry and
+   * variant survive exactly as installed while the harness is disabled.
+   */
+  retain?: readonly string[]
   /** Emitters by harness. A targeted harness without one is reported in `skipped`, not delivered. */
   deliver: Readonly<Partial<Record<string, PluginDeliver>>>
 }
@@ -49,7 +55,10 @@ export interface LockedPlugin {
   /** `locked`: installed verbatim from the lock; `resolve`: first lock; `relock`: see `reason`. */
   action: LockAction
   reason?: string
+  /** Freshly emitted files per harness; only enabled harnesses are ever emitted. */
   outputs: Record<string, DeliveredFiles>
+  /** Frozen output hashes carried from the previous lock for retained disabled harnesses (see LockPluginsInput). */
+  retainedOutputs: Record<string, string>
   skipped: Array<{harness: string; reason: SkipReason}>
   warnings: string[]
 }
@@ -110,11 +119,19 @@ async function lockPlugin(config: PluginConfig, input: LockPluginsInput): Promis
   const supported = pkg.manifest.forge.harnesses
   const skipped: LockedPlugin['skipped'] = []
   const outputs: Record<string, DeliveredFiles> = {}
-  for (const harness of config.harnesses ?? input.defaultHarnesses) {
+  const targeted = new Set(config.harnesses ?? input.defaultHarnesses)
+  for (const harness of targeted) {
     const deliver = input.deliver[harness]
-    if (supported && !supported.includes(harness)) skipped.push({harness, reason: SKIP_REASONS.NOT_IN_MANIFEST})
-    else if (!deliver) skipped.push({harness, reason: SKIP_REASONS.NO_PLUGIN_SUPPORT})
+    if (!deliver) skipped.push({harness, reason: SKIP_REASONS.NO_PLUGIN_SUPPORT})
+    else if (supported && !supported.includes(harness)) skipped.push({harness, reason: SKIP_REASONS.NOT_IN_MANIFEST})
     else outputs[harness] = deliver(pkg)
+  }
+  // Frozen retention: a retained disabled harness keeps its previous output hash instead of a fresh emission,
+  // so its delivered files stay valid while its registration is retained (docs/safety-contract.md).
+  const retainedOutputs: Record<string, string> = {}
+  for (const harness of input.retain ?? []) {
+    const hash = previous?.outputs[harness]
+    if (hash !== undefined && outputs[harness] === undefined) retainedOutputs[harness] = hash
   }
   const entry: PluginLockEntry = {
     name: config.name,
@@ -122,7 +139,10 @@ async function lockPlugin(config: PluginConfig, input: LockPluginsInput): Promis
     source: lockedSource(config.source),
     ...(acquired.resolved === undefined ? {} : {resolved: acquired.resolved}),
     contentHash: hashPluginFiles(acquired.files),
-    outputs: Object.fromEntries(Object.entries(outputs).map(([harness, files]) => [harness, hashDelivered(files)])),
+    outputs: {
+      ...Object.fromEntries(Object.entries(outputs).map(([harness, files]) => [harness, hashDelivered(files)])),
+      ...retainedOutputs,
+    },
   }
   return {
     config,
@@ -131,6 +151,7 @@ async function lockPlugin(config: PluginConfig, input: LockPluginsInput): Promis
     action,
     reason,
     outputs,
+    retainedOutputs,
     skipped,
     warnings: [...sourceWarnings(config), ...check.warnings],
   }

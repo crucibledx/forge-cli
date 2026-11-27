@@ -286,6 +286,43 @@ describe('local plugin sources', () => {
     ])
   })
 
+  it('freezes the previous output of a disabled harness instead of re-emitting it (retained registration)', async () => {
+    await write(dir(), hello)
+    const first = await lock([plugin])
+    expect(Object.keys(first.lock.plugins[0].outputs).sort()).toEqual(['claude-code', 'droid'])
+    const retainDroid = {
+      plugins: [plugin],
+      lock: first.lock,
+      context: {root: dir(), home: dir()},
+      cacheRoot: join(dir(), '.crucible', 'plugins'),
+      defaultHarnesses: ['claude-code'],
+      retain: ['droid'],
+      deliver,
+    }
+
+    // The lock keeps the droid output hash, but nothing is re-emitted for the disabled harness.
+    const retained = await lockPlugins(retainDroid)
+    expect(Object.keys(retained.lock.plugins[0].outputs).sort()).toEqual(['claude-code', 'droid'])
+    expect(retained.lock.plugins[0].outputs.droid).toBe(first.lock.plugins[0].outputs.droid)
+    expect(Object.keys(retained.plugins[0].outputs)).toEqual(['claude-code'])
+    expect(retained.plugins[0].retainedOutputs).toEqual({droid: first.lock.plugins[0].outputs.droid})
+
+    // A manifest that no longer lists the disabled harness still keeps its frozen output.
+    await write(dir(), {
+      ...hello,
+      'plugin.json': pluginManifest('hello', '1.0.0', {
+        extensions: {'dev.crucibledx.forge': {harnesses: ['claude-code']}},
+      }),
+    })
+    const narrowed = await lockPlugins({...retainDroid, lock: retained.lock})
+    expect(narrowed.lock.plugins[0].outputs.droid).toBe(first.lock.plugins[0].outputs.droid)
+    expect(narrowed.plugins[0].skipped).toEqual([])
+
+    // Without a retained registration the disabled harness's output is dropped as before.
+    const dropped = await lockPlugins({...retainDroid, retain: []})
+    expect(Object.keys(dropped.lock.plugins[0].outputs)).toEqual(['claude-code'])
+  })
+
   it.skipIf(process.platform === 'win32')('keeps the executable bit through acquisition and the cache', async () => {
     await write(dir(), {...hello, 'bin/server': '#!/bin/sh\n'})
     await chmod(join(dir(), 'plugins/hello/bin/server'), 0o755)

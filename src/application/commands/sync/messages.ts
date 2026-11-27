@@ -27,4 +27,31 @@ export const SYNC_MESSAGES = {
     lastSync: (iso: string) => `Last sync: ${iso.replace('T', ' ').slice(0, 16)}`,
     forced: (item: string) => `--force overrides drift: ${item}`,
   },
+
+  plugins: {
+    userInProject: (name: string) =>
+      `Plugin scope mismatch: "${name}" has scope: user but is declared in the project config (.crucible/forge.config.yaml)`,
+    userInProjectHint:
+      'Move the entry to the user config (~/.crucible/forge.config.yaml) and install it with `forge sync --global`',
+    projectInUser: (name: string) =>
+      `Plugin scope mismatch: "${name}" has scope: project but is declared in the user config (~/.crucible/forge.config.yaml)`,
+    projectInUserHint:
+      "Move the entry to the project's .crucible/forge.config.yaml and install it with `forge sync` in that project",
+    header: (scope: string, marketplace: string, dryRun: boolean) =>
+      `Plugins (${scope} scope, marketplace ${marketplace})${dryRun ? ', would install' : ''}:`,
+    resolved: 'resolved and locked',
+    locked: 'installed from the lock',
+    relocked: (reason: string) => `relocked (${reason})`,
+    installed: (id: string) => `installed as ${id}`,
+    notSupported: (harness: string) => `plugins are not supported for ${harness} yet`,
+    notEnabled: (harness: string) => `not enabled in this config; not delivered to ${harness}`,
+    notInManifest: (plugin: string, harness: string) =>
+      `${plugin} does not list ${harness} in its forge.harnesses; not delivered`,
+    removed: 'removed',
+    nodeRequired: (plugins: string) =>
+      `the generated Droid rules hook of ${plugins} spawns "node", but node is not on PATH on this machine`,
+    nodeRequiredHint:
+      'Install Node.js (https://nodejs.org) so Droid can run the SessionStart rules hook, or remove the rules from the plugin, then sync again.',
+    variants: 'Variants:',
+  },
 } as const
