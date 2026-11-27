@@ -5,7 +5,7 @@
  * The planning-level half lives in src/application/commands/sync/keyed-rollback.test.ts.
  */
 
-import {chmod, mkdir, readdir, readFile, stat, writeFile} from 'node:fs/promises'
+import {mkdir, readdir, readFile, stat, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -35,9 +35,9 @@ async function snapshot(root: string): Promise<Record<string, {content: string; 
 }
 
 describe('AC-14 rollback of a real plugin sync', () => {
-  // Injected commit failure: FORGE_TEST_FAIL_COMMIT makes the named directory unwritable after the transaction
-  // passed its write-feasibility pre-checks, so the keyed settings merge fails mid-commit, after the cache and
-  // lockfile writes have already landed. POSIX modes only.
+  // Injected commit failure: FORGE_TEST_FAIL_COMMIT names the operation whose replace fails. The sync-state
+  // write commits after the keyed settings merge, so the merge has landed when the commit fails and the
+  // rollback must restore its bytes. POSIX modes only.
   it.skipIf(process.platform === 'win32')(
     'rolls every write back, keyed settings merge included, when a late commit step fails',
     async () => {
@@ -55,14 +55,14 @@ describe('AC-14 rollback of a real plugin sync', () => {
       )
       await mkdir(join(proj, '.factory'), {recursive: true})
       await writeFile(join(proj, '.factory/settings.local.json'), '{\n  "model": "small"\n}\n')
-      // A private 0700 install directory: the injection must restore this exact mode, not an assumed one.
-      await chmod(join(proj, '.factory'), 0o700)
       const before = await snapshot(proj)
 
-      const result = await runCommand(proj, 'sync', [], {FORGE_TEST_FAIL_COMMIT: '.factory'})
+      const result = await runCommand(proj, 'sync', [], {FORGE_TEST_FAIL_COMMIT: '.crucible/sync-state.json'})
       expect(result.exitCode).toBe(1)
+      // Proof the keyed settings merge landed before the failure: the commit replaced it first.
+      expect(result.output).toMatch(/after replacing:[^\n]*\.factory\/settings\.local\.json/)
+      expect(result.output).toContain('Rollback complete')
       expect(await snapshot(proj)).toEqual(before)
-      expect((await stat(join(proj, '.factory'))).mode & 0o777).toBe(0o700)
     },
   )
 

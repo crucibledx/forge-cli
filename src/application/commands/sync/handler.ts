@@ -1,6 +1,6 @@
-import {chmod, lstat, stat} from 'node:fs/promises'
+import {stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
-import {join} from 'node:path'
+import {join, relative} from 'node:path'
 
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
@@ -122,37 +122,40 @@ export async function runSyncWithDependencies(
     displayPlan(summaries, config.sources, syncConfig, options.dryRun)
     overridden.forEach((item) => renderer.renderWarning(M.output.forced(item)))
     const next = withKeyedEntries(reconcileState(state, resolved, summaries, new Date().toISOString()), keyed)
+    // Test-only commit-failure injection (e2e AC-14): wraps the transaction's replace so the named operation
+    // fails after every earlier operation — the keyed settings merge included — has landed, sending the commit
+    // through the rollback path. The target resolves through the sync boundary; the wrapper changes nothing
+    // itself, it only refuses the one replace.
+    const failCommit = process.env.FORGE_TEST_FAIL_COMMIT
+    let syncFs = dependencies.transaction
+    if (failCommit !== undefined) {
+      const target = await boundary.resolve(failCommit)
+      const base = dependencies.transaction ?? transactionIO
+      const replaced: string[] = []
+      syncFs = {
+        ...base,
+        replace: async (temp: string, path: string, existed: boolean) => {
+          const rel = relative(boundary.root, path).replaceAll('\\', '/')
+          if (path === target)
+            throw new Error(`Injected commit failure at ${rel} after replacing: ${replaced.join(', ') || '(nothing)'}`)
+          replaced.push(rel)
+          await base.replace(temp, path, existed)
+        },
+      }
+    }
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
-    const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
+    const prepared = await prepareSync(boundary.root, mutations, next, context, syncFs)
     if (options.dryRun) {
       if (plugins.report) renderPluginReport(plugins.report, true)
       return
     }
     const alias = await convertAssistantsAlias(boundary.root, dependencies.transaction)
-    // Test-only commit-failure injection (e2e AC-14): preparation pre-checks write feasibility, so only a
-    // directory turned unwritable after it makes the commit fail mid-transaction and run the rollback path.
-    // The target resolves through the sync boundary (no escapes, no symlinks, ancestors stay directories)
-    // and its exact original mode is restored, never an assumed one.
-    const failCommit = process.env.FORGE_TEST_FAIL_COMMIT
-    const inject = failCommit !== undefined && process.platform !== 'win32'
-    let injectTarget: string | undefined
-    let injectMode = 0
     try {
-      if (inject) {
-        const target = await boundary.resolve(failCommit)
-        const before = await lstat(target).catch(() => undefined)
-        if (!before?.isDirectory()) throw new CommandError(M.errors.testFailCommitTarget(failCommit))
-        await chmod(target, 0o500)
-        injectTarget = target
-        injectMode = before.mode & 0o777
-      }
       await commitPrepared(prepared)
     } catch (error) {
       // A failed compensation is an emergency: report it even when --silent suppresses warnings.
       await alias?.undo?.().catch(() => console.error(M.errors.aliasUndoFailed))
       throw error
-    } finally {
-      if (injectTarget) await chmod(injectTarget, injectMode).catch(() => undefined)
     }
     const synced = summaries.filter(
       (summary) => summary.status === S.NEW || summary.status === S.UPDATE || summary.status === S.DELETED,
