@@ -1,5 +1,5 @@
 import type {SyncState, SyncStateEntry} from './state'
-import {hashContent} from './state'
+import {hashContent, SYNC_STATE_VERSION} from './state'
 import type {ResolvedTarget, SyncFileSummary} from './types'
 import {SYNC_FILE_STATUSES as S} from './types'
 
@@ -28,5 +28,5 @@ export function reconcileState(
       }
     }
   }
-  return {version: 2, lastSync, files}
+  return {version: SYNC_STATE_VERSION, lastSync, files}
 }

@@ -5,6 +5,7 @@ export const MUTATION_TYPES = {
   FILE_DELETE: 'file_delete',
   DIR_CREATE: 'dir_create',
   SYMLINK_CREATE: 'symlink_create',
+  KEYED_MERGE: 'keyed_merge',
 } as const
 
 export type MutationType = (typeof MUTATION_TYPES)[keyof typeof MUTATION_TYPES]
@@ -14,6 +15,8 @@ export type Mutation =
   | {type: typeof MUTATION_TYPES.FILE_DELETE; path: string}
   | {type: typeof MUTATION_TYPES.DIR_CREATE; path: string}
   | {type: typeof MUTATION_TYPES.SYMLINK_CREATE; path: string; target: string}
+  /** Whole-file result of targeted key edits; `base` is the planned-from bytes, re-checked before commit. */
+  | {type: typeof MUTATION_TYPES.KEYED_MERGE; path: string; base: Uint8Array | null; content: string}
 
 export const SYNC_FILE_STATUSES = {
   NEW: 'new',

@@ -19,6 +19,8 @@ export interface FileOperation {
   content: string | Uint8Array | null
   private?: boolean
   backup?: boolean
+  /** Bytes the plan was computed from (null: absent). Preparation refuses if the file changed since. */
+  expect?: Uint8Array | null
 }
 
 async function checkReplacementSupport(): Promise<void> {
@@ -134,7 +136,15 @@ export async function prepareTransaction(root: string, operations: FileOperation
         access: operation.private ? await fs.privateAccessMetadata() : null,
       })
     }
-    if (operation.content === null && snapshots.get(path)!.bytes === null) continue
+    const before = snapshots.get(path)!.bytes
+    if (
+      operation.expect !== undefined &&
+      (before === null || operation.expect === null
+        ? before !== operation.expect
+        : !Buffer.from(before).equals(Buffer.from(operation.expect)))
+    )
+      throw new Error(`Changed since planning: ${operation.path}; nothing was written. Retry the command.`)
+    if (operation.content === null && before === null) continue
     let parent = dirname(path)
     const missing: string[] = []
     while (true) {

@@ -82,6 +82,7 @@ the existing E2E expectation that a nonexistent source succeeds. Do not freeze c
 | BR-08 | Repeating a successful sync preserves target and backup bytes. `--silent` changes presentation only, never outcome or safety policy. |
 | BR-09 | Every test session has one total deadline, drains output, detects child exit, and cleans up its child processes and terminal on every path. |
 | BR-10 | Tests use disposable homes, temp/cache/config roots and local sources, never the operator's credentials, home, scheduler, or live remote repositories. |
+| BR-11 | (Added by spec 0003 §6.) In shared settings files forge owns only specific keys and array entries, matched by identity; cleanup removes only owned keys; owned keys persist in state v3; a keyed merge is snapshotted and rolled back as a whole file. |
 
 #### Source and plan outcomes
 

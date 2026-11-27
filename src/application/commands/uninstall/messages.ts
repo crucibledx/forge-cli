@@ -10,6 +10,8 @@ export const UNINSTALL_MESSAGES = {
   schedulerNotInstalled: 'Scheduler: not installed (skipped).',
   syncedFilesRemoved: (count: number) => `Removed ${count} synced file(s).`,
   syncedFilesNone: 'No synced files to remove.',
+  ownedKeysRemoved: (count: number) => `Removed forge-owned keys from ${count} settings file(s).`,
+  ownedKeyKept: (key: string) => `Kept ${key}: it was changed outside forge.`,
   configRemoved: 'Removed .crucible directory.',
   done: 'Forge has been uninstalled from this project.',
   cancelled: 'Uninstall cancelled.',
