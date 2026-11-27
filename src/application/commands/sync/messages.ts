@@ -48,6 +48,10 @@ export const SYNC_MESSAGES = {
     notInManifest: (plugin: string, harness: string) =>
       `${plugin} does not list ${harness} in its forge.harnesses; not delivered`,
     removed: 'removed',
+    nodeRequired: (plugins: string) =>
+      `the generated Droid rules hook of ${plugins} spawns "node", but node is not on PATH on this machine`,
+    nodeRequiredHint:
+      'Install Node.js (https://nodejs.org) so Droid can run the SessionStart rules hook, or remove the rules from the plugin, then sync again.',
     variants: 'Variants:',
   },
 } as const
