@@ -1,7 +1,7 @@
 /**
  * E2E tests for plugin delivery in `forge sync` (spec 0003 §4–§5), Droid side.
  *
- * Covers the sync halves of AC-3/AC-4, AC-6, AC-7, AC-9, AC-16, AC-17 and AC-18.
+ * Covers the sync halves of AC-3/AC-4, AC-6, AC-7, AC-9, AC-16, AC-17, AC-18 and AC-24.
  */
 
 import {existsSync} from 'node:fs'
@@ -276,5 +276,59 @@ describe('forge sync — Droid plugin delivery', () => {
     expect(exitCode).toBe(1)
     expect(output).toContain('Plugin scope mismatch: "hello"')
     expect(output).toContain('forge.config.yaml')
+  })
+
+  it('keeps marketplace identities distinct across scopes and projects (AC-24)', async () => {
+    const dir = getDir()
+    const home = join(dir, 'home')
+    const projA = join(dir, 'a')
+    const projB = join(dir, 'b')
+    const plugin = join(dir, 'plugin')
+    await writeSourceTree(plugin, miniPlugin('1.0.0', 'Hello v1'))
+    const configure = async (root: string) => {
+      const src = join(root, 'src')
+      await writeSourceTree(src, {skills: {'a.md': '# A'}})
+      await writeConfig(
+        root,
+        buildConfigYaml({assistants: ['droid'], localSource: {path: src}}) + pluginsBlock(localPlugin(plugin)),
+      )
+    }
+    await configure(home)
+    await configure(projA)
+    await configure(projB)
+
+    expect((await runSync(projA)).exitCode).toBe(0)
+    expect((await runSync(projB)).exitCode).toBe(0)
+    expect((await runCommand(projA, '--global', ['sync'], {HOME: home})).exitCode).toBe(0)
+
+    const settingsA = await readFile(join(projA, '.factory/settings.local.json'), 'utf8')
+    const settingsB = await readFile(join(projB, '.factory/settings.local.json'), 'utf8')
+    const settingsHome = await readFile(join(home, '.factory/settings.json'), 'utf8')
+    const marketplaceOf = (text: string) => Object.keys(JSON.parse(text).extraKnownMarketplaces ?? {})[0]
+    const [mA, mB, mH] = [marketplaceOf(settingsA), marketplaceOf(settingsB), marketplaceOf(settingsHome)]
+    expect(mH).toBe('crucible-forge-user')
+    expect(new Set([mA, mB, mH]).size).toBe(3)
+
+    // Every enabled plugin ID resolves against the catalog in the same cache root.
+    for (const [root, marketplace] of [
+      [projA, mA],
+      [projB, mB],
+    ] as const) {
+      const catalog = await readJson(join(root, '.crucible/plugins/.factory-plugin/marketplace.json'))
+      expect(catalog.name).toBe(marketplace)
+      expect(catalog.plugins.map((item: {name: string}) => item.name)).toContain('hello')
+      expect(JSON.parse(await readFile(join(root, '.factory/settings.local.json'), 'utf8')).enabledPlugins).toEqual({
+        [`hello@${marketplace}`]: true,
+      })
+    }
+    const homeCatalog = await readJson(join(home, '.crucible/forge/plugins/.factory-plugin/marketplace.json'))
+    expect(homeCatalog.name).toBe('crucible-forge-user')
+
+    // Removing one project's plugin leaves the other project's and the user scope's keys untouched.
+    await writeConfig(projA, buildConfigYaml({assistants: ['droid'], localSource: {path: join(projA, 'src')}}))
+    expect((await runSync(projA)).exitCode).toBe(0)
+    expect(await readFile(join(projA, '.factory/settings.local.json'), 'utf8')).not.toContain('crucible-forge')
+    expect(await readFile(join(projB, '.factory/settings.local.json'), 'utf8')).toBe(settingsB)
+    expect(await readFile(join(home, '.factory/settings.json'), 'utf8')).toBe(settingsHome)
   })
 })
