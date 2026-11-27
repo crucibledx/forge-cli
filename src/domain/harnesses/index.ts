@@ -9,7 +9,14 @@ export type {UndeliveredSource} from './coverage'
 export {findUndelivered, SOURCE_GLOB_KINDS} from './coverage'
 export type {ComponentFormatId} from './formats'
 export {COMPONENT_FORMATS} from './formats'
-export {getAllHarnesses, getHarness, getHarnessIds, harnessesRegistry, resolveHarnessByPath} from './registry'
+export {
+  getAllHarnesses,
+  getHarness,
+  getHarnessIds,
+  harnessesRegistry,
+  resolveHarnessByPath,
+  resolveHarnessBySettingsPath,
+} from './registry'
 export type {
   ComponentKind,
   ComponentTarget,

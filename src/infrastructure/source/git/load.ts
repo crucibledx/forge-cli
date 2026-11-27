@@ -74,12 +74,14 @@ export function absoluteRemoteUrl(url: string): string {
   return resolve(url)
 }
 
+export const objectFormatOf = (sha: string) => (sha.length === 64 ? 'sha256' : 'sha1')
+
 /**
  * `clone --branch` rejects a commit SHA. An empty repository cannot learn the remote's object format the way clone
  * does, but the SHA's length gives it.
  */
 async function initForCommit(dir: string, url: string, sha: string, options?: GitOptions): Promise<void> {
-  await runGit(dir, ['init', '--quiet', `--object-format=${sha.length === 64 ? 'sha256' : 'sha1'}`], options)
+  await runGit(dir, ['init', '--quiet', `--object-format=${objectFormatOf(sha)}`], options)
   await runGit(dir, ['remote', 'add', '--', 'origin', absoluteRemoteUrl(url)], options)
 }
 

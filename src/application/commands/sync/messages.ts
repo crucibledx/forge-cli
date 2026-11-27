@@ -25,5 +25,6 @@ export const SYNC_MESSAGES = {
     notDelivered: (harness: string, glob: string) =>
       `${harness} has no location for ${glob.replace('**', '')} files; they are not delivered to ${harness}.`,
     lastSync: (iso: string) => `Last sync: ${iso.replace('T', ' ').slice(0, 16)}`,
+    forced: (item: string) => `--force overrides drift: ${item}`,
   },
 } as const

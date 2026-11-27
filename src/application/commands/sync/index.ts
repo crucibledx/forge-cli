@@ -11,6 +11,11 @@ export const syncCommand: SyncCommandDefinition = {
     {flags: '--dry-run', description: 'Preview changes without writing', defaultValue: false},
     {flags: '-v, --verbose', description: 'Show debug output', defaultValue: false},
     {flags: '--silent', description: 'Suppress all output (for scheduled runs)', defaultValue: false},
+    {
+      flags: '--force',
+      description: 'Overwrite forge-owned files and settings keys that were changed outside forge',
+      defaultValue: false,
+    },
   ],
   action: runSync,
 }

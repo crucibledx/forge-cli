@@ -6,7 +6,7 @@ import {describe, expect, it} from 'bun:test'
 
 import {hashContent} from '@domain/sync/state'
 
-import {getSyncStatePath, loadSyncState, parseSyncState, writeSyncState} from './state'
+import {getSyncStatePath, loadSyncState, parseSyncState, STATE_SCHEMAS, writeSyncState} from './state'
 
 const getDir = useTmpDir('sync_state')
 const legacyPath = '.claude/rules/a.md'
@@ -44,6 +44,7 @@ it.each([
   {},
   {...legacy, version: 1},
   {...legacy, version: 3},
+  {...legacy, version: '3'},
   {...legacy, files: {[legacyPath]: {hash: 'not-a-hash', sourceName: 'x'}}},
   {...legacy, files: {'../escape': legacy.files[legacyPath]}},
   {...legacy, version: 2},
@@ -98,6 +99,42 @@ it.each([false, true])(
     })
   },
 )
+
+describe('state v3 (0003-AC-15)', () => {
+  const installed = {hash: hashContent('a'), sourceName: 'team', baseline: 'installed' as const}
+  const keyed = {...installed, ownedKeys: {'enabledPlugins["foo@crucible-forge-user"]': hashContent('true')}}
+  it('reads v2 and legacy state as v3 in memory with no owned keys', () => {
+    for (const input of [legacy, {version: 2, lastSync: '', files: {[legacyPath]: installed}}]) {
+      const state = parseSyncState(input)
+      expect(state.version).toBe(3)
+      expect(state.files[legacyPath].ownedKeys).toBeUndefined()
+    }
+  })
+  it('parses v3 owned keys and drops an empty ownedKeys map', () => {
+    const state = parseSyncState({version: 3, lastSync: '', files: {a: keyed, b: {...installed, ownedKeys: {}}}})
+    expect(state.files.a).toEqual(keyed)
+    expect(state.files.b).toEqual(installed)
+  })
+  it('a v3 file fails the strict v2 schema an older CLI uses', () => {
+    const v3 = {version: 3, lastSync: '', files: {a: keyed}}
+    expect(STATE_SCHEMAS[2].safeParse(v3).success).toBe(false)
+    expect(STATE_SCHEMAS[2].safeParse({...v3, version: 2}).success).toBe(false)
+    expect(() => parseSyncState({...v3, version: 2})).toThrow()
+  })
+  it('refuses a newer state version with the named upgrade-forge error', () => {
+    expect(() => parseSyncState({version: 4, lastSync: '', files: {}})).toThrow('Upgrade forge')
+    expect(() => parseSyncState({version: 4, lastSync: '', files: {}})).toThrow(
+      expect.objectContaining({name: 'StateVersionError'}),
+    )
+  })
+  it.each([
+    {'a..b': hashContent('x')},
+    {'enabledPlugins.x': 'not-a-hash'},
+    JSON.parse(`{"__proto__": "${hashContent('x')}"}`),
+  ])('rejects malformed owned keys %#', (ownedKeys) => {
+    expect(() => parseSyncState({version: 3, lastSync: '', files: {a: {...installed, ownedKeys}}})).toThrow()
+  })
+})
 
 describe('getSyncStatePath', () => {
   it('returns path inside .crucible dir', () => {

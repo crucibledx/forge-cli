@@ -9,9 +9,23 @@ import {SOURCE_GLOB_KINDS} from './coverage'
 import {cursor} from './cursor'
 import {droid} from './droid'
 import {COMPONENT_FORMATS} from './formats'
-import {getAllHarnesses, getHarness, getHarnessIds, resolveHarnessByPath} from './registry'
+import {
+  getAllHarnesses,
+  getHarness,
+  getHarnessIds,
+  resolveHarnessByPath,
+  resolveHarnessBySettingsPath,
+} from './registry'
 import type {HarnessDefinition, HarnessPluginCapability} from './types'
 import {COMPONENT_KINDS} from './types'
+
+it.each([
+  ['.claude/settings.local.json', claudeCode.id],
+  ['.claude/settings.json', claudeCode.id],
+  ['settings.json', undefined],
+])('BR-11 settings file %s is owned by the harness whose targets share its folder', (path, id) => {
+  expect(resolveHarnessBySettingsPath(path)?.id).toBe(id)
+})
 
 it.each(['.CLAUDE\\SKILLS\\a.md', '.claude//skills///a.md'])(
   'AC-4,9 ownership uses the same portable folding as collision checks: %s',

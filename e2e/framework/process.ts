@@ -259,11 +259,36 @@ export async function drainTranscript(
 
 export type OwnedProcess = Pick<Bun.Subprocess, 'pid' | 'exited' | 'kill' | 'exitCode'>
 
+/** Time kept back from a stalled probe so its group can be killed and confirmed gone inside the same deadline. */
+const PROBE_REAP_RESERVE_MS = 250
+
+function processGroupExists(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ESRCH') return false
+    // Darwin reports EPERM for an orphan awaiting launchd's reap; keep polling until the deadline.
+    if (code === 'EPERM') return true
+    throw error
+  }
+}
+
+async function groupEmptiedBy(pgid: number, deadline: number): Promise<boolean> {
+  while (processGroupExists(pgid)) {
+    if (performance.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  return true
+}
+
 async function groupAlive(pid: number, env: Record<string, string>, deadline: number): Promise<boolean> {
   // On macOS, signal-zero may return EPERM for an orphan already awaiting init's
   // reap. Zombies have no running code or open descriptors, but are still PIDs.
   const remaining = deadline - performance.now()
-  if (remaining <= 0) throw new Error('Cannot verify owned cleanup within remaining budget')
+  // A probe started inside the reserve could neither finish nor be confirmed gone before the deadline.
+  if (remaining <= PROBE_REAP_RESERVE_MS) throw new Error('Cannot verify owned cleanup within remaining budget')
   const probe = Bun.spawn(['ps', '-axo', 'pgid=,stat='], {
     env,
     detached: true,
@@ -285,6 +310,7 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
     }
   }
   let timer: ReturnType<typeof setTimeout> | undefined
+  let failure: unknown
   try {
     const [text, code] = await Promise.race([
       Promise.all([output(), probe.exited]),
@@ -292,7 +318,7 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
         // Reserve reaping time inside the same cleanup deadline.
         timer = setTimeout(
           () => reject(new Error('Cleanup probe exceeded remaining budget')),
-          Math.max(1, remaining - 50),
+          Math.max(1, remaining - PROBE_REAP_RESERVE_MS),
         )
       }),
     ])
@@ -301,13 +327,18 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
       const [group, state] = line.trim().split(/\s+/)
       return Number(group) === pid && !state?.startsWith('Z')
     })
+  } catch (error) {
+    failure = error
+    throw error
   } finally {
     clearTimeout(timer)
     // The probe has its own group: a stalled PATH wrapper must not leave descendants behind.
+    let groupSignalled = true
     try {
       process.kill(-probe.pid, 'SIGKILL')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+      groupSignalled = false
     }
     try {
       await Promise.race([
@@ -321,6 +352,15 @@ async function groupAlive(pid: number, env: Record<string, string>, deadline: nu
       ])
     } finally {
       clearTimeout(timer)
+    }
+    // SIGKILL is delivered asynchronously: a reaped leader does not prove the rest of its group has died.
+    if (groupSignalled && !(await groupEmptiedBy(probe.pid, deadline))) {
+      const survived = new Error('Cleanup probe descendants survived within remaining budget')
+      if (failure === undefined) throw survived
+      throw new AggregateError(
+        [failure, survived],
+        `${failure instanceof Error ? failure.message : String(failure)}; ${survived.message}`,
+      )
     }
   }
 }

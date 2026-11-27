@@ -89,6 +89,26 @@ describe('plugin package model', () => {
     ])
     expect(report.droid.map((entry) => `${entry.status} ${entry.kind}`)).toEqual(['dropped lsp', 'approximated rule'])
   })
+  it.each([
+    ['a flow mapping', '---\n{paths: ["src/**"]}\n---\nrule'],
+    ['a double-quoted key', '---\n"paths": ["src/**"]\n---\nrule'],
+    ['a single-quoted key', "---\n'paths':\n  - src/**\n---\nrule"],
+    ['a block mapping', '---\ndescription: API\npaths:\n  - src/**\n---\nrule'],
+    ['a custom tag', '---\npaths: !glob src/**\n---\nrule'],
+  ])('detects paths frontmatter written as %s', (_, text) => {
+    const scoped = buildPluginPackage(manifest, [file('dev.crucibledx.forge/rules/api.md', text)])
+    expect(scoped.components.droid[0].pathScoped).toBe(true)
+  })
+  it.each([
+    ['a nested key', '---\nmeta:\n  paths: [x]\n---\nrule'],
+    ['a block scalar line', '---\ndescription: |\n  paths: x\n---\nrule'],
+    ['no frontmatter', 'paths: x\n'],
+    ['frontmatter that is not YAML', '---\npaths: [\n---\nrule'],
+    ['an empty paths value', '---\npaths:\n---\nrule'],
+  ])('does not treat %s as path scope', (_, text) => {
+    const scoped = buildPluginPackage(manifest, [file('dev.crucibledx.forge/rules/api.md', text)])
+    expect(scoped.components.droid[0].pathScoped).toBe(false)
+  })
 })
 
 describe('lock model', () => {

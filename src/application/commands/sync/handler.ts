@@ -1,19 +1,27 @@
 import type {ProjectConfig, Source, SyncConfig} from '@domain/config/types'
 import {SYNC_CONFIG_DEFAULTS} from '@domain/config/types'
 import type {HarnessDefinition} from '@domain/harnesses'
-import {findUndelivered, getAllHarnesses, getHarness, resolveHarnessByPath} from '@domain/harnesses'
+import {
+  findUndelivered,
+  getAllHarnesses,
+  getHarness,
+  resolveHarnessByPath,
+  resolveHarnessBySettingsPath,
+} from '@domain/harnesses'
 import {redact} from '@domain/redact'
 import {detectLocalConflict} from '@domain/sync/conflict'
 import {resolveSourceConflicts, SourceConflictError} from '@domain/sync/merge'
 import {CONFIG_PATH, STATE_PATH, validatePathGraph} from '@domain/sync/plan'
 import {reconcileState} from '@domain/sync/reconcile'
 import {resolveTargets} from '@domain/sync/resolver'
-import type {SyncState} from '@domain/sync/state'
-import {hashContent} from '@domain/sync/state'
+import type {SyncState, SyncStateEntry} from '@domain/sync/state'
+import {hashContent, isKeyedEntry, keyedStateEntry, withKeyedEntries} from '@domain/sync/state'
 import type {Mutation, ResolvedTarget, SyncFileSummary} from '@domain/sync/types'
 import {MUTATION_TYPES as MT, SYNC_FILE_STATUSES as S} from '@domain/sync/types'
 import * as renderer from '@infrastructure/cli/renderer'
 import {convertAssistantsAlias, loadSyncState, serializeProjectConfig} from '@infrastructure/config'
+import type {KeyedValue} from '@infrastructure/config/keyed-merge'
+import {DRIFT_POLICIES, mergeKeyed} from '@infrastructure/config/keyed-merge'
 import {createConfinement} from '@infrastructure/fs/confinement'
 import {createFileReader} from '@infrastructure/fs/reader'
 import type {FileOperation, TransactionIO} from '@infrastructure/fs/transaction'
@@ -83,10 +91,18 @@ export async function runSyncWithDependencies(
       throw error
     }
     const state = await loadSyncState(boundary.root)
-    const {summaries, mutations, warnings} = await buildPlan(boundary.root, resolved, state, syncConfig, enabled)
+    const {summaries, mutations, warnings, overridden, keyed} = await buildPlan(
+      boundary.root,
+      resolved,
+      state,
+      syncConfig,
+      enabled,
+      {force: Boolean(options.force)},
+    )
     warnings.forEach(renderer.renderWarning)
     displayPlan(summaries, config.sources, syncConfig, options.dryRun)
-    const next = reconcileState(state, resolved, summaries, new Date().toISOString())
+    overridden.forEach((item) => renderer.renderWarning(M.output.forced(item)))
+    const next = withKeyedEntries(reconcileState(state, resolved, summaries, new Date().toISOString()), keyed)
     // Preparation validates preview write/access feasibility too; never move it below the dry-run return.
     const prepared = await prepareSync(boundary.root, mutations, next, context, dependencies.transaction)
     if (options.dryRun) return
@@ -176,23 +192,60 @@ export async function fetchAndResolve(
   return resolved
 }
 
+/** Settings keys forge should own in one shared JSON/JSONC file after this run. */
+export interface KeyedFile {
+  path: string
+  sourceName: string
+  values: KeyedValue[]
+}
+
+export interface PlanOptions {
+  /** Overwrite drifted forge-owned files and keys, over any configured local conflict strategy. */
+  force?: boolean
+  keyed?: KeyedFile[]
+}
+
 export async function buildPlan(
   root: string,
   targets: ResolvedTarget[],
   state: SyncState,
   config: SyncConfig,
   enabled = new Set(getAllHarnesses().map((harness) => harness.id)),
-): Promise<{summaries: SyncFileSummary[]; mutations: Mutation[]; warnings: string[]}> {
+  options: PlanOptions = {},
+): Promise<{
+  summaries: SyncFileSummary[]
+  mutations: Mutation[]
+  warnings: string[]
+  overridden: string[]
+  keyed: Record<string, SyncStateEntry | null>
+}> {
   const summaries: SyncFileSummary[] = []
   const mutations: Mutation[] = []
   const warnings: string[] = []
+  const overridden: string[] = []
   const errors: string[] = []
   const backups: string[] = []
   const read = await createFileReader(root)
   const selected = targets.filter((target) => enabled.has(target.harnessId))
   const paths = selected.map((target) => target.targetPath)
   const desired = new Set(paths)
-  const graph = [...paths, ...Object.keys(state.files).filter((path) => !desired.has(path)), STATE_PATH, CONFIG_PATH]
+  const keyedFiles = options.keyed ?? []
+  const claimed = new Set([...paths, ...keyedFiles.map((file) => file.path)])
+  const keyedPaths = [
+    ...new Set([
+      ...keyedFiles.map((file) => file.path),
+      ...Object.entries(state.files)
+        .filter(([, entry]) => isKeyedEntry(entry))
+        .map(([path]) => path),
+    ]),
+  ]
+  const graph = [
+    ...paths,
+    ...keyedFiles.map((file) => file.path),
+    ...Object.keys(state.files).filter((path) => !claimed.has(path)),
+    STATE_PATH,
+    CONFIG_PATH,
+  ]
   // Validate desired/state/metadata aliases before planning can read any candidate.
   validatePathGraph(graph)
   const active = selected.filter((target) => {
@@ -217,6 +270,10 @@ export async function buildPlan(
       })
   }
   const policy = (path: string) => {
+    if (options.force) {
+      overridden.push(path)
+      return S.UPDATE
+    }
     if (config.local_conflict_strategy === 'error') throw new Error(`Local conflict: ${path}`)
     return config.local_conflict_strategy === 'local-wins' ? S.SKIPPED : S.UPDATE
   }
@@ -242,7 +299,7 @@ export async function buildPlan(
     }
   }
   for (const [path, entry] of Object.entries(state.files)) {
-    if (desired.has(path)) continue
+    if (desired.has(path) || isKeyedEntry(entry)) continue
     const owner = resolveHarnessByPath(path)
     if (!owner || !enabled.has(owner.id)) {
       warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
@@ -262,11 +319,42 @@ export async function buildPlan(
       errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+  // Keyed cleanup ignores keep_local: forge removes the keys it no longer declares, never the shared file.
+  const keyed: Record<string, SyncStateEntry | null> = {}
+  for (const path of keyedPaths) {
+    try {
+      const file = keyedFiles.find((item) => item.path === path)
+      const entry = state.files[path]
+      if (!file) {
+        const owner = resolveHarnessBySettingsPath(path)
+        if (!owner || !enabled.has(owner.id)) {
+          warnings.push(`Retaining tracked path with disabled, unknown or ambiguous ownership: ${path}`)
+          keyed[path] = entry
+          continue
+        }
+      }
+      if (desired.has(path)) throw new Error('A synced file and a keyed merge target the same path')
+      if (entry && !isKeyedEntry(entry)) throw new Error('Tracked as a whole forge-owned file; keyed merge refused')
+      const existing = await read(path)
+      const result = mergeKeyed({
+        text: existing === null ? null : existing.toString('utf8'),
+        owned: entry?.ownedKeys ?? {},
+        desired: file?.values ?? [],
+        drift: options.force ? DRIFT_POLICIES.OVERWRITE : DRIFT_POLICIES.BLOCK,
+      })
+      overridden.push(...result.drifted.map((key) => `${path} ${key}`))
+      if (result.drifted.length && existing !== null && config.backup) await backup(path, existing)
+      if (result.content !== null) mutations.push({type: MT.KEYED_MERGE, path, base: existing, content: result.content})
+      keyed[path] = keyedStateEntry(file?.sourceName ?? entry!.sourceName, result.owned)
+    } catch (error) {
+      errors.push(`${path}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   // Recheck after generated backups exist: the first graph cannot detect .bak collisions.
   validatePathGraph([...graph, ...backups])
   if (errors.length)
     throw new SafetyError(`Planning failed; no protected data changed:\n${errors.join('\n')}`, errors.length)
-  return {summaries, mutations, warnings}
+  return {summaries, mutations, warnings, overridden, keyed}
 }
 
 function operationsFor(mutations: Mutation[], next: SyncState, context: IOContext): FileOperation[] {
@@ -279,6 +367,7 @@ function operationsFor(mutations: Mutation[], next: SyncState, context: IOContex
         private: mutation.backup === true,
       }
     if (mutation.type === MT.FILE_DELETE) return {path: mutation.path, content: null}
+    if (mutation.type === MT.KEYED_MERGE) return {path: mutation.path, content: mutation.content, expect: mutation.base}
     throw new Error(`Unsupported sync operation: ${mutation.type}`)
   })
   // Commit targets/backups, then state, then config; compensation must reverse this metadata boundary.
