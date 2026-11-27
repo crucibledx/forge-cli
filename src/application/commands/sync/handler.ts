@@ -109,6 +109,7 @@ export async function runSyncWithDependencies(
       plugins: config.plugins ?? [],
       enabled,
     })
+    resolved = [...resolved, ...plugins.targets]
     const state = await loadSyncState(boundary.root)
     const {summaries, mutations, warnings, overridden, keyed} = await buildPlan(
       boundary.root,

@@ -13,7 +13,11 @@ const marketplace = 'crucible-forge-0123456789ab'
 
 describe('AC-10 claude-settings registrar', () => {
   it('is what the claude-code plugin capability resolves to, with the claude emitter', () => {
-    expect(claudeCode.plugin).toEqual({emit: 'claude', register: 'claude-settings'})
+    expect(claudeCode.plugin).toEqual({
+      emit: 'claude',
+      register: 'claude-settings',
+      installNote: 'installs on next start, once you trust the folder',
+    })
     expect(PLUGIN_EMITTERS[claudeCode.plugin!.emit]).toBe(emitClaude)
     expect(PLUGIN_REGISTRARS[claudeCode.plugin!.register]).toBe(registerClaudeSettings)
   })
