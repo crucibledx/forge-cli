@@ -36,6 +36,7 @@ import {type PluginLoadCheckJob, pluginLoadCheckJobs} from './validation-lanes'
  *
  * Env: LOAD_CHECK_HARNESS / LOAD_CHECK_SCOPE select one job (default: all four), LOAD_CHECK_FORCE_FALLBACK=1 forces
  * fallback mode, LOAD_CHECK_FIXTURE=broken-manifest-path moves the delivered manifest to a wrong path after sync.
+ * POSIX only (the lane runs on ubuntu-latest): shell-form hooks run through `sh -c`, and Droid's rule hook needs node.
  */
 
 type Harness = PluginLoadCheckJob['harness']
@@ -78,12 +79,36 @@ export interface LoadCheckReport {
 
 const check = (name: string, ok: boolean, detail?: string): Check => ({check: name, ok, ...(detail ? {detail} : {})})
 
-async function readJson(path: string): Promise<unknown> {
+export type JsonFile = {state: 'missing'} | {state: 'invalid'; error: string} | {state: 'ok'; value: unknown}
+
+async function readJsonFile(path: string): Promise<JsonFile> {
+  let text: string
   try {
-    return JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return undefined
+    text = await readFile(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {state: 'missing'}
+    return {state: 'invalid', error: String(error)}
   }
+  try {
+    return {state: 'ok', value: JSON.parse(text)}
+  } catch (error) {
+    return {state: 'invalid', error: String(error)}
+  }
+}
+
+async function readJson(path: string): Promise<unknown> {
+  const file = await readJsonFile(path)
+  return file.state === 'ok' ? file.value : undefined
+}
+
+/**
+ * Settings for the checks: a missing file is empty settings (valid after removal), an unreadable or corrupt one
+ * fails, so a removal that leaves a broken settings file never counts as removed.
+ */
+export function settingsOf(file: JsonFile, label: string): {settings: unknown; problem?: Check} {
+  if (file.state === 'ok') return {settings: file.value}
+  if (file.state === 'missing') return {settings: {}}
+  return {settings: {}, problem: check(`${label} is readable JSON`, false, file.error)}
 }
 
 const settingsSchema = z.object({
@@ -156,10 +181,15 @@ export async function layoutChecks(
 
 /** After removal the catalog, if still there, no longer lists the plugin. */
 export async function catalogDropped(source: string, harness: Harness): Promise<Check> {
-  const catalog = catalogSchema.safeParse(await readJson(join(source, harnessLayout[harness].catalog)))
+  const name = `catalog no longer lists ${PLUGIN}`
+  const file = await readJsonFile(join(source, harnessLayout[harness].catalog))
+  if (file.state === 'missing') return check(name, true)
+  if (file.state === 'invalid') return check(name, false, file.error)
+  const catalog = catalogSchema.safeParse(file.value)
   return check(
-    `catalog no longer lists ${PLUGIN}`,
-    !catalog.success || catalog.data.plugins.every((plugin) => plugin.name !== PLUGIN),
+    name,
+    catalog.success && catalog.data.plugins.every((plugin) => plugin.name !== PLUGIN),
+    catalog.success ? undefined : catalog.error.message,
   )
 }
 
@@ -170,7 +200,9 @@ export async function fixtureRules(fixture = FIXTURE_DIR): Promise<Record<string
   for (const file of readdirSync(dir)
     .filter((name) => name.endsWith('.md'))
     .sort())
-    rules[file.slice(0, -3)] = (await readFile(join(dir, file), 'utf8')).replace(/^---\n[\s\S]*?\n---\n/, '').trim()
+    rules[file.slice(0, -3)] = (await readFile(join(dir, file), 'utf8'))
+      .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+      .trim()
   return rules
 }
 
@@ -259,6 +291,8 @@ async function claudeSession(ctx: Context, label: string) {
     90000,
   )
   const events = parseEvents(probe.stdout)
+  const noModel = claudeMadeNoModelCall(events)
+  ctx.checks.push(check(`${label} made no model call`, noModel.ok, noModel.detail))
   return {probe, events, plugins: claudeInitPlugins(events)}
 }
 
@@ -267,14 +301,15 @@ async function harnessProof(ctx: Context, id: string, version: string, forced: b
   if (forced) return 'forced by LOAD_CHECK_FORCE_FALLBACK=1'
   if (ctx.job.harness === 'claude-code') {
     const session = await claudeSession(ctx, 'claude session')
-    if (!session.plugins) return `claude -p printed no init event (${diagnostic(session.probe, 200)})`
-    const noModel = claudeMadeNoModelCall(session.events)
-    ctx.checks.push(check('claude session made no model call', noModel.ok, noModel.detail))
+    // The session listing works without credentials, so a missing init event is a failure, never a fallback.
+    ctx.checks.push(
+      check('claude session printed an init event', session.plugins !== undefined, diagnostic(session.probe)),
+    )
     ctx.checks.push(
       check(
         `claude session loaded ${id} at ${version}`,
-        session.plugins.some((plugin) => plugin.source === id && plugin.version === version),
-        JSON.stringify(session.plugins),
+        session.plugins?.some((plugin) => plugin.source === id && plugin.version === version) === true,
+        JSON.stringify(session.plugins ?? null),
       ),
     )
     // Today's list omits directory-marketplace plugins; should it list this one, it must agree with the session.
@@ -293,6 +328,10 @@ async function harnessProof(ctx: Context, id: string, version: string, forced: b
       )
     return undefined
   }
+  // The non-model trigger: a marketplace update. Droid 1.20.0 registers settings-declared marketplaces only when a
+  // logged-in session starts, so without credentials the update finds nothing and the job falls back.
+  const update = await exec(ctx, 'droid trigger', [...droidCli, 'plugin', 'marketplace', 'update'], ctx.cliEnv, 60000)
+  ctx.checks.push(check('droid plugin marketplace update runs', succeeded(update), diagnostic(update)))
   const marketplaces = await exec(
     ctx,
     'droid marketplaces',
@@ -300,9 +339,11 @@ async function harnessProof(ctx: Context, id: string, version: string, forced: b
     ctx.cliEnv,
     60000,
   )
+  ctx.checks.push(check('droid plugin marketplace list runs', succeeded(marketplaces), diagnostic(marketplaces)))
   const marketplace = id.slice(id.indexOf('@') + 1)
-  if (!succeeded(marketplaces) || !marketplaces.stdout.includes(marketplace))
-    return `droid has not registered marketplace ${marketplace}: it registers settings-declared marketplaces only in a logged-in session, and this job has no credentials`
+  if (!succeeded(update) || !succeeded(marketplaces)) return undefined
+  if (!marketplaces.stdout.includes(marketplace))
+    return `droid has not registered marketplace ${marketplace} after \`droid plugin marketplace update\` (${update.stdout.trim() || 'no output'}; list: ${marketplaces.stdout.trim() || 'no output'}); it registers settings-declared marketplaces only in a logged-in session, and this job has no credentials`
   const list = await exec(
     ctx,
     'droid plugin list',
@@ -388,6 +429,7 @@ async function loadCheckIn(ctx: Context, fixture: Fixture, forceFallback: boolea
       JSON.stringify({projects: {[ctx.project]: {hasTrustDialogAccepted: true}}}, null, 2) + '\n',
       {mode: 0o600},
     )
+  await harnessVersion(ctx)
   await Bun.write(where.config, forgeConfig(job.harness, true))
   await exec(ctx, 'forge plan', [ctx.binary, ...where.sync, '--dry-run'], ctx.env, 90000)
   const sync = await exec(ctx, 'forge sync (portability report)', [ctx.binary, ...where.sync], ctx.env, 90000)
@@ -404,13 +446,14 @@ async function loadCheckIn(ctx: Context, fixture: Fixture, forceFallback: boolea
   const tree = join(where.cache, PLUGIN, version, harnessLayout[job.harness].tree)
   if (fixture === 'broken-manifest-path') await rename(join(tree, MANIFEST), join(tree, 'plugin.json'))
 
-  await harnessVersion(ctx)
   const reason = await harnessProof(ctx, id, version, forceFallback)
   const mode = reason
     ? `fallback (${reason})`
     : `harness (${job.harness === 'claude-code' ? 'claude session init event, started by claude -p without credentials' : 'droid plugin list'})`
   console.log(`load-check mode: ${mode}`)
-  const settings = await readJson(where.settings)
+  const installed = settingsOf(await readJsonFile(where.settings), where.settings)
+  if (installed.problem) ctx.checks.push(installed.problem)
+  const settings = installed.settings
   ctx.checks.push(...settingsChecks(settings, job.harness, marketplace, true))
   ctx.checks.push(...(await layoutChecks(settings, job.harness, marketplace, version)))
   if (job.harness === 'claude-code') await claudeValidate(ctx, tree)
@@ -419,7 +462,9 @@ async function loadCheckIn(ctx: Context, fixture: Fixture, forceFallback: boolea
   await Bun.write(where.config, forgeConfig(job.harness, false))
   const removal = await exec(ctx, 'forge sync after removal', [ctx.binary, ...where.sync], ctx.env, 90000)
   ctx.checks.push(check('forge sync after removal exits 0', succeeded(removal), diagnostic(removal)))
-  ctx.checks.push(...settingsChecks(await readJson(where.settings), job.harness, marketplace, false))
+  const removed = settingsOf(await readJsonFile(where.settings), where.settings)
+  if (removed.problem) ctx.checks.push(removed.problem)
+  ctx.checks.push(...settingsChecks(removed.settings, job.harness, marketplace, false))
   ctx.checks.push(check(`${PLUGIN} cache entry is gone`, !existsSync(join(where.cache, PLUGIN))))
   ctx.checks.push(await catalogDropped(where.cache, job.harness))
   if (job.harness === 'claude-code') {
@@ -477,6 +522,8 @@ export async function loadCheck(
         ...env,
         BUN_INSTALL_CACHE_DIR: join(sandbox.root, 'bun-cache'),
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        // A closed local port: even if a developer's keychain login were found, no model request leaves the machine.
+        ANTHROPIC_BASE_URL: 'http://127.0.0.1:9',
       },
       deadline: performance.now() + JOB_BUDGET_MS,
       checks: report.checks,
@@ -510,7 +557,14 @@ if (import.meta.main) {
   const fixture = (process.env.LOAD_CHECK_FIXTURE ?? 'cover-all') as Fixture
   let ok = fixture === 'cover-all' || fixture === 'broken-manifest-path'
   if (!ok) console.error(`Unknown LOAD_CHECK_FIXTURE=${fixture}`)
-  for (const job of ok ? selectJobs(process.env) : []) {
+  let jobs: PluginLoadCheckJob[] = []
+  try {
+    if (ok) jobs = selectJobs(process.env)
+  } catch (error) {
+    console.error((error as Error).message)
+    ok = false
+  }
+  for (const job of jobs) {
     console.log(`== plugin load check: ${job.harness}, ${job.scope} scope, fixture ${fixture} ==`)
     const report = await loadCheck(job, fixture, process.env.LOAD_CHECK_FORCE_FALLBACK === '1')
     // Details of passing checks are noise in the job log; a failure prints its detail and the transcript.

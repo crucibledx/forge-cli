@@ -12,6 +12,7 @@ import {
   layoutChecks,
   selectJobs,
   settingsChecks,
+  settingsOf,
 } from './plugin-load-check'
 import {pluginLoadCheckJobs} from './validation-lanes'
 
@@ -82,6 +83,19 @@ describe('plugin load check (spec 0004)', () => {
     expect((await catalogDropped(root, 'droid')).ok).toBe(false)
     writeFileSync(join(catalogDir, 'marketplace.json'), JSON.stringify({...catalog, plugins: []}))
     expect((await catalogDropped(root, 'droid')).ok).toBe(true)
+    // A corrupt catalog is not a dropped entry.
+    writeFileSync(join(catalogDir, 'marketplace.json'), '{"name":')
+    expect((await catalogDropped(root, 'droid')).ok).toBe(false)
+  })
+
+  it('0004-AC-6 a missing settings file counts as removed, a corrupt one fails', () => {
+    expect(settingsOf({state: 'missing'}, 'settings.json')).toEqual({settings: {}})
+    expect(settingsOf({state: 'ok', value: {a: 1}}, 'settings.json')).toEqual({settings: {a: 1}})
+    expect(settingsOf({state: 'invalid', error: 'SyntaxError'}, 'settings.json').problem).toEqual({
+      check: 'settings.json is readable JSON',
+      ok: false,
+      detail: 'SyntaxError',
+    })
   })
 
   it('0004-AC-6 removal requires the settings keys to be gone', () => {

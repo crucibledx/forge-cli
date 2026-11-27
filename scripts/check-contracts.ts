@@ -158,7 +158,7 @@ export function validateContracts(input: ReturnType<typeof contractInputs>): str
   const lanes = ci.jobs?.lanes as {env?: Record<string, string>; steps?: Record<string, unknown>[]} | undefined
   const steps = lanes?.steps ?? []
   // Lanes run without credentials: no secret or token reference anywhere, and no env beyond the load-check selectors.
-  require(!/\bsecrets\.|github\.token/.test(JSON.stringify(ci)), 'CI must not reference secrets or tokens')
+  require(!/\bsecrets\b|github\.token/.test(JSON.stringify(ci)), 'CI must not reference secrets or tokens')
   require(ci.env === undefined &&
     JSON.stringify(lanes?.env) === JSON.stringify(laneJobEnv) &&
     steps.every((step) => step.env === undefined), 'Lane job env must equal the declared allowlist')

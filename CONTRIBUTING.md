@@ -72,8 +72,10 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
 - `test:plugin-load-check` (spec 0004) needs network access for the same pinned CLIs and no credentials. Per harness
   and scope, the compiled binary installs the `cover-all` plugin fixture into a disposable HOME and project, the
   harness reports whether it loaded it, the rule delivery is checked, and the plugin is removed and checked again. It
-  prints `load-check mode: harness (...)` or `load-check mode: fallback (<reason>)`; Droid falls back today because
-  it registers settings-declared marketplaces only in a logged-in session. Select one job with
+  prints `load-check mode: harness (...)` or `load-check mode: fallback (<reason>)`. Claude Code's listing is the
+  init event of a credential-less `claude -p` session (`claude plugin list` omits directory-marketplace plugins);
+  Droid falls back today because even after `droid plugin marketplace update` it registers settings-declared
+  marketplaces only in a logged-in session. Select one job with
   `LOAD_CHECK_HARNESS=claude-code|droid` and `LOAD_CHECK_SCOPE=user|project`, force fallback with
   `LOAD_CHECK_FORCE_FALLBACK=1`, and run the negative case with `LOAD_CHECK_FIXTURE=broken-manifest-path`, which
   moves the delivered manifest to a wrong path after sync and must fail in both modes. Droid's rule hook needs `node`

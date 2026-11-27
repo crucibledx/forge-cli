@@ -45,7 +45,7 @@ export async function run(
   capMs: number,
 ): Promise<RunResult> {
   const timeoutMs = Math.min(capMs, deadline - performance.now())
-  if (timeoutMs <= 0) return {code: null, timedOut: true, stdout: '', stderr: '', error: 'Smoke deadline exceeded'}
+  if (timeoutMs <= 0) return {code: null, timedOut: true, stdout: '', stderr: '', error: 'Deadline exceeded'}
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
   const output = {stdout: '', stderr: ''}
   let child: Awaited<ReturnType<typeof spawnOwnedPipe>> | undefined

@@ -181,10 +181,12 @@ Known high/critical findings still take precedence over lifecycle warnings or an
 
 The plugin load check's network exception is npm registry downloads of the pinned harness CLIs
 (`@anthropic-ai/claude-code` and `droid` at exact versions through `bunx`, into a sandbox-local cache); the plugin
-under test is a local fixture and the job fetches nothing else. Lane jobs receive no credentials: `check:contracts`
-rejects any `secrets.` or `github.token` reference in CI and any lane env beyond `LOAD_CHECK_HARNESS` and
-`LOAD_CHECK_SCOPE`. Claude Code runs with nonessential traffic disabled; its credential-less session probe stops at a
-synthetic "Not logged in" reply, and the job fails unless that run reports zero cost, zero API time and no model usage.
+under test is a local fixture, and the job's own steps download nothing else. The harness CLIs' own startup traffic is
+not monitored; it carries no credentials. Lane jobs receive none: `check:contracts` rejects any `secrets` or
+`github.token` reference in CI and any lane env beyond `LOAD_CHECK_HARNESS` and `LOAD_CHECK_SCOPE`, and the checkout
+does not persist its token. Claude Code runs with nonessential traffic disabled and its API base URL set to a closed
+local port, so no model request leaves the machine even where a login exists; every credential-less session must
+report zero cost, zero API time and no model usage, or the job fails.
 Private sandbox roots are replaced before their enclosing repository root, including repository-local roots,
 native/canonical aliases and cleanup errors after disposal.
 Performance checks offline 10/1000-target cold-help/cold-sync/warm-sync outcomes with 30-second invocation limits.

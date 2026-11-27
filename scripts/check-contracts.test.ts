@@ -174,6 +174,18 @@ const loadCheckDrift: Record<string, [string, (ci: ReturnType<typeof contractInp
       ci.jobs.lanes.steps[0].with.token = '${{ github.token }}'
     },
   ],
+  'secret-by-index': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.steps[0].with.token = "${{ secrets['ANTHROPIC_API_KEY'] }}"
+    },
+  ],
+  'all-secrets-serialized': [
+    'CI must not reference secrets or tokens',
+    (ci) => {
+      ci.jobs.lanes.steps[0].with.token = '${{ toJSON(secrets) }}'
+    },
+  ],
   'auth-env-in-lane-job': [
     'Lane job env must equal the declared allowlist',
     (ci) => {
