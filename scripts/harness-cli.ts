@@ -95,7 +95,10 @@ export const diagnostic = (result: RunResult, chars = 800): string =>
     .trim()
     .slice(-chars)
 
-export const succeeded = (result: RunResult) => !result.timedOut && !result.error && result.code === 0
+/** The process exited on its own, within its deadline, and its process tree was cleaned up; any exit code. */
+export const completed = (result: RunResult) => !result.timedOut && !result.error && result.code !== null
+
+export const succeeded = (result: RunResult) => completed(result) && result.code === 0
 
 export function parseEvents(stdout: string): unknown[] {
   return stdout.split('\n').flatMap((line) => {

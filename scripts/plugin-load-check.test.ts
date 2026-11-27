@@ -7,10 +7,12 @@ import {describe, expect, it} from 'bun:test'
 import {
   catalogDropped,
   claudeInitPlugins,
+  droidListed,
   droidListShows,
   fixtureRules,
   layoutChecks,
   selectJobs,
+  sessionChecks,
   settingsChecks,
   settingsOf,
 } from './plugin-load-check'
@@ -119,6 +121,32 @@ describe('plugin load check (spec 0004)', () => {
     expect(droidListShows(list, 'cover-all@m', '1.1.0')).toBe(false)
     expect(droidListShows(list.replace('Enabled', 'Disabled'), 'cover-all@m', '1.0.0')).toBe(false)
     expect(droidListShows('No plugins installed in project scope.', 'cover-all@m', '1.0.0')).toBe(false)
+    // Whole fields only: a longer id or a version that merely contains the locked one does not match.
+    expect(droidListShows(list.replace('1.0.0', '11.0.0'), 'cover-all@m', '1.0.0')).toBe(false)
+    expect(droidListShows(list.replace('cover-all@m', 'cover-all@m-2'), 'cover-all@m', '1.0.0')).toBe(false)
+    expect(droidListShows('cover-all@m (v1.0.0) Enabled', 'cover-all@m', '1.0.0')).toBe(true)
+
+    const ran = {code: 0, timedOut: false, stdout: list, stderr: ''}
+    expect(droidListed(ran, 'cover-all@m', '1.0.0')).toBe(true)
+    expect(droidListed({...ran, code: 1}, 'cover-all@m', '1.0.0')).toBe(false)
+    expect(droidListed({...ran, error: 'Cleanup failed'}, 'cover-all@m', '1.0.0')).toBe(false)
+  })
+
+  it('0004-AC-2,4 a Claude session counts only when it ran to completion, even with valid output', () => {
+    const events = [
+      {type: 'assistant', message: {model: '<synthetic>'}},
+      {type: 'result', total_cost_usd: 0, duration_api_ms: 0, modelUsage: {}},
+    ]
+    // The credential-less run exits 1 by design.
+    const ran = {code: 1, timedOut: false, stdout: '', stderr: ''}
+    expect(failing(sessionChecks('session', ran, events))).toEqual([])
+    expect(failing(sessionChecks('session', {...ran, error: 'Cleanup failed: EPERM'}, events))).toEqual([
+      'session ran to completion',
+    ])
+    expect(failing(sessionChecks('session', {...ran, code: null, timedOut: true}, events))).toEqual([
+      'session ran to completion',
+    ])
+    expect(failing(sessionChecks('session', ran, events.slice(0, 1)))).toEqual(['session made no model call'])
   })
 
   it('0004-AC-6 takes the expected rule text from the fixture, without frontmatter', async () => {

@@ -198,7 +198,7 @@ CI links are required evidence, not something inferred from one local run.
 
 ## Merge readiness and owner boundaries
 
-A PR is ready for the owner when all ten lanes and the always-run `Deterministic gate` pass on its exact tested
+A PR is ready for the owner when all twelve lanes and the always-run `Deterministic gate` pass on its exact tested
 merge revision, and the hosted `review` check passes with no unresolved blocking findings. The code owner's approval
 is the final decision. The repository has no readiness, producer or attestation collector: the PR body and CI are
 the record, and prose saying “ready” is not evidence.

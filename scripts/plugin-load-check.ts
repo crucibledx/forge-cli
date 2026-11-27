@@ -8,11 +8,13 @@ import {
   CLAUDE_VERSION,
   claudeCli,
   claudeMadeNoModelCall,
+  completed,
   diagnostic,
   DROID_VERSION,
   droidCli,
   parseEvents,
   run,
+  type RunResult,
   succeeded,
 } from './harness-cli'
 import {repositoryRoot} from './repository-root'
@@ -217,11 +219,33 @@ export function claudeInitPlugins(events: unknown[]): {source: string; version?:
   return events.map((event) => initEvent.safeParse(event)).find((parsed) => parsed.success)?.data?.plugins
 }
 
-/** `droid plugin list` prints one block per plugin; the plugin's block must say Enabled and carry the version. */
+/**
+ * `droid plugin list` prints one block per plugin; one block must carry the exact plugin id, the exact version and the
+ * Enabled status as whole fields, so a longer id or a version like 11.0.0 never matches.
+ */
 export function droidListShows(stdout: string, id: string, version: string): boolean {
-  return stdout
-    .split(/\n\s*\n/)
-    .some((block) => block.includes(id) && /\bEnabled\b/.test(block) && block.includes(version))
+  return stdout.split(/\n\s*\n/).some((block) => {
+    const fields = block.split(/[\s()[\],:;|]+/).filter(Boolean)
+    return (
+      fields.includes(id) && fields.includes('Enabled') && fields.some((field) => field.replace(/^v/, '') === version)
+    )
+  })
+}
+
+/** The Droid listing counts only from a command that succeeded. */
+export const droidListed = (list: RunResult, id: string, version: string) =>
+  succeeded(list) && droidListShows(list.stdout, id, version)
+
+/**
+ * A credential-less session exits nonzero by design, but it must have run to completion: a timeout, a spawn error or
+ * a failed process-tree cleanup fails it even when its stdout looks valid.
+ */
+export function sessionChecks(label: string, probe: RunResult, events: unknown[]): Check[] {
+  const noModel = claudeMadeNoModelCall(events)
+  return [
+    check(`${label} ran to completion`, completed(probe), diagnostic(probe)),
+    check(`${label} made no model call`, noModel.ok, noModel.detail),
+  ]
 }
 
 const hooksSchema = z.object({
@@ -291,8 +315,7 @@ async function claudeSession(ctx: Context, label: string) {
     90000,
   )
   const events = parseEvents(probe.stdout)
-  const noModel = claudeMadeNoModelCall(events)
-  ctx.checks.push(check(`${label} made no model call`, noModel.ok, noModel.detail))
+  ctx.checks.push(...sessionChecks(label, probe, events))
   return {probe, events, plugins: claudeInitPlugins(events)}
 }
 
@@ -352,11 +375,7 @@ async function harnessProof(ctx: Context, id: string, version: string, forced: b
     60000,
   )
   ctx.checks.push(
-    check(
-      `droid plugin list shows ${id} Enabled at ${version}`,
-      droidListShows(list.stdout, id, version),
-      diagnostic(list),
-    ),
+    check(`droid plugin list shows ${id} Enabled at ${version}`, droidListed(list, id, version), diagnostic(list)),
   )
   return undefined
 }
