@@ -38,6 +38,7 @@ bun run test:performance   # offline 10/1000-target correctness and advisory tim
 bun run test:platform      # current OS only; the other native OS runs only in its CI lane
 bun run check:contracts    # ledger, registry, workflow/toolchain boundaries
 bun run build && bun run test:harness-smoke  # real sync smoke, see below
+bun run build && bun run test:plugin-load-check  # plugin load check, see below
 ```
 
 Named suite membership is maintained in `scripts/registry/suites.ts`; package scripts only select a suite.
@@ -68,8 +69,17 @@ Tests remain co-located under `src/` or in `e2e/`. Security/platform selections 
   afterwards). Claude Code must list the synced skills and commands without making a model call. Droid has no offline
   listing command, so it gets the closest non-model checks (`droid doctor --json`, `droid exec --list-tools`) and the
   synced files are checked on disk. Forge has no Droid sync target yet.
+- `test:plugin-load-check` (spec 0004) needs network access for the same pinned CLIs and no credentials. Per harness
+  and scope, the compiled binary installs the `cover-all` plugin fixture into a disposable HOME and project, the
+  harness reports whether it loaded it, the rule delivery is checked, and the plugin is removed and checked again. It
+  prints `load-check mode: harness (...)` or `load-check mode: fallback (<reason>)`; Droid falls back today because
+  it registers settings-declared marketplaces only in a logged-in session. Select one job with
+  `LOAD_CHECK_HARNESS=claude-code|droid` and `LOAD_CHECK_SCOPE=user|project`, force fallback with
+  `LOAD_CHECK_FORCE_FALLBACK=1`, and run the negative case with `LOAD_CHECK_FIXTURE=broken-manifest-path`, which
+  moves the delivered manifest to a wrong path after sync and must fail in both modes. Droid's rule hook needs `node`
+  on PATH.
 - Never run raw `bun test`: legacy cache-cleanup tests must not use the operator's temp/cache roots.
-- A successful local build is not a native Windows/macOS substitute. CI runs all eleven independent lanes, one step
+- A successful local build is not a native Windows/macOS substitute. CI runs all twelve independent lanes, one step
   per check with its output in the job log, and an always-run `Deterministic gate` that fails unless every lane
   succeeded. "Re-run failed jobs" works.
   See the [safety contract](docs/safety-contract.md).

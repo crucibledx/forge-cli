@@ -152,7 +152,25 @@ export const validationLanes: readonly ValidationLane[] = [
     br_ids: [],
     checks: [run('build'), run('test:harness-smoke')],
   },
+  {
+    id: 'plugin-load-check',
+    fixture_scope:
+      'compiled binary installing the local cover-all plugin fixture into a disposable HOME and project, one job per harness (Claude Code, Droid) and scope (user, project); the pinned harness CLI lists the plugin or the job prints its fallback mode; npm registry downloads of the pinned CLIs are the only network use; no API keys or model calls',
+    ac_ids: [],
+    br_ids: [],
+    checks: [run('build'), run('test:plugin-load-check')],
+  },
 ]
+/** One plugin-load-check job per v0.8 plugin harness and scope (spec 0004); each is its own CI matrix row. */
+export const pluginLoadCheckJobs = [
+  {harness: 'claude-code', scope: 'user'},
+  {harness: 'claude-code', scope: 'project'},
+  {harness: 'droid', scope: 'user'},
+  {harness: 'droid', scope: 'project'},
+] as const
+export type PluginLoadCheckJob = (typeof pluginLoadCheckJobs)[number]
+/** The only environment a lane job declares: the load-check selectors. No credentials, no auth tokens. */
+export const laneJobEnv = {LOAD_CHECK_HARNESS: '${{ matrix.harness }}', LOAD_CHECK_SCOPE: '${{ matrix.scope }}'}
 export const acceptanceIds = [
   'AC-1',
   'AC-2',

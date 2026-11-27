@@ -4,8 +4,17 @@ import {join, resolve} from 'node:path'
 
 import {z} from 'zod'
 
-import {spawnOwnedPipe} from '../e2e/framework/owned-pipe'
-import {terminateTree} from '../e2e/framework/process'
+import {
+  CLAUDE_VERSION,
+  claudeCli,
+  claudeMadeNoModelCall,
+  diagnostic,
+  DROID_VERSION,
+  droidCli,
+  parseEvents,
+  run,
+  succeeded,
+} from './harness-cli'
 import {repositoryRoot} from './repository-root'
 import {createTestSandbox} from './test-sandbox'
 
@@ -29,8 +38,6 @@ import {createTestSandbox} from './test-sandbox'
 const STARTER_URL = 'https://github.com/crucibledx/forge-skills-starter.git'
 // A release tag, not a branch: the expected items below are a contract with this exact starter content.
 const STARTER_REF = 'v0.7.1'
-const CLAUDE_VERSION = '2.1.332'
-const DROID_VERSION = '1.20.0'
 // One canonical skill, one canonical workflow-as-command and one pre-structured passthrough skill,
 // so both source layouts of the starter are covered.
 const EXPECTED_SKILLS = ['detect-stack', 'review-pr', 'create-resource']
@@ -43,90 +50,7 @@ const EXPECTED_FILES = [
 ]
 // The CI lane has 10 minutes including checkout, install and build; leave room for those and cleanup.
 const SMOKE_BUDGET_MS = 7 * 60 * 1000
-const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 const DIAGNOSTIC_CHARS = 800
-
-interface RunResult {
-  code: number | null
-  timedOut: boolean
-  stdout: string
-  stderr: string
-  error?: string
-}
-
-async function drain(stream: ReadableStream<Uint8Array>, readers: ReadableStreamDefaultReader<Uint8Array>[]) {
-  const reader = stream.getReader()
-  readers.push(reader)
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const {done, value} = await reader.read()
-    if (done) return Buffer.concat(chunks).toString('utf8')
-    if (size + value.byteLength <= MAX_OUTPUT_BYTES) chunks.push(value)
-    size += value.byteLength
-  }
-}
-
-/** Owned process group (Job Object on Windows): a timeout or failure terminates every descendant. */
-async function run(
-  command: string[],
-  cwd: string,
-  env: Record<string, string>,
-  deadline: number,
-  capMs: number,
-): Promise<RunResult> {
-  const timeoutMs = Math.min(capMs, deadline - performance.now())
-  if (timeoutMs <= 0) return {code: null, timedOut: true, stdout: '', stderr: '', error: 'Smoke deadline exceeded'}
-  const readers: ReadableStreamDefaultReader<Uint8Array>[] = []
-  const output = {stdout: '', stderr: ''}
-  let child: Awaited<ReturnType<typeof spawnOwnedPipe>> | undefined
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let code: number | null = null
-  let timedOut = false
-  const errors: string[] = []
-  try {
-    child = await spawnOwnedPipe(command, cwd, env)
-    const started = child
-    await Promise.race([
-      Promise.all([
-        drain(started.stdout, readers).then((text) => (output.stdout = text)),
-        drain(started.stderr, readers).then((text) => (output.stderr = text)),
-        started.exited.then((exit) => (code = exit)),
-      ]),
-      new Promise<void>((done) => {
-        timer = setTimeout(() => {
-          timedOut = true
-          done()
-        }, timeoutMs)
-      }),
-    ])
-  } catch (error) {
-    errors.push(String(error))
-  } finally {
-    clearTimeout(timer)
-    try {
-      if (child) await terminateTree(child, env)
-    } catch (error) {
-      errors.push(`Cleanup failed: ${String(error)}`)
-    }
-    await Promise.allSettled(readers.map((reader) => reader.cancel()))
-  }
-  return {
-    code: timedOut ? null : code,
-    timedOut,
-    ...output,
-    ...(errors.length ? {error: errors.join('; ')} : {}),
-  }
-}
-
-const diagnostic = (result: RunResult): string =>
-  [result.timedOut ? 'timed out' : `exit ${result.code}`, result.error, result.stdout, result.stderr]
-    .filter(Boolean)
-    .join('\n')
-    .trim()
-    .slice(-DIAGNOSTIC_CHARS)
-
-const succeeded = (result: RunResult) => !result.timedOut && !result.error && result.code === 0
 
 const initEvent = z.object({
   type: z.literal('system'),
@@ -134,24 +58,6 @@ const initEvent = z.object({
   skills: z.array(z.string()),
   slash_commands: z.array(z.string()),
 })
-const resultEvent = z.object({
-  type: z.literal('result'),
-  total_cost_usd: z.number(),
-  duration_api_ms: z.number(),
-  modelUsage: z.record(z.string(), z.unknown()),
-})
-const assistantEvent = z.object({type: z.literal('assistant'), message: z.object({model: z.string()})})
-
-function parseEvents(stdout: string): unknown[] {
-  return stdout.split('\n').flatMap((line) => {
-    try {
-      return [JSON.parse(line) as unknown]
-    } catch {
-      return []
-    }
-  })
-}
-
 const doctorReport = z.object({
   ok: z.literal(true),
   results: z.array(z.object({status: z.literal('pass')})).min(1),
@@ -219,8 +125,8 @@ async function harnessSmoke(): Promise<HarnessSmokeCheck[]> {
 
     // Package caches stay inside the sandbox, so each run fetches exactly the pinned versions.
     const cliEnv = {...env, BUN_INSTALL_CACHE_DIR: join(sandbox.root, 'bun-cache')}
-    const claude = ['bunx', `@anthropic-ai/claude-code@${CLAUDE_VERSION}`]
-    const droid = ['bunx', `droid@${DROID_VERSION}`]
+    const claude = claudeCli
+    const droid = droidCli
 
     // Claude Code: the init event lists discovered skills and slash commands.
     const claudeVersion = await run([...claude, '--version'], projects.claude, cliEnv, deadline, 180000)
@@ -238,11 +144,6 @@ async function harnessSmoke(): Promise<HarnessSmokeCheck[]> {
     )
     const events = parseEvents(probe.stdout)
     const init = events.map((event) => initEvent.safeParse(event)).find((parsed) => parsed.success)?.data
-    const result = events.map((event) => resultEvent.safeParse(event)).find((parsed) => parsed.success)?.data
-    const models = events.flatMap((event) => {
-      const parsed = assistantEvent.safeParse(event)
-      return parsed.success ? [parsed.data.message.model] : []
-    })
     const completed = !probe.timedOut && !probe.error && probe.code !== null
     record('claude probe finished within its deadline', completed, diagnostic(probe))
     record(
@@ -255,16 +156,8 @@ async function harnessSmoke(): Promise<HarnessSmokeCheck[]> {
       completed && EXPECTED_COMMANDS.every((command) => init?.slash_commands.includes(command)),
       `expected ${EXPECTED_COMMANDS.join(',')} in slash_commands: ${init?.slash_commands.join(',') ?? '(no init event)'}`,
     )
-    record(
-      'claude made no model call',
-      completed &&
-        result !== undefined &&
-        result.total_cost_usd === 0 &&
-        result.duration_api_ms === 0 &&
-        Object.keys(result.modelUsage).length === 0 &&
-        models.every((model) => model === '<synthetic>'),
-      `result: ${JSON.stringify(result ?? null)}; assistant models: ${models.join(',') || '(none)'}`,
-    )
+    const noModel = claudeMadeNoModelCall(events)
+    record('claude made no model call', completed && noModel.ok, noModel.detail)
 
     // Droid: no offline listing command exists (see header); the synced files are asserted on disk above.
     const droidVersion = await run([...droid, '--version'], projects.droid, cliEnv, deadline, 180000)

@@ -15,9 +15,13 @@ permissions:
 
 jobs:
   lanes:
-    name: ${{ matrix.lane }}
+    name: ${{ matrix.harness && format('{0} ({1}, {2} scope)', matrix.lane, matrix.harness, matrix.scope) || matrix.lane }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    # Selects the plugin-load-check job; empty for every other lane. No lane receives secrets or auth env.
+    env:
+      LOAD_CHECK_HARNESS: ${{ matrix.harness }}
+      LOAD_CHECK_SCOPE: ${{ matrix.scope }}
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +41,34 @@ jobs:
           - {lane: native-windows, os: windows-latest, checks: ['build', 'test:platform', 'test:compiled']}
           - {lane: build, os: ubuntu-latest, checks: ['build', 'test:compiled']}
           - {lane: harness-smoke, os: ubuntu-latest, checks: ['build', 'test:harness-smoke']}
+          - {
+              lane: plugin-load-check,
+              os: ubuntu-latest,
+              harness: claude-code,
+              scope: user,
+              checks: ['build', 'test:plugin-load-check'],
+            }
+          - {
+              lane: plugin-load-check,
+              os: ubuntu-latest,
+              harness: claude-code,
+              scope: project,
+              checks: ['build', 'test:plugin-load-check'],
+            }
+          - {
+              lane: plugin-load-check,
+              os: ubuntu-latest,
+              harness: droid,
+              scope: user,
+              checks: ['build', 'test:plugin-load-check'],
+            }
+          - {
+              lane: plugin-load-check,
+              os: ubuntu-latest,
+              harness: droid,
+              scope: project,
+              checks: ['build', 'test:plugin-load-check'],
+            }
     steps:
       - uses: actions/checkout@v4
         with:
