@@ -1,31 +1,26 @@
-import type {
-  PluginComponent,
-  PluginComponentKind,
-  PluginFile,
-  PluginHarnessId,
-  PluginManifest,
-  PluginPackage,
-} from './types'
-import {FORGE_NAMESPACE, PLUGIN_COMPONENT_KINDS as K, PLUGIN_HARNESS_IDS, VENDOR_NAMESPACES} from './types'
+import type {ComponentKind} from '../harnesses/types'
+import {COMPONENT_KINDS as K} from '../harnesses/types'
+import type {PluginComponent, PluginFile, PluginHarnessId, PluginManifest, PluginPackage} from './types'
+import {FORGE_NAMESPACE, PLUGIN_HARNESS_IDS, VENDOR_NAMESPACES} from './types'
 
-const PORTABLE_KINDS = new Set<PluginComponentKind>([K.SKILL, K.MCP])
-const SINGLE_FILES: Record<string, PluginComponentKind> = {
+const PORTABLE_KINDS = new Set<ComponentKind>([K.SKILL, K.MCP])
+const SINGLE_FILES: Record<string, ComponentKind> = {
   'mcp.json': K.MCP,
   'lsp.json': K.LSP,
   'settings.json': K.SETTING,
 }
-const MARKDOWN_DIRS: Record<string, PluginComponentKind> = {
+const MARKDOWN_DIRS: Record<string, ComponentKind> = {
   agents: K.AGENT,
   commands: K.COMMAND,
   rules: K.RULE,
   'output-styles': K.OUTPUT_STYLE,
 }
 /** Directory components exist only when they carry this file. */
-const REQUIRED_FILE: Partial<Record<PluginComponentKind, string>> = {[K.SKILL]: 'SKILL.md', [K.HOOK]: 'hooks.json'}
+const REQUIRED_FILE: Partial<Record<ComponentKind, string>> = {[K.SKILL]: 'SKILL.md', [K.HOOK]: 'hooks.json'}
 const LAYERS = new Set([FORGE_NAMESPACE, ...Object.values(VENDOR_NAMESPACES)])
 
 interface Slot {
-  kind: PluginComponentKind
+  kind: ComponentKind
   name: string
   root: string
 }

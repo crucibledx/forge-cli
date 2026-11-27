@@ -1,11 +1,13 @@
-import type {PluginComponent, PluginComponentKind, PluginHarnessId, PluginPackage} from './types'
-import {PLUGIN_COMPONENT_KINDS as K, PLUGIN_HARNESS_IDS, PLUGIN_HARNESSES as H} from './types'
+import type {ComponentKind} from '../harnesses/types'
+import {COMPONENT_KINDS as K} from '../harnesses/types'
+import type {PluginComponent, PluginHarnessId, PluginPackage} from './types'
+import {PLUGIN_HARNESS_IDS, PLUGIN_HARNESSES as H} from './types'
 
 export const PORTABILITY_STATUSES = {ADAPTED: 'adapted', APPROXIMATED: 'approximated', DROPPED: 'dropped'} as const
 export type PortabilityStatus = (typeof PORTABILITY_STATUSES)[keyof typeof PORTABILITY_STATUSES]
 
 export interface PortabilityEntry {
-  kind: PluginComponentKind
+  kind: ComponentKind
   name: string
   status: PortabilityStatus
   detail: string
@@ -19,7 +21,7 @@ const settingsDropped: Adaptation = () => ({
 })
 
 /** Spec 0003 §2: every kind not listed here is native for that harness. */
-const ADAPTATIONS: Record<PluginHarnessId, Partial<Record<PluginComponentKind, Adaptation>>> = {
+const ADAPTATIONS: Record<PluginHarnessId, Partial<Record<ComponentKind, Adaptation>>> = {
   [H.CLAUDE_CODE]: {
     [K.RULE]: (rule, plugin) => ({
       status: S.ADAPTED,

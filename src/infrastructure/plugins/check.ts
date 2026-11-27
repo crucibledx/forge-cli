@@ -1,7 +1,8 @@
 import {stat} from 'node:fs/promises'
 
+import {COMPONENT_KINDS as K} from '@domain/harnesses/types'
 import type {PluginFile, PluginPackage} from '@domain/plugins'
-import {buildPluginPackage, PLUGIN_COMPONENT_KINDS as K} from '@domain/plugins'
+import {buildPluginPackage} from '@domain/plugins'
 
 import {readPluginFiles} from './files'
 import {checkManifest, checkMcpConfig} from './manifest'
