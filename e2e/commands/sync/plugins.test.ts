@@ -5,7 +5,7 @@
  */
 
 import {existsSync} from 'node:fs'
-import {chmod, mkdir, readFile, realpath, rename, rm, stat, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, readFile, realpath, rename, rm, stat, symlink, writeFile} from 'node:fs/promises'
 import {delimiter, join} from 'node:path'
 
 import {describe, expect, it} from 'bun:test'
@@ -37,10 +37,20 @@ const writeNodeShim = async (dir: string) => {
   }
 }
 
-/** A 'node' PATH entry that exists but cannot run, shadowing any real node later on PATH (first match wins). */
-const writeBlockedNodeShim = async (dir: string) => {
-  if (process.platform === 'win32') await mkdir(join(dir, 'node.exe'), {recursive: true})
-  else await writeFile(join(dir, 'node'), '#!/bin/sh\nexit 0\n', {mode: 0o644})
+/**
+ * A PATH containing only what the test plants, so "node absent" or "node present" is true regardless
+ * of the machine. POSIX also plants the ps the framework's cleanup probe spawns (framework/process.ts),
+ * resolved from the test's own PATH; Windows cleanup uses job objects and needs nothing. Verified:
+ * `bun run <file>` adds no node shim to the child's PATH, so nothing reintroduces node.
+ */
+const writePathFixture = async (dir: string, {node}: {node: boolean}) => {
+  await mkdir(dir, {recursive: true})
+  if (node) await writeNodeShim(dir)
+  if (process.platform !== 'win32') {
+    const ps = Bun.which('ps')
+    if (ps === null) throw new Error('ps is not on the test PATH; the framework cleanup probe needs it')
+    await symlink(ps, join(dir, 'ps'))
+  }
 }
 
 describe('forge sync — Droid plugin delivery', () => {
@@ -418,7 +428,6 @@ describe('forge sync — Droid plugin delivery', () => {
   it('fails with an actionable error when a rules plugin needs node for its Droid hook and node is not on PATH', async () => {
     const dir = getDir()
     const proj = join(dir, 'proj')
-    const shim = join(dir, 'bin')
     const plugin = join(dir, 'plugin')
     await writeSourceTree(plugin, {
       'plugin.json': pluginManifest('hello', '1.0.0'),
@@ -426,21 +435,19 @@ describe('forge sync — Droid plugin delivery', () => {
     })
     await writeConfig(proj, buildConfigYaml({assistants: ['droid']}) + pluginsBlock(localPlugin(plugin)))
 
-    // A shadowing non-runnable 'node' entry keeps the machine's real node unreachable without relying on
-    // where the machine keeps it, and leaves the system directories the test framework itself needs on PATH.
-    const blockedDir = join(dir, 'blocked')
-    await mkdir(blockedDir, {recursive: true})
-    await writeBlockedNodeShim(blockedDir)
-    const basePath = ['/usr/bin', '/bin'].join(delimiter)
-    const blocked = await runCommand(proj, 'sync', [], {PATH: [blockedDir, basePath].join(delimiter)})
+    // Synthetic PATHs holding only what this test plants: node is genuinely absent in the blocked
+    // case and present in the allowed case, whatever the machine's real PATH looks like.
+    const blockedDir = join(dir, 'blocked-path')
+    await writePathFixture(blockedDir, {node: false})
+    const blocked = await runCommand(proj, 'sync', [], {PATH: blockedDir})
     expect(blocked.exitCode).toBe(1)
     expect(blocked.output).toContain('node')
     expect(blocked.output).toContain('hello')
     expect(existsSync(join(proj, '.crucible/plugins'))).toBe(false)
 
-    await mkdir(shim, {recursive: true})
-    await writeNodeShim(shim)
-    const allowed = await runCommand(proj, 'sync', [], {PATH: [shim, basePath].join(delimiter)})
+    const allowedDir = join(dir, 'allowed-path')
+    await writePathFixture(allowedDir, {node: true})
+    const allowed = await runCommand(proj, 'sync', [], {PATH: allowedDir})
     expect(allowed.exitCode).toBe(0)
     expect(existsSync(join(proj, '.crucible/plugins/hello/1.0.0/droid/forge/print-rules.cjs'))).toBe(true)
   })
